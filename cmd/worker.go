@@ -257,6 +257,8 @@ func registerTasksWorkflows(w worker.Worker) {
 
 	// Processing workflows
 	w.RegisterWorkflow(workflow.ProcessPlayersWorkflow)
+	w.RegisterWorkflow(workflow.ProcessPlayersWorkflowContinueV2)
+	// Legacy continuation: chains started before the player manifest.
 	w.RegisterWorkflow(workflow.ProcessPlayersWorkflowContinue)
 	w.RegisterWorkflow(workflow.InitializeWorkflow)
 	w.RegisterWorkflow(workflow.ExtractBoxscorePlayersWorkflow)
@@ -493,6 +495,7 @@ func registerPlayerActivities(w worker.Worker, d taskActivityDeps) {
 		Queries:                d.queries,
 		CareerQueries:          d.queries,
 		BoxscorePlayerCacheTTL: d.boxscorePlayerCacheTTL,
+		Manifests:              workplayer.NewPgProcessPlayersStore(d.pool),
 	}
 	w.RegisterActivity(playerActivities.FetchPlayerLandingsBatch)
 	w.RegisterActivity(playerActivities.DownloadPlayerGameLogsBatch)
@@ -500,7 +503,12 @@ func registerPlayerActivities(w worker.Worker, d taskActivityDeps) {
 	w.RegisterActivity(playerActivities.LoadAllBoxscorePlayers)
 	w.RegisterActivity(playerActivities.ConsolidateBoxscorePlayersActivity)
 	w.RegisterActivity(playerActivities.CountPlayersForAllSeasons)
-	w.RegisterActivity(playerActivities.ProcessPlayerBatch)
+	w.RegisterActivity(playerActivities.ProcessPlayerBatch) // legacy chains only
+	w.RegisterActivity(playerActivities.CreateProcessPlayersManifest)
+	w.RegisterActivity(playerActivities.ProcessPlayerManifestBatch)
+	w.RegisterActivity(playerActivities.RecordProcessPlayersErrors)
+	w.RegisterActivity(playerActivities.FinishProcessPlayersManifest)
+	w.RegisterActivity(playerActivities.EnsureYahooIDPool)
 	w.RegisterActivity(playerActivities.ListYahooPlayerFiles)
 	w.RegisterActivity(playerActivities.ParseYahooPlayerBatch)
 	w.RegisterActivity(playerActivities.SaveYahooPlayersToRedis)

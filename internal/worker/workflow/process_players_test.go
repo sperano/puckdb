@@ -58,10 +58,7 @@ const yahooPlayersPerTestBatch = 1
 // Phase 1 grows the Yahoo bar from one step to one per Yahoo player batch;
 // the saved report's Total must follow, so Completed never exceeds it.
 func (s *ProcessPlayersWorkflowTestSuite) TestProcessPlayersWorkflow_Phase1_SavedTotalMatchesBars() {
-	players := []store.BoxscorePlayer{
-		{ID: 8471214, FirstName: "Sidney", LastName: "Crosby"},
-		{ID: 8478402, FirstName: "Connor", LastName: "McDavid"},
-	}
+	const players = 2
 	// One Yahoo player per batch, so the Yahoo bar needs more than one step.
 	batchSize := yahooPlayersPerTestBatch
 	yahooIDs := s.mockPhaseLoadYahooSuccess(players)
@@ -73,7 +70,7 @@ func (s *ProcessPlayersWorkflowTestSuite) TestProcessPlayersWorkflow_Phase1_Save
 	yahooBatches := shared.BatchCount(len(yahooIDs), batchSize)
 	s.Require().Greater(yahooBatches, processPlayersYahooEstimate)
 	report := lastSaved()
-	requireTotalIsBarSum(s.T(), report, yahooBatches+len(players)+processPlayersUnmatchedEstimate)
+	requireTotalIsBarSum(s.T(), report, yahooBatches+players+processPlayersUnmatchedEstimate)
 	s.LessOrEqual(report.Completed, report.Total)
 }
 
@@ -110,12 +107,13 @@ func (s *ProcessPlayersWorkflowTestSuite) TestProcessPlayersWorkflow_Phase3_Save
 }
 
 // mockPhaseLoadYahooSuccess mocks the activities ProcessPlayersWorkflow runs
-// up to its ContinueAsNew into Phase 2, loading players from the boxscores,
-// and returns the Yahoo player IDs the listing activity reports.
-func (s *ProcessPlayersWorkflowTestSuite) mockPhaseLoadYahooSuccess(players []store.BoxscorePlayer) []store.YahooPlayerID {
+// up to its ContinueAsNew into Phase 2, with a manifest of playerCount
+// players, and returns the Yahoo player IDs the listing activity reports.
+func (s *ProcessPlayersWorkflowTestSuite) mockPhaseLoadYahooSuccess(playerCount int) []store.YahooPlayerID {
 	yahooIDs := []store.YahooPlayerID{1, 2, 3}
 	var playerAct *workplayer.Activities
-	s.env.OnActivity(playerAct.LoadAllBoxscorePlayers, mock.Anything).Return(players, nil)
+	s.env.OnActivity(playerAct.CreateProcessPlayersManifest, mock.Anything, mock.Anything).Return(
+		workplayer.ManifestRef{ID: "run", Count: playerCount, Hash: "h"}, nil)
 	s.env.OnActivity(playerAct.ListYahooPlayerFiles, mock.Anything).Return(yahooIDs, nil)
 	s.env.OnActivity(playerAct.ParseYahooPlayerBatch, mock.Anything, mock.Anything).Return(
 		[]store.YahooPlayer{{YahooID: 1, FirstName: "Test", LastName: "Player"}}, nil)

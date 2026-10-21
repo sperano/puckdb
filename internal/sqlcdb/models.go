@@ -1754,6 +1754,31 @@ type PlayerSeasonTotal struct {
 	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
 }
 
+type ProcessPlayersManifest struct {
+	ID          string             `json:"id"`
+	WorkflowID  string             `json:"workflow_id"`
+	PlayerCount int32              `json:"player_count"`
+	PlayersHash []byte             `json:"players_hash"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	FinishedAt  pgtype.Timestamptz `json:"finished_at"`
+}
+
+type ProcessPlayersManifestError struct {
+	ManifestID string `json:"manifest_id"`
+	PlayerID   int64  `json:"player_id"`
+	Stage      string `json:"stage"`
+	Message    string `json:"message"`
+}
+
+type ProcessPlayersManifestPlayer struct {
+	ManifestID string `json:"manifest_id"`
+	Ordinal    int32  `json:"ordinal"`
+	PlayerID   int64  `json:"player_id"`
+	FirstName  string `json:"first_name"`
+	LastName   string `json:"last_name"`
+	Position   string `json:"position"`
+}
+
 type ProjectionEvaluation struct {
 	ID              pgtype.UUID        `json:"id"`
 	ModelVersion    string             `json:"model_version"`

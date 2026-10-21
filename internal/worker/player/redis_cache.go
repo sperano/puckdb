@@ -37,6 +37,9 @@ type SaveYahooIDPoolResult struct {
 	TotalPlayers     int // Total Yahoo players provided
 	AvailablePlayers int // Players added to the available pool
 	SkippedNonNHL    int // Players skipped because they're verified non-NHL
+	// PoolSize is the pool hash size measured after the save (players with
+	// the same Yahoo ID count once); EnsureYahooIDPool checks against it.
+	PoolSize int
 }
 
 // LoadYahooIDPool loads all Yahoo players from Redis.
