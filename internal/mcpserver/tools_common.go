@@ -325,23 +325,3 @@ func optionalString(req mcp.CallToolRequest, name string) (string, *mcp.CallTool
 	}
 	return text, nil
 }
-
-// optionalNonEmptyFilter reads an optional string filter argument; given is
-// false only when the argument is absent, so an explicitly supplied empty
-// string is refused rather than silently treated the same as absent (which
-// would let it pass an exactlyOne check meant to catch both alternatives
-// given at once).
-func optionalNonEmptyFilter(req mcp.CallToolRequest, name string) (value string, given bool, errResult *mcp.CallToolResult) {
-	raw, present := argument(req, name)
-	if !present {
-		return "", false, nil
-	}
-	text, isString := raw.(string)
-	if !isString {
-		return "", false, mcp.NewToolResultError(fmt.Sprintf("invalid %s %s: want a string", name, formatRaw(raw)))
-	}
-	if text == "" {
-		return "", false, mcp.NewToolResultError(name + " must not be empty")
-	}
-	return text, true, nil
-}
