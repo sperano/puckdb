@@ -325,6 +325,15 @@ var omittedNHLArgs = map[string]string{
 	"get_awards":          trophyArg,
 }
 
+// transformedNHLArgs are (tool, number argument) pairs whose bound value is
+// deliberately not the raw argument: get_awards' season converts a season
+// ID to the start year player_awards.season stores (awardSeasonStartYearDivisor),
+// which TestAwardsBindsSeasonOrTrophy checks directly. Exempted from the
+// unchanged-value check in TestNHLToolsAcceptValidCalls below.
+var transformedNHLArgs = map[string]string{
+	"get_awards": seasonParam.name,
+}
+
 // validNHLCall builds a valid call of tool from its schema.
 func validNHLCall(t *testing.T, tool mcp.Tool) map[string]any {
 	t.Helper()
@@ -386,6 +395,9 @@ func TestNHLToolsAcceptValidCalls(t *testing.T) {
 			require.NotEmpty(t, db.calls, resultText(t, result))
 			assert.NotContains(t, resultText(t, result), "invalid ")
 			for _, arg := range numberArgs(tool.Tool) {
+				if transformedNHLArgs[tool.Tool.Name] == arg {
+					continue
+				}
 				want := args[arg]
 				if items, isArray := want.([]any); isArray {
 					want = items[0]

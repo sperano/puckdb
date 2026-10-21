@@ -68,11 +68,13 @@ func TestAwardsRequiresExactlyOneOfSeasonOrTrophy(t *testing.T) {
 
 func TestAwardsBindsSeasonOrTrophy(t *testing.T) {
 	t.Run("season", func(t *testing.T) {
+		// player_awards.season stores the start year, not the full season
+		// ID the tool argument takes; the handler must convert.
 		result, db := callNHLTool(t, "get_awards", map[string]any{"season": float64(testSeasonID)})
 		require.False(t, result.IsError, resultText(t, result))
 		require.Len(t, db.calls, 1)
 		assert.Contains(t, db.calls[0].sql, "name: GetAwardsBySeason")
-		assert.Equal(t, []any{testSeasonID}, db.calls[0].args)
+		assert.Equal(t, []any{testSeasonID / awardSeasonStartYearDivisor}, db.calls[0].args)
 	})
 	t.Run("trophy", func(t *testing.T) {
 		const trophy = "Hart Memorial Trophy"
@@ -85,14 +87,19 @@ func TestAwardsBindsSeasonOrTrophy(t *testing.T) {
 }
 
 // Fixture for the PostgreSQL-backed get_awards test: a season, player and
-// trophy pair no import uses.
+// trophy pair no import uses. player_awards.season holds the start year
+// (awardsTestStartYear), as the importer writes it; awardsTestSeasonID is
+// the full season ID the tool's "season" argument takes, which the handler
+// must convert down to the start year before it reaches SQL.
 const (
-	awardsTestSeason      = 30004001
-	awardsTestOtherSeason = 30004002
-	awardsTestPlayerID    = 9704001
-	awardsTestOtherID     = 9704002
-	awardsTestTrophy      = "Fixture Memorial Trophy"
-	awardsTestOtherTrophy = "Other Fixture Trophy"
+	awardsTestStartYear      = 3000
+	awardsTestOtherStartYear = 3001
+	awardsTestSeasonID       = awardsTestStartYear*10000 + awardsTestStartYear + 1
+	awardsTestOtherSeasonID  = awardsTestOtherStartYear*10000 + awardsTestOtherStartYear + 1
+	awardsTestPlayerID       = 9704001
+	awardsTestOtherID        = 9704002
+	awardsTestTrophy         = "Fixture Memorial Trophy"
+	awardsTestOtherTrophy    = "Other Fixture Trophy"
 )
 
 // TestAwardsFromDatabase runs the tool against the real queries: filtering
@@ -107,7 +114,7 @@ func TestAwardsFromDatabase(t *testing.T) {
 	tool := awardsTool(sqlcdb.New(pool))
 
 	t.Run("by season", func(t *testing.T) {
-		result := callTool(t, tool.Handler, map[string]any{"season": float64(awardsTestSeason)})
+		result := callTool(t, tool.Handler, map[string]any{"season": float64(awardsTestSeasonID)})
 		text := resultText(t, result)
 		require.False(t, result.IsError, text)
 		rows := parseCSV(t, text)
@@ -138,8 +145,8 @@ func TestAwardsFromDatabase(t *testing.T) {
 			got = append(got, row[columnIndex(t, header, "season")])
 		}
 		assert.Equal(t, []string{
-			strconv.Itoa(awardsTestOtherSeason),
-			strconv.Itoa(awardsTestSeason),
+			strconv.Itoa(awardsTestOtherStartYear),
+			strconv.Itoa(awardsTestStartYear),
 		}, got)
 	})
 }
@@ -155,11 +162,11 @@ func seedAwardsFixture(t *testing.T, pool *pgxpool.Pool) {
 	exec(`INSERT INTO players (id, first_name, last_name) VALUES ($1, 'Fixture', 'Winner')`, awardsTestPlayerID)
 	exec(`INSERT INTO players (id, first_name, last_name) VALUES ($1, 'Fixture', 'OtherWinner')`, awardsTestOtherID)
 	exec(`INSERT INTO player_awards (player_id, trophy_name, season) VALUES ($1, $2, $3)`,
-		awardsTestPlayerID, awardsTestTrophy, awardsTestSeason)
+		awardsTestPlayerID, awardsTestTrophy, awardsTestStartYear)
 	exec(`INSERT INTO player_awards (player_id, trophy_name, season) VALUES ($1, $2, $3)`,
-		awardsTestOtherID, awardsTestOtherTrophy, awardsTestSeason)
+		awardsTestOtherID, awardsTestOtherTrophy, awardsTestStartYear)
 	exec(`INSERT INTO player_awards (player_id, trophy_name, season) VALUES ($1, $2, $3)`,
-		awardsTestPlayerID, awardsTestTrophy, awardsTestOtherSeason)
+		awardsTestPlayerID, awardsTestTrophy, awardsTestOtherStartYear)
 }
 
 func deleteAwardsFixture(t *testing.T, pool *pgxpool.Pool) {
