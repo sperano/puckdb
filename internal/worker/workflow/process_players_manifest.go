@@ -48,6 +48,25 @@ type processPlayersTotals struct {
 	Origins    core.OriginCounts
 }
 
+// validate rejects a state run 1 could not have produced: a zero batch size
+// or window would loop forever, and a cursor outside the manifest would
+// skip or repeat players.
+func (s *processPlayersState) validate() error {
+	if s == nil || s.Progress == nil {
+		return errors.New("process players continuation without state")
+	}
+	cfg := s.Config
+	if cfg.BatchSize <= 0 || cfg.Concurrency <= 0 || cfg.PlayersPerExec <= 0 {
+		return fmt.Errorf("process players continuation with invalid config %+v", cfg)
+	}
+	if s.Manifest.Count <= 0 || s.Cursor < 0 || s.Cursor > s.Manifest.Count ||
+		(s.Phase == phaseProcessPlayers && s.Cursor == s.Manifest.Count) {
+		return fmt.Errorf("process players continuation with cursor %d in phase %s of a %d-player manifest",
+			s.Cursor, s.Phase, s.Manifest.Count)
+	}
+	return nil
+}
+
 // add counts one completed batch.
 func (t *processPlayersTotals) add(result workplayer.ProcessPlayerBatchResult) {
 	t.Downloaded += result.Downloaded
@@ -73,6 +92,9 @@ func (s *processPlayersState) countErrors(errs []workplayer.PlayerError) {
 
 // truncateRunes returns s cut to at most maxRunes runes.
 func truncateRunes(s string, maxRunes int) string {
+	if len(s) <= maxRunes {
+		return s
+	}
 	runes := []rune(s)
 	if len(runes) <= maxRunes {
 		return s
@@ -89,7 +111,7 @@ type ordinalRange struct {
 // manifestBatches splits the ordinals [from, to) into batches of at most
 // batchSize.
 func manifestBatches(from, to, batchSize int) []ordinalRange {
-	var batches []ordinalRange
+	batches := make([]ordinalRange, 0, shared.BatchCount(to-from, batchSize))
 	for start := from; start < to; start += batchSize {
 		batches = append(batches, ordinalRange{From: start, To: min(start+batchSize, to)})
 	}
@@ -151,8 +173,8 @@ func runManifestFirstExecution(ctx workflow.Context, cfg processPlayersConfig) (
 // ProcessPlayersWorkflowContinueV2 is every execution of a manifest chain
 // after run 1.
 func ProcessPlayersWorkflowContinueV2(ctx workflow.Context, state *processPlayersState) (*ProcessPlayersResult, error) {
-	if state == nil || state.Progress == nil {
-		return nil, errors.New("process players continuation without state")
+	if err := state.validate(); err != nil {
+		return nil, err
 	}
 	tracker, err := shared.InitTracker(ctx, state.Progress)
 	if err != nil {
@@ -218,6 +240,7 @@ func runManifestWindow(ctx workflow.Context, tracker *shared.ReportTracker, stat
 		func(_ workflow.Context, i int) workflow.Future {
 			return workflow.ExecuteActivity(ctx, playerAct.ProcessPlayerManifestBatch, workplayer.ManifestBatchInput{
 				Manifest: state.Manifest, From: batches[i].From, To: batches[i].To,
+				YahooPoolSize: state.YahooPool.PoolSize,
 			})
 		},
 		func(ctx workflow.Context, _ int, f workflow.Future) error {
@@ -288,15 +311,7 @@ func runManifestVerify(ctx workflow.Context, tracker *shared.ReportTracker, stat
 	tracker.Save(ctx)
 	unmatchedReport := verifyUnmatchedPlayers(ctx, tracker, unmatchedPlayers)
 
-	var playerAct *workplayer.Activities
-	var storedErrors int
-	if err := workflow.ExecuteActivity(ctx, playerAct.FinishProcessPlayersManifest, state.Manifest.ID).Get(ctx, &storedErrors); err != nil {
-		return nil, fmt.Errorf("finish process players manifest: %w", err)
-	}
-	if storedErrors != state.Totals.Errors {
-		logger.Warn("Manifest error table does not match the carried error count",
-			"manifest", state.Manifest.ID, "stored", storedErrors, "carried", state.Totals.Errors)
-	}
+	finishManifest(ctx, state)
 
 	totals := state.Totals
 	tracker.CompleteGroup(ctx, GroupVerifyUnmatched,
@@ -324,6 +339,22 @@ func runManifestVerify(ctx workflow.Context, tracker *shared.ReportTracker, stat
 			totals.Errors, state.Manifest.ID, len(state.ErrorSample), strings.Join(state.ErrorSample, "\n  "))
 	}
 	return result, nil
+}
+
+// finishManifest marks the manifest finished. Its failure only loses that
+// bookkeeping, so it is logged and the chain still reports its result.
+func finishManifest(ctx workflow.Context, state *processPlayersState) {
+	logger := workflow.GetLogger(ctx)
+	var playerAct *workplayer.Activities
+	var storedErrors int
+	if err := workflow.ExecuteActivity(ctx, playerAct.FinishProcessPlayersManifest, state.Manifest.ID).Get(ctx, &storedErrors); err != nil {
+		logger.Warn("Failed to finish process players manifest", "manifest", state.Manifest.ID, "error", err)
+		return
+	}
+	if storedErrors != state.Totals.Errors {
+		logger.Warn("Manifest error table does not match the carried error count",
+			"manifest", state.Manifest.ID, "stored", storedErrors, "carried", state.Totals.Errors)
+	}
 }
 
 // manifestResult builds the workflow result of a finished manifest chain.

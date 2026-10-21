@@ -201,7 +201,10 @@ func (s *ManifestActivitySuite) TestBatch_RejectsAManifestThatIsGoneOrChanged() 
 	s.requireManifestMissing(err, "changed")
 
 	_, err = s.env.ExecuteActivity(s.act.ProcessPlayerManifestBatch, ManifestBatchInput{Manifest: ref, From: 1, To: 3})
-	s.requireManifestMissing(err, "outside")
+	var appErr *temporal.ApplicationError
+	s.Require().ErrorAs(err, &appErr)
+	s.Equal(InvalidManifestWindowErrorType, appErr.Type())
+	s.True(appErr.NonRetryable())
 }
 
 func (s *ManifestActivitySuite) TestBatch_RejectsAShortWindow() {
@@ -250,6 +253,34 @@ func (s *ManifestActivitySuite) TestBatch_ProcessesItsWindowAndReturnsErrorsWith
 		result.PlayerErrors)
 	upserter.AssertExpectations(s.T())
 	upserter.AssertNumberOfCalls(s.T(), "UpsertPlayer", 2)
+}
+
+func (s *ManifestActivitySuite) TestBatch_RebuildsAPoolLostDuringTheExecution() {
+	player := store.BoxscorePlayer{ID: 1, FirstName: "Only", LastName: "Player", Position: "C"}
+	ref := s.putManifest("run-1", player)
+	s.writeMissingLanding(player)
+	require.NoError(s.T(), s.act.Storage.Write(context.Background(),
+		resource.YahooPlayer{PlayerID: 97}.Path(), []byte(sampleYahooPlayerHTML)))
+	upserter := NewMockPlayerUpserter()
+	upserter.On("UpsertPlayer", mock.Anything, mock.Anything).Return(nil)
+	s.act.Queries = upserter
+
+	_, err := s.env.ExecuteActivity(s.act.ProcessPlayerManifestBatch,
+		ManifestBatchInput{Manifest: ref, From: 0, To: 1, YahooPoolSize: 1})
+	s.Require().NoError(err)
+
+	pool, err := LoadYahooIDPool(context.Background(), s.redis)
+	s.Require().NoError(err)
+	s.Len(pool, 1, "the batch rebuilt the expired pool before matching")
+}
+
+func (s *ManifestActivitySuite) TestBatch_LegacyBatchesDoNotRebuildThePool() {
+	require.NoError(s.T(), s.act.Storage.Write(context.Background(),
+		resource.YahooPlayer{PlayerID: 97}.Path(), []byte(sampleYahooPlayerHTML)))
+
+	pool, err := s.act.loadYahooIDPool(context.Background(), 0)
+	s.Require().NoError(err)
+	s.Empty(pool)
 }
 
 func (s *ManifestActivitySuite) TestRecordAndFinish() {

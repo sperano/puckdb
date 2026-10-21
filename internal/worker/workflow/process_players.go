@@ -49,15 +49,14 @@ func (p processPlayersPhase) String() string {
 // Each batch internally rate-limits NHL API calls, so parallel batches are safe.
 const verifyConcurrency = 10
 
-// processPlayersManifestChangeID versions run 1 of ProcessPlayersWorkflow:
+// processPlayersManifestChangeID is the GetVersion change ID of run 1 of
+// ProcessPlayersWorkflow. workflow.DefaultVersion (a run 1 recorded before
+// the change) keeps the legacy path.
+const processPlayersManifestChangeID = "process-players-manifest"
+
 // processPlayersManifestVersion copies the player list into a durable
-// manifest and continues as ProcessPlayersWorkflowContinueV2;
-// workflow.DefaultVersion (a run 1 recorded before the change) keeps the
-// legacy path.
-const (
-	processPlayersManifestChangeID                  = "process-players-manifest"
-	processPlayersManifestVersion  workflow.Version = 1
-)
+// manifest and continues as ProcessPlayersWorkflowContinueV2.
+const processPlayersManifestVersion workflow.Version = 1
 
 // ProcessPlayersInput contains parameters for the process players workflow.
 type ProcessPlayersInput struct {

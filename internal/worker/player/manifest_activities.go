@@ -52,11 +52,13 @@ func (a *Activities) CreateProcessPlayersManifest(ctx context.Context, input Cre
 }
 
 // ManifestBatchInput is one batch of a ProcessPlayers chain: the manifest
-// ordinals [From, To).
+// ordinals [From, To), and the Yahoo ID pool size the chain saved (an empty
+// pool is rebuilt when it is positive).
 type ManifestBatchInput struct {
-	Manifest ManifestRef
-	From     int
-	To       int
+	Manifest      ManifestRef
+	From          int
+	To            int
+	YahooPoolSize int
 }
 
 // ManifestBatchResult is ProcessPlayerBatchResult (without Errors) plus the
@@ -75,7 +77,7 @@ func (a *Activities) ProcessPlayerManifestBatch(ctx context.Context, input Manif
 	if err != nil {
 		return ManifestBatchResult{}, err
 	}
-	out, err := a.processPlayerBatch(ctx, players)
+	out, err := a.processPlayerBatch(ctx, players, input.YahooPoolSize)
 	return ManifestBatchResult{ProcessPlayerBatchResult: out.result, PlayerErrors: out.errors}, err
 }
 
@@ -86,7 +88,7 @@ func (a *Activities) loadManifestWindow(ctx context.Context, input ManifestBatch
 	if input.From < 0 || input.From >= input.To || input.To > ref.Count {
 		return nil, temporal.NewNonRetryableApplicationError(
 			fmt.Sprintf("manifest %s: window [%d, %d) outside [0, %d)", ref.ID, input.From, input.To, ref.Count),
-			ManifestMissingErrorType, nil)
+			InvalidManifestWindowErrorType, nil)
 	}
 	stored, err := a.Manifests.GetManifest(ctx, ref.ID)
 	if errors.Is(err, ErrManifestNotFound) {

@@ -19,6 +19,10 @@ import (
 // be started again.
 const ManifestMissingErrorType = "ProcessPlayersManifestMissing"
 
+// InvalidManifestWindowErrorType is the non-retryable ApplicationError type
+// of a batch whose ordinals fall outside its manifest: a workflow bug.
+const InvalidManifestWindowErrorType = "ProcessPlayersInvalidManifestWindow"
+
 // ProcessPlayersManifestRetention is how many manifests (with their players
 // and errors) are kept; creating one deletes the older ones.
 const ProcessPlayersManifestRetention = 3
@@ -36,8 +40,9 @@ type ManifestRef struct {
 	Hash  string
 }
 
-// ProcessPlayersStore is the durable storage behind a ProcessPlayers chain:
-// its player manifest and per-player errors.
+// ProcessPlayersStore is the PostgreSQL state behind a ProcessPlayers chain:
+// its player manifest and per-player errors, and the Yahoo IDs already
+// matched, which a rebuilt Yahoo ID pool leaves out of its available set.
 type ProcessPlayersStore interface {
 	// GetManifest returns the manifest's reference, or ErrManifestNotFound.
 	GetManifest(ctx context.Context, id string) (ManifestRef, error)
@@ -76,7 +81,8 @@ func sortManifestPlayers(players []store.BoxscorePlayer) []store.BoxscorePlayer 
 
 // hashManifestPlayers returns the sha256 of the ordered players: each ID as
 // 8 big-endian bytes and each text field prefixed by its 4-byte length, so
-// two different field splits never hash the same.
+// two different field splits never hash the same. hash.Hash.Write never
+// returns an error, and a field longer than 4 GiB cannot reach here.
 func hashManifestPlayers(players []store.BoxscorePlayer) []byte {
 	h := sha256.New()
 	var buf [8]byte

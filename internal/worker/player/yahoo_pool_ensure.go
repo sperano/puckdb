@@ -35,7 +35,10 @@ type EnsureYahooIDPoolResult struct {
 // Yahoo IDs already matched in the database are removed from the available
 // set. During a run entries are only removed from the available set, never
 // from the hash, so the hash size is a complete check. Concurrent rebuilds
-// write the same values and converge.
+// write the same values and converge. A rebuilt available set leaves out
+// every Yahoo ID matched in the database, also those matched by earlier runs
+// that this run would not match again; phase 3 then does not report those
+// as unmatched.
 func (a *Activities) EnsureYahooIDPool(ctx context.Context, input EnsureYahooIDPoolInput) (EnsureYahooIDPoolResult, error) {
 	found, err := a.RedisClient.HLen(ctx, YahooIDPoolKey).Result()
 	if err != nil {

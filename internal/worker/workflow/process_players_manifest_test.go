@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"go.temporal.io/sdk/converter"
+	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/testsuite"
 	"go.temporal.io/sdk/workflow"
 )
@@ -108,11 +109,14 @@ func TestTruncateRunes(t *testing.T) {
 
 // manifestChain records what the activities of a manifest chain saw.
 type manifestChain struct {
-	mu       sync.Mutex
-	batches  []ordinalRange
-	events   []string
-	ensured  []int
-	recorded []workplayer.PlayerError
+	mu      sync.Mutex
+	batches []ordinalRange
+	events  []string
+	ensured []int
+	pools   []int
+	// finishErr fails FinishProcessPlayersManifest when set.
+	finishErr error
+	recorded  []workplayer.PlayerError
 }
 
 func (c *manifestChain) event(e string) {
@@ -157,7 +161,13 @@ func (c *manifestChain) newEnv(t *testing.T) *testsuite.TestWorkflowEnvironment 
 	env.OnActivity(act.VerifyUnmatchedBatch, mock.Anything, mock.Anything).Return(&workplayer.VerifyUnmatchedResult{}, nil).
 		Run(func(mock.Arguments) { c.event("verify") })
 	env.OnActivity(act.CleanupYahooIDPoolData, mock.Anything).Return(nil)
-	env.OnActivity(act.FinishProcessPlayersManifest, mock.Anything, chainManifestID).Return(1, nil)
+	env.OnActivity(act.FinishProcessPlayersManifest, mock.Anything, chainManifestID).Return(
+		func(context.Context, string) (int, error) {
+			if c.finishErr != nil {
+				return 0, c.finishErr
+			}
+			return 1, nil
+		})
 	return env
 }
 
@@ -176,6 +186,7 @@ func (c *manifestChain) batch(_ context.Context, input workplayer.ManifestBatchI
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.batches = append(c.batches, ordinalRange{From: input.From, To: input.To})
+	c.pools = append(c.pools, input.YahooPoolSize)
 	result := workplayer.ManifestBatchResult{
 		ProcessPlayerBatchResult: workplayer.ProcessPlayerBatchResult{Origins: core.OriginCounts{core.OriginFileSystem: 1}},
 	}
@@ -221,6 +232,8 @@ func TestProcessPlayersManifestChain(t *testing.T) {
 	assert.Equal(t, []processPlayersPhase{phaseProcessPlayers, phaseProcessPlayers, phaseVerifyUnmatched}, phases,
 		"three phase-2 executions, then phase 3")
 	assert.ElementsMatch(t, []ordinalRange{{0, 1}, {1, 2}, {2, 3}, {3, 4}, {4, 5}}, chain.batches, "each ordinal once")
+	assert.ElementsMatch(t, []int{chainPoolSize, chainPoolSize, chainRebuiltPool, chainRebuiltPool, chainRebuiltPool},
+		chain.pools, "batches expect the pool size of their execution's check")
 	assert.Equal(t, 1, state.Totals.Errors)
 	assert.Equal(t, 4, state.Totals.Imported)
 	assert.Equal(t, []string{"player 2: read error"}, state.ErrorSample)
@@ -271,4 +284,48 @@ func TestProcessPlayersErrorSampleIsCapped(t *testing.T) {
 	require.Len(t, state.ErrorSample, maxCarriedErrorSample)
 	assert.Equal(t, "error 0", state.ErrorSample[0])
 	assert.Equal(t, fmt.Sprintf("error %d", maxCarriedErrorSample-1), state.ErrorSample[maxCarriedErrorSample-1])
+}
+
+// verifyState is a valid phase-3 state of the chain test.
+func verifyState() *processPlayersState {
+	return &processPlayersState{
+		Config:   processPlayersConfig{BatchSize: chainBatchSize, Concurrency: chainConcurrency, PlayersPerExec: chainPlayersPerExec},
+		Manifest: workplayer.ManifestRef{ID: chainManifestID, Count: chainPlayers, Hash: "h"},
+		Phase:    phaseVerifyUnmatched,
+		Cursor:   chainPlayers,
+		Totals:   processPlayersTotals{Imported: chainPlayers},
+		Progress: NewProcessPlayersProgressReport(chainPlayers),
+	}
+}
+
+func TestProcessPlayersStateValidate(t *testing.T) {
+	require.NoError(t, verifyState().validate())
+	invalid := map[string]func(*processPlayersState){
+		"no progress":    func(s *processPlayersState) { s.Progress = nil },
+		"zero batch":     func(s *processPlayersState) { s.Config.BatchSize = 0 },
+		"zero window":    func(s *processPlayersState) { s.Config.PlayersPerExec = 0 },
+		"no players":     func(s *processPlayersState) { s.Manifest.Count = 0 },
+		"cursor past":    func(s *processPlayersState) { s.Cursor = chainPlayers + 1 },
+		"phase 2 at end": func(s *processPlayersState) { s.Phase = phaseProcessPlayers },
+	}
+	for name, mutate := range invalid {
+		state := verifyState()
+		mutate(state)
+		assert.Error(t, state.validate(), name)
+	}
+	var nilState *processPlayersState
+	assert.Error(t, nilState.validate())
+}
+
+func TestProcessPlayersManifestVerify_FinishFailureStillReports(t *testing.T) {
+	chain := &manifestChain{finishErr: temporal.NewNonRetryableApplicationError("db down", "test", nil)}
+	env := chain.newEnv(t)
+
+	env.ExecuteWorkflow(ProcessPlayersWorkflowContinueV2, verifyState())
+
+	require.True(t, env.IsWorkflowCompleted())
+	require.NoError(t, env.GetWorkflowError())
+	var result *ProcessPlayersResult
+	require.NoError(t, env.GetWorkflowResult(&result))
+	assert.Equal(t, chainPlayers, result.ImportedPlayers)
 }
