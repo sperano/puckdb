@@ -120,15 +120,22 @@ type RecordErrorsInput struct {
 // RecordProcessPlayersErrors upserts a completed batch's errors into the
 // manifest's error table and logs each one, so the worker log keeps every
 // error even though the workflow carries only a sample. Retried or
-// overlapping attempts with the same input converge on the same rows.
+// overlapping attempts with the same input converge on the same rows. The
+// errors are logged before the write so they reach the log even when the
+// write fails for good (the manifest is gone); a retried attempt logs them
+// again, with its attempt number.
 func (a *Activities) RecordProcessPlayersErrors(ctx context.Context, input RecordErrorsInput) error {
+	attempt := activity.GetInfo(ctx).Attempt
 	for _, e := range input.Errors {
 		log.Error().Str("manifest", input.ManifestID).Int64("player_id", e.PlayerID).Str("stage", e.Stage).
-			Str("error", e.Message).Msg("ProcessPlayers per-player error")
+			Int32("attempt", attempt).Str("error", e.Message).Msg("ProcessPlayers per-player error")
 	}
 	err := a.Manifests.RecordErrors(ctx, input.ManifestID, input.Errors)
-	if errors.Is(err, ErrManifestNotFound) {
+	switch {
+	case errors.Is(err, ErrManifestNotFound):
 		return manifestMissingError(input.ManifestID, "not found")
+	case errors.Is(err, ErrPlayerNotInManifest):
+		return temporal.NewNonRetryableApplicationError(err.Error(), PlayerNotInManifestErrorType, err)
 	}
 	return err
 }

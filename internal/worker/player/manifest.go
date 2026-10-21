@@ -23,6 +23,10 @@ const ManifestMissingErrorType = "ProcessPlayersManifestMissing"
 // of a batch whose ordinals fall outside its manifest: a workflow bug.
 const InvalidManifestWindowErrorType = "ProcessPlayersInvalidManifestWindow"
 
+// PlayerNotInManifestErrorType is the non-retryable ApplicationError type of
+// an error recorded for a player the manifest does not hold: a workflow bug.
+const PlayerNotInManifestErrorType = "ProcessPlayersPlayerNotInManifest"
+
 // ProcessPlayersManifestRetention is how many manifests (with their players
 // and errors) are kept; creating one deletes the older ones.
 const ProcessPlayersManifestRetention = 3
@@ -30,6 +34,10 @@ const ProcessPlayersManifestRetention = 3
 // ErrManifestNotFound is returned by a ProcessPlayersStore for a manifest id
 // it does not hold.
 var ErrManifestNotFound = errors.New("process players manifest not found")
+
+// ErrPlayerNotInManifest is returned by ProcessPlayersStore.RecordErrors for
+// an error whose player the manifest does not hold.
+var ErrPlayerNotInManifest = errors.New("player not in process players manifest")
 
 // ManifestRef identifies a durable player manifest: everything a
 // ProcessPlayers chain carries about its player list. Hash is the hex sha256
@@ -52,7 +60,8 @@ type ProcessPlayersStore interface {
 	CreateManifest(ctx context.Context, id, workflowID string, players []store.BoxscorePlayer, hash []byte) (ManifestRef, error)
 	// ManifestPlayers returns the players at ordinals [from, to), in order.
 	ManifestPlayers(ctx context.Context, id string, from, to int) ([]store.BoxscorePlayer, error)
-	// RecordErrors upserts errs; ErrManifestNotFound when id does not exist.
+	// RecordErrors upserts errs; ErrManifestNotFound when id does not exist,
+	// ErrPlayerNotInManifest when an error names a player id does not hold.
 	RecordErrors(ctx context.Context, id string, errs []PlayerError) error
 	// FinishManifest marks the manifest finished and returns how many errors
 	// it holds, or ErrManifestNotFound.

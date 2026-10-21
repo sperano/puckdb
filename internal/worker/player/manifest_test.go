@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"slices"
 	"sync"
 	"testing"
 
@@ -80,6 +82,11 @@ func (f *fakeManifestStore) RecordErrors(_ context.Context, id string, errs []Pl
 	if _, ok := f.refs[id]; !ok {
 		return ErrManifestNotFound
 	}
+	for _, e := range errs {
+		if !slices.ContainsFunc(f.players[id], func(p store.BoxscorePlayer) bool { return p.ID == e.PlayerID }) {
+			return fmt.Errorf("player %d: %w", e.PlayerID, ErrPlayerNotInManifest)
+		}
+	}
 	f.errors[id] = append(f.errors[id], errs...)
 	return nil
 }
@@ -131,6 +138,7 @@ func TestManifestActivitySuite(t *testing.T) {
 func (s *ManifestActivitySuite) SetupTest() {
 	s.ActivitySuite.SetupTest()
 	s.redis = redis.NewClient(&redis.Options{Addr: miniredis.RunT(s.T()).Addr()})
+	s.T().Cleanup(func() { _ = s.redis.Close() })
 	s.store = newFakeManifestStore()
 	s.act = &Activities{Storage: store.NewMemStorage(), RedisClient: s.redis, Manifests: s.store, NHLClient: &MockNHLClient{}}
 	s.env.RegisterActivity(s.act)
@@ -334,4 +342,17 @@ func (s *ManifestActivitySuite) TestRecordAndFinish() {
 	s.requireManifestMissing(err, "not found")
 	_, err = s.env.ExecuteActivity(s.act.FinishProcessPlayersManifest, "gone")
 	s.requireManifestMissing(err, "not found")
+}
+
+func (s *ManifestActivitySuite) TestRecord_AnErrorForAPlayerOutsideTheManifestIsNotRetried() {
+	s.putManifest("run-1", store.BoxscorePlayer{ID: 1})
+
+	_, err := s.env.ExecuteActivity(s.act.RecordProcessPlayersErrors, RecordErrorsInput{
+		ManifestID: "run-1", Errors: []PlayerError{{PlayerID: 2, Stage: StageRead, Message: "outside"}}})
+
+	var appErr *temporal.ApplicationError
+	s.Require().ErrorAs(err, &appErr)
+	s.Equal(PlayerNotInManifestErrorType, appErr.Type())
+	s.True(appErr.NonRetryable())
+	s.Empty(s.store.errors["run-1"])
 }

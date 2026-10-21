@@ -159,7 +159,7 @@ func (a *Activities) loadYahooIDPool(ctx context.Context, expectedSize int) (map
 	if len(yahooPool) >= expectedSize {
 		return yahooPool, nil
 	}
-	rebuilt, err := a.rebuildYahooIDPool(ctx, EnsureYahooIDPoolResult{})
+	rebuilt, err := a.rebuildYahooIDPool(ctx, EnsureYahooIDPoolResult{}, expectedSize)
 	if err != nil {
 		return nil, fmt.Errorf("rebuild lost yahoo pool: %w", err)
 	}

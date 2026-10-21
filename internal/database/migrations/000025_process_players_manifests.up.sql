@@ -31,12 +31,17 @@ CREATE TABLE process_players_manifest_players (
 
 -- Per-player errors of a chain, recorded from completed batch results only,
 -- so their number matches the error count the workflow carries. Upserted:
--- a retried or overlapping recording converges on the same rows.
+-- a retried or overlapping recording converges on the same rows. The
+-- foreign key on (manifest_id, player_id) also requires the manifest, and
+-- keeps the error count FinishProcessPlayersManifest returns to the
+-- manifest's own players.
 CREATE TABLE process_players_manifest_errors (
-    manifest_id text NOT NULL REFERENCES process_players_manifests (id) ON DELETE CASCADE,
+    manifest_id text NOT NULL,
     player_id bigint NOT NULL,
     stage text NOT NULL,
     message text NOT NULL,
     PRIMARY KEY (manifest_id, player_id, stage),
+    FOREIGN KEY (manifest_id, player_id)
+        REFERENCES process_players_manifest_players (manifest_id, player_id) ON DELETE CASCADE,
     CHECK (stage IN ('missing_import', 'read', 'upsert', 'career'))
 );

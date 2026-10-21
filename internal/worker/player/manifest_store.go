@@ -14,7 +14,7 @@ import (
 )
 
 // pgForeignKeyViolation is the SQLSTATE of a foreign key violation: an error
-// row whose manifest no longer exists.
+// row whose manifest no longer exists, or whose player is not in it.
 const pgForeignKeyViolation = "23503"
 
 // PgProcessPlayersStore is the PostgreSQL ProcessPlayersStore.
@@ -141,12 +141,26 @@ func (s *PgProcessPlayersStore) RecordErrors(ctx context.Context, id string, err
 	err := sqlcdb.New(s.pool).UpsertProcessPlayersManifestErrors(ctx, params)
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) && pgErr.Code == pgForeignKeyViolation {
-		return ErrManifestNotFound
+		return s.foreignKeyViolation(ctx, id, err)
 	}
 	if err != nil {
 		return fmt.Errorf("record process players manifest %s errors: %w", id, err)
 	}
 	return nil
+}
+
+// foreignKeyViolation tells the two causes of an error row's foreign key
+// violation apart: ErrManifestNotFound when the manifest is gone, and
+// ErrPlayerNotInManifest when an error names a player the manifest lacks.
+func (s *PgProcessPlayersStore) foreignKeyViolation(ctx context.Context, id string, violation error) error {
+	_, err := s.GetManifest(ctx, id)
+	if errors.Is(err, ErrManifestNotFound) {
+		return ErrManifestNotFound
+	}
+	if err != nil {
+		return err
+	}
+	return fmt.Errorf("record process players manifest %s errors: %w: %w", id, ErrPlayerNotInManifest, violation)
 }
 
 // FinishManifest implements ProcessPlayersStore.

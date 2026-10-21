@@ -645,6 +645,8 @@ func (s *YahooActivitySuite) TestSaveYahooPlayersToRedis_Empty() {
 	var result SaveYahooIDPoolResult
 	require.NoError(s.T(), future.Get(&result))
 	assert.Equal(s.T(), 0, result.TotalPlayers)
+	assert.Equal(s.T(), 0, result.PoolSize)
+	require.NoError(s.T(), mockRedis.ExpectationsWereMet())
 }
 
 // ////////////////////////////////////////////////////////////////////////////

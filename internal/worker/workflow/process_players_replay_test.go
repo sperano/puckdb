@@ -63,7 +63,9 @@ func replayBatchResult(playerIDs []int64) workplayer.ProcessPlayerBatchResult {
 func registerReplayCommonActivities(t *testing.T, w worker.Worker) {
 	t.Helper()
 	mr := miniredis.RunT(t)
-	progress := &shared.ProgressActivities{RedisClient: redis.NewClient(&redis.Options{Addr: mr.Addr()})}
+	redisClient := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	t.Cleanup(func() { _ = redisClient.Close() })
+	progress := &shared.ProgressActivities{RedisClient: redisClient}
 	w.RegisterActivity(progress.Save)
 	w.RegisterActivity(progress.Load)
 

@@ -210,7 +210,8 @@ func ensureYahooPool(ctx workflow.Context, state *processPlayersState) error {
 	if result.Rebuilt {
 		workflow.GetLogger(ctx).Warn("Rebuilt the lost Yahoo ID pool",
 			"expected", state.YahooPool.PoolSize, "found", result.FoundSize,
-			"rebuilt", result.PoolSize, "available", result.Available)
+			"rebuilt", result.PoolSize, "available", result.Available,
+			"readErrors", result.ReadErrors, "parseErrors", result.ParseErrors)
 	}
 	state.YahooPool.PoolSize = result.PoolSize
 	return nil

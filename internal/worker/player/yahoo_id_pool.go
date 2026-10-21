@@ -107,11 +107,6 @@ func (a *Activities) SaveYahooPlayersToRedis(ctx context.Context, players []stor
 	if err != nil {
 		return nil, err
 	}
-	poolSize, err := a.RedisClient.HLen(ctx, YahooIDPoolKey).Result()
-	if err != nil {
-		return nil, fmt.Errorf("measure yahoo id pool: %w", err)
-	}
-	result.PoolSize = int(poolSize)
 
 	logger.Info("Saved Yahoo players to Redis",
 		"total", result.TotalPlayers,
@@ -121,9 +116,15 @@ func (a *Activities) SaveYahooPlayersToRedis(ctx context.Context, players []stor
 	return result, nil
 }
 
+// saveYahooPlayersToRedisImpl writes players over the pool keys and measures
+// the pool hash size (PoolSize) in the same round trip as the write.
 func saveYahooPlayersToRedisImpl(ctx context.Context, client *redis.Client, players []store.YahooPlayer) (*SaveYahooIDPoolResult, error) {
 	if len(players) == 0 {
-		return &SaveYahooIDPoolResult{}, nil
+		size, err := client.HLen(ctx, YahooIDPoolKey).Result()
+		if err != nil {
+			return nil, fmt.Errorf("measure yahoo id pool: %w", err)
+		}
+		return &SaveYahooIDPoolResult{PoolSize: int(size)}, nil
 	}
 
 	verifiedNonNHL, err := LoadVerifiedNonNHLIDs(ctx, client)
@@ -158,6 +159,7 @@ func saveYahooPlayersToRedisImpl(ctx context.Context, client *redis.Client, play
 
 	pipe.Expire(ctx, YahooIDPoolKey, ImportPlayersTTL)
 	pipe.Expire(ctx, YahooIDAvailableKey, ImportPlayersTTL)
+	poolSize := pipe.HLen(ctx, YahooIDPoolKey)
 
 	if _, err := pipe.Exec(ctx); err != nil {
 		return nil, fmt.Errorf("save yahoo id pool to redis: %w", err)
@@ -173,5 +175,6 @@ func saveYahooPlayersToRedisImpl(ctx context.Context, client *redis.Client, play
 		TotalPlayers:     len(players),
 		AvailablePlayers: len(availableIDs),
 		SkippedNonNHL:    excludedCount,
+		PoolSize:         int(poolSize.Val()),
 	}, nil
 }

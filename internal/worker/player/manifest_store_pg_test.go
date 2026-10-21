@@ -172,6 +172,23 @@ func TestPgManifest_MissingManifest(t *testing.T) {
 	assert.ErrorIs(t, err, ErrManifestNotFound)
 }
 
+func TestPgManifest_ErrorForAPlayerOutsideTheManifestIsRefused(t *testing.T) {
+	s, pool := newPgManifestStore(t)
+	ctx := context.Background()
+	createPgManifest(t, s, "run-1", store.BoxscorePlayer{ID: 1})
+
+	err := s.RecordErrors(ctx, "run-1", []PlayerError{
+		{PlayerID: 1, Stage: StageRead, Message: "in"},
+		{PlayerID: 2, Stage: StageRead, Message: "outside"},
+	})
+	require.ErrorIs(t, err, ErrPlayerNotInManifest)
+	assert.NotErrorIs(t, err, ErrManifestNotFound)
+	assert.Zero(t, countRows(t, pool, "process_players_manifest_errors"), "the whole upsert is refused")
+	count, err := s.FinishManifest(ctx, "run-1")
+	require.NoError(t, err)
+	assert.Zero(t, count, "no orphan error is counted")
+}
+
 func TestPgManifest_MatchedYahooIDs(t *testing.T) {
 	s, pool := newPgManifestStore(t)
 	ctx := context.Background()

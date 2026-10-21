@@ -80,7 +80,7 @@
    "taskId": "1048678",
    "workflowTaskStartedEventAttributes": {
     "scheduledEventId": "2",
-    "identity": "8490@vikunja-fu-puckdb-687-c1284-qfmcz@",
+    "identity": "1@replay-recorder@",
     "requestId": "68755d82-0bb9-45b5-b883-8b8115cc75a6",
     "historySizeBytes": "1237",
     "workerVersion": {
@@ -96,7 +96,7 @@
    "workflowTaskCompletedEventAttributes": {
     "scheduledEventId": "2",
     "startedEventId": "3",
-    "identity": "8490@vikunja-fu-puckdb-687-c1284-qfmcz@",
+    "identity": "1@replay-recorder@",
     "workerVersion": {
      "buildId": "c65f4b23f673d03ab4832b943ea580fa"
     },
@@ -227,7 +227,7 @@
    "taskId": "1048691",
    "activityTaskStartedEventAttributes": {
     "scheduledEventId": "6",
-    "identity": "8490@vikunja-fu-puckdb-687-c1284-qfmcz@",
+    "identity": "1@replay-recorder@",
     "requestId": "c2a3b96e-0792-482d-a339-a9bae65d2a95",
     "attempt": 1,
     "workerVersion": {
@@ -253,7 +253,7 @@
     },
     "scheduledEventId": "6",
     "startedEventId": "8",
-    "identity": "8490@vikunja-fu-puckdb-687-c1284-qfmcz@"
+    "identity": "1@replay-recorder@"
    }
   },
   {
@@ -263,7 +263,7 @@
    "taskId": "1048693",
    "workflowTaskScheduledEventAttributes": {
     "taskQueue": {
-     "name": "vikunja-fu-puckdb-687-c1284-qfmcz:7fc1e816-896c-426e-973f-64ba33e7f3f3",
+     "name": "replay-recorder:00000000-0000-0000-0000-000000000000",
      "kind": "TASK_QUEUE_KIND_STICKY",
      "normalName": "process-players-legacy-1792595581053449996"
     },
@@ -278,7 +278,7 @@
    "taskId": "1048698",
    "activityTaskStartedEventAttributes": {
     "scheduledEventId": "7",
-    "identity": "8490@vikunja-fu-puckdb-687-c1284-qfmcz@",
+    "identity": "1@replay-recorder@",
     "requestId": "15130ffc-eb92-47db-b632-d17430d892cb",
     "attempt": 1,
     "workerVersion": {
@@ -304,7 +304,7 @@
     },
     "scheduledEventId": "7",
     "startedEventId": "11",
-    "identity": "8490@vikunja-fu-puckdb-687-c1284-qfmcz@"
+    "identity": "1@replay-recorder@"
    }
   },
   {
@@ -314,7 +314,7 @@
    "taskId": "1048701",
    "workflowTaskStartedEventAttributes": {
     "scheduledEventId": "10",
-    "identity": "8490@vikunja-fu-puckdb-687-c1284-qfmcz@",
+    "identity": "1@replay-recorder@",
     "requestId": "3e06ce8e-b9c0-4b4e-9670-9652f362d525",
     "historySizeBytes": "3762",
     "workerVersion": {
@@ -330,7 +330,7 @@
    "workflowTaskCompletedEventAttributes": {
     "scheduledEventId": "10",
     "startedEventId": "13",
-    "identity": "8490@vikunja-fu-puckdb-687-c1284-qfmcz@",
+    "identity": "1@replay-recorder@",
     "workerVersion": {
      "buildId": "c65f4b23f673d03ab4832b943ea580fa"
     },

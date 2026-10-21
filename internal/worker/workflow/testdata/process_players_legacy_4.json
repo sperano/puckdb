@@ -80,7 +80,7 @@
    "taskId": "1048761",
    "workflowTaskStartedEventAttributes": {
     "scheduledEventId": "2",
-    "identity": "8490@vikunja-fu-puckdb-687-c1284-qfmcz@",
+    "identity": "1@replay-recorder@",
     "requestId": "fb6c9d53-f1f6-4fa0-a22e-32e20721af7f",
     "historySizeBytes": "1274",
     "workerVersion": {
@@ -96,7 +96,7 @@
    "workflowTaskCompletedEventAttributes": {
     "scheduledEventId": "2",
     "startedEventId": "3",
-    "identity": "8490@vikunja-fu-puckdb-687-c1284-qfmcz@",
+    "identity": "1@replay-recorder@",
     "workerVersion": {
      "buildId": "c65f4b23f673d03ab4832b943ea580fa"
     },
@@ -188,7 +188,7 @@
    "taskId": "1048772",
    "activityTaskStartedEventAttributes": {
     "scheduledEventId": "6",
-    "identity": "8490@vikunja-fu-puckdb-687-c1284-qfmcz@",
+    "identity": "1@replay-recorder@",
     "requestId": "cad792f5-b9e6-4132-a2de-4f9717b36add",
     "attempt": 1,
     "workerVersion": {
@@ -214,7 +214,7 @@
     },
     "scheduledEventId": "6",
     "startedEventId": "7",
-    "identity": "8490@vikunja-fu-puckdb-687-c1284-qfmcz@"
+    "identity": "1@replay-recorder@"
    }
   },
   {
@@ -224,7 +224,7 @@
    "taskId": "1048774",
    "workflowTaskScheduledEventAttributes": {
     "taskQueue": {
-     "name": "vikunja-fu-puckdb-687-c1284-qfmcz:7fc1e816-896c-426e-973f-64ba33e7f3f3",
+     "name": "replay-recorder:00000000-0000-0000-0000-000000000000",
      "kind": "TASK_QUEUE_KIND_STICKY",
      "normalName": "process-players-legacy-1792595581053449996"
     },
@@ -239,7 +239,7 @@
    "taskId": "1048778",
    "workflowTaskStartedEventAttributes": {
     "scheduledEventId": "9",
-    "identity": "8490@vikunja-fu-puckdb-687-c1284-qfmcz@",
+    "identity": "1@replay-recorder@",
     "requestId": "6ad33db9-6399-420e-9344-2a0ac95758cf",
     "historySizeBytes": "3168",
     "workerVersion": {
@@ -255,7 +255,7 @@
    "workflowTaskCompletedEventAttributes": {
     "scheduledEventId": "9",
     "startedEventId": "10",
-    "identity": "8490@vikunja-fu-puckdb-687-c1284-qfmcz@",
+    "identity": "1@replay-recorder@",
     "workerVersion": {
      "buildId": "c65f4b23f673d03ab4832b943ea580fa"
     },
