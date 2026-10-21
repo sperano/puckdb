@@ -615,6 +615,7 @@ func (s *YahooActivitySuite) TestSaveYahooPlayersToRedis_Success() {
 	mockRedis.CustomMatch(localAnyArgs).ExpectSAdd(YahooIDAvailableKey, "x").SetVal(1)
 	mockRedis.ExpectExpire(YahooIDPoolKey, ImportPlayersTTL).SetVal(true)
 	mockRedis.ExpectExpire(YahooIDAvailableKey, ImportPlayersTTL).SetVal(true)
+	mockRedis.ExpectHLen(YahooIDPoolKey).SetVal(1)
 
 	act := &Activities{RedisClient: redisClient}
 	s.env.RegisterActivity(act.SaveYahooPlayersToRedis)
@@ -627,11 +628,13 @@ func (s *YahooActivitySuite) TestSaveYahooPlayersToRedis_Success() {
 	assert.Equal(s.T(), 1, result.TotalPlayers)
 	assert.Equal(s.T(), 1, result.AvailablePlayers)
 	assert.Equal(s.T(), 0, result.SkippedNonNHL)
+	assert.Equal(s.T(), 1, result.PoolSize, "the pool size is measured after the save")
 	require.NoError(s.T(), mockRedis.ExpectationsWereMet())
 }
 
 func (s *YahooActivitySuite) TestSaveYahooPlayersToRedis_Empty() {
-	redisClient, _ := redismock.NewClientMock()
+	redisClient, mockRedis := redismock.NewClientMock()
+	mockRedis.ExpectHLen(YahooIDPoolKey).SetVal(0)
 
 	act := &Activities{RedisClient: redisClient}
 	s.env.RegisterActivity(act.SaveYahooPlayersToRedis)
@@ -642,6 +645,8 @@ func (s *YahooActivitySuite) TestSaveYahooPlayersToRedis_Empty() {
 	var result SaveYahooIDPoolResult
 	require.NoError(s.T(), future.Get(&result))
 	assert.Equal(s.T(), 0, result.TotalPlayers)
+	assert.Equal(s.T(), 0, result.PoolSize)
+	require.NoError(s.T(), mockRedis.ExpectationsWereMet())
 }
 
 // ////////////////////////////////////////////////////////////////////////////

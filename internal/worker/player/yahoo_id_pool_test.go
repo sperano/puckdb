@@ -155,7 +155,8 @@ func TestParseYahooPlayerBatchImpl_MixedErrors(t *testing.T) {
 
 func TestSaveYahooPlayersToRedisImpl_EmptyPlayers(t *testing.T) {
 	ctx := context.Background()
-	client, _ := redismock.NewClientMock()
+	client, mockRedis := redismock.NewClientMock()
+	mockRedis.ExpectHLen(YahooIDPoolKey).SetVal(0)
 
 	result, err := saveYahooPlayersToRedisImpl(ctx, client, []store.YahooPlayer{})
 
@@ -163,6 +164,8 @@ func TestSaveYahooPlayersToRedisImpl_EmptyPlayers(t *testing.T) {
 	assert.Equal(t, 0, result.TotalPlayers)
 	assert.Equal(t, 0, result.AvailablePlayers)
 	assert.Equal(t, 0, result.SkippedNonNHL)
+	assert.Equal(t, 0, result.PoolSize)
+	require.NoError(t, mockRedis.ExpectationsWereMet())
 }
 
 func TestSaveYahooPlayersToRedisImpl_Success(t *testing.T) {
@@ -186,6 +189,7 @@ func TestSaveYahooPlayersToRedisImpl_Success(t *testing.T) {
 	mockRedis.CustomMatch(localAnyArgs).ExpectSAdd(YahooIDAvailableKey, "x", "x").SetVal(2)
 	mockRedis.ExpectExpire(YahooIDPoolKey, ImportPlayersTTL).SetVal(true)
 	mockRedis.ExpectExpire(YahooIDAvailableKey, ImportPlayersTTL).SetVal(true)
+	mockRedis.ExpectHLen(YahooIDPoolKey).SetVal(2)
 
 	result, err := saveYahooPlayersToRedisImpl(ctx, client, players)
 
@@ -193,6 +197,7 @@ func TestSaveYahooPlayersToRedisImpl_Success(t *testing.T) {
 	assert.Equal(t, 2, result.TotalPlayers)
 	assert.Equal(t, 2, result.AvailablePlayers)
 	assert.Equal(t, 0, result.SkippedNonNHL)
+	assert.Equal(t, 2, result.PoolSize, "measured in the same pipeline as the write")
 	require.NoError(t, mockRedis.ExpectationsWereMet())
 }
 
@@ -219,9 +224,10 @@ func TestSaveYahooPlayersToRedisImpl_WithVerifiedNonNHL(t *testing.T) {
 	// Expect SAdd only for available IDs (players 1 and 3, not 2)
 	mockRedis.CustomMatch(localAnyArgs).ExpectSAdd(YahooIDAvailableKey, "x", "x").SetVal(2)
 
-	// Expect Expire calls
+	// Expect Expire calls and the pool size measurement
 	mockRedis.ExpectExpire(YahooIDPoolKey, ImportPlayersTTL).SetVal(true)
 	mockRedis.ExpectExpire(YahooIDAvailableKey, ImportPlayersTTL).SetVal(true)
+	mockRedis.ExpectHLen(YahooIDPoolKey).SetVal(3)
 
 	result, err := saveYahooPlayersToRedisImpl(ctx, client, players)
 
@@ -250,6 +256,7 @@ func TestSaveYahooPlayersToRedisImpl_PipelineError(t *testing.T) {
 	mockRedis.CustomMatch(localAnyArgs).ExpectSAdd(YahooIDAvailableKey, "x").SetVal(1)
 	mockRedis.ExpectExpire(YahooIDPoolKey, ImportPlayersTTL).SetVal(true)
 	mockRedis.ExpectExpire(YahooIDAvailableKey, ImportPlayersTTL).SetErr(errors.New("redis connection failed"))
+	mockRedis.ExpectHLen(YahooIDPoolKey).SetVal(1)
 
 	result, err := saveYahooPlayersToRedisImpl(ctx, client, players)
 
@@ -276,6 +283,7 @@ func TestSaveYahooPlayersToRedisImpl_LoadVerifiedError(t *testing.T) {
 	mockRedis.CustomMatch(localAnyArgs).ExpectSAdd(YahooIDAvailableKey, "x").SetVal(1)
 	mockRedis.ExpectExpire(YahooIDPoolKey, ImportPlayersTTL).SetVal(true)
 	mockRedis.ExpectExpire(YahooIDAvailableKey, ImportPlayersTTL).SetVal(true)
+	mockRedis.ExpectHLen(YahooIDPoolKey).SetVal(1)
 
 	result, err := saveYahooPlayersToRedisImpl(ctx, client, players)
 
