@@ -51,25 +51,31 @@ func TestLoadProcessPlayersConfig(t *testing.T) {
 	})
 }
 
-// Phase 1's saved report counts every bar the constructor sized, instead of
-// the zero the report starts with.
+// Phase 1 grows the Yahoo bar from one step to one per Yahoo player batch;
+// the saved report's Total must follow, so Completed never exceeds it.
 func (s *ProcessPlayersWorkflowTestSuite) TestProcessPlayersWorkflow_Phase1_SavedTotalMatchesBars() {
 	players := []store.BoxscorePlayer{
 		{ID: 8471214, FirstName: "Sidney", LastName: "Crosby"},
 		{ID: 8478402, FirstName: "Connor", LastName: "McDavid"},
 	}
-	s.mockPhaseLoadYahooSuccess(players)
+	// One Yahoo player per batch, so the Yahoo bar needs more than one step.
+	batchSize := 1
+	yahooIDs := s.mockPhaseLoadYahooSuccess(players)
 	lastSaved := recordLastSavedReport(s.env)
 
-	s.env.ExecuteWorkflow(ProcessPlayersWorkflow, &ProcessPlayersInput{})
+	s.env.ExecuteWorkflow(ProcessPlayersWorkflow, &ProcessPlayersInput{BatchSize: &batchSize})
 
 	s.True(s.env.IsWorkflowCompleted())
-	requireTotalIsBarSum(s.T(), lastSaved(), processPlayersYahooBarTotal+len(players)+processPlayersUnmatchedEstimate)
+	yahooBatches := shared.BatchCount(len(yahooIDs), batchSize)
+	s.Require().Greater(yahooBatches, processPlayersYahooEstimate)
+	report := lastSaved()
+	requireTotalIsBarSum(s.T(), report, yahooBatches+len(players)+processPlayersUnmatchedEstimate)
+	s.LessOrEqual(report.Completed, report.Total)
 }
 
 // Phase 3 grows the Unmatched bar from one step to one per unmatched player;
 // the saved report's Total must follow, so Completed never exceeds it.
-func (s *ProcessPlayersWorkflowTestSuite) TestProcessPlayersWorkflow_Phase4_SavedTotalMatchesBars() {
+func (s *ProcessPlayersWorkflowTestSuite) TestProcessPlayersWorkflow_Phase3_SavedTotalMatchesBars() {
 	input := &processPlayersInternalInput{
 		Phase:   phaseVerifyUnmatched,
 		Players: []store.BoxscorePlayer{{ID: 8471214, FirstName: "Sidney", LastName: "Crosby"}},
@@ -95,19 +101,21 @@ func (s *ProcessPlayersWorkflowTestSuite) TestProcessPlayersWorkflow_Phase4_Save
 	s.True(s.env.IsWorkflowCompleted())
 	s.Require().NoError(s.env.GetWorkflowError())
 	report := lastSaved()
-	requireTotalIsBarSum(s.T(), report, processPlayersYahooBarTotal+len(input.Players)+len(unmatched))
+	requireTotalIsBarSum(s.T(), report, processPlayersYahooEstimate+len(input.Players)+len(unmatched))
 	s.LessOrEqual(report.Completed, report.Total)
 }
 
 // mockPhaseLoadYahooSuccess mocks the activities ProcessPlayersWorkflow runs
-// up to its ContinueAsNew into Phase 2, loading players from the boxscores.
-func (s *ProcessPlayersWorkflowTestSuite) mockPhaseLoadYahooSuccess(players []store.BoxscorePlayer) {
+// up to its ContinueAsNew into Phase 2, loading players from the boxscores,
+// and returns the Yahoo player IDs the listing activity reports.
+func (s *ProcessPlayersWorkflowTestSuite) mockPhaseLoadYahooSuccess(players []store.BoxscorePlayer) []store.YahooPlayerID {
+	yahooIDs := []store.YahooPlayerID{1, 2, 3}
 	var playerAct *workplayer.Activities
 	s.env.OnActivity(playerAct.LoadAllBoxscorePlayers, mock.Anything).Return(players, nil)
-	s.env.OnActivity(playerAct.ListYahooPlayerFiles, mock.Anything).Return(
-		[]store.YahooPlayerID{1, 2, 3}, nil)
+	s.env.OnActivity(playerAct.ListYahooPlayerFiles, mock.Anything).Return(yahooIDs, nil)
 	s.env.OnActivity(playerAct.ParseYahooPlayerBatch, mock.Anything, mock.Anything).Return(
 		[]store.YahooPlayer{{YahooID: 1, FirstName: "Test", LastName: "Player"}}, nil)
 	s.env.OnActivity(playerAct.SaveYahooPlayersToRedis, mock.Anything, mock.Anything).Return(
 		&workplayer.SaveYahooIDPoolResult{TotalPlayers: 1, AvailablePlayers: 1}, nil)
+	return yahooIDs
 }

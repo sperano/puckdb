@@ -85,7 +85,7 @@ type assetClass struct {
 }
 
 // Package-level assetClass vars — one per FileType. These are the single source
-// of truth wiring FileType → loader name. The nine entry-point wrappers below
+// of truth wiring FileType → loader name. The entry-point wrappers below
 // each reference one of these.
 var (
 	classPlayerHeadshots = assetClass{
@@ -323,10 +323,10 @@ func splitAssetBatches(assets []asset.Asset, size int) [][]asset.Asset {
 	return batches
 }
 
-// ─── Nine entry-point wrappers ───────────────────────────────────────────────
+// ─── Entry-point wrappers ────────────────────────────────────────────────────
 //
 // Each is a thin wrapper around FetchAssetsClassWorkflow with a fixed
-// assetClass. Temporal registers these as nine distinct workflow types, making
+// assetClass. Temporal registers each as a distinct workflow type, making
 // them individually visible in the UI without parameterisation confusion.
 
 // newFetchAssetsClassInput builds the child input for one asset class from a

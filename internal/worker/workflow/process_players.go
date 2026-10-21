@@ -21,8 +21,9 @@ const (
 )
 
 const (
-	// processPlayersYahooBarTotal is the Yahoo pool bar's Total: one step.
-	processPlayersYahooBarTotal = 1
+	// processPlayersYahooEstimate is the Yahoo bar's Total until Phase 1
+	// resizes it to the number of Yahoo player batches.
+	processPlayersYahooEstimate = 1
 	// processPlayersUnmatchedEstimate is the Unmatched bar's Total until
 	// Phase 3 resizes it to the number of unmatched players.
 	processPlayersUnmatchedEstimate = 1
@@ -123,9 +124,9 @@ type ProcessPlayersResult struct {
 // NewProcessPlayersProgressReport creates the initial progress structure.
 func NewProcessPlayersProgressReport(totalPlayers int) *shared.ProgressReport {
 	return &shared.ProgressReport{
-		Total: processPlayersYahooBarTotal + totalPlayers + processPlayersUnmatchedEstimate,
+		Total: processPlayersYahooEstimate + totalPlayers + processPlayersUnmatchedEstimate,
 		Groups: []shared.ProgressGroup{
-			{Header: "Loading Yahoo player pool...", Bars: []shared.ProgressBar{{Label: "Yahoo", Total: processPlayersYahooBarTotal}}},
+			{Header: "Loading Yahoo player pool...", Bars: []shared.ProgressBar{{Label: "Yahoo", Total: processPlayersYahooEstimate}}},
 			{Header: "Processing players...", Bars: []shared.ProgressBar{{Label: "Players", Total: totalPlayers}}},
 			{Header: "Verifying unmatched players...", Bars: []shared.ProgressBar{{Label: "Unmatched", Total: processPlayersUnmatchedEstimate}}},
 		},
@@ -235,6 +236,7 @@ func runPhaseLoadYahoo(ctx workflow.Context, tracker *shared.ReportTracker, inpu
 	// Step 1b: Parse Yahoo players in batches with concurrency
 	var allYahooPlayers []store.YahooPlayer
 	numBatches := shared.BatchCount(len(yahooPlayerIDs), input.BatchSize)
+	tracker.ResizeBar(ctx, GroupLoadYahoo, 0, numBatches)
 
 	if err := tracker.RunWorkerPool(ctx, GroupLoadYahoo, 0, numBatches, input.Concurrency,
 		func(_ workflow.Context, batchIndex int) workflow.Future {
