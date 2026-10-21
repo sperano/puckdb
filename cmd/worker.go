@@ -353,7 +353,7 @@ func registerYahooFetchActivities(w worker.Worker, d taskActivityDeps) {
 		Storage:          d.storage,
 		Download:         d.yahooDownloader,
 		GobCache:         d.gobCache,
-		PublicDownloader: yahoo.HTTPDownloaderFunc(d.yahooPublicDownloader),
+		PublicDownloader: d.yahooPublicDownloader,
 	}
 	w.RegisterActivity(fetchYahooActivities.FetchLeague)
 	w.RegisterActivity(fetchYahooActivities.FetchTeams)

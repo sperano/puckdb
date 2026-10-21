@@ -11,6 +11,7 @@ import (
 	"github.com/sperano/puckdb/internal/metrics"
 	"github.com/sperano/puckdb/internal/resource"
 	"github.com/sperano/puckdb/internal/store"
+	"github.com/sperano/puckdb/internal/worker/shared"
 )
 
 type fetchStatus int
@@ -21,20 +22,8 @@ const (
 	fetchStatusCached
 )
 
-// HTTPDownloader is the interface for downloading content via HTTP.
-type HTTPDownloader interface {
-	Download(ctx context.Context, url string) ([]byte, error)
-}
-
-// HTTPDownloaderFunc adapts a function to the HTTPDownloader interface.
-type HTTPDownloaderFunc func(ctx context.Context, url string) ([]byte, error)
-
-func (f HTTPDownloaderFunc) Download(ctx context.Context, url string) ([]byte, error) {
-	return f(ctx, url)
-}
-
 // fetchYahooPlayerImpl is the testable implementation.
-func fetchYahooPlayerImpl(ctx context.Context, storage store.Storage, downloader HTTPDownloader, playerID store.YahooPlayerID) (fetchStatus, error) {
+func fetchYahooPlayerImpl(ctx context.Context, storage store.Storage, downloader shared.Downloader, playerID store.YahooPlayerID) (fetchStatus, error) {
 	defer metrics.TrackActivityDuration("DownloadYahooPlayer")()
 
 	select {
@@ -59,7 +48,7 @@ func fetchYahooPlayerImpl(ctx context.Context, storage store.Storage, downloader
 	}
 	log.Info().Int("playerID", int(playerID)).Msg("Downloading Yahoo player")
 	// Download the player page
-	content, err := downloader.Download(ctx, playerRes.URL())
+	content, err := downloader(ctx, playerRes.URL())
 	if err != nil {
 		var httpErr *httpx.HTTPError
 		if errors.As(err, &httpErr) {

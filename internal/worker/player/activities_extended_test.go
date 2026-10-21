@@ -62,12 +62,12 @@ func (f *failWriteStorage) Stat(ctx context.Context, path string) (os.FileInfo, 
 
 // newFailingAwardBatch returns a batch result whose Exec call reports an error.
 func newFailingAwardBatch() *sqlcdb.UpsertPlayerAwardBatchBatchResults {
-	return sqlcdb.NewUpsertPlayerAwardBatchBatchResults(&mockBatchResults{execErr: errors.New("db constraint"), count: 1}, 1)
+	return sqlcdb.NewUpsertPlayerAwardBatchBatchResults(&mockBatchResults{ExecErr: errors.New("db constraint")}, 1)
 }
 
 // newFailingSeasonTotalBatch returns a batch result whose Exec call reports an error.
 func newFailingSeasonTotalBatch() *sqlcdb.UpsertPlayerSeasonTotalBatchBatchResults {
-	return sqlcdb.NewUpsertPlayerSeasonTotalBatchBatchResults(&mockBatchResults{execErr: errors.New("db constraint"), count: 1}, 1)
+	return sqlcdb.NewUpsertPlayerSeasonTotalBatchBatchResults(&mockBatchResults{ExecErr: errors.New("db constraint")}, 1)
 }
 
 // ////////////////////////////////////////////////////////////////////////////

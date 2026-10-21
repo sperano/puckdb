@@ -355,7 +355,7 @@ func (s *ImportYahooTeamsSuite) TestTeamUpsertError() {
 	require.NoError(s.T(), mem.Write(context.Background(), teamRes.Path(), []byte(teamWithManagerXML)))
 
 	q.On("UpsertYahooTeamBatch", mock.Anything, mock.Anything).
-		Return(sqlcdb.NewUpsertYahooTeamBatchBatchResults(&mockBatchResults{execErr: assert.AnError}, 1))
+		Return(sqlcdb.NewUpsertYahooTeamBatchBatchResults(&mockBatchResults{ExecErr: assert.AnError}, 1))
 
 	a := &ImportActivities{Storage: mem, GobCache: cache.NewGobCache(nil), Queries: q}
 	teams := []TeamInfo{{LeagueID: 12345, TeamID: 1}}
@@ -476,7 +476,7 @@ func (s *ImportYahooDataForDateSuite) TestSummaryUpsertError() {
 	require.NoError(s.T(), mem.Write(context.Background(), summaryRes.Path(), []byte(summaryWithStatsXML)))
 
 	q.On("UpsertYahooTeamSummaryBatch", mock.Anything, mock.Anything).
-		Return(sqlcdb.NewUpsertYahooTeamSummaryBatchBatchResults(&mockBatchResults{execErr: assert.AnError}, 1))
+		Return(sqlcdb.NewUpsertYahooTeamSummaryBatchBatchResults(&mockBatchResults{ExecErr: assert.AnError}, 1))
 
 	a := &ImportActivities{Storage: mem, GobCache: cache.NewGobCache(nil), Queries: q}
 	input := ImportYahooDataForDateInput{Season: 2023, Teams: teams, Date: date}
@@ -518,7 +518,7 @@ func TestUpsertSummaries_Error(t *testing.T) {
 	}
 
 	q.On("UpsertYahooTeamSummaryBatch", mock.Anything, params).
-		Return(sqlcdb.NewUpsertYahooTeamSummaryBatchBatchResults(&mockBatchResults{execErr: assert.AnError}, 1))
+		Return(sqlcdb.NewUpsertYahooTeamSummaryBatchBatchResults(&mockBatchResults{ExecErr: assert.AnError}, 1))
 
 	err := upsertSummaries(context.Background(), q, params)
 	require.Error(t, err)
@@ -551,7 +551,7 @@ func TestUpsertRosters_Error(t *testing.T) {
 	}
 
 	q.On("UpsertYahooTeamRosterBatch", mock.Anything, params).
-		Return(sqlcdb.NewUpsertYahooTeamRosterBatchBatchResults(&mockBatchResults{execErr: assert.AnError}, 1))
+		Return(sqlcdb.NewUpsertYahooTeamRosterBatchBatchResults(&mockBatchResults{ExecErr: assert.AnError}, 1))
 
 	err := upsertRosters(context.Background(), q, params)
 	require.Error(t, err)
@@ -636,7 +636,7 @@ func (s *ImportYahooLeagueDataSuite) TestTransactionUpsertError() {
 	require.NoError(s.T(), mem.Write(context.Background(), txRes.Path(), []byte(transactionsWithOneXML)))
 
 	q.On("UpsertYahooTransactionBatch", mock.Anything, mock.Anything).
-		Return(sqlcdb.NewUpsertYahooTransactionBatchBatchResults(&mockBatchResults{execErr: assert.AnError}, 1))
+		Return(sqlcdb.NewUpsertYahooTransactionBatchBatchResults(&mockBatchResults{ExecErr: assert.AnError}, 1))
 
 	a := &ImportActivities{Storage: mem, GobCache: cache.NewGobCache(nil), Queries: q}
 	s.env.RegisterActivity(a.ImportYahooLeagueData)
@@ -661,7 +661,7 @@ func (s *ImportYahooLeagueDataSuite) TestMatchupUpsertError() {
 	require.NoError(s.T(), mem.Write(context.Background(), mu1Res.Path(), []byte(matchupsWeek1XML)))
 
 	q.On("UpsertYahooMatchupBatch", mock.Anything, mock.Anything).
-		Return(sqlcdb.NewUpsertYahooMatchupBatchBatchResults(&mockBatchResults{execErr: assert.AnError}, 1))
+		Return(sqlcdb.NewUpsertYahooMatchupBatchBatchResults(&mockBatchResults{ExecErr: assert.AnError}, 1))
 
 	a := &ImportActivities{Storage: mem, GobCache: cache.NewGobCache(nil), Queries: q}
 	s.env.RegisterActivity(a.ImportYahooLeagueData)
