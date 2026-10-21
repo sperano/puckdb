@@ -93,6 +93,7 @@ func InitializeWorkflow(ctx workflow.Context) (InitializeResult, error) {
 func fetchFranchises(ctx workflow.Context, tracker *shared.ReportTracker, logger log.Logger) (core.DataOrigin, error) {
 	logger.Info("Phase 1: Fetching NHL franchises")
 	tracker.SetBarTotal(GroupFetchFranchises, 0, 1)
+	tracker.RecalcTotal()
 	tracker.StartGroup(ctx, GroupFetchFranchises)
 	var (
 		result worknhl.FetchFranchisesResult
@@ -109,6 +110,7 @@ func fetchFranchises(ctx workflow.Context, tracker *shared.ReportTracker, logger
 func upsertFranchises(ctx workflow.Context, tracker *shared.ReportTracker, logger log.Logger) (int, error) {
 	logger.Info("Phase 2: Upserting franchises to database")
 	tracker.SetBarTotal(GroupUpsertFranchises, 0, 1)
+	tracker.RecalcTotal()
 	tracker.StartGroup(ctx, GroupUpsertFranchises)
 	var (
 		result worknhl.UpsertFranchisesResult
@@ -125,6 +127,7 @@ func upsertFranchises(ctx workflow.Context, tracker *shared.ReportTracker, logge
 func fetchSeasonsManifestInit(ctx workflow.Context, tracker *shared.ReportTracker, logger log.Logger) ([]nhl.SeasonInfo, core.DataOrigin, error) {
 	logger.Info("Phase 3: Fetching NHL seasons manifest")
 	tracker.SetBarTotal(GroupFetchSeasons, 0, 1)
+	tracker.RecalcTotal()
 	tracker.StartGroup(ctx, GroupFetchSeasons)
 	var result worknhl.FetchSeasonsManifestResult
 	if err := workflow.ExecuteActivity(ctx,
@@ -140,6 +143,7 @@ func fetchSeasonsManifestInit(ctx workflow.Context, tracker *shared.ReportTracke
 func upsertSeasons(ctx workflow.Context, tracker *shared.ReportTracker, logger log.Logger) (int, error) {
 	logger.Info("Phase 4: Upserting seasons to database")
 	tracker.SetBarTotal(GroupUpsertSeasons, 0, 1)
+	tracker.RecalcTotal()
 	tracker.StartGroup(ctx, GroupUpsertSeasons)
 	var (
 		sa     *worknhl.SeasonsActivities
@@ -156,6 +160,7 @@ func upsertSeasons(ctx workflow.Context, tracker *shared.ReportTracker, logger l
 func upsertSeasonTeams(ctx workflow.Context, tracker *shared.ReportTracker, logger log.Logger, seasonIDs []nhl.SeasonInfo) (int, error) {
 	logger.Info("Phase 5: Upserting season teams to database")
 	tracker.SetBarTotal(GroupInitializeSeasonTeams, 0, len(seasonIDs))
+	tracker.RecalcTotal()
 	tracker.StartGroup(ctx, GroupInitializeSeasonTeams)
 	var (
 		sa       *worknhl.SeasonsActivities

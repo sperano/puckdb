@@ -244,14 +244,23 @@ func (t *ReportTracker) GroupBarTotals(groupIdx int) []int {
 // SetBarTotal sets the total for a specific bar and nothing else: unlike
 // AddBar it does not refresh the report-level Total (call RecalcTotal after
 // the last SetBarTotal), and unlike IncrementBar it does not save (the next
-// saving call, or an explicit Save, writes the new size to Redis).
+// saving call, or an explicit Save, writes the new size to Redis). For one
+// bar resized at runtime, use ResizeBar; SetBarTotal is for resizing several
+// bars before a single RecalcTotal and save.
 func (t *ReportTracker) SetBarTotal(groupIdx, barIdx, total int) {
 	t.report.Groups[groupIdx].Bars[barIdx].Total = total
 }
 
+// ResizeBar sets a bar's Total, refreshes the report Total and saves.
+func (t *ReportTracker) ResizeBar(ctx workflow.Context, groupIdx, barIdx, total int) {
+	t.SetBarTotal(groupIdx, barIdx, total)
+	t.RecalcTotal()
+	t.Save(ctx)
+}
+
 // RecalcTotal recomputes the report-level Total from all bar totals.
-// Call after SetBarTotal when a bar's size is only known at runtime
-// (e.g., per-team playoff bars sized by a season's team count).
+// Call after the last SetBarTotal when several bars are sized at runtime
+// (e.g., one bar per Yahoo league); ResizeBar calls it for a single bar.
 func (t *ReportTracker) RecalcTotal() {
 	t.report.Total = t.totalFromBars()
 }

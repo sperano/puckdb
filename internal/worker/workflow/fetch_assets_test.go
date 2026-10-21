@@ -241,3 +241,29 @@ func TestBatchesForRows(t *testing.T) {
 		})
 	}
 }
+
+// fetchAssetsTestBatchSize is the asset batch size the totals test sets, so
+// each class's row count converts to a known number of batches.
+const fetchAssetsTestBatchSize = 10
+
+// TestFetchAssetsWorkflow_SavedTotalMatchesBars verifies the report Total
+// counts the batches the count activities sized each class bar to, instead
+// of staying at the zero the report starts with.
+func (s *FetchAssetsWorkflowTestSuite) TestFetchAssetsWorkflow_SavedTotalMatchesBars() {
+	setViperInt(s.T(), config.FlagAssetBatchSize, fetchAssetsTestBatchSize)
+	wantBatches := 0
+	for i, e := range parentAssetClasses {
+		// Class i has i+1 full batches and one partial batch.
+		rows := (i+1)*fetchAssetsTestBatchSize + 1
+		s.env.OnActivity(e.CountName, mock.Anything).Return(rows, nil)
+		wantBatches += i + 2
+	}
+	s.mockAllChildren(core.OriginCounts{})
+	lastSaved := recordLastSavedReport(s.env)
+
+	s.env.ExecuteWorkflow(FetchAssetsWorkflow, &FetchAssetsInput{})
+
+	s.True(s.env.IsWorkflowCompleted())
+	s.Require().NoError(s.env.GetWorkflowError())
+	requireTotalIsBarSum(s.T(), lastSaved(), wantBatches)
+}

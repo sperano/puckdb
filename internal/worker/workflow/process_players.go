@@ -165,6 +165,7 @@ func ProcessPlayersWorkflow(ctx workflow.Context, input *ProcessPlayersInput) (*
 	if err != nil {
 		return nil, err
 	}
+	tracker.RecalcTotal()
 
 	// Run Phase 1 inline (no ContinueAsNew yet — it's fast)
 	return runPhaseLoadYahoo(ctx, tracker, &processPlayersInternalInput{
@@ -411,7 +412,7 @@ func runPhaseVerifyUnmatched(ctx workflow.Context, tracker *shared.ReportTracker
 		unmatchedPlayers = []workplayer.UnmatchedYahooPlayer{}
 	}
 
-	tracker.SetBarTotal(GroupVerifyUnmatched, 0, len(unmatchedPlayers))
+	tracker.ResizeBar(ctx, GroupVerifyUnmatched, 0, len(unmatchedPlayers))
 	logger.Info("Loaded unmatched Yahoo players", "count", len(unmatchedPlayers))
 
 	// Verify unmatched players in batches (concurrent)

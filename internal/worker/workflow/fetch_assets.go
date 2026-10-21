@@ -150,8 +150,9 @@ func newFetchAssetsProgressReport() *shared.ProgressReport {
 	}
 }
 
-// populateClassBarTotals runs the nine count activities concurrently and sets
-// each bar's Total to the resulting batch count. Counts return rows; we
+// populateClassBarTotals runs the nine count activities concurrently, sets
+// each bar's Total to the resulting batch count and refreshes the report
+// Total; the caller's StartGroup publishes both. Counts return rows; we
 // convert to batches so the bar Total matches each child's own progress
 // tracker (which counts batches).
 func populateClassBarTotals(ctx workflow.Context, tracker *shared.ReportTracker, batchSize int) error {
@@ -169,6 +170,7 @@ func populateClassBarTotals(ctx workflow.Context, tracker *shared.ReportTracker,
 		}
 		tracker.SetBarTotal(fetchAssetsGroupIdx, i, batchesForRows(rowCount, batchSize))
 	}
+	tracker.RecalcTotal()
 	return nil
 }
 

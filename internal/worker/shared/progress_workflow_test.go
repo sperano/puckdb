@@ -149,6 +149,34 @@ func TestProgressRunStamp(t *testing.T) {
 	assert.Equal(t, "run-1", progressRunStamp(unset), "falls back to the current run, never empty")
 }
 
+// ResizeBar sets the bar, refreshes the report Total and saves exactly once,
+// with the new totals in the saved payload.
+func (s *ReportTrackerSuite) TestResizeBar_UpdatesTotalsAndSavesOnce() {
+	const resizedTotal = 10
+	env := s.NewTestWorkflowEnvironment()
+	var saved ProgressReport
+	env.OnActivity(((*ProgressActivities)(nil)).Save, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+		Return(func(_ context.Context, _, _ string, data []byte) error {
+			return gob.NewDecoder(bytes.NewReader(data)).Decode(&saved)
+		}).Once()
+
+	report := freshReport()
+	wantTotal := report.Groups[0].Bars[0].Total + resizedTotal
+	env.ExecuteWorkflow(func(ctx workflow.Context) error {
+		tracker, err := InitTracker(ctx, report)
+		s.Require().NoError(err)
+		tracker.ResizeBar(ctx, 1, 0, resizedTotal)
+		return nil
+	})
+	s.Require().NoError(env.GetWorkflowError())
+	env.AssertExpectations(s.T())
+
+	s.Equal(resizedTotal, report.Groups[1].Bars[0].Total)
+	s.Equal(wantTotal, report.Total)
+	s.Equal(resizedTotal, saved.Groups[1].Bars[0].Total, "saved payload carries the new bar size")
+	s.Equal(wantTotal, saved.Total, "saved payload carries the refreshed report Total")
+}
+
 func (s *ReportTrackerSuite) TestStartGroup_SetsStartedAt() {
 	report := freshReport()
 	s.env.ExecuteWorkflow(func(ctx workflow.Context) error {
