@@ -7,6 +7,7 @@ import (
 
 	"github.com/alicebob/miniredis/v2"
 	"github.com/go-redis/redis/v8"
+	"github.com/sperano/puckdb/internal/config"
 	"github.com/sperano/puckdb/internal/core"
 	"github.com/sperano/puckdb/internal/store"
 	workplayer "github.com/sperano/puckdb/internal/worker/player"
@@ -101,21 +102,6 @@ func registerReplayCommonActivities(t *testing.T, w worker.Worker) {
 	}
 }
 
-// registerReplayLegacyActivities registers the activities only the legacy
-// chain calls.
-func registerReplayLegacyActivities(w worker.Worker) {
-	w.RegisterActivityWithOptions(func(context.Context) ([]store.BoxscorePlayer, error) {
-		return replayBoxscorePlayers(), nil
-	}, activity.RegisterOptions{Name: "LoadAllBoxscorePlayers"})
-	w.RegisterActivityWithOptions(func(_ context.Context, players []store.BoxscorePlayer) (workplayer.ProcessPlayerBatchResult, error) {
-		ids := make([]int64, len(players))
-		for i, p := range players {
-			ids[i] = p.ID
-		}
-		return replayBatchResult(ids), nil
-	}, activity.RegisterOptions{Name: "ProcessPlayerBatch"})
-}
-
 // readProcessPlayersChain returns the history of every execution of the chain
 // that started with runID, in order, following ContinueAsNew.
 func readProcessPlayersChain(t *testing.T, temporalClient client.Client, workflowID, runID string) []*historypb.History {
@@ -135,9 +121,10 @@ func readProcessPlayersChain(t *testing.T, temporalClient client.Client, workflo
 
 // processPlayersLegacyHistories are the five executions of a legacy chain
 // (run 1, three phase-2 continuations, phase 3), recorded on a Temporal dev
-// server with the code before the player manifest (commit b0bb2c2), with the
-// activities registerReplayCommonActivities and
-// registerReplayLegacyActivities register.
+// server with the code before the player manifest (commit b0bb2c2), with
+// the activities registerReplayCommonActivities registers plus
+// LoadAllBoxscorePlayers returning replayBoxscorePlayers() and
+// ProcessPlayerBatch returning replayBatchResult of its players' IDs.
 var processPlayersLegacyHistories = []string{
 	"testdata/process_players_legacy_1.json",
 	"testdata/process_players_legacy_2.json",
@@ -155,5 +142,77 @@ func TestProcessPlayersReplaysLegacyHistories(t *testing.T) {
 	replayer.RegisterWorkflow(ProcessPlayersWorkflowContinue)
 	for _, path := range processPlayersLegacyHistories {
 		require.NoError(t, replayer.ReplayWorkflowHistoryFromJSONFile(nil, path), path)
+	}
+}
+
+// registerReplayManifestActivities registers the activities only the
+// manifest chain calls.
+func registerReplayManifestActivities(w worker.Worker) {
+	players := replayBoxscorePlayers()
+	manifest := workplayer.ManifestRef{ID: "replay", Count: len(players), Hash: "replay-hash"}
+	activities := []struct {
+		name string
+		fn   any
+	}{
+		{"CreateProcessPlayersManifest", func(context.Context, workplayer.CreateManifestInput) (workplayer.ManifestRef, error) {
+			return manifest, nil
+		}},
+		{"EnsureYahooIDPool", func(_ context.Context, input workplayer.EnsureYahooIDPoolInput) (workplayer.EnsureYahooIDPoolResult, error) {
+			return workplayer.EnsureYahooIDPoolResult{FoundSize: input.PoolSize, PoolSize: input.PoolSize}, nil
+		}},
+		{"ProcessPlayerManifestBatch", func(_ context.Context, input workplayer.ManifestBatchInput) (workplayer.ManifestBatchResult, error) {
+			var ids []int64
+			for _, p := range players[input.From:input.To] {
+				ids = append(ids, p.ID)
+			}
+			result := replayBatchResult(ids)
+			batch := workplayer.ManifestBatchResult{ProcessPlayerBatchResult: result}
+			for _, message := range result.Errors {
+				batch.PlayerErrors = append(batch.PlayerErrors, workplayer.PlayerError{
+					PlayerID: replayFailingPlayer, Stage: workplayer.StageRead, Message: message,
+				})
+			}
+			batch.Errors = nil
+			return batch, nil
+		}},
+		{"RecordProcessPlayersErrors", func(context.Context, workplayer.RecordErrorsInput) error { return nil }},
+		{"FinishProcessPlayersManifest", func(context.Context, string) (int, error) { return 1, nil }},
+	}
+	for _, item := range activities {
+		w.RegisterActivityWithOptions(item.fn, activity.RegisterOptions{Name: item.name})
+	}
+}
+
+// TestProcessPlayersManifestChainReplays runs a manifest chain on a Temporal
+// dev server and replays every execution with the same code.
+func TestProcessPlayersManifestChainReplays(t *testing.T) {
+	setViperInt(t, config.FlagPlayerLandingPlayersPerExec, replayPlayersPerExec)
+	temporalClient, stop := startSeasonReplayServer(t)
+	defer stop()
+	taskQueue := seasonReplayName("process-players-manifest")
+	w := worker.New(temporalClient, taskQueue, worker.Options{})
+	w.RegisterWorkflow(ProcessPlayersWorkflow)
+	w.RegisterWorkflow(ProcessPlayersWorkflowContinueV2)
+	registerReplayCommonActivities(t, w)
+	registerReplayManifestActivities(w)
+	require.NoError(t, w.Start())
+	defer w.Stop()
+
+	ctx, cancel := context.WithTimeout(context.Background(), seasonReplayRunTimeout)
+	defer cancel()
+	run, err := temporalClient.ExecuteWorkflow(ctx, client.StartWorkflowOptions{
+		ID: seasonReplayName(WorkflowIDProcessPlayers), TaskQueue: taskQueue,
+	}, ProcessPlayersWorkflow, &ProcessPlayersInput{BatchSize: intPtr(replayBatchSize), Concurrency: intPtr(replayConcurrency)})
+	require.NoError(t, err)
+	err = temporalClient.GetWorkflow(ctx, run.GetID(), "").Get(ctx, nil)
+	require.ErrorContains(t, err, "finished with 1 per-player error(s)")
+	chain := readProcessPlayersChain(t, temporalClient, run.GetID(), run.GetRunID())
+	require.Len(t, chain, len(processPlayersLegacyHistories), "run 1, three phase-2 executions, phase 3")
+
+	replayer := worker.NewWorkflowReplayer()
+	replayer.RegisterWorkflow(ProcessPlayersWorkflow)
+	replayer.RegisterWorkflow(ProcessPlayersWorkflowContinueV2)
+	for i, history := range chain {
+		require.NoError(t, replayer.ReplayWorkflowHistory(nil, history), "execution %d", i+1)
 	}
 }

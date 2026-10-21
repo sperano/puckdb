@@ -107,11 +107,17 @@ func (a *Activities) SaveYahooPlayersToRedis(ctx context.Context, players []stor
 	if err != nil {
 		return nil, err
 	}
+	poolSize, err := a.RedisClient.HLen(ctx, YahooIDPoolKey).Result()
+	if err != nil {
+		return nil, fmt.Errorf("measure yahoo id pool: %w", err)
+	}
+	result.PoolSize = int(poolSize)
 
 	logger.Info("Saved Yahoo players to Redis",
 		"total", result.TotalPlayers,
 		"available", result.AvailablePlayers,
-		"skipped_non_nhl", result.SkippedNonNHL)
+		"skipped_non_nhl", result.SkippedNonNHL,
+		"pool_size", result.PoolSize)
 	return result, nil
 }
 

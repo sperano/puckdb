@@ -36,6 +36,9 @@ type Activities struct {
 	Queries                PlayerUpserter
 	CareerQueries          PlayerCareerUpserter
 	BoxscorePlayerCacheTTL time.Duration
+	// Manifests holds the durable player manifests and per-player errors of
+	// ProcessPlayers chains.
+	Manifests ProcessPlayersStore
 }
 
 // --- Player landing activities ---

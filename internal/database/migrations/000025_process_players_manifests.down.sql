@@ -1,0 +1,3 @@
+DROP TABLE process_players_manifest_errors;
+DROP TABLE process_players_manifest_players;
+DROP TABLE process_players_manifests;

@@ -36,23 +36,73 @@ type ProcessPlayerBatchResult struct {
 	Origins        core.OriginCounts // Tracks where player landings were read from
 	AwardsImported int               // Player award rows upserted
 	TotalsImported int               // Player season total rows upserted
-	Errors         []string          // Error messages for failed players
+	Errors         []string          // Error messages for failed players (ProcessPlayerBatch only)
+}
+
+// Stages at which processing one player can fail, as recorded in
+// process_players_manifest_errors.stage.
+const (
+	StageMissingImport = "missing_import" // importing a player whose landing is missing
+	StageRead          = "read"           // reading the stored landing
+	StageUpsert        = "upsert"         // upserting the player row
+	StageCareer        = "career"         // upserting awards and season totals
+)
+
+// PlayerError is one player's failure in a batch: the stage it failed at and
+// the message ProcessPlayerBatch has always reported for it.
+type PlayerError struct {
+	PlayerID int64
+	Stage    string
+	Message  string
+}
+
+// batchOutcome is what processing one batch of players produced so far.
+type batchOutcome struct {
+	result ProcessPlayerBatchResult
+	errors []PlayerError
+}
+
+// fail records a per-player error; the batch goes on with the next player.
+func (o *batchOutcome) fail(playerID int64, stage, message string) {
+	o.errors = append(o.errors, PlayerError{PlayerID: playerID, Stage: stage, Message: message})
+}
+
+// errorMessages returns the messages of errs, in order.
+func errorMessages(errs []PlayerError) []string {
+	if len(errs) == 0 {
+		return nil
+	}
+	messages := make([]string, len(errs))
+	for i, e := range errs {
+		messages[i] = e.Message
+	}
+	return messages
 }
 
 // ProcessPlayerBatch downloads player landing pages (if needed) and imports them to the database.
 // This combines DownloadPlayerLandingBatchActivity and ImportPlayerBatchActivity into a single pass.
+// ProcessPlayersWorkflow chains started before the player manifest still
+// call it; new chains call ProcessPlayerManifestBatch.
 func (a *Activities) ProcessPlayerBatch(ctx context.Context, players []store.BoxscorePlayer) (ProcessPlayerBatchResult, error) {
-	result := ProcessPlayerBatchResult{
-		Origins: core.OriginCounts{},
-	}
+	out, err := a.processPlayerBatch(ctx, players)
+	out.result.Errors = errorMessages(out.errors)
+	return out.result, err
+}
+
+// processPlayerBatch is the per-player body shared by ProcessPlayerBatch and
+// ProcessPlayerManifestBatch. Every step upserts, so a retried or
+// overlapping attempt converges on the same rows.
+func (a *Activities) processPlayerBatch(ctx context.Context, players []store.BoxscorePlayer) (batchOutcome, error) {
+	out := batchOutcome{result: ProcessPlayerBatchResult{Origins: core.OriginCounts{}}}
+	result := &out.result
 
 	if len(players) == 0 {
-		return result, nil
+		return out, nil
 	}
 
 	yahooPool, err := LoadYahooIDPool(ctx, a.RedisClient)
 	if err != nil {
-		return result, fmt.Errorf("load yahoo pool: %w", err)
+		return out, fmt.Errorf("load yahoo pool: %w", err)
 	}
 
 	var matchedYahooIDs []store.YahooPlayerID
@@ -60,7 +110,7 @@ func (a *Activities) ProcessPlayerBatch(ctx context.Context, players []store.Box
 	for _, p := range players {
 		downloadStatus, err := a.cachePlayerLanding(ctx, p)
 		if err != nil {
-			return result, err
+			return out, err
 		}
 
 		switch downloadStatus {
@@ -70,7 +120,7 @@ func (a *Activities) ProcessPlayerBatch(ctx context.Context, players []store.Box
 		case playerLandingMissing:
 			result.Missing++
 			if err := a.importMissingPlayer(ctx, p); err != nil {
-				result.Errors = append(result.Errors, fmt.Sprintf("player %d (missing): import error: %v", p.ID, err))
+				out.fail(p.ID, StageMissingImport, fmt.Sprintf("player %d (missing): import error: %v", p.ID, err))
 			} else {
 				result.Imported++
 			}
@@ -79,7 +129,7 @@ func (a *Activities) ProcessPlayerBatch(ctx context.Context, players []store.Box
 			// File exists in storage — will be read via GobCache below
 		}
 
-		if yahooID, matched := a.importPlayerLanding(ctx, p, downloadStatus, yahooPool, &result); matched {
+		if yahooID, matched := a.importPlayerLanding(ctx, p, downloadStatus, yahooPool, &out); matched {
 			matchedYahooIDs = append(matchedYahooIDs, yahooID)
 		}
 	}
@@ -90,12 +140,13 @@ func (a *Activities) ProcessPlayerBatch(ctx context.Context, players []store.Box
 		}
 	}
 
-	logProcessPlayerBatch(len(players), result)
-	return result, nil
+	logProcessPlayerBatch(len(players), out)
+	return out, nil
 }
 
-// logProcessPlayerBatch logs the outcome of one ProcessPlayerBatch run.
-func logProcessPlayerBatch(batchSize int, result ProcessPlayerBatchResult) {
+// logProcessPlayerBatch logs the outcome of one batch.
+func logProcessPlayerBatch(batchSize int, out batchOutcome) {
+	result := out.result
 	log.Info().
 		Int("batch_size", batchSize).
 		Int("downloaded", result.Downloaded).
@@ -103,25 +154,26 @@ func logProcessPlayerBatch(batchSize int, result ProcessPlayerBatchResult) {
 		Int("missing", result.Missing).
 		Int("imported", result.Imported).
 		Int("matched", result.Matched).
-		Int("errors", len(result.Errors)).
+		Int("errors", len(out.errors)).
 		Msg("Process player batch complete")
 }
 
 // importPlayerLanding reads p's stored landing, matches it to a Yahoo ID from
 // yahooPool and upserts the player with its career data, recording the
-// outcome in result. It returns the matched Yahoo ID, if any, so the caller
+// outcome in out. It returns the matched Yahoo ID, if any, so the caller
 // can remove it from the pool once the batch is done.
 func (a *Activities) importPlayerLanding(
 	ctx context.Context,
 	p store.BoxscorePlayer,
 	downloadStatus playerLandingStatus,
 	yahooPool map[store.YahooPlayerID]*store.YahooPlayer,
-	result *ProcessPlayerBatchResult,
+	out *batchOutcome,
 ) (store.YahooPlayerID, bool) {
+	result := &out.result
 	landingRes := resource.PlayerLanding{PlayerID: nhl.PlayerID(p.ID)}
 	landing, origin, err := a.GobCache.ReadParsedCached(ctx, a.Storage, landingRes)
 	if err != nil {
-		result.Errors = append(result.Errors, fmt.Sprintf("player %d: read error: %v", p.ID, err))
+		out.fail(p.ID, StageRead, fmt.Sprintf("player %d: read error: %v", p.ID, err))
 		return 0, false
 	}
 	if downloadStatus == playerLandingCached {
@@ -136,7 +188,7 @@ func (a *Activities) importPlayerLanding(
 			errMsg = fmt.Sprintf("player %d (%s %s, yahoo_id=%d): upsert error: %v",
 				p.ID, landing.FirstName.Default, landing.LastName.Default, matchResult.YahooID, err)
 		}
-		result.Errors = append(result.Errors, errMsg)
+		out.fail(p.ID, StageUpsert, errMsg)
 		return 0, false
 	}
 
@@ -147,7 +199,7 @@ func (a *Activities) importPlayerLanding(
 
 	awards, totals, err := a.upsertPlayerCareerData(ctx, landing)
 	if err != nil {
-		result.Errors = append(result.Errors, fmt.Sprintf("player %d career data: %v", p.ID, err))
+		out.fail(p.ID, StageCareer, fmt.Sprintf("player %d career data: %v", p.ID, err))
 	} else {
 		result.AwardsImported += awards
 		result.TotalsImported += totals

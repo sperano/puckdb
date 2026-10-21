@@ -9,6 +9,43 @@ import (
 	"context"
 )
 
+// iteratorForCopyProcessPlayersManifestPlayers implements pgx.CopyFromSource.
+type iteratorForCopyProcessPlayersManifestPlayers struct {
+	rows                 []CopyProcessPlayersManifestPlayersParams
+	skippedFirstNextCall bool
+}
+
+func (r *iteratorForCopyProcessPlayersManifestPlayers) Next() bool {
+	if len(r.rows) == 0 {
+		return false
+	}
+	if !r.skippedFirstNextCall {
+		r.skippedFirstNextCall = true
+		return true
+	}
+	r.rows = r.rows[1:]
+	return len(r.rows) > 0
+}
+
+func (r iteratorForCopyProcessPlayersManifestPlayers) Values() ([]interface{}, error) {
+	return []interface{}{
+		r.rows[0].ManifestID,
+		r.rows[0].Ordinal,
+		r.rows[0].PlayerID,
+		r.rows[0].FirstName,
+		r.rows[0].LastName,
+		r.rows[0].Position,
+	}, nil
+}
+
+func (r iteratorForCopyProcessPlayersManifestPlayers) Err() error {
+	return nil
+}
+
+func (q *Queries) CopyProcessPlayersManifestPlayers(ctx context.Context, arg []CopyProcessPlayersManifestPlayersParams) (int64, error) {
+	return q.db.CopyFrom(ctx, []string{"process_players_manifest_players"}, []string{"manifest_id", "ordinal", "player_id", "first_name", "last_name", "position"}, &iteratorForCopyProcessPlayersManifestPlayers{rows: arg})
+}
+
 // iteratorForInsertSimAgentToolCall implements pgx.CopyFromSource.
 type iteratorForInsertSimAgentToolCall struct {
 	rows                 []InsertSimAgentToolCallParams

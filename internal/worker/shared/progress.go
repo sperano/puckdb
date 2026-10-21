@@ -141,6 +141,14 @@ func (t *ReportTracker) Save(ctx workflow.Context) {
 // Falls back to the current RunID where FirstRunID is unset (the SDK test
 // environment); an empty stamp would read as stale on every start.
 func progressRunStamp(info *workflow.Info) string {
+	return ChainRunID(info)
+}
+
+// ChainRunID identifies a workflow's ContinueAsNew chain: its FirstRunID,
+// which every continuation shares and every new start changes, or the
+// current RunID where FirstRunID is unset (the SDK test environment).
+// Workflow code may call it: both come from workflow.GetInfo.
+func ChainRunID(info *workflow.Info) string {
 	if info.FirstRunID != "" {
 		return info.FirstRunID
 	}

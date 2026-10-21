@@ -563,6 +563,7 @@ func (s *ProcessPlayersWorkflowTestSuite) SetupTest() {
 	s.env = s.NewTestWorkflowEnvironment()
 	s.env.RegisterWorkflow(ProcessPlayersWorkflow)
 	s.env.RegisterWorkflow(ProcessPlayersWorkflowContinue)
+	s.env.RegisterWorkflow(ProcessPlayersWorkflowContinueV2)
 }
 
 func (s *ProcessPlayersWorkflowTestSuite) AfterTest(suiteName, testName string) {
@@ -573,16 +574,14 @@ func TestProcessPlayersWorkflowTestSuite(t *testing.T) {
 	suite.Run(t, new(ProcessPlayersWorkflowTestSuite))
 }
 
-// Test ProcessPlayersWorkflow Phase 1 (LoadYahoo) loads players from Redis and Yahoo files,
+// Test ProcessPlayersWorkflow Phase 1 (LoadYahoo) creates the player manifest and loads Yahoo files,
 // then transitions to Phase 2 (ProcessPlayers) via ContinueAsNew.
 func (s *ProcessPlayersWorkflowTestSuite) TestProcessPlayersWorkflow_Phase1_Success() {
 	input := &ProcessPlayersInput{}
 
 	var playerAct *workplayer.Activities
-	s.env.OnActivity(playerAct.LoadAllBoxscorePlayers, mock.Anything).Return(
-		[]store.BoxscorePlayer{
-			{ID: 8471214, FirstName: "Sidney", LastName: "Crosby"},
-		}, nil)
+	s.env.OnActivity(playerAct.CreateProcessPlayersManifest, mock.Anything, mock.Anything).Return(
+		workplayer.ManifestRef{ID: "run", Count: 1, Hash: "h"}, nil)
 	s.env.OnActivity(playerAct.ListYahooPlayerFiles, mock.Anything).Return(
 		[]store.YahooPlayerID{1, 2, 3}, nil)
 	s.env.OnActivity(playerAct.ParseYahooPlayerBatch, mock.Anything, mock.Anything).Return(
@@ -597,13 +596,13 @@ func (s *ProcessPlayersWorkflowTestSuite) TestProcessPlayersWorkflow_Phase1_Succ
 	s.True(s.env.IsWorkflowCompleted())
 }
 
-// Test ProcessPlayersWorkflow handles LoadAllBoxscorePlayers failure in Phase 1.
+// Test ProcessPlayersWorkflow handles a manifest creation failure in Phase 1.
 func (s *ProcessPlayersWorkflowTestSuite) TestProcessPlayersWorkflow_Phase1_ChildError() {
 	input := &ProcessPlayersInput{}
 
 	var playerAct *workplayer.Activities
-	s.env.OnActivity(playerAct.LoadAllBoxscorePlayers, mock.Anything).Return(
-		([]store.BoxscorePlayer)(nil), errors.New("redis unavailable"))
+	s.env.OnActivity(playerAct.CreateProcessPlayersManifest, mock.Anything, mock.Anything).Return(
+		workplayer.ManifestRef{}, errors.New("redis unavailable"))
 
 	s.env.ExecuteWorkflow(ProcessPlayersWorkflow, input)
 
@@ -617,8 +616,8 @@ func (s *ProcessPlayersWorkflowTestSuite) TestProcessPlayersWorkflow_Phase1_List
 	input := &ProcessPlayersInput{}
 
 	var playerAct *workplayer.Activities
-	s.env.OnActivity(playerAct.LoadAllBoxscorePlayers, mock.Anything).Return(
-		[]store.BoxscorePlayer{{ID: 8471214, FirstName: "Sidney", LastName: "Crosby"}}, nil)
+	s.env.OnActivity(playerAct.CreateProcessPlayersManifest, mock.Anything, mock.Anything).Return(
+		workplayer.ManifestRef{ID: "run", Count: 1, Hash: "h"}, nil)
 	s.env.OnActivity(playerAct.ListYahooPlayerFiles, mock.Anything).Return(
 		([]store.YahooPlayerID)(nil), errors.New("file system error"))
 
