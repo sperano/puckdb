@@ -62,6 +62,10 @@ func TestAwardsRequiresExactlyOneOfSeasonOrTrophy(t *testing.T) {
 			args:      map[string]any{"season": float64(testSeasonID), trophyArg: ""},
 			wantError: "trophy must not be empty",
 		},
+		"empty trophy alone": {
+			args:      map[string]any{trophyArg: ""},
+			wantError: "trophy must not be empty",
+		},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
