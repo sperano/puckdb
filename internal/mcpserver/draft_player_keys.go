@@ -56,7 +56,7 @@ func validateDraftPlayerKey(playerKey, leagueKey string) error {
 		}
 		canonical := fmt.Sprintf(yahooDraftPlayerKeyFormat, gameKey, playerID)
 		if playerKey != canonical {
-			return fmt.Errorf("Yahoo player key %q is not canonical; use %q", playerKey, canonical)
+			return fmt.Errorf("yahoo player key %q is not canonical; use %q", playerKey, canonical)
 		}
 		return nil
 	}
