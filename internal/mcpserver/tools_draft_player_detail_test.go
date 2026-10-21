@@ -175,6 +175,9 @@ func TestDraftPlayerDetailValidatesPlayerKeysBeforeRanking(t *testing.T) {
 		"foreign game":  {[]any{"464.p.2"}, "does not belong to game 465"},
 		"zero player":   {[]any{"465.p.0"}, "does not belong to game 465"},
 		"extra part":    {[]any{"465.p.2.extra"}, "invalid Yahoo player key"},
+		"padded game":   {[]any{"0465.p.2"}, "not canonical"},
+		"signed player": {[]any{"465.p.+2"}, "not canonical"},
+		"padded player": {[]any{"465.p.0002"}, "not canonical"},
 		"above maximum": {repeatPlayerKeys(maxDraftPlayerDetailPlayers + 1), "want 1 to 10 player keys"},
 	}
 	for name, test := range tests {
