@@ -83,13 +83,13 @@ func (s *EnsureYahooIDPoolSuite) TestLostPoolIsRebuiltWithoutTheYahooIDsAlreadyM
 	s.Equal(ImportPlayersTTL, s.mr.TTL(YahooIDPoolKey))
 }
 
-func (s *EnsureYahooIDPoolSuite) TestPartialPoolIsReplaced() {
-	s.mr.HSet(YahooIDPoolKey, "5", "stale")
+func (s *EnsureYahooIDPoolSuite) TestPartialPoolIsCompletedWithoutDeletingIt() {
+	s.mr.HSet(YahooIDPoolKey, "5", "other")
 
 	result := s.ensure(2)
 
 	s.True(result.Rebuilt)
 	s.Equal(1, result.FoundSize)
-	s.Equal(2, result.PoolSize)
-	s.False(s.mr.Exists(YahooIDPoolKey) && s.mr.HGet(YahooIDPoolKey, "5") != "", "the stale entry is gone")
+	s.Equal(3, result.PoolSize, "the next check compares against the size after the rebuild")
+	s.Equal("other", s.mr.HGet(YahooIDPoolKey, "5"), "a rebuild only adds: concurrent readers never see an empty pool")
 }

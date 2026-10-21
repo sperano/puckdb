@@ -59,14 +59,15 @@ func (a *Activities) EnsureYahooIDPool(ctx context.Context, input EnsureYahooIDP
 	return a.rebuildYahooIDPool(ctx, result)
 }
 
-// rebuildYahooIDPool replaces the pool with one built from the stored Yahoo
-// player files, minus the Yahoo IDs already matched in the database.
+// rebuildYahooIDPool writes the pool again from the stored Yahoo player
+// files, then removes the Yahoo IDs already matched in the database from the
+// available set. It never deletes the keys first: several batches may
+// rebuild at once, and a batch reading between a delete and the next write
+// would match against an empty pool. Writing the same entries over each
+// other converges.
 func (a *Activities) rebuildYahooIDPool(ctx context.Context, result EnsureYahooIDPoolResult) (EnsureYahooIDPoolResult, error) {
 	players, err := a.parseAllYahooPlayers(ctx)
 	if err != nil {
-		return result, err
-	}
-	if err := CleanupYahooIDPool(ctx, a.RedisClient); err != nil {
 		return result, err
 	}
 	if _, err := saveYahooPlayersToRedisImpl(ctx, a.RedisClient, players); err != nil {
