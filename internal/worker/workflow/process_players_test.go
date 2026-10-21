@@ -51,6 +51,10 @@ func TestLoadProcessPlayersConfig(t *testing.T) {
 	})
 }
 
+// yahooPlayersPerTestBatch splits the mocked Yahoo listing into one batch per
+// player.
+const yahooPlayersPerTestBatch = 1
+
 // Phase 1 grows the Yahoo bar from one step to one per Yahoo player batch;
 // the saved report's Total must follow, so Completed never exceeds it.
 func (s *ProcessPlayersWorkflowTestSuite) TestProcessPlayersWorkflow_Phase1_SavedTotalMatchesBars() {
@@ -59,7 +63,7 @@ func (s *ProcessPlayersWorkflowTestSuite) TestProcessPlayersWorkflow_Phase1_Save
 		{ID: 8478402, FirstName: "Connor", LastName: "McDavid"},
 	}
 	// One Yahoo player per batch, so the Yahoo bar needs more than one step.
-	batchSize := 1
+	batchSize := yahooPlayersPerTestBatch
 	yahooIDs := s.mockPhaseLoadYahooSuccess(players)
 	lastSaved := recordLastSavedReport(s.env)
 
