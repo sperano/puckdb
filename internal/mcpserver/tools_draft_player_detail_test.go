@@ -13,6 +13,7 @@ import (
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/sperano/puckdb/internal/draftrank"
 	"github.com/sperano/puckdb/internal/fixtures/draftfixtures"
+	"github.com/sperano/puckdb/internal/newsadjust"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -134,6 +135,18 @@ func TestDraftPlayerDetailFlattensNewsAdjustment(t *testing.T) {
 	assert.Greater(t, len(out.sections[draftIssuesSection]), 1, "the fixture reports stale news coverage")
 }
 
+func TestDraftPlayerDetailReasonIncludesReportedRole(t *testing.T) {
+	teamID := int64(10)
+	row := newDraftDetailReasonRow(draftfixtures.CenterWing, newsadjust.Reason{Role: &newsadjust.RoleChange{
+		TeamID: &teamID, IceTime: newsadjust.DirectionUp, PowerPlay: newsadjust.DirectionDown,
+		GoalieRole: newsadjust.GoalieRoleStarter,
+	}})
+	assert.Equal(t, "10", row.RoleTeamID)
+	assert.Equal(t, "up", row.RoleIceTime)
+	assert.Equal(t, "down", row.RolePowerPlay)
+	assert.Equal(t, "starter", row.RoleGoalieRole)
+}
+
 func TestDraftPlayerDetailAcceptsNumericLeagueAndLatestSnapshot(t *testing.T) {
 	source, _ := newDraftPlayerDetailSource(t)
 	args := draftPlayerDetailArgs(draftfixtures.CenterWing, draftfixtures.CenterWing)
@@ -227,4 +240,20 @@ func TestDraftPlayerDetailSectionsStayUnique(t *testing.T) {
 	assert.NotContains(t, resultText(t, result), "{", "stored JSON is flattened into CSV sections")
 	assert.NotContains(t, resultText(t, result), "\n\n")
 	assert.True(t, strings.HasSuffix(resultText(t, result), "\n"))
+}
+
+func TestDraftPlayerDetailRejectsOversizedOutput(t *testing.T) {
+	page := draftrank.Page{Rows: []draftrank.Row{{Player: draftrank.Player{
+		PlayerKey: draftfixtures.CenterWing,
+		Placements: map[draftrank.Scenario]draftrank.Placement{
+			draftrank.ScenarioBaseline: {
+				Scenario:     draftrank.ScenarioBaseline,
+				Explanations: []string{strings.Repeat("x", maxDraftDetailOutputBytes)},
+			},
+		},
+	}}}}
+	result, err := draftPlayerDetailResult(page, []string{draftfixtures.CenterWing})
+	require.NoError(t, err)
+	assert.True(t, result.IsError)
+	assert.Contains(t, resultText(t, result), "request fewer player_keys")
 }

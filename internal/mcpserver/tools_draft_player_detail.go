@@ -22,6 +22,7 @@ const (
 	maxDraftPlayerDetailPlayers = 10
 	draftDetailFloatDecimals    = 4
 	maxDraftDetailQuoteRunes    = 240
+	maxDraftDetailOutputBytes   = 256 * 1024
 )
 
 type draftPlayerDetailSource interface {
@@ -54,13 +55,22 @@ func draftPlayerDetailTool(source draftPlayerDetailSource, guard leagueGuard) se
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
-			text, err := draftPlayerDetailText(page, keys)
-			if err != nil {
-				return nil, err
-			}
-			return mcp.NewToolResultText(text), nil
+			return draftPlayerDetailResult(page, keys)
 		}),
 	}
+}
+
+func draftPlayerDetailResult(page draftrank.Page, requested []string) (*mcp.CallToolResult, error) {
+	text, err := draftPlayerDetailText(page, requested)
+	if err != nil {
+		return nil, err
+	}
+	if len(text) > maxDraftDetailOutputBytes {
+		return mcp.NewToolResultError(fmt.Sprintf(
+			"draft player detail result is %d bytes; maximum is %d: request fewer player_keys",
+			len(text), maxDraftDetailOutputBytes)), nil
+	}
+	return mcp.NewToolResultText(text), nil
 }
 
 func requiredDraftPlayerKeys(req mcp.CallToolRequest) ([]string, *mcp.CallToolResult) {
@@ -163,6 +173,10 @@ type draftDetailReasonRow struct {
 	Status           string    `json:"status"`
 	DurationKind     string    `json:"duration_kind"`
 	DurationGames    int       `json:"duration_games"`
+	RoleTeamID       string    `json:"role_team_id"`
+	RoleIceTime      string    `json:"role_ice_time"`
+	RolePowerPlay    string    `json:"role_power_play"`
+	RoleGoalieRole   string    `json:"role_goalie_role"`
 	EffectiveFrom    time.Time `json:"effective_from"`
 	EffectiveUntil   time.Time `json:"effective_until"`
 	Outcome          string    `json:"outcome"`
@@ -387,6 +401,14 @@ func newDraftDetailReasonRow(playerKey string, r newsadjust.Reason) draftDetailR
 	}
 	if r.IncidentID != 0 {
 		row.IncidentID = strconv.FormatInt(r.IncidentID, 10)
+	}
+	if r.Role != nil {
+		if r.Role.TeamID != nil {
+			row.RoleTeamID = strconv.FormatInt(*r.Role.TeamID, 10)
+		}
+		row.RoleIceTime = string(r.Role.IceTime)
+		row.RolePowerPlay = string(r.Role.PowerPlay)
+		row.RoleGoalieRole = string(r.Role.GoalieRole)
 	}
 	return row
 }
