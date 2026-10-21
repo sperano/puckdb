@@ -152,8 +152,8 @@ var AssetClassConcurrencyParam = ConfigIntParam{
 
 // MaxAssetClassConcurrencyParam resolves how many class child workflows the
 // parent FetchAssetsWorkflow may run concurrently. The flag name reads as a
-// "max" because the parent has nine candidate children and the configured
-// value is the worker-pool size that bounds them.
+// "max" because the parent has one candidate child per asset class and the
+// configured value is the worker-pool size that bounds them.
 var MaxAssetClassConcurrencyParam = ConfigIntParam{
 	Flag:    config.FlagMaxAssetClassConcurrency,
 	Default: config.DefaultMaxAssetClassConcurrency,
