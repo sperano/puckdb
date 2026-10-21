@@ -50,6 +50,7 @@ var leagueIndependentYahooTools = map[string]struct{}{
 type draftToolSource interface {
 	draftLeagueSource
 	draftPoolSource
+	draftPlayerDetailSource
 }
 
 func registerYahooTools(srv *server.MCPServer, q yahooQueries, guard leagueGuard, draft draftToolSource) {
@@ -73,6 +74,7 @@ func yahooTools(q yahooQueries, guard leagueGuard, draft draftToolSource) []serv
 		yahooLeaguePlayersTool(q, guard),
 		yahooTransactionsTool(q, guard),
 		draftLeaguesTool(draft, guard),
+		draftPlayerDetailTool(draft, guard),
 		draftPoolCoverageTool(q, guard, draft),
 		draftRulesReportTool(q, guard, draft),
 	}
