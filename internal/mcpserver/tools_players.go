@@ -171,11 +171,10 @@ func awardsTool(q *sqlcdb.Queries) server.ServerTool {
 			if errResult != nil {
 				return errResult, nil
 			}
-			trophy, errResult := optionalString(req, trophyArg)
+			trophy, hasTrophy, errResult := optionalNonEmptyFilter(req, trophyArg)
 			if errResult != nil {
 				return errResult, nil
 			}
-			hasTrophy := trophy != ""
 			if errResult := exactlyOne(seasonParam.name, hasSeason, trophyArg, hasTrophy); errResult != nil {
 				return errResult, nil
 			}
