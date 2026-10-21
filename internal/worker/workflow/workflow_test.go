@@ -208,41 +208,6 @@ func TestInitializeWorkflowTestSuite(t *testing.T) {
 	suite.Run(t, new(InitializeWorkflowTestSuite))
 }
 
-// mockInitializeSuccess mocks every InitializeWorkflow activity to succeed,
-// with the manifest returning seasons.
-func (s *InitializeWorkflowTestSuite) mockInitializeSuccess(seasons []nhl.SeasonInfo) {
-	var fa *worknhl.FranchiseActivities
-	s.env.OnActivity(fa.FetchFranchises, mock.Anything).Return(
-		worknhl.FetchFranchisesResult{Origin: core.OriginRemoteNHLAPI}, nil)
-	s.env.OnActivity(fa.UpsertFranchises, mock.Anything).Return(
-		worknhl.UpsertFranchisesResult{FranchisesUpserted: 32}, nil)
-	var sa *worknhl.SeasonsActivities
-	s.env.OnActivity(sa.FetchSeasonsManifest, mock.Anything, mock.Anything).Return(
-		worknhl.FetchSeasonsManifestResult{Seasons: seasons, Origin: core.OriginFileSystem}, nil)
-	s.env.OnActivity(sa.UpsertSeasons, mock.Anything).Return(
-		worknhl.UpsertSeasonsResult{SeasonsUpserted: 3}, nil)
-	// Mock InitializeSeasonTeamsActivity - called for each season returned by FetchSeasonsManifest
-	// Note: We must include valid Season values in ALL nested result structs, otherwise zero-value
-	// Season{startYear: 0} serializes to "01" which fails to parse. The specific season values don't
-	// matter here since the test only validates the aggregated TeamsUpserted count.
-	s.env.OnActivity(sa.InitializeSeasonTeamsActivity, mock.Anything, mock.AnythingOfType("nhl.Season")).
-		Return(worknhl.InitializeSeasonTeamsResult{
-			Season:         nhl.NewSeason(2022),
-			DownloadResult: worknhl.DownloadSeasonStandingsResult{Season: nhl.NewSeason(2022), TeamCount: 32},
-			UpsertResult:   worknhl.UpsertSeasonTeamsResult{Season: nhl.NewSeason(2022), TeamsUpserted: 30},
-		}, nil)
-}
-
-// initializeTestSeasons is the three-season manifest the InitializeWorkflow
-// success tests use.
-func initializeTestSeasons() []nhl.SeasonInfo {
-	return []nhl.SeasonInfo{
-		testSeasonW(2022, "2022-10-07", "2023-04-14"),
-		testSeasonW(2023, "2023-10-10", "2024-04-18"),
-		testSeasonW(2024, "2024-10-04", "2025-04-17"),
-	}
-}
-
 func (s *InitializeWorkflowTestSuite) TestInitializeWorkflow_Success() {
 	s.mockInitializeSuccess(initializeTestSeasons())
 
@@ -640,19 +605,6 @@ func (s *ProcessPlayersWorkflowTestSuite) TestProcessPlayersWorkflow_Phase1_Succ
 	// Phase 1 completes and ContinueAsNew into Phase 2.
 	// In the test environment ContinueAsNew is treated as workflow completion.
 	s.True(s.env.IsWorkflowCompleted())
-}
-
-// mockPhaseLoadYahooSuccess mocks the activities ProcessPlayersWorkflow runs
-// up to its ContinueAsNew into Phase 2, loading players from the boxscores.
-func (s *ProcessPlayersWorkflowTestSuite) mockPhaseLoadYahooSuccess(players []store.BoxscorePlayer) {
-	var playerAct *workplayer.Activities
-	s.env.OnActivity(playerAct.LoadAllBoxscorePlayers, mock.Anything).Return(players, nil)
-	s.env.OnActivity(playerAct.ListYahooPlayerFiles, mock.Anything).Return(
-		[]store.YahooPlayerID{1, 2, 3}, nil)
-	s.env.OnActivity(playerAct.ParseYahooPlayerBatch, mock.Anything, mock.Anything).Return(
-		[]store.YahooPlayer{{YahooID: 1, FirstName: "Test", LastName: "Player"}}, nil)
-	s.env.OnActivity(playerAct.SaveYahooPlayersToRedis, mock.Anything, mock.Anything).Return(
-		&workplayer.SaveYahooIDPoolResult{TotalPlayers: 1, AvailablePlayers: 1}, nil)
 }
 
 // Test ProcessPlayersWorkflow handles LoadAllBoxscorePlayers failure in Phase 1.

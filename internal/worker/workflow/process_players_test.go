@@ -51,14 +51,6 @@ func TestLoadProcessPlayersConfig(t *testing.T) {
 	})
 }
 
-const (
-	// processPlayersYahooBarTotal is the Yahoo pool bar's Total: one step.
-	processPlayersYahooBarTotal = 1
-	// processPlayersUnmatchedEstimate is the Unmatched bar's Total until
-	// Phase 3 sizes it to the unmatched players.
-	processPlayersUnmatchedEstimate = 1
-)
-
 // Phase 1's saved report counts every bar the constructor sized, instead of
 // the zero the report starts with.
 func (s *ProcessPlayersWorkflowTestSuite) TestProcessPlayersWorkflow_Phase1_SavedTotalMatchesBars() {
@@ -79,11 +71,8 @@ func (s *ProcessPlayersWorkflowTestSuite) TestProcessPlayersWorkflow_Phase1_Save
 // the saved report's Total must follow, so Completed never exceeds it.
 func (s *ProcessPlayersWorkflowTestSuite) TestProcessPlayersWorkflow_Phase4_SavedTotalMatchesBars() {
 	input := &processPlayersInternalInput{
-		Phase:           phaseVerifyUnmatched,
-		BatchSize:       50,
-		Concurrency:     10,
-		Players:         []store.BoxscorePlayer{{ID: 8471214, FirstName: "Sidney", LastName: "Crosby"}},
-		YahooPoolResult: &workplayer.SaveYahooIDPoolResult{TotalPlayers: 100, AvailablePlayers: 95},
+		Phase:   phaseVerifyUnmatched,
+		Players: []store.BoxscorePlayer{{ID: 8471214, FirstName: "Sidney", LastName: "Crosby"}},
 	}
 	unmatched := []workplayer.UnmatchedYahooPlayer{
 		{YahooID: 123, FirstName: "Unknown", LastName: "One"},
@@ -108,4 +97,17 @@ func (s *ProcessPlayersWorkflowTestSuite) TestProcessPlayersWorkflow_Phase4_Save
 	report := lastSaved()
 	requireTotalIsBarSum(s.T(), report, processPlayersYahooBarTotal+len(input.Players)+len(unmatched))
 	s.LessOrEqual(report.Completed, report.Total)
+}
+
+// mockPhaseLoadYahooSuccess mocks the activities ProcessPlayersWorkflow runs
+// up to its ContinueAsNew into Phase 2, loading players from the boxscores.
+func (s *ProcessPlayersWorkflowTestSuite) mockPhaseLoadYahooSuccess(players []store.BoxscorePlayer) {
+	var playerAct *workplayer.Activities
+	s.env.OnActivity(playerAct.LoadAllBoxscorePlayers, mock.Anything).Return(players, nil)
+	s.env.OnActivity(playerAct.ListYahooPlayerFiles, mock.Anything).Return(
+		[]store.YahooPlayerID{1, 2, 3}, nil)
+	s.env.OnActivity(playerAct.ParseYahooPlayerBatch, mock.Anything, mock.Anything).Return(
+		[]store.YahooPlayer{{YahooID: 1, FirstName: "Test", LastName: "Player"}}, nil)
+	s.env.OnActivity(playerAct.SaveYahooPlayersToRedis, mock.Anything, mock.Anything).Return(
+		&workplayer.SaveYahooIDPoolResult{TotalPlayers: 1, AvailablePlayers: 1}, nil)
 }

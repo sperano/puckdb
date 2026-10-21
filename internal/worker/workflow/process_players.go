@@ -20,6 +20,14 @@ const (
 	GroupVerifyUnmatched = 2
 )
 
+const (
+	// processPlayersYahooBarTotal is the Yahoo pool bar's Total: one step.
+	processPlayersYahooBarTotal = 1
+	// processPlayersUnmatchedEstimate is the Unmatched bar's Total until
+	// Phase 3 resizes it to the number of unmatched players.
+	processPlayersUnmatchedEstimate = 1
+)
+
 // processPlayersPhase identifies which phase of ProcessPlayersWorkflow is running.
 type processPlayersPhase int
 
@@ -115,10 +123,11 @@ type ProcessPlayersResult struct {
 // NewProcessPlayersProgressReport creates the initial progress structure.
 func NewProcessPlayersProgressReport(totalPlayers int) *shared.ProgressReport {
 	return &shared.ProgressReport{
+		Total: processPlayersYahooBarTotal + totalPlayers + processPlayersUnmatchedEstimate,
 		Groups: []shared.ProgressGroup{
-			{Header: "Loading Yahoo player pool...", Bars: []shared.ProgressBar{{Label: "Yahoo", Total: 1}}},
+			{Header: "Loading Yahoo player pool...", Bars: []shared.ProgressBar{{Label: "Yahoo", Total: processPlayersYahooBarTotal}}},
 			{Header: "Processing players...", Bars: []shared.ProgressBar{{Label: "Players", Total: totalPlayers}}},
-			{Header: "Verifying unmatched players...", Bars: []shared.ProgressBar{{Label: "Unmatched", Total: 1}}},
+			{Header: "Verifying unmatched players...", Bars: []shared.ProgressBar{{Label: "Unmatched", Total: processPlayersUnmatchedEstimate}}},
 		},
 	}
 }
@@ -165,7 +174,6 @@ func ProcessPlayersWorkflow(ctx workflow.Context, input *ProcessPlayersInput) (*
 	if err != nil {
 		return nil, err
 	}
-	tracker.RecalcTotal()
 
 	// Run Phase 1 inline (no ContinueAsNew yet — it's fast)
 	return runPhaseLoadYahoo(ctx, tracker, &processPlayersInternalInput{
