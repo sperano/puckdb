@@ -65,13 +65,19 @@ func (a *Activities) EnsureYahooIDPool(ctx context.Context, input EnsureYahooIDP
 		result.AvailableRestored = true
 		result.Available = available
 	}
-	pipe = a.RedisClient.Pipeline()
+	return result, a.refreshYahooIDPoolTTL(ctx)
+}
+
+// refreshYahooIDPoolTTL pushes both pool keys' expiry back to
+// ImportPlayersTTL.
+func (a *Activities) refreshYahooIDPoolTTL(ctx context.Context) error {
+	pipe := a.RedisClient.Pipeline()
 	pipe.Expire(ctx, YahooIDPoolKey, ImportPlayersTTL)
 	pipe.Expire(ctx, YahooIDAvailableKey, ImportPlayersTTL)
 	if _, err := pipe.Exec(ctx); err != nil {
-		return result, fmt.Errorf("refresh yahoo id pool ttl: %w", err)
+		return fmt.Errorf("refresh yahoo id pool ttl: %w", err)
 	}
-	return result, nil
+	return nil
 }
 
 // restoreYahooIDAvailable rebuilds the available set from the pool hash when
@@ -99,7 +105,7 @@ func (a *Activities) restoreYahooIDAvailable(ctx context.Context) (int, error) {
 	for _, id := range matched {
 		excluded[id] = struct{}{}
 	}
-	var available []any
+	available := make([]any, 0, len(ids))
 	for _, idStr := range ids {
 		id, err := strconv.Atoi(idStr)
 		if err != nil {

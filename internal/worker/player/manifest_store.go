@@ -141,7 +141,7 @@ func (s *PgProcessPlayersStore) RecordErrors(ctx context.Context, id string, err
 	err := sqlcdb.New(s.pool).UpsertProcessPlayersManifestErrors(ctx, params)
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) && pgErr.Code == pgForeignKeyViolation {
-		return s.foreignKeyViolation(ctx, id, err)
+		return s.classifyForeignKeyViolation(ctx, id, err)
 	}
 	if err != nil {
 		return fmt.Errorf("record process players manifest %s errors: %w", id, err)
@@ -149,16 +149,16 @@ func (s *PgProcessPlayersStore) RecordErrors(ctx context.Context, id string, err
 	return nil
 }
 
-// foreignKeyViolation tells the two causes of an error row's foreign key
-// violation apart: ErrManifestNotFound when the manifest is gone, and
+// classifyForeignKeyViolation tells the two causes of an error row's foreign
+// key violation apart: ErrManifestNotFound when the manifest is gone, and
 // ErrPlayerNotInManifest when an error names a player the manifest lacks.
-func (s *PgProcessPlayersStore) foreignKeyViolation(ctx context.Context, id string, violation error) error {
+func (s *PgProcessPlayersStore) classifyForeignKeyViolation(ctx context.Context, id string, violation error) error {
 	_, err := s.GetManifest(ctx, id)
 	if errors.Is(err, ErrManifestNotFound) {
 		return ErrManifestNotFound
 	}
 	if err != nil {
-		return err
+		return fmt.Errorf("classify foreign key violation (%w) of manifest %s errors: %w", violation, id, err)
 	}
 	return fmt.Errorf("record process players manifest %s errors: %w: %w", id, ErrPlayerNotInManifest, violation)
 }
