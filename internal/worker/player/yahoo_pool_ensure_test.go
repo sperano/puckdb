@@ -120,7 +120,7 @@ func (s *EnsureYahooIDPoolSuite) TestEmptiedAvailableSetIsNotRebuiltFromFiles() 
 	s.Require().NoError(RemoveFromYahooIDPool(context.Background(), s.act.RedisClient, []store.YahooPlayerID{97, 29}))
 	s.store.matched = []store.YahooPlayerID{97, 29}
 
-	s.Equal(EnsureYahooIDPoolResult{FoundSize: 2, AvailableRestored: true, PoolSize: 2}, s.ensure(2),
+	s.Equal(EnsureYahooIDPoolResult{FoundSize: 2, PoolSize: 2}, s.ensure(2),
 		"every Yahoo ID matched: the set stays empty and the pool is not parsed again")
 	s.False(s.mr.Exists(YahooIDAvailableKey))
 }

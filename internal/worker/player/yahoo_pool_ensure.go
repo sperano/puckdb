@@ -23,7 +23,7 @@ type EnsureYahooIDPoolInput struct {
 type EnsureYahooIDPoolResult struct {
 	FoundSize         int  // pool hash size before any rebuild
 	Rebuilt           bool // the pool was missing or incomplete and was rebuilt
-	AvailableRestored bool // the hash was complete but the available set was missing, and was restored
+	AvailableRestored bool // the hash was complete but the available set was lost, and was restored (not set when it was only empty)
 	PoolSize          int  // pool hash size now; the next check compares against it
 	Available         int  // available set size after a rebuild or restore (0 otherwise)
 	ReadErrors        int  // Yahoo player files a rebuild could not read
@@ -62,7 +62,7 @@ func (a *Activities) EnsureYahooIDPool(ctx context.Context, input EnsureYahooIDP
 		if err != nil {
 			return result, err
 		}
-		result.AvailableRestored = true
+		result.AvailableRestored = available > 0
 		result.Available = available
 	}
 	return result, a.refreshYahooIDPoolTTL(ctx)
@@ -115,10 +115,12 @@ func (a *Activities) restoreYahooIDAvailable(ctx context.Context) (int, error) {
 			available = append(available, idStr)
 		}
 	}
-	if len(available) > 0 {
-		if err := a.RedisClient.SAdd(ctx, YahooIDAvailableKey, available...).Err(); err != nil {
-			return 0, fmt.Errorf("restore yahoo id available set: %w", err)
-		}
+	if len(available) == 0 {
+		activity.GetLogger(ctx).Debug("Yahoo ID available set empty: every pooled Yahoo ID is matched or verified non-NHL")
+		return 0, nil
+	}
+	if err := a.RedisClient.SAdd(ctx, YahooIDAvailableKey, available...).Err(); err != nil {
+		return 0, fmt.Errorf("restore yahoo id available set: %w", err)
 	}
 	activity.GetLogger(ctx).Warn("Yahoo ID available set missing, restored from the pool", "available", len(available))
 	return len(available), nil
