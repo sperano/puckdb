@@ -26,6 +26,7 @@ func playerTools(q *sqlcdb.Queries) []server.ServerTool {
 		activePlayersTool(q),
 		playerCareerTotalsTool(q),
 		playerAwardsTool(q),
+		awardsTool(q),
 		playerRosterHistoryTool(q),
 		playerThreeStarsTool(q),
 		seasonRosterTool(q),
@@ -142,6 +143,37 @@ func playerAwardsTool(q *sqlcdb.Queries) server.ServerTool {
 				return errResult, nil
 			}
 			return toolResult(q.GetPlayerAwards(ctx, playerID))
+		},
+	}
+}
+
+// trophyArg is get_awards' trophy-name filter.
+const trophyArg = "trophy"
+
+func awardsTool(q *sqlcdb.Queries) server.ServerTool {
+	return server.ServerTool{
+		Tool: mcp.NewTool("get_awards",
+			mcp.WithDescription("Get award/trophy winners by season or by trophy. Pass exactly one of season and trophy. For one player's awards, use get_player_awards instead."),
+			mcp.WithNumber(seasonParam.name, mcp.Description("Season ID (e.g. 20252026): every award given that season")),
+			mcp.WithString(trophyArg, mcp.Description("Trophy name (e.g. 'Hart Memorial Trophy'): every season it was awarded")),
+		),
+		Handler: func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			season, hasSeason, errResult := optionalInt[int32](req, seasonParam)
+			if errResult != nil {
+				return errResult, nil
+			}
+			trophy, errResult := optionalString(req, trophyArg)
+			if errResult != nil {
+				return errResult, nil
+			}
+			hasTrophy := trophy != ""
+			if errResult := exactlyOne(seasonParam.name, hasSeason, trophyArg, hasTrophy); errResult != nil {
+				return errResult, nil
+			}
+			if hasTrophy {
+				return toolResult(q.GetAwardsByTrophy(ctx, trophy))
+			}
+			return toolResult(q.GetAwardsBySeason(ctx, season))
 		},
 	}
 }

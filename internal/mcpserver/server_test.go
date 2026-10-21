@@ -27,7 +27,7 @@ var expectedNHLTools = []string{
 	"list_teams",
 	"list_seasons",
 	"list_franchises",
-	// Players (10)
+	// Players (11)
 	"get_player",
 	"get_players_by_team",
 	"get_players_by_position",
@@ -35,6 +35,7 @@ var expectedNHLTools = []string{
 	"get_active_players",
 	"get_player_career_totals",
 	"get_player_awards",
+	"get_awards",
 	"get_player_roster_history",
 	"get_player_three_stars",
 	"get_season_roster",
@@ -302,6 +303,7 @@ var validNHLArgs = map[string]any{
 	"game_ids":             []any{float64(2025020001)},
 	recentNewsSinceArg:     "2026-10-16T00:00:00Z",
 	recentNewsTypesArg:     []any{},
+	trophyArg:              "Hart Memorial Trophy",
 }
 
 // nhlArgOverrides replace validNHLArgs values for tools that accept
@@ -320,6 +322,7 @@ var omittedNHLArgs = map[string]string{
 	"search_player":       yahooIDArg,
 	"get_skater_game_log": "season",
 	"get_goalie_game_log": "season",
+	"get_awards":          trophyArg,
 }
 
 // validNHLCall builds a valid call of tool from its schema.
