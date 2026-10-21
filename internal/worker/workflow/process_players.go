@@ -166,8 +166,9 @@ func loadYahooPool(ctx workflow.Context, tracker *shared.ReportTracker, batchSiz
 	var allYahooPlayers []store.YahooPlayer
 	numBatches := shared.BatchCount(len(yahooPlayerIDs), batchSize)
 	// Resized without a save: legacy chain histories record no save here
-	// (ResizeBar would add a local activity they lack); the first batch's
-	// IncrementBar saves the new size.
+	// (ResizeBar would add a local activity they lack); the next save (the
+	// first batch's IncrementBar, or CompleteGroup with no batches) writes
+	// the new size.
 	tracker.SetBarTotal(GroupLoadYahoo, 0, numBatches)
 	tracker.RecalcTotal()
 
