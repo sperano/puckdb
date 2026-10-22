@@ -7,6 +7,7 @@ import (
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 	"github.com/rs/zerolog/log"
+	"github.com/sperano/puckdb/internal/news"
 	"github.com/sperano/puckdb/internal/sqlcdb"
 )
 
@@ -58,8 +59,7 @@ func registerToolsets(srv *server.MCPServer, queries *sqlcdb.Queries, opts Optio
 		case ToolsetYahoo:
 			registerYahooTools(srv, queries, newLeagueGuard(queries, opts.YahooLeagues), opts.Draft)
 		case ToolsetNews:
-			registerNewsCoverageTools(srv, queries, opts.NewsSources)
-			registerPlayerNewsTools(srv, queries)
+			registerNewsTools(srv, queries, opts.NewsSources)
 		}
 	}
 }
@@ -79,5 +79,12 @@ func registerNHLTools(srv *server.MCPServer, queries *sqlcdb.Queries) {
 	registerLinemateTools(srv, queries)
 	registerTeamSummaryTools(srv, queries)
 	registerTeamScheduleTools(srv, queries)
-	registerNewsTools(srv, queries)
+}
+
+// registerNewsTools adds the player news tools: source coverage, one
+// player's events and league-wide recent events.
+func registerNewsTools(srv *server.MCPServer, queries *sqlcdb.Queries, sources []news.Source) {
+	registerNewsCoverageTools(srv, queries, sources)
+	registerPlayerNewsTools(srv, queries)
+	registerRecentNewsTools(srv, queries)
 }

@@ -51,7 +51,7 @@ func (f *recentNewsQueryFake) ListNewsEventEvidence(_ context.Context, ids []int
 
 func recentNewsTestServer(q recentNewsQueries) *server.MCPServer {
 	srv := server.NewMCPServer("test", serverVersion)
-	registerNewsTools(srv, q)
+	registerRecentNewsTools(srv, q)
 	return srv
 }
 
@@ -147,6 +147,21 @@ func TestRecentNewsRejectsBadArgumentsBeforeSQL(t *testing.T) {
 			result := callTool(t, tool.Handler, test.args)
 			assert.True(t, result.IsError)
 			assert.Contains(t, resultText(t, result), test.want)
+			assert.Zero(t, q.eventCalls)
+		})
+	}
+}
+
+// TestRecentNewsRejectsMalformedLimitBeforeSQL gives limit the values
+// TestNHLToolsRejectMalformedIntegersBeforeSQL sweeps the nhl tools with.
+func TestRecentNewsRejectsMalformedLimitBeforeSQL(t *testing.T) {
+	for kind, value := range malformedIntegers {
+		t.Run(kind, func(t *testing.T) {
+			q := &recentNewsQueryFake{}
+			tool := recentNewsTestServer(q).GetTool(recentNewsToolName)
+			result := callTool(t, tool.Handler, map[string]any{recentNewsSinceArg: recentNewsTestSince, recentNewsLimitParam.name: value})
+			assert.True(t, result.IsError)
+			assert.Contains(t, resultText(t, result), "invalid "+recentNewsLimitParam.name)
 			assert.Zero(t, q.eventCalls)
 		})
 	}

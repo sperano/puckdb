@@ -99,8 +99,9 @@ type recentNewsEvidence struct {
 	quote      string
 }
 
-// registerNewsTools adds public, league-wide news tools to the NHL toolset.
-func registerNewsTools(srv *server.MCPServer, queries recentNewsQueries) {
+// registerRecentNewsTools adds the news toolset's league-wide recent events
+// tool.
+func registerRecentNewsTools(srv *server.MCPServer, queries recentNewsQueries) {
 	srv.AddTools(recentNewsTool(queries))
 }
 

@@ -89,8 +89,6 @@ var expectedNHLTools = []string{
 	"get_team_season_summary",
 	// Team schedule (1)
 	"get_team_schedule",
-	// News (1)
-	"get_recent_news_events",
 }
 
 // expectedYahooTools lists every tool the yahoo toolset registers.
@@ -121,6 +119,7 @@ var expectedYahooTools = []string{
 var expectedNewsTools = []string{
 	"get_player_news",
 	"get_news_coverage",
+	recentNewsToolName,
 }
 
 // registeredToolNames builds a server for opts and returns its tool names.
@@ -302,8 +301,6 @@ var validNHLArgs = map[string]any{
 	recentFormAsOfArg:      "2025-10-31",
 	recentFormDaysArg:      float64(14),
 	"game_ids":             []any{float64(2025020001)},
-	recentNewsSinceArg:     "2026-10-16T00:00:00Z",
-	recentNewsTypesArg:     []any{},
 	trophyArg:              "Hart Memorial Trophy",
 }
 
