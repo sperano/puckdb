@@ -479,3 +479,42 @@ func TestNHLToolsRequireRequiredIntegers(t *testing.T) {
 		}
 	}
 }
+
+// validNewsArgs holds a valid value for every argument a news tool takes;
+// the since arguments differ per tool.
+var validNewsArgs = map[string]map[string]any{
+	newsCoverageToolName: {seasonYearParam.name: float64(testSeasonID)},
+	playerNewsToolName: {
+		playerIDArg: float64(matchedPlayerID), yahooPlayerIDArg: float64(matchedYahooID),
+		newsSinceArg: "2026-10-01", playerNewsLimitParam.name: float64(5), newsIncludeInactiveArg: true,
+	},
+	recentNewsToolName: {recentNewsSinceArg: "2026-10-16T00:00:00Z", recentNewsTypesArg: []any{}, recentNewsLimitParam.name: float64(5)},
+}
+
+// TestNewsToolsRejectMalformedIntegersBeforeSQL is the news toolset's
+// TestNHLToolsRejectMalformedIntegersBeforeSQL, starting from calls that
+// reach SQL.
+func TestNewsToolsRejectMalformedIntegersBeforeSQL(t *testing.T) {
+	db := &capturingDB{}
+	srv := server.NewMCPServer("test", serverVersion)
+	registerNewsTools(srv, sqlcdb.New(db), nil)
+	for name, tool := range srv.ListTools() {
+		valid, ok := validNewsArgs[name]
+		require.True(t, ok, "add valid arguments for %s to validNewsArgs", name)
+		require.ElementsMatch(t, slices.Collect(maps.Keys(tool.Tool.InputSchema.Properties)), slices.Collect(maps.Keys(valid)), name)
+		db.calls = nil
+		result := callTool(t, tool.Handler, valid)
+		require.NotEmpty(t, db.calls, "%s: %s", name, resultText(t, result))
+		for _, arg := range numberArgs(tool.Tool) {
+			for kind, value := range malformedIntegers {
+				t.Run(name+"/"+arg+"/"+kind, func(t *testing.T) {
+					db.calls = nil
+					result := callTool(t, tool.Handler, withArg(valid, arg, value))
+					assert.True(t, result.IsError)
+					assert.Contains(t, resultText(t, result), "invalid "+arg)
+					assert.Empty(t, db.calls, "a malformed %s reached SQL", arg)
+				})
+			}
+		}
+	}
+}

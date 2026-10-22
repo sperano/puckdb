@@ -152,21 +152,6 @@ func TestRecentNewsRejectsBadArgumentsBeforeSQL(t *testing.T) {
 	}
 }
 
-// TestRecentNewsRejectsMalformedLimitBeforeSQL gives limit the values
-// TestNHLToolsRejectMalformedIntegersBeforeSQL sweeps the nhl tools with.
-func TestRecentNewsRejectsMalformedLimitBeforeSQL(t *testing.T) {
-	for kind, value := range malformedIntegers {
-		t.Run(kind, func(t *testing.T) {
-			q := &recentNewsQueryFake{}
-			tool := recentNewsTestServer(q).GetTool(recentNewsToolName)
-			result := callTool(t, tool.Handler, map[string]any{recentNewsSinceArg: recentNewsTestSince, recentNewsLimitParam.name: value})
-			assert.True(t, result.IsError)
-			assert.Contains(t, resultText(t, result), "invalid "+recentNewsLimitParam.name)
-			assert.Zero(t, q.eventCalls)
-		})
-	}
-}
-
 func TestRecentNewsReportsQueryErrors(t *testing.T) {
 	eventsErr := &recentNewsQueryFake{eventErr: errors.New("events failed")}
 	result := callRecentNewsResult(t, eventsErr)
