@@ -161,20 +161,20 @@ func draftRefreshPlan(input *model.RefreshDraftRankingsInput, cfg draftRankingCo
 			return nil, draftrank.Options{}, fmt.Errorf("invalid league ID %d", id)
 		}
 	}
-	options := draftrank.Options{BenchPolicy: string(draft.BenchIncluded)}
+	options := draftrank.Options{BenchPolicy: draft.BenchIncluded}
 	if input.BenchPolicy != nil {
 		bench, known := draftBenchPolicies[*input.BenchPolicy]
 		if !known {
 			return nil, draftrank.Options{}, fmt.Errorf("unknown bench policy %q", *input.BenchPolicy)
 		}
-		options.BenchPolicy = string(bench)
+		options.BenchPolicy = bench
 	}
 	if input.WorkloadCapPolicy != nil {
 		workload, known := draftWorkloadPolicies[*input.WorkloadCapPolicy]
 		if !known {
 			return nil, draftrank.Options{}, fmt.Errorf("unknown workload cap policy %q", *input.WorkloadCapPolicy)
 		}
-		options.WorkloadCapPolicy = string(workload)
+		options.WorkloadCapPolicy = workload
 	}
 	if input.UncertaintyPenalty != nil {
 		penalty := *input.UncertaintyPenalty

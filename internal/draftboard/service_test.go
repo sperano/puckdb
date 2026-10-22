@@ -227,6 +227,33 @@ func TestConflictedUndoRemainsVisibleUntilEitherResolution(t *testing.T) {
 	assert.Equal(t, draftsession.SourceYahoo, acceptedRows[0].Source)
 }
 
+func TestEventsMapsBoundaryShapeAndCopiesDetails(t *testing.T) {
+	const (
+		leagueKey    = "500.l.5621"
+		leagueSeason = 2026
+		eventKind    = "manual-add"
+		eventDetails = `{"playerId":101}`
+		eventVersion = uint64(7)
+	)
+	createdAt := time.Date(2026, time.October, 4, 12, 0, 0, 0, time.UTC)
+	details := []byte(eventDetails)
+	data := &fakeDataSource{
+		identity: draftwatch.Identity{LeagueKey: leagueKey},
+		events: []draftwatch.Event{{
+			StateVersion: eventVersion, Kind: eventKind, Details: details, CreatedAt: createdAt,
+		}},
+	}
+
+	events, err := NewService(data, nil, nil, Options{}).Events(
+		context.Background(), leagueKey, leagueSeason, 0, 1)
+	require.NoError(t, err)
+	require.Len(t, events, 1)
+	details[0] = '['
+	assert.Equal(t, Event{
+		StateVersion: eventVersion, Kind: eventKind, Details: []byte(eventDetails), CreatedAt: createdAt,
+	}, events[0])
+}
+
 func conflictedUndoState(t *testing.T) draftsession.State {
 	t.Helper()
 	key := draftsession.PickKey{Round: 1, Pick: 1}
@@ -277,6 +304,7 @@ type fakeDataSource struct {
 	leagueData       LeagueData
 	applyErr         error
 	shortlistChanged bool
+	events           []draftwatch.Event
 }
 
 func (f *fakeDataSource) ResolveIdentity(context.Context, string, int) (draftwatch.Identity, error) {
@@ -306,7 +334,7 @@ func (f *fakeDataSource) ResolveConflict(context.Context, draftwatch.Identity, d
 	return draftwatch.Session{}, draftsession.Report{}, f.applyErr
 }
 func (f *fakeDataSource) ListEvents(context.Context, string, uint64, int) ([]draftwatch.Event, error) {
-	return nil, nil
+	return f.events, nil
 }
 
 type fakeRecommendationEngine struct {

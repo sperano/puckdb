@@ -171,7 +171,6 @@ func (s *PGDataSource) roster(ctx context.Context, id draftwatch.Identity, teamI
 		}
 		seen[int(row.PlayerID)] = true
 		players = append(players, draft.RosterPlayer{YahooPlayerID: int(row.PlayerID),
-			Name:              fmt.Sprintf("Yahoo player %d", row.PlayerID),
 			EligiblePositions: append([]string(nil), row.EligiblePositions...)})
 	}
 	return players, nil

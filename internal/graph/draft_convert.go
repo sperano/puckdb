@@ -132,9 +132,9 @@ func gqlSnapshot(info *draftrank.SnapshotInfo) *model.DraftSnapshot {
 
 func gqlOptions(o draftrank.Options) *model.DraftRankingOptions {
 	out := &model.DraftRankingOptions{
-		BenchPolicy: model.DraftBenchPolicy(strings.ToUpper(o.BenchPolicy)), UncertaintyPenalty: o.UncertaintyPenalty,
+		BenchPolicy: model.DraftBenchPolicy(strings.ToUpper(string(o.BenchPolicy))), UncertaintyPenalty: o.UncertaintyPenalty,
 	}
-	if o.WorkloadCapPolicy == string(draft.WorkloadCapsPerPlayer) {
+	if o.WorkloadCapPolicy == draft.WorkloadCapsPerPlayer {
 		out.WorkloadCapPolicy = new(model.DraftWorkloadCapPolicyPerPlayer)
 	}
 	return out
