@@ -24,7 +24,7 @@ func workerPoolErrorActivity(_ context.Context, _ int) (int, error) {
 }
 
 // --- Workflow wrappers -------------------------------------------------------
-// Each wrapper runs one of the RunWorkerPool* variants inside a real workflow
+// Each wrapper runs RunWorkerPool with one progress mode inside a real workflow
 // context so that Temporal's selector, goroutine scheduler, and workflow.Now
 // work correctly.
 
@@ -39,7 +39,7 @@ type workerPoolResult struct {
 	Dispatched int
 }
 
-// runWorkerPoolWorkflow exercises RunWorkerPool with concurrency capping.
+// runWorkerPoolWorkflow exercises RunWorkerPool with a SingleBar and concurrency capping.
 func runWorkerPoolWorkflow(ctx workflow.Context, total, concurrency int) (workerPoolResult, error) {
 	report := &ProgressReport{
 		Groups: []ProgressGroup{
@@ -70,7 +70,7 @@ func runWorkerPoolWorkflow(ctx workflow.Context, total, concurrency int) (worker
 		return nil
 	}
 
-	err := tracker.RunWorkerPool(ctx, 0, 0, total, concurrency, startActivity, handler)
+	err := tracker.RunWorkerPool(ctx, PoolOptions{Total: total, Concurrency: concurrency, Start: startActivity, Handle: handler, Progress: SingleBar{Bar: BarRef{}}})
 	res := workerPoolResult{Processed: processed}
 	if err != nil {
 		res.Err = err.Error()
@@ -78,7 +78,7 @@ func runWorkerPoolWorkflow(ctx workflow.Context, total, concurrency int) (worker
 	return res, nil
 }
 
-// runWorkerPoolWithIncrementWorkflow exercises RunWorkerPoolWithIncrement.
+// runWorkerPoolWithIncrementWorkflow exercises a SingleBar with an Increment.
 // The increment function returns the index+1 so bar current sums to n*(n+1)/2.
 func runWorkerPoolWithIncrementWorkflow(ctx workflow.Context, total, concurrency int) (workerPoolResult, error) {
 	report := &ProgressReport{
@@ -112,7 +112,10 @@ func runWorkerPoolWithIncrementWorkflow(ctx workflow.Context, total, concurrency
 		return nil
 	}
 
-	err := tracker.RunWorkerPoolWithIncrement(ctx, 0, 0, total, concurrency, incrementFunc, startActivity, handler)
+	err := tracker.RunWorkerPool(ctx, PoolOptions{
+		Total: total, Concurrency: concurrency, Start: startActivity, Handle: handler,
+		Progress: SingleBar{Bar: BarRef{}, Increment: incrementFunc},
+	})
 	res := workerPoolResult{Processed: processed}
 	if err != nil {
 		res.Err = err.Error()
@@ -120,7 +123,7 @@ func runWorkerPoolWithIncrementWorkflow(ctx workflow.Context, total, concurrency
 	return res, nil
 }
 
-// runWorkerPoolMultiBarWorkflow exercises RunWorkerPoolMultiBar.
+// runWorkerPoolMultiBarWorkflow exercises BarPerItem.
 // Each item has its own bar; on completion bars are marked complete.
 func runWorkerPoolMultiBarWorkflow(ctx workflow.Context, total, concurrency int) (workerPoolResult, error) {
 	bars := make([]ProgressBar, total)
@@ -156,7 +159,7 @@ func runWorkerPoolMultiBarWorkflow(ctx workflow.Context, total, concurrency int)
 		return nil
 	}
 
-	err := tracker.RunWorkerPoolMultiBar(ctx, 0, 0, total, concurrency, startActivity, handler)
+	err := tracker.RunWorkerPool(ctx, PoolOptions{Total: total, Concurrency: concurrency, Start: startActivity, Handle: handler, Progress: BarPerItem{}})
 	res := workerPoolResult{Processed: processed}
 	if err != nil {
 		res.Err = err.Error()
@@ -181,7 +184,7 @@ func runWorkerPoolErrorWorkflow(ctx workflow.Context) (workerPoolResult, error) 
 		return workflow.ExecuteLocalActivity(actCtx, workerPoolErrorActivity, index)
 	}
 
-	err := tracker.RunWorkerPool(ctx, 0, 0, 3, 2, startActivity, nil)
+	err := tracker.RunWorkerPool(ctx, PoolOptions{Total: 3, Concurrency: 2, Start: startActivity, Progress: SingleBar{Bar: BarRef{}}})
 	res := workerPoolResult{}
 	if err != nil {
 		res.Err = err.Error()
@@ -202,11 +205,11 @@ func runWorkerPoolZeroWorkflow(ctx workflow.Context) (workerPoolResult, error) {
 		return workflow.ExecuteLocalActivity(c, workerPoolActivity, index)
 	}
 
-	err := tracker.RunWorkerPool(ctx, 0, 0, 0, 5, startActivity, nil)
+	err := tracker.RunWorkerPool(ctx, PoolOptions{Total: 0, Concurrency: 5, Start: startActivity, Progress: SingleBar{Bar: BarRef{}}})
 	return workerPoolResult{Err: errString(err)}, nil
 }
 
-// runWorkerPoolMultiBarZeroWorkflow exercises RunWorkerPoolMultiBar with zero items.
+// runWorkerPoolMultiBarZeroWorkflow exercises BarPerItem with zero items.
 func runWorkerPoolMultiBarZeroWorkflow(ctx workflow.Context) (workerPoolResult, error) {
 	report := &ProgressReport{
 		Groups: []ProgressGroup{
@@ -220,7 +223,7 @@ func runWorkerPoolMultiBarZeroWorkflow(ctx workflow.Context) (workerPoolResult, 
 		return workflow.ExecuteLocalActivity(ctx, workerPoolActivity, 0)
 	}
 
-	err := tracker.RunWorkerPoolMultiBar(ctx, 0, 0, 0, 5, neverCalled, nil)
+	err := tracker.RunWorkerPool(ctx, PoolOptions{Total: 0, Concurrency: 5, Start: neverCalled, Progress: BarPerItem{}})
 	return workerPoolResult{Err: errString(err)}, nil
 }
 
@@ -260,13 +263,13 @@ func runWorkerPoolConcurrencyCapWorkflow(ctx workflow.Context, total, concurrenc
 		return nil
 	}
 
-	err := tracker.RunWorkerPool(ctx, 0, 0, total, concurrency, startActivity, handler)
+	err := tracker.RunWorkerPool(ctx, PoolOptions{Total: total, Concurrency: concurrency, Start: startActivity, Handle: handler, Progress: SingleBar{Bar: BarRef{}}})
 	res.Err = errString(err)
 	return res, nil
 }
 
 // runWorkerPoolInvalidConcurrencyWorkflow exercises the central concurrency
-// validation shared by all RunWorkerPool* variants: nonpositive concurrency
+// validation shared by every progress mode: nonpositive concurrency
 // with nonempty input must error instead of silently succeeding, and nothing
 // may be dispatched.
 func runWorkerPoolInvalidConcurrencyWorkflow(ctx workflow.Context, multiBar bool, concurrency int) (workerPoolResult, error) {
@@ -290,9 +293,9 @@ func runWorkerPoolInvalidConcurrencyWorkflow(ctx workflow.Context, multiBar bool
 
 	var err error
 	if multiBar {
-		err = tracker.RunWorkerPoolMultiBar(ctx, 0, 0, total, concurrency, startActivity, nil)
+		err = tracker.RunWorkerPool(ctx, PoolOptions{Total: total, Concurrency: concurrency, Start: startActivity, Progress: BarPerItem{}})
 	} else {
-		err = tracker.RunWorkerPool(ctx, 0, 0, total, concurrency, startActivity, nil)
+		err = tracker.RunWorkerPool(ctx, PoolOptions{Total: total, Concurrency: concurrency, Start: startActivity, Progress: SingleBar{Bar: BarRef{}}})
 	}
 	res.Err = errString(err)
 	return res, nil
@@ -310,8 +313,8 @@ func errString(err error) string {
 // activityTestTimeout is the ScheduleToCloseTimeout for local activities in tests.
 const activityTestTimeout = 5 * time.Second
 
-// WorkerPoolTestSuite exercises RunWorkerPool, RunWorkerPoolWithIncrement, and
-// RunWorkerPoolMultiBar through the Temporal workflow test framework.
+// WorkerPoolTestSuite exercises RunWorkerPool's progress modes (SingleBar with
+// and without Increment, BarPerItem) through the Temporal workflow test framework.
 type WorkerPoolTestSuite struct {
 	suite.Suite
 	testsuite.WorkflowTestSuite
@@ -427,7 +430,7 @@ func (s *WorkerPoolTestSuite) TestRunWorkerPoolMultiBar_AllBarsCompleted() {
 	s.Len(result.Processed, total)
 }
 
-// TestRunWorkerPoolMultiBar_ZeroTotal verifies that RunWorkerPoolMultiBar returns
+// TestRunWorkerPoolMultiBar_ZeroTotal verifies that a BarPerItem pool returns
 // immediately without calling startActivity when total is zero.
 func (s *WorkerPoolTestSuite) TestRunWorkerPoolMultiBar_ZeroTotal() {
 	s.env.ExecuteWorkflow(runWorkerPoolMultiBarZeroWorkflow)

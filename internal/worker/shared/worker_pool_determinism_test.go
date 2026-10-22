@@ -41,11 +41,11 @@ func runWorkerPoolIndexErrorWorkflow(ctx workflow.Context, total int) (workerPoo
 	}
 	tracker := &ReportTracker{report: report}
 
-	err := tracker.RunWorkerPool(ctx, 0, 0, total, total, presettledErrorStarter(ctx), nil)
+	err := tracker.RunWorkerPool(ctx, PoolOptions{Total: total, Concurrency: total, Start: presettledErrorStarter(ctx), Progress: SingleBar{Bar: BarRef{}}})
 	return workerPoolResult{Err: errString(err)}, nil
 }
 
-// runWorkerPoolMultiBarIndexErrorWorkflow is the RunWorkerPoolMultiBar analogue
+// runWorkerPoolMultiBarIndexErrorWorkflow is the BarPerItem analogue
 // of runWorkerPoolIndexErrorWorkflow.
 func runWorkerPoolMultiBarIndexErrorWorkflow(ctx workflow.Context, total int) (workerPoolResult, error) {
 	bars := make([]ProgressBar, total)
@@ -59,7 +59,7 @@ func runWorkerPoolMultiBarIndexErrorWorkflow(ctx workflow.Context, total int) (w
 	}
 	tracker := &ReportTracker{report: report}
 
-	err := tracker.RunWorkerPoolMultiBar(ctx, 0, 0, total, total, presettledErrorStarter(ctx), nil)
+	err := tracker.RunWorkerPool(ctx, PoolOptions{Total: total, Concurrency: total, Start: presettledErrorStarter(ctx), Progress: BarPerItem{}})
 	return workerPoolResult{Err: errString(err)}, nil
 }
 
@@ -135,7 +135,7 @@ func (s *WorkerPoolTestSuite) TestRunWorkerPool_FirstErrorIsLowestIndex() {
 	}
 }
 
-// TestRunWorkerPoolMultiBar_FirstErrorIsLowestIndex is the RunWorkerPoolMultiBar
+// TestRunWorkerPoolMultiBar_FirstErrorIsLowestIndex is the BarPerItem
 // analogue of TestRunWorkerPool_FirstErrorIsLowestIndex.
 func (s *WorkerPoolTestSuite) TestRunWorkerPoolMultiBar_FirstErrorIsLowestIndex() {
 	const total = 8

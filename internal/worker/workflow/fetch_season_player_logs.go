@@ -110,9 +110,13 @@ func FetchSeasonPlayerLogsWorkflow(ctx workflow.Context, input FetchSeasonPlayer
 	startYear := season.ID.StartYear()
 	refreshCurrent := input.RefreshCurrent
 
-	err = tracker.RunWorkerPoolWithIncrement(ctx, GroupFetchSeasonPlayerLogs, 0, numBatches, concurrency,
-		func(i int) int { return len(shared.BatchSlice(playerIDs, i, batchSize)) },
-		func(_ workflow.Context, batchIdx int) workflow.Future {
+	err = tracker.RunWorkerPool(ctx, shared.PoolOptions{
+		Total: numBatches, Concurrency: concurrency,
+		Progress: shared.SingleBar{
+			Bar:       shared.BarRef{Group: GroupFetchSeasonPlayerLogs},
+			Increment: func(i int) int { return len(shared.BatchSlice(playerIDs, i, batchSize)) },
+		},
+		Start: func(_ workflow.Context, batchIdx int) workflow.Future {
 			batch := shared.BatchSlice(playerIDs, batchIdx, batchSize)
 			activityInput := workplayer.DownloadPlayerGameLogsInput{
 				PlayerIDs:      batch,
@@ -122,7 +126,8 @@ func FetchSeasonPlayerLogsWorkflow(ctx workflow.Context, input FetchSeasonPlayer
 				TotalPlayers:   playerCount,
 			}
 			return workflow.ExecuteActivity(ctx, playerAct.DownloadPlayerGameLogsBatch, activityInput)
-		}, nil)
+		},
+	})
 	if err != nil {
 		return err
 	}

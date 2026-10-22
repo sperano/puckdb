@@ -113,12 +113,14 @@ func importSeasonPlayoffs(ctx workflow.Context, tracker *shared.ReportTracker, s
 	}
 	tracker.ResizeBar(ctx, shared.BarRef{Group: GroupImportPlayoff}, len(teams))
 
-	err := tracker.RunWorkerPool(ctx, GroupImportPlayoff, 0, len(teams), concurrency,
-		func(_ workflow.Context, i int) workflow.Future {
+	err := tracker.RunWorkerPool(ctx, shared.PoolOptions{
+		Total: len(teams), Concurrency: concurrency,
+		Progress: shared.SingleBar{Bar: shared.BarRef{Group: GroupImportPlayoff}},
+		Start: func(_ workflow.Context, i int) workflow.Future {
 			input := worknhl.ImportTeamPlayoffGamesInput{Season: startYear, TeamAbbrev: teams[i]}
 			return workflow.ExecuteActivity(ctx, pa.ImportTeamPlayoffGames, input)
 		},
-		func(ctx workflow.Context, i int, f workflow.Future) error {
+		Handle: func(ctx workflow.Context, i int, f workflow.Future) error {
 			var res worknhl.ImportTeamPlayoffGamesResult
 			if err := f.Get(ctx, &res); err != nil {
 				return fmt.Errorf("import playoff games for %s: %w", teams[i], err)
@@ -128,7 +130,8 @@ func importSeasonPlayoffs(ctx workflow.Context, tracker *shared.ReportTracker, s
 			playoffTotals.SkatersImported += res.SkatersImported
 			playoffTotals.GoaliesImported += res.GoaliesImported
 			return nil
-		})
+		},
+	})
 	if err != nil {
 		return playoffTotals, err
 	}

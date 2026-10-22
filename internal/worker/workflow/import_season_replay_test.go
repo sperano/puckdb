@@ -127,8 +127,10 @@ func replayLegacyImportNHLSeasonWorkflow(ctx workflow.Context, season nhl.Season
 	seasonID := season.ID.ID()
 
 	counts := core.OriginCounts{}
-	err = tracker.RunWorkerPool(ctx, GroupImportDays, 0, numDays, dayConcurrency,
-		func(_ workflow.Context, i int) workflow.Future {
+	err = tracker.RunWorkerPool(ctx, shared.PoolOptions{
+		Total: numDays, Concurrency: dayConcurrency,
+		Progress: shared.SingleBar{Bar: shared.BarRef{Group: GroupImportDays}},
+		Start: func(_ workflow.Context, i int) workflow.Future {
 			day := startDate.AddDate(0, 0, i)
 			input := worknhl.ImportDayInput{
 				Date:      day,
@@ -138,7 +140,9 @@ func replayLegacyImportNHLSeasonWorkflow(ctx workflow.Context, season nhl.Season
 				TotalDays: numDays,
 			}
 			return workflow.ExecuteActivity(ctx, ia.ImportDay, input)
-		}, shared.AggregateInto[core.OriginCounts](counts))
+		},
+		Handle: shared.AggregateInto[core.OriginCounts](counts),
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -160,12 +164,14 @@ func replayLegacyImportNHLSeasonWorkflow(ctx workflow.Context, season nhl.Season
 	tracker.Save(ctx)
 
 	playoffTotals := worknhl.ImportTeamPlayoffGamesResult{Origins: core.OriginCounts{}}
-	err = tracker.RunWorkerPool(ctx, GroupImportPlayoff, 0, len(teams), dayConcurrency,
-		func(_ workflow.Context, i int) workflow.Future {
+	err = tracker.RunWorkerPool(ctx, shared.PoolOptions{
+		Total: len(teams), Concurrency: dayConcurrency,
+		Progress: shared.SingleBar{Bar: shared.BarRef{Group: GroupImportPlayoff}},
+		Start: func(_ workflow.Context, i int) workflow.Future {
 			input := worknhl.ImportTeamPlayoffGamesInput{Season: startYear, TeamAbbrev: teams[i]}
 			return workflow.ExecuteActivity(ctx, pa.ImportTeamPlayoffGames, input)
 		},
-		func(ctx workflow.Context, i int, f workflow.Future) error {
+		Handle: func(ctx workflow.Context, i int, f workflow.Future) error {
 			var res worknhl.ImportTeamPlayoffGamesResult
 			if err := f.Get(ctx, &res); err != nil {
 				return fmt.Errorf("import playoff games for %s: %w", teams[i], err)
@@ -175,7 +181,8 @@ func replayLegacyImportNHLSeasonWorkflow(ctx workflow.Context, season nhl.Season
 			playoffTotals.SkatersImported += res.SkatersImported
 			playoffTotals.GoaliesImported += res.GoaliesImported
 			return nil
-		})
+		},
+	})
 	if err != nil {
 		return nil, err
 	}

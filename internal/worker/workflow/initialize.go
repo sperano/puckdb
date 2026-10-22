@@ -177,7 +177,11 @@ func upsertSeasonTeams(ctx workflow.Context, tracker *shared.ReportTracker, logg
 		upserted += activityResult.UpsertResult.TeamsUpserted // safe: Temporal workflow handlers are single-threaded
 		return nil
 	}
-	if err := tracker.RunWorkerPool(ctx, GroupInitializeSeasonTeams, 0, len(seasonIDs), config.DefaultSeasonConcurrency, startActivity, handler); err != nil {
+	opts := shared.PoolOptions{
+		Total: len(seasonIDs), Concurrency: config.DefaultSeasonConcurrency, Start: startActivity, Handle: handler,
+		Progress: shared.SingleBar{Bar: shared.BarRef{Group: GroupInitializeSeasonTeams}},
+	}
+	if err := tracker.RunWorkerPool(ctx, opts); err != nil {
 		return 0, err
 	}
 

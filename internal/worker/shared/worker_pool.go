@@ -1,6 +1,7 @@
 package shared
 
 import (
+	"errors"
 	"fmt"
 
 	"go.temporal.io/sdk/workflow"
@@ -33,35 +34,50 @@ func (h workerPoolHooks) stopped() bool {
 	return h.stopDispatch != nil && h.stopDispatch()
 }
 
-// RunWorkerPool runs activities concurrently with a fixed concurrency limit.
-// All activities update a SINGLE bar at barIdx, incrementing by 1 on each completion.
-// Use RunWorkerPoolMultiBar if each activity should have its own bar.
-func (t *ReportTracker) RunWorkerPool(ctx workflow.Context, groupIdx, barIdx, total, concurrency int, startActivity ActivityStarter, handler ResultHandler) error {
-	return t.RunWorkerPoolWithIncrement(ctx, groupIdx, barIdx, total, concurrency, func(_ int) int { return 1 }, startActivity, handler)
+// PoolOptions configures one RunWorkerPool call.
+type PoolOptions struct {
+	// Total is the number of work items, run as indexes [0, Total).
+	Total int
+	// Concurrency is the most items in flight at once.
+	Concurrency int
+	// Start starts item i and returns its future.
+	Start ActivityStarter
+	// Handle receives each completed item's future; nil means future.Get(ctx, nil).
+	Handle ResultHandler
+	// Progress is how the items advance the tracker's report; nil means no progress.
+	Progress PoolProgress
 }
 
-// RunWorkerPoolWithIncrement is like RunWorkerPool but uses incrementFunc to determine
-// how much to advance the progress bar for each completed work item.
-func (t *ReportTracker) RunWorkerPoolWithIncrement(ctx workflow.Context, groupIdx, barIdx, total, concurrency int, incrementFunc IncrementFunc, startActivity ActivityStarter, handler ResultHandler) error {
-	return runWorkerPool(ctx, total, concurrency, startActivity, handler, workerPoolHooks{
-		onComplete: func(ctx workflow.Context, index int) {
-			t.IncrementBarBy(ctx, BarRef{Group: groupIdx, Bar: barIdx}, incrementFunc(index))
-		},
-	})
+// RunWorkerPool runs opts.Total work items with at most opts.Concurrency in
+// flight, reporting them on the tracker as opts.Progress says. It validates
+// opts before issuing any command, so a rejected call records no activity and
+// no Save; the first item error stops dispatching and is returned.
+func (t *ReportTracker) RunWorkerPool(ctx workflow.Context, opts PoolOptions) error {
+	if opts.Total == 0 {
+		return nil
+	}
+	hooks, err := t.poolHooks(opts)
+	if err != nil {
+		return err
+	}
+	return runWorkerPool(ctx, opts.Total, opts.Concurrency, opts.Start, opts.Handle, hooks)
 }
 
-// RunWorkerPoolMultiBar runs activities concurrently where each activity has its own bar.
-// Bar[barStart + i] corresponds to activity i. Marks bars as Started when dispatched
-// and sets them complete on activity completion.
-func (t *ReportTracker) RunWorkerPoolMultiBar(ctx workflow.Context, groupIdx, barStart, total, concurrency int, startActivity ActivityStarter, handler ResultHandler) error {
-	return runWorkerPool(ctx, total, concurrency, startActivity, handler, workerPoolHooks{
-		onStart: func(ctx workflow.Context, index int) {
-			t.StartBar(ctx, BarRef{Group: groupIdx, Bar: barStart + index})
-		},
-		onComplete: func(ctx workflow.Context, index int) {
-			t.CompleteBar(ctx, BarRef{Group: groupIdx, Bar: barStart + index})
-		},
-	})
+// poolHooks validates opts and returns the hooks of its progress mode.
+func (t *ReportTracker) poolHooks(opts PoolOptions) (workerPoolHooks, error) {
+	switch {
+	case opts.Total < 0:
+		return workerPoolHooks{}, errors.New("worker pool: total must not be negative")
+	case opts.Concurrency <= 0:
+		return workerPoolHooks{}, concurrencyError(opts.Total, opts.Concurrency)
+	case opts.Start == nil:
+		return workerPoolHooks{}, errors.New("worker pool: Start must not be nil")
+	case opts.Progress == nil:
+		return workerPoolHooks{}, nil
+	case t == nil:
+		return workerPoolHooks{}, errors.New("worker pool: progress needs a tracker, got a nil one")
+	}
+	return opts.Progress.hooks(t, opts.Total)
 }
 
 // RunWorkerPoolMultiBarSuccessful leaves failed bars incomplete while marking
@@ -104,7 +120,8 @@ func (t *ReportTracker) RunWorkerPoolBarRangesSuccessful(ctx workflow.Context, g
 	}})
 }
 
-// runWorkerPool is the single scheduler behind the RunWorkerPool* variants.
+// runWorkerPool is the single scheduler behind RunWorkerPool, the
+// RunWorkerPool*Successful variants and RunActivitiesUntil.
 // It dispatches work items [0, total) through startActivity with at most
 // concurrency futures in flight, invoking hooks around each item's lifecycle.
 //
@@ -120,7 +137,7 @@ func runWorkerPool(ctx workflow.Context, total, concurrency int, startActivity A
 		return nil
 	}
 	if concurrency <= 0 {
-		return fmt.Errorf("worker pool: concurrency must be positive, got %d (total %d)", concurrency, total)
+		return concurrencyError(total, concurrency)
 	}
 
 	nextIndex := 0
@@ -182,6 +199,11 @@ func runWorkerPool(ctx workflow.Context, total, concurrency int, startActivity A
 	}
 
 	return nil
+}
+
+// concurrencyError reports a nonpositive concurrency for total items.
+func concurrencyError(total, concurrency int) error {
+	return fmt.Errorf("worker pool: concurrency must be positive, got %d (total %d)", concurrency, total)
 }
 
 // removeActiveIndex removes idx from the sorted slice, preserving order.

@@ -196,13 +196,17 @@ func runPhaseProcessPlayers(ctx workflow.Context, tracker *shared.ReportTracker,
 
 	// Run batches with concurrency control
 	window := input.Players[startIdx:endIdx]
-	if err := tracker.RunWorkerPoolWithIncrement(ctx, GroupProcessPlayers, 0, numBatches, input.Concurrency,
-		func(i int) int { return len(shared.BatchSlice(window, i, input.BatchSize)) },
-		func(_ workflow.Context, batchIndex int) workflow.Future {
+	opts := shared.PoolOptions{
+		Total: numBatches, Concurrency: input.Concurrency,
+		Progress: shared.SingleBar{
+			Bar:       shared.BarRef{Group: GroupProcessPlayers},
+			Increment: func(i int) int { return len(shared.BatchSlice(window, i, input.BatchSize)) },
+		},
+		Start: func(_ workflow.Context, batchIndex int) workflow.Future {
 			batch := shared.BatchSlice(window, batchIndex, input.BatchSize)
 			return workflow.ExecuteActivity(activityCtx, playerAct.ProcessPlayerBatch, batch)
 		},
-		func(ctx workflow.Context, batchIndex int, f workflow.Future) error {
+		Handle: func(ctx workflow.Context, batchIndex int, f workflow.Future) error {
 			var result workplayer.ProcessPlayerBatchResult
 			if err := f.Get(ctx, &result); err != nil {
 				return err
@@ -214,7 +218,9 @@ func runPhaseProcessPlayers(ctx workflow.Context, tracker *shared.ReportTracker,
 			allErrors = append(allErrors, result.Errors...)
 			origins.Add(result.Origins)
 			return nil
-		}); err != nil {
+		},
+	}
+	if err := tracker.RunWorkerPool(ctx, opts); err != nil {
 		return nil, err
 	}
 

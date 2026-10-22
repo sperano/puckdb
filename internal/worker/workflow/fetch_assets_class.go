@@ -260,20 +260,18 @@ func FetchAssetsClassWorkflow(ctx workflow.Context, input FetchAssetsClassInput)
 	batchCtx := workflow.WithActivityOptions(ctx, assetActivityOptions())
 	counts := core.OriginCounts{}
 
-	err = tracker.RunWorkerPool(
-		ctx,
-		fetchAssetsProgressGroupIdx,
-		fetchAssetsProgressBarIdx,
-		numBatches,
-		concurrency,
-		func(_ workflow.Context, i int) workflow.Future {
+	err = tracker.RunWorkerPool(ctx, shared.PoolOptions{
+		Total:       numBatches,
+		Concurrency: concurrency,
+		Progress:    shared.SingleBar{Bar: shared.BarRef{Group: fetchAssetsProgressGroupIdx, Bar: fetchAssetsProgressBarIdx}},
+		Start: func(_ workflow.Context, i int) workflow.Future {
 			var act *asset.Activities
 			return workflow.ExecuteActivity(batchCtx, act.FetchAssetBatch, asset.FetchAssetBatchInput{
 				Assets:         batches[i],
 				RefreshCurrent: input.RefreshCurrent,
 			})
 		},
-		func(wfCtx workflow.Context, _ int, f workflow.Future) error {
+		Handle: func(wfCtx workflow.Context, _ int, f workflow.Future) error {
 			var result asset.FetchAssetBatchResult
 			if err := f.Get(wfCtx, &result); err != nil {
 				return err
@@ -291,7 +289,7 @@ func FetchAssetsClassWorkflow(ctx workflow.Context, input FetchAssetsClassInput)
 			}
 			return nil
 		},
-	)
+	})
 	if err != nil {
 		return counts, fmt.Errorf("run worker pool for %s: %w", input.Class.Label, err)
 	}

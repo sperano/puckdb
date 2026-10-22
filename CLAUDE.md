@@ -185,7 +185,7 @@ func FetchEdgeWorkflow(ctx workflow.Context, input FetchEdgeWorkflowInput) (core
 - Bar methods (`IncrementBar`, `IncrementBarBy`, `StartBar`, `CompleteBar`, `ResizeBar`, `SetBarTotal`, `SetBarLabel`, `Bar`) take a `shared.BarRef`; a workflow that names the same bar several times declares it once (`var upcomingSeasonBar = shared.BarRef{Group: groupUpcomingSeason}` in `upcoming_season.go`). A reference or group index outside the report panics with a message naming the group, bar and sizes
 
 **Reference implementations:**
-- `FetchNHLSeasonWorkflow` — uses `RunWorkerPool` for automatic tracking
+- `FetchNHLSeasonWorkflow` — uses `RunWorkerPool` for automatic tracking: `tracker.RunWorkerPool(ctx, shared.PoolOptions{Total: n, Concurrency: c, Start: start, Handle: handle, Progress: shared.SingleBar{Bar: shared.BarRef{Group: g}}})` advances one bar per completed item (by `SingleBar.Increment(i)` when set); `shared.BarPerItem{Group: g}` gives item i its own bar instead. `RunWorkerPool` validates the options (bar references included) and returns an error before issuing any command
 - `FetchEdgeWorkflow` — uses manual `IncrementBar` calls
 
 ### Configuration Inside Workflow Code
