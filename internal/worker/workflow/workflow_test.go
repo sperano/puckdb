@@ -2,8 +2,10 @@ package workflow
 
 import (
 	"bytes"
+	"context"
 	"encoding/gob"
 	"errors"
+	"sync"
 	"testing"
 
 	"github.com/sperano/nhl-api-go/nhl"
@@ -15,6 +17,7 @@ import (
 	"github.com/sperano/puckdb/internal/worker/shared"
 	"github.com/sperano/puckdb/internal/worker/yahoo"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"go.temporal.io/sdk/testsuite"
 )
@@ -27,6 +30,49 @@ func gobEncodeProgressReport(report *shared.ProgressReport) []byte {
 		panic("gobEncodeProgressReport: " + err.Error())
 	}
 	return buf.Bytes()
+}
+
+// recordLastSavedReport records every progress report the workflow saves and
+// returns a func giving the last one (nil before the first save). Saves run
+// as local activities on their own goroutines, hence the lock.
+func recordLastSavedReport(env *testsuite.TestWorkflowEnvironment) func() *shared.ProgressReport {
+	var (
+		mu   sync.Mutex
+		last *shared.ProgressReport
+	)
+	env.OnActivity(((*shared.ProgressActivities)(nil)).Save,
+		mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+		Return(func(_ context.Context, _, _ string, data []byte) error {
+			var report shared.ProgressReport
+			if err := gob.NewDecoder(bytes.NewReader(data)).Decode(&report); err != nil {
+				return err
+			}
+			mu.Lock()
+			defer mu.Unlock()
+			last = &report
+			return nil
+		}).Maybe()
+	return func() *shared.ProgressReport {
+		mu.Lock()
+		defer mu.Unlock()
+		return last
+	}
+}
+
+// requireTotalIsBarSum checks that a saved report's Total is the sum of its
+// bars' totals and equals want, so a report whose bars were never sized
+// (both zero) cannot pass.
+func requireTotalIsBarSum(t *testing.T, report *shared.ProgressReport, want int) {
+	t.Helper()
+	require.NotNil(t, report, "no progress report was saved")
+	barSum := 0
+	for _, group := range report.Groups {
+		for _, bar := range group.Bars {
+			barSum += bar.Total
+		}
+	}
+	require.Equal(t, want, barSum, "sum of the bars' totals")
+	require.Equal(t, barSum, report.Total, "report Total must equal the sum of the bars' totals")
 }
 
 // testSeasonW creates a nhl.SeasonInfo for workflow tests.
@@ -163,34 +209,7 @@ func TestInitializeWorkflowTestSuite(t *testing.T) {
 }
 
 func (s *InitializeWorkflowTestSuite) TestInitializeWorkflow_Success() {
-	// Mock all activities in the workflow
-	var fa *worknhl.FranchiseActivities
-	s.env.OnActivity(fa.FetchFranchises, mock.Anything).Return(
-		worknhl.FetchFranchisesResult{Origin: core.OriginRemoteNHLAPI}, nil)
-	s.env.OnActivity(fa.UpsertFranchises, mock.Anything).Return(
-		worknhl.UpsertFranchisesResult{FranchisesUpserted: 32}, nil)
-	var sa *worknhl.SeasonsActivities
-	s.env.OnActivity(sa.FetchSeasonsManifest, mock.Anything, mock.Anything).Return(
-		worknhl.FetchSeasonsManifestResult{
-			Seasons: []nhl.SeasonInfo{
-				testSeasonW(2022, "2022-10-07", "2023-04-14"),
-				testSeasonW(2023, "2023-10-10", "2024-04-18"),
-				testSeasonW(2024, "2024-10-04", "2025-04-17"),
-			},
-			Origin: core.OriginFileSystem,
-		}, nil)
-	s.env.OnActivity(sa.UpsertSeasons, mock.Anything).Return(
-		worknhl.UpsertSeasonsResult{SeasonsUpserted: 3}, nil)
-	// Mock InitializeSeasonTeamsActivity - called for each season returned by FetchSeasonsManifest
-	// Note: We must include valid Season values in ALL nested result structs, otherwise zero-value
-	// Season{startYear: 0} serializes to "01" which fails to parse. The specific season values don't
-	// matter here since the test only validates the aggregated TeamsUpserted count.
-	s.env.OnActivity(sa.InitializeSeasonTeamsActivity, mock.Anything, mock.AnythingOfType("nhl.Season")).
-		Return(worknhl.InitializeSeasonTeamsResult{
-			Season:         nhl.NewSeason(2022),
-			DownloadResult: worknhl.DownloadSeasonStandingsResult{Season: nhl.NewSeason(2022), TeamCount: 32},
-			UpsertResult:   worknhl.UpsertSeasonTeamsResult{Season: nhl.NewSeason(2022), TeamsUpserted: 30},
-		}, nil)
+	s.mockInitializeSuccess(initializeTestSeasons())
 
 	s.env.ExecuteWorkflow(InitializeWorkflow)
 
@@ -578,16 +597,7 @@ func TestProcessPlayersWorkflowTestSuite(t *testing.T) {
 // then transitions to Phase 2 (ProcessPlayers) via ContinueAsNew.
 func (s *ProcessPlayersWorkflowTestSuite) TestProcessPlayersWorkflow_Phase1_Success() {
 	input := &ProcessPlayersInput{}
-
-	var playerAct *workplayer.Activities
-	s.env.OnActivity(playerAct.CreateProcessPlayersManifest, mock.Anything, mock.Anything).Return(
-		workplayer.ManifestRef{ID: "run", Count: 1, Hash: "h"}, nil)
-	s.env.OnActivity(playerAct.ListYahooPlayerFiles, mock.Anything).Return(
-		[]store.YahooPlayerID{1, 2, 3}, nil)
-	s.env.OnActivity(playerAct.ParseYahooPlayerBatch, mock.Anything, mock.Anything).Return(
-		[]store.YahooPlayer{{YahooID: 1, FirstName: "Test", LastName: "Player"}}, nil)
-	s.env.OnActivity(playerAct.SaveYahooPlayersToRedis, mock.Anything, mock.Anything).Return(
-		&workplayer.SaveYahooIDPoolResult{TotalPlayers: 1, AvailablePlayers: 1}, nil)
+	s.mockPhaseLoadYahooSuccess(1)
 
 	s.env.ExecuteWorkflow(ProcessPlayersWorkflow, input)
 

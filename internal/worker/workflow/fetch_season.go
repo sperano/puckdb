@@ -126,9 +126,7 @@ func FetchNHLSeasonWorkflow(ctx workflow.Context, season nhl.SeasonInfo) (core.O
 	if err := workflow.ExecuteActivity(ctx, pa.ListSeasonTeams, startSeason).Get(ctx, &teams); err != nil {
 		return nil, fmt.Errorf("list season teams: %w", err)
 	}
-	tracker.SetBarTotal(GroupFetchSeasonPlayoff, 0, len(teams))
-	tracker.RecalcTotal()
-	tracker.Save(ctx)
+	tracker.ResizeBar(ctx, GroupFetchSeasonPlayoff, 0, len(teams))
 
 	playoffGames := 0
 	err = tracker.RunWorkerPool(ctx, GroupFetchSeasonPlayoff, 0, len(teams), concurrency,

@@ -19,6 +19,15 @@ const (
 	GroupVerifyUnmatched = 2
 )
 
+const (
+	// processPlayersYahooEstimate is the Yahoo bar's Total until Phase 1
+	// resizes it to the number of Yahoo player batches.
+	processPlayersYahooEstimate = 1
+	// processPlayersUnmatchedEstimate is the Unmatched bar's Total until
+	// Phase 3 resizes it to the number of unmatched players.
+	processPlayersUnmatchedEstimate = 1
+)
+
 // processPlayersPhase identifies which phase of ProcessPlayersWorkflow is running.
 type processPlayersPhase int
 
@@ -92,9 +101,9 @@ type ProcessPlayersResult struct {
 func NewProcessPlayersProgressReport(totalPlayers int) *shared.ProgressReport {
 	report := &shared.ProgressReport{
 		Groups: []shared.ProgressGroup{
-			{Header: "Loading Yahoo player pool...", Bars: []shared.ProgressBar{{Label: "Yahoo", Total: 1}}},
+			{Header: "Loading Yahoo player pool...", Bars: []shared.ProgressBar{{Label: "Yahoo", Total: processPlayersYahooEstimate}}},
 			{Header: "Processing players...", Bars: []shared.ProgressBar{{Label: "Players", Total: totalPlayers}}},
-			{Header: "Verifying unmatched players...", Bars: []shared.ProgressBar{{Label: "Unmatched", Total: 1}}},
+			{Header: "Verifying unmatched players...", Bars: []shared.ProgressBar{{Label: "Unmatched", Total: processPlayersUnmatchedEstimate}}},
 		},
 	}
 	report.Total = progressBarTotal(report)
@@ -156,6 +165,12 @@ func loadYahooPool(ctx workflow.Context, tracker *shared.ReportTracker, batchSiz
 	// Step 1b: Parse Yahoo players in batches with concurrency
 	var allYahooPlayers []store.YahooPlayer
 	numBatches := shared.BatchCount(len(yahooPlayerIDs), batchSize)
+	// Resized without a save: legacy chain histories record no save here
+	// (ResizeBar would add a local activity they lack); the next save (the
+	// first batch's IncrementBarBy in RunWorkerPool, or CompleteGroup with
+	// no batches) writes the new size.
+	tracker.SetBarTotal(GroupLoadYahoo, 0, numBatches)
+	tracker.RecalcTotal()
 
 	if err := tracker.RunWorkerPool(ctx, GroupLoadYahoo, 0, numBatches, concurrency,
 		func(_ workflow.Context, batchIndex int) workflow.Future {

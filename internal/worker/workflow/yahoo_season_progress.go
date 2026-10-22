@@ -58,9 +58,7 @@ func (p yahooSeasonProgress) resize(ctx workflow.Context, bar, delta int) {
 		return
 	}
 	p.serialized(ctx, func() {
-		p.tracker.SetBarTotal(yahooChildGroup, bar, p.tracker.Bar(yahooChildGroup, bar).Total+delta)
-		p.tracker.RecalcTotal()
-		p.tracker.Save(ctx)
+		p.tracker.ResizeBar(ctx, yahooChildGroup, bar, p.tracker.Bar(yahooChildGroup, bar).Total+delta)
 	})
 }
 

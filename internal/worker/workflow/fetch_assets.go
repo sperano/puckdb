@@ -46,7 +46,7 @@ func snapshotFetchAssetsConfig(ctx workflow.Context, logger log.Logger, maxClass
 	})
 }
 
-// fetchAssetsClassFunc is the signature shared by the nine entry-point
+// fetchAssetsClassFunc is the signature shared by the per-class entry-point
 // workflows. Constraining the registry's Workflow field to this type catches
 // signature drift at compile time rather than at Temporal replay.
 type fetchAssetsClassFunc = func(workflow.Context, FetchAssetsInput) (core.OriginCounts, error)
@@ -80,16 +80,16 @@ var parentAssetClasses = []assetClassEntry{
 	{Class: classYahooManagerImages, CountName: "CountYahooManagerImageAssets", Workflow: FetchYahooManagerImagesWorkflow, Slug: "yahoo-manager-images"},
 }
 
-// FetchAssetsWorkflow is the parent workflow that orchestrates the nine
-// per-class asset fetch child workflows. It:
+// FetchAssetsWorkflow is the parent workflow that orchestrates one asset
+// fetch child workflow per class in parentAssetClasses. It:
 //  1. Builds a single ProgressGroup with one bar per class.
-//  2. Runs nine count activities concurrently to size each bar's Total.
+//  2. Runs one count activity per class concurrently to size each bar's Total.
 //     Counts return rows; bar.Total is converted to batches because each
 //     child workflow tracks batches (not rows) to keep Temporal history
 //     event counts small.
 //  3. Sets each bar's ProgressSourceKey to its child's stable workflow ID so
 //     the GraphQL resolver merges live progress from Redis.
-//  4. Dispatches the nine children via RunWorkerPoolMultiBar bounded by
+//  4. Dispatches the children via RunWorkerPoolMultiBar bounded by
 //     MaxAssetClassConcurrencyParam.
 //  5. Aggregates core.OriginCounts from every child.
 //
@@ -150,8 +150,9 @@ func newFetchAssetsProgressReport() *shared.ProgressReport {
 	}
 }
 
-// populateClassBarTotals runs the nine count activities concurrently and sets
-// each bar's Total to the resulting batch count. Counts return rows; we
+// populateClassBarTotals runs one count activity per class concurrently,
+// sets each bar's Total to the resulting batch count and refreshes the report
+// Total; the caller's StartGroup publishes both. Counts return rows; we
 // convert to batches so the bar Total matches each child's own progress
 // tracker (which counts batches).
 func populateClassBarTotals(ctx workflow.Context, tracker *shared.ReportTracker, batchSize int) error {
@@ -169,6 +170,7 @@ func populateClassBarTotals(ctx workflow.Context, tracker *shared.ReportTracker,
 		}
 		tracker.SetBarTotal(fetchAssetsGroupIdx, i, batchesForRows(rowCount, batchSize))
 	}
+	tracker.RecalcTotal()
 	return nil
 }
 
@@ -178,7 +180,7 @@ func batchesForRows(rowCount, batchSize int) int {
 	return (rowCount + batchSize - 1) / batchSize
 }
 
-// dispatchClassChildren spawns the nine class child workflows via
+// dispatchClassChildren spawns one child workflow per class via
 // RunWorkerPoolMultiBar and aggregates their OriginCounts. The pool is bounded
 // by concurrency (the resolved cross-class concurrency); each child runs on
 // the inherited puckdb-asset-tasks queue.
