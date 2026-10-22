@@ -3,9 +3,10 @@
 // Yahoo season data, player logs, landings and Edge tracking,
 // ProcessPlayersWorkflow's ContinueAsNew chain, draft ranking and news
 // refresh, and database initialization. Each workflow delegates its work
-// to activities in the sibling nhl, yahoo, player, admin, asset, newsfeed,
-// draftranking and simulation packages, using shared for progress
-// tracking, config snapshotting and worker pools.
+// to activities in the sibling nhl, yahoo, player, asset, newsfeed and
+// draftranking packages, using shared for progress tracking, config
+// snapshotting and worker pools. admin and simulation define their own
+// workflows instead of using this package.
 package workflow
 
 import (

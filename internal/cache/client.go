@@ -3,8 +3,8 @@
 // cache, and provides the Redis-backed pieces that sit beside it: the
 // Yahoo OAuth2 token store and its refresh lock, a Valkey-backed GobCache
 // for small decoded responses, distributed resource locks, and workflow
-// progress snapshots. All Redis access is instrumented through
-// internal/metrics.
+// progress snapshots. GobCache reads are counted in internal/metrics
+// (puckdb_valkey_cache_requests_total); the token store and locks are not.
 package cache
 
 import (

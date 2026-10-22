@@ -1,9 +1,9 @@
 // Package matching links an NHL player to the Yahoo ID of the same player
-// by name, birth date and team, reporting a MatchReason for every outcome
-// (exact, ambiguous, no candidate, ...); the player-enrichment worker
-// records that reason rather than silently dropping a match. It also holds
-// the static NHL team table and Yahoo's team-name/abbreviation variants
-// that both this matcher and the news player resolver read.
+// by name, jersey number, birth date and team, reporting a MatchReason
+// (NameJersey, NameBirthdate, TeamTiebreaker, Ambiguous, NoMatch, ...) for
+// every outcome. It also holds the static NHL team table and Yahoo's
+// team-name/abbreviation variants that both this matcher and the news
+// player resolver read.
 package matching
 
 import (

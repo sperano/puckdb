@@ -1,9 +1,10 @@
 // Package graph implements the gqlgen resolvers for schema.graphqls (and
 // data.graphqls, draft.graphqls, simulation.graphqls): Resolver holds the
 // shared dependencies (database pool, Redis, Temporal client, the
-// draftrank/draftboard services, Maurice), data.resolvers.go and
-// draft*.resolvers.go/simulation.resolvers.go implement the generated
-// query/mutation interfaces, and workflow_start.go/convert.go/draft_convert.go
+// draftrank/draftboard services, Maurice), schema.resolvers.go,
+// data.resolvers.go and draft*.resolvers.go/simulation.resolvers.go
+// implement the generated query/mutation interfaces, and
+// workflow_start.go/convert.go/draft_convert.go
 // hold the shared start/cancel plumbing and GraphQL-shape conversions.
 // Generated code lives in graph/generated and graph/model; run `go tool
 // gqlgen generate` after editing the schema, never hand-edit the output.
