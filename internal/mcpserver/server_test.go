@@ -89,8 +89,6 @@ var expectedNHLTools = []string{
 	"get_team_season_summary",
 	// Team schedule (1)
 	"get_team_schedule",
-	// News (1)
-	"get_recent_news_events",
 }
 
 // expectedYahooTools lists every tool the yahoo toolset registers.
@@ -121,6 +119,7 @@ var expectedYahooTools = []string{
 var expectedNewsTools = []string{
 	"get_player_news",
 	"get_news_coverage",
+	recentNewsToolName,
 }
 
 // registeredToolNames builds a server for opts and returns its tool names.
@@ -302,8 +301,6 @@ var validNHLArgs = map[string]any{
 	recentFormAsOfArg:      "2025-10-31",
 	recentFormDaysArg:      float64(14),
 	"game_ids":             []any{float64(2025020001)},
-	recentNewsSinceArg:     "2026-10-16T00:00:00Z",
-	recentNewsTypesArg:     []any{},
 	trophyArg:              "Hart Memorial Trophy",
 }
 
@@ -479,6 +476,45 @@ func TestNHLToolsRequireRequiredIntegers(t *testing.T) {
 				assert.Equal(t, arg+" is required", resultText(t, result))
 				assert.Empty(t, db.calls)
 			})
+		}
+	}
+}
+
+// validNewsArgs holds a valid value for every argument a news tool takes;
+// the since arguments differ per tool.
+var validNewsArgs = map[string]map[string]any{
+	newsCoverageToolName: {seasonYearParam.name: float64(testSeasonID)},
+	playerNewsToolName: {
+		playerIDArg: float64(matchedPlayerID), yahooPlayerIDArg: float64(matchedYahooID),
+		newsSinceArg: "2026-10-01", playerNewsLimitParam.name: float64(5), newsIncludeInactiveArg: true,
+	},
+	recentNewsToolName: {recentNewsSinceArg: "2026-10-16T00:00:00Z", recentNewsTypesArg: []any{}, recentNewsLimitParam.name: float64(5)},
+}
+
+// TestNewsToolsRejectMalformedIntegersBeforeSQL is the news toolset's
+// TestNHLToolsRejectMalformedIntegersBeforeSQL, starting from calls that
+// reach SQL.
+func TestNewsToolsRejectMalformedIntegersBeforeSQL(t *testing.T) {
+	db := &capturingDB{}
+	srv := server.NewMCPServer("test", serverVersion)
+	registerNewsTools(srv, sqlcdb.New(db), nil)
+	for name, tool := range srv.ListTools() {
+		valid, ok := validNewsArgs[name]
+		require.True(t, ok, "add valid arguments for %s to validNewsArgs", name)
+		require.ElementsMatch(t, slices.Collect(maps.Keys(tool.Tool.InputSchema.Properties)), slices.Collect(maps.Keys(valid)), name)
+		db.calls = nil
+		result := callTool(t, tool.Handler, valid)
+		require.NotEmpty(t, db.calls, "%s: %s", name, resultText(t, result))
+		for _, arg := range numberArgs(tool.Tool) {
+			for kind, value := range malformedIntegers {
+				t.Run(name+"/"+arg+"/"+kind, func(t *testing.T) {
+					db.calls = nil
+					result := callTool(t, tool.Handler, withArg(valid, arg, value))
+					assert.True(t, result.IsError)
+					assert.Contains(t, resultText(t, result), "invalid "+arg)
+					assert.Empty(t, db.calls, "a malformed %s reached SQL", arg)
+				})
+			}
 		}
 	}
 }

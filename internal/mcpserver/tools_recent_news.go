@@ -99,8 +99,9 @@ type recentNewsEvidence struct {
 	quote      string
 }
 
-// registerNewsTools adds public, league-wide news tools to the NHL toolset.
-func registerNewsTools(srv *server.MCPServer, queries recentNewsQueries) {
+// registerRecentNewsTools adds the news toolset's recent events tool,
+// which covers every NHL player.
+func registerRecentNewsTools(srv *server.MCPServer, queries recentNewsQueries) {
 	srv.AddTools(recentNewsTool(queries))
 }
 
@@ -115,7 +116,7 @@ func recentNewsTool(q recentNewsQueries) server.ServerTool {
 				mcp.Description("Optional event types; omit or pass empty for all types"),
 				mcp.WithStringEnumItems(recentNewsTypes),
 			),
-			mcp.WithNumber("limit", mcp.Description(fmt.Sprintf("Max events (default %d, max %d)", defaultRecentNewsEventsLimit, maxRecentNewsEventsLimit))),
+			mcp.WithNumber(recentNewsLimitParam.name, mcp.Description(fmt.Sprintf("Max events (default %d, max %d)", defaultRecentNewsEventsLimit, maxRecentNewsEventsLimit))),
 		),
 		Handler: func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			parsed, errResult := parseRecentNewsRequest(req)

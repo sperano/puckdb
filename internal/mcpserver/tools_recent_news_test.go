@@ -51,7 +51,7 @@ func (f *recentNewsQueryFake) ListNewsEventEvidence(_ context.Context, ids []int
 
 func recentNewsTestServer(q recentNewsQueries) *server.MCPServer {
 	srv := server.NewMCPServer("test", serverVersion)
-	registerNewsTools(srv, q)
+	registerRecentNewsTools(srv, q)
 	return srv
 }
 
