@@ -66,25 +66,29 @@ func (s *BarRangesSuite) TestIncrementBarsAndTotals() {
 
 // Item 0 owns bars 0-1 and succeeds; item 1 owns bar 2 and fails. Item 0's
 // handler resizes bar 0 before completion, so it completes at the new Total.
-func (s *BarRangesSuite) TestRunWorkerPoolBarRangesSuccessful() {
+func (s *BarRangesSuite) TestRunWorkerPoolBarsPerItemOnlyOnSuccess() {
 	report := threeBarReport()
 	ranges := []BarRange{{Start: 0, Count: 2}, {Start: 2, Count: 1}}
 	s.env.ExecuteWorkflow(func(ctx workflow.Context) error {
 		ctx = workflow.WithActivityOptions(ctx, workflow.ActivityOptions{StartToCloseTimeout: barRangesTimeout})
 		tracker, err := InitTracker(ctx, report)
 		s.Require().NoError(err)
-		return tracker.RunWorkerPoolBarRangesSuccessful(ctx, 0, ranges, len(ranges),
-			func(ctx workflow.Context, index int) workflow.Future {
+		return tracker.RunWorkerPool(ctx, PoolOptions{
+			Total: len(ranges), Concurrency: len(ranges),
+			Progress:      BarsPerItem{Group: 0, Ranges: ranges},
+			OnlyOnSuccess: true,
+			Start: func(ctx workflow.Context, index int) workflow.Future {
 				return workflow.ExecuteActivity(ctx, barRangeActivity, index)
 			},
-			func(ctx workflow.Context, index int, future workflow.Future) error {
+			Handle: func(ctx workflow.Context, index int, future workflow.Future) error {
 				if err := future.Get(ctx, nil); err != nil {
 					return err
 				}
 				tracker.SetBarTotal(BarRef{Group: 0}, barRangesResizedTotal)
 				tracker.RecalcTotal()
 				return nil
-			})
+			},
+		})
 	})
 	s.Error(s.env.GetWorkflowError())
 	bars := report.Groups[0].Bars
@@ -92,4 +96,38 @@ func (s *BarRangesSuite) TestRunWorkerPoolBarRangesSuccessful() {
 	s.Equal(ProgressBar{Current: 3, Total: 3, Started: true}, bars[1])
 	s.Equal(ProgressBar{Current: 0, Total: 4, Started: true}, bars[2], "a failed item's bars stay incomplete")
 	s.Equal(barRangesResizedTotal+3+4, report.Total)
+}
+
+// A BarsPerItem handler that resizes its item's bars sees CompleteBars run
+// after it, with or without OnlyOnSuccess: every bar completes at the size
+// the handler gave it.
+func (s *BarRangesSuite) TestRunWorkerPoolBarsPerItemCompletesAfterHandlerResize() {
+	for _, onlyOnSuccess := range []bool{false, true} {
+		env := s.NewTestWorkflowEnvironment()
+		env.OnActivity(((*ProgressActivities)(nil)).Save, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
+		report := threeBarReport()
+		ranges := []BarRange{{Start: 0, Count: 2}, {Start: 2, Count: 1}}
+		env.ExecuteWorkflow(func(ctx workflow.Context) error {
+			tracker, err := InitTracker(ctx, report)
+			s.Require().NoError(err)
+			return tracker.RunWorkerPool(ctx, PoolOptions{
+				Total: len(ranges), Concurrency: 1,
+				Progress:      BarsPerItem{Group: 0, Ranges: ranges},
+				OnlyOnSuccess: onlyOnSuccess,
+				Start:         settledStarter(nil),
+				Handle: func(ctx workflow.Context, index int, future workflow.Future) error {
+					r := ranges[index]
+					for bar := r.Start; bar < r.Start+r.Count; bar++ {
+						tracker.SetBarTotal(BarRef{Group: 0, Bar: bar}, barRangesResizedTotal)
+					}
+					return future.Get(ctx, nil)
+				},
+			})
+		})
+		s.Require().NoError(env.GetWorkflowError(), "OnlyOnSuccess %t", onlyOnSuccess)
+		for i, bar := range report.Groups[0].Bars {
+			s.Equalf(ProgressBar{Current: barRangesResizedTotal, Total: barRangesResizedTotal, Started: true}, bar,
+				"OnlyOnSuccess %t, bar %d", onlyOnSuccess, i)
+		}
+	}
 }

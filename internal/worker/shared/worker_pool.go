@@ -46,14 +46,17 @@ type PoolOptions struct {
 	Handle ResultHandler
 	// Progress is how the items advance the tracker's report; nil means no progress.
 	Progress PoolProgress
+	// OnlyOnSuccess advances Progress only after Handle (or future.Get) succeeded;
+	// a failed item's bar stays as it was. Default false: advance regardless.
+	// With a nil Progress it is accepted and does nothing.
+	OnlyOnSuccess bool
 }
 
 // RunWorkerPool runs opts.Total work items with at most opts.Concurrency in
 // flight, reporting them on the tracker as opts.Progress says. It validates
 // opts before issuing any command, so a rejected call records no activity and
 // no Save; the first item error stops dispatching and is returned. A zero
-// Total returns nil without validating, as the positional variants did, so a
-// replayed zero-item pool still succeeds whatever its other options.
+// Total returns nil without validating its other options.
 func (t *ReportTracker) RunWorkerPool(ctx workflow.Context, opts PoolOptions) error {
 	if opts.Total == 0 {
 		return nil
@@ -62,7 +65,35 @@ func (t *ReportTracker) RunWorkerPool(ctx workflow.Context, opts PoolOptions) er
 	if err != nil {
 		return err
 	}
-	return runWorkerPool(ctx, opts.Total, opts.Concurrency, opts.Start, opts.Handle, hooks)
+	handle := opts.Handle
+	if opts.OnlyOnSuccess {
+		handle, hooks = completeOnlyOnSuccess(handle, hooks)
+	}
+	return runWorkerPool(ctx, opts.Total, opts.Concurrency, opts.Start, handle, hooks)
+}
+
+// completeOnlyOnSuccess moves hooks.onComplete into the result handler: it
+// runs after handle (or future.Get(ctx, nil) when handle is nil), and only
+// when that succeeded. The command order is the scheduler's own (handler,
+// then completion), minus the completion of a failed item. Hooks without an
+// onComplete come back unchanged.
+func completeOnlyOnSuccess(handle ResultHandler, hooks workerPoolHooks) (ResultHandler, workerPoolHooks) {
+	onComplete := hooks.onComplete
+	if onComplete == nil {
+		return handle, hooks
+	}
+	hooks.onComplete = nil
+	return func(ctx workflow.Context, index int, future workflow.Future) error {
+		if handle != nil {
+			if err := handle(ctx, index, future); err != nil {
+				return err
+			}
+		} else if err := future.Get(ctx, nil); err != nil {
+			return err
+		}
+		onComplete(ctx, index)
+		return nil
+	}, hooks
 }
 
 // poolHooks validates opts and returns the hooks of its progress mode.
@@ -80,57 +111,17 @@ func (t *ReportTracker) poolHooks(opts PoolOptions) (workerPoolHooks, error) {
 		return workerPoolHooks{}, errors.New("worker pool: progress needs a tracker, got a nil one")
 	}
 	switch opts.Progress.(type) {
-	case SingleBar, BarPerItem:
+	case SingleBar, BarPerItem, BarsPerItem:
 		return opts.Progress.hooks(t, opts.Total)
 	default:
 		// A pointer mode satisfies PoolProgress too, and a typed nil one would
 		// panic in hooks: reject it as an error like every other bad option.
-		return workerPoolHooks{}, fmt.Errorf("worker pool: progress must be a SingleBar or BarPerItem value, got %T", opts.Progress)
+		return workerPoolHooks{}, fmt.Errorf("worker pool: progress must be a SingleBar, BarPerItem or BarsPerItem value, got %T", opts.Progress)
 	}
 }
 
-// RunWorkerPoolMultiBarSuccessful leaves failed bars incomplete while marking
-// only successful work items complete.
-func (t *ReportTracker) RunWorkerPoolMultiBarSuccessful(ctx workflow.Context, groupIdx, barStart, total, concurrency int,
-	startActivity ActivityStarter, handler ResultHandler) error {
-	return runWorkerPool(ctx, total, concurrency, startActivity, func(ctx workflow.Context, index int, future workflow.Future) error {
-		if handler != nil {
-			if err := handler(ctx, index, future); err != nil {
-				return err
-			}
-		} else if err := future.Get(ctx, nil); err != nil {
-			return err
-		}
-		t.CompleteBar(ctx, BarRef{Group: groupIdx, Bar: barStart + index})
-		return nil
-	}, workerPoolHooks{onStart: func(ctx workflow.Context, index int) {
-		t.StartBar(ctx, BarRef{Group: groupIdx, Bar: barStart + index})
-	}})
-}
-
-// RunWorkerPoolBarRangesSuccessful runs work items where item i owns the bars
-// of ranges[i]: they are marked started when the item is dispatched and
-// complete only after it succeeds (handler included, so it may resize them
-// first). A failed item's bars stay incomplete.
-func (t *ReportTracker) RunWorkerPoolBarRangesSuccessful(ctx workflow.Context, groupIdx int, ranges []BarRange,
-	concurrency int, startActivity ActivityStarter, handler ResultHandler) error {
-	return runWorkerPool(ctx, len(ranges), concurrency, startActivity, func(ctx workflow.Context, index int, future workflow.Future) error {
-		if handler != nil {
-			if err := handler(ctx, index, future); err != nil {
-				return err
-			}
-		} else if err := future.Get(ctx, nil); err != nil {
-			return err
-		}
-		t.CompleteBars(ctx, groupIdx, ranges[index])
-		return nil
-	}, workerPoolHooks{onStart: func(ctx workflow.Context, index int) {
-		t.StartBars(ctx, groupIdx, ranges[index])
-	}})
-}
-
-// runWorkerPool is the single scheduler behind RunWorkerPool, the
-// RunWorkerPool*Successful variants and RunActivitiesUntil.
+// runWorkerPool is the single scheduler behind RunWorkerPool and
+// RunActivitiesUntil.
 // It dispatches work items [0, total) through startActivity with at most
 // concurrency futures in flight, invoking hooks around each item's lifecycle.
 //
