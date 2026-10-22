@@ -19,9 +19,10 @@
 // registerYahooTools. Two names are easy to swap: tools_stats.go
 // (box-score and bulk season-total queries) vs. tools_season_stats.go
 // (sorted, filtered season leaderboards) — both nhl. tools_news.go (nhl
-// toolset: "get_recent_news_events", a short validated headline list) is
-// not part of the news toolset; the news toolset's tools are
-// tools_news_coverage.go (source freshness) and tools_player_news.go
+// toolset: "get_recent_news_events", validated player-news events with
+// lifecycle fields and evidence metadata/quotes) is not part of the news
+// toolset; the news toolset's tools are tools_news_coverage.go (source
+// freshness) and tools_player_news.go
 // (quoted articles for one player). tools_common.go, format.go,
 // draft_player_keys.go and tools_edge_metrics.go (shared Edge metric
 // tables) hold helpers with no server.ServerTool of their own.

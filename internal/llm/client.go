@@ -1,9 +1,12 @@
 // Package llm is a provider-neutral chat-completion client (Client,
 // Request, Message, Tool): an OpenAI-compatible implementation (OpenAI,
-// Ollama) and an Anthropic one behind the same interface, picked by
-// Provider detection from the configured model/API key. internal/maurice,
-// internal/worker/simulation (the pool-simulation LLM agents) and
-// internal/newsevent (news-event extraction) each build their own Client.
+// Ollama) and an Anthropic one behind the same interface, selected by
+// NewClientForProvider's explicit Provider argument (callers map a model
+// ID to its Provider, as cmd/maurice.go's mauriceModels table does).
+// internal/maurice (repl.go, for /model switching) and
+// internal/worker/simulation (the pool-simulation LLM agents) each build
+// their own Client; internal/newsevent (news-event extraction) takes one
+// built and injected by internal/worker/newsfeed's ClientFactory instead.
 package llm
 
 import (

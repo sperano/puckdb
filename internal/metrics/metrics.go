@@ -1,9 +1,9 @@
 // Package metrics defines PuckDB's three separate Prometheus registries
 // (worker, API, collector — see CLAUDE.md's Metrics section for which
 // series each exposes) and the instrumented wrappers that feed them: pgx
-// pool stat gauges and SQLCQueryTracer, a pgx.QueryTracer that times sqlc
-// query calls. Each binary (worker, api, metrics) serves only its own
-// registry.
+// pool stat metrics (PGXPoolCollector, gauges and counters) and
+// SQLCQueryTracer, a pgx.QueryTracer that times sqlc query calls. Each
+// binary (worker, api, metrics) serves only its own registry.
 package metrics
 
 import (

@@ -7,8 +7,11 @@
 // implement the generated query/mutation interfaces, and
 // workflow_start.go/convert.go/draft_convert.go
 // hold the shared start/cancel plumbing and GraphQL-shape conversions.
-// Generated code lives in graph/generated and graph/model; run `go tool
-// gqlgen generate` after editing the schema, never hand-edit the output.
+// Run `go tool gqlgen generate` after editing a schema file: it adds
+// `panic("not implemented")` stubs for new fields to the *.resolvers.go
+// files above (hand-written implementations there are preserved across
+// regeneration) and fully rewrites graph/generated and graph/model, which
+// must never be hand-edited.
 package graph
 
 //go:generate go run github.com/99designs/gqlgen generate

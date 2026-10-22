@@ -1,10 +1,12 @@
 // Package maurice orchestrates the Maurice AI chat: Service runs the
 // prompt/tool-call loop (internal/llm for completions, internal/mcp for
-// tool discovery and calls) and persists conversations, turns, messages
-// and LLM-call usage through the DB interface, implemented by a SQLite
-// store (the REPL, single local user) and a PostgreSQL store (the API,
-// one user per Authentik identity via internal/appuser). repl.go is the
-// `maurice` CLI command's REPL loop.
+// tool discovery and calls) and persists conversations, turns and messages
+// through the DB interface, implemented by a SQLite store (the REPL,
+// single local user) and a PostgreSQL store (the API, one user per
+// Authentik identity via internal/appuser). LLM-call and tool-call usage
+// is persisted only by the PostgreSQL store; SQLite keeps conversations,
+// turns and messages alone. repl.go is the `maurice` CLI command's REPL
+// loop.
 package maurice
 
 import (
