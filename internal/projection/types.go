@@ -64,7 +64,7 @@ const (
 
 // Estimate is one projected season total: Mean within the interval
 // [Low, High], nominally Mean ± Uncertainty × Mean, floored at zero for
-// counts and capped at Config.MaxGames for games played.
+// counts; the upper bound of games played is capped at Config.MaxGames.
 type Estimate struct {
 	Mean float64
 	Low  float64

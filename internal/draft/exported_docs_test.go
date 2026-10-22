@@ -12,27 +12,33 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// documentedPackages are the draft helper's packages, by directory under
-// internal/. Every exported declaration in them carries a doc comment.
-var documentedPackages = []string{"draft", "draftboard", "draftrank", "draftrecommend", "draftsession", "projection"}
+// The draft helper's package directories: every internal/draft* package and
+// internal/projection. Every exported declaration in them carries a doc
+// comment.
+const (
+	draftPackagesGlob = "../draft*"
+	projectionPackage = "../projection"
+)
 
-// interfaceMethods implement a standard interface whose contract is its
-// documentation, so they need no comment of their own.
+// interfaceMethods implement error, fmt.Stringer or errors.Unwrap, whose
+// contract is their documentation, so they need no comment of their own.
+// They are matched by name only.
 var interfaceMethods = map[string]bool{"Error": true, "String": true, "Unwrap": true}
 
 // TestDraftHelperPackagesDocumentExports fails on an exported function,
-// method, type, constant or variable without a doc comment (its own, a
-// trailing line comment, or its declaration group's), and on a package
-// without a package comment.
+// method, type, constant or variable without a doc comment (its own or its
+// declaration group's), and on a package without a package comment.
 func TestDraftHelperPackagesDocumentExports(t *testing.T) {
 	t.Parallel()
-	for _, pkg := range documentedPackages {
-		dir := filepath.Join("..", pkg)
-		files := parseNonTestFiles(t, dir)
+	dirs, err := filepath.Glob(draftPackagesGlob)
+	require.NoError(t, err)
+	require.Contains(t, dirs, filepath.Join("..", "draftrank"), "the package glob itself is broken")
+	for _, dir := range append(dirs, projectionPackage) {
+		fset, files := parseNonTestFiles(t, dir)
 		hasPackageDoc := false
 		for _, file := range files {
-			hasPackageDoc = hasPackageDoc || file.ast.Doc != nil
-			for _, missing := range undocumentedExports(file.fset, file.ast) {
+			hasPackageDoc = hasPackageDoc || file.Doc != nil
+			for _, missing := range undocumentedExports(fset, file) {
 				t.Errorf("%s: exported %s has no doc comment", missing.pos, missing.name)
 			}
 		}
@@ -71,7 +77,7 @@ const (
 	// C is documented.
 	C = 3
 	D = 4
-	E = 5 // E is documented.
+	E = 5 // A trailing comment is not a doc comment.
 	f = 6
 )
 
@@ -85,12 +91,7 @@ var V = 7
 	for _, missing := range undocumentedExports(fset, file) {
 		names = append(names, missing.name)
 	}
-	require.Equal(t, []string{"Bare", "T", "T.Method", "D", "V"}, names)
-}
-
-type parsedFile struct {
-	fset *token.FileSet
-	ast  *ast.File
+	require.Equal(t, []string{"Bare", "T", "T.Method", "D", "E", "V"}, names)
 }
 
 type undocumented struct {
@@ -98,12 +99,12 @@ type undocumented struct {
 	name string
 }
 
-func parseNonTestFiles(t *testing.T, dir string) []parsedFile {
+func parseNonTestFiles(t *testing.T, dir string) (*token.FileSet, []*ast.File) {
 	t.Helper()
 	entries, err := os.ReadDir(dir)
 	require.NoError(t, err)
 	fset := token.NewFileSet()
-	var files []parsedFile
+	var files []*ast.File
 	for _, entry := range entries {
 		name := entry.Name()
 		if entry.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
@@ -111,10 +112,10 @@ func parseNonTestFiles(t *testing.T, dir string) []parsedFile {
 		}
 		file, err := parser.ParseFile(fset, filepath.Join(dir, name), nil, parser.ParseComments)
 		require.NoError(t, err)
-		files = append(files, parsedFile{fset: fset, ast: file})
+		files = append(files, file)
 	}
 	require.NotEmpty(t, files, "no Go files in %s", dir)
-	return files
+	return fset, files
 }
 
 func undocumentedExports(fset *token.FileSet, file *ast.File) []undocumented {
@@ -191,9 +192,9 @@ func specDocumented(decl *ast.GenDecl, spec ast.Spec) bool {
 	}
 	switch spec := spec.(type) {
 	case *ast.TypeSpec:
-		return spec.Doc != nil || spec.Comment != nil
+		return spec.Doc != nil
 	case *ast.ValueSpec:
-		return spec.Doc != nil || spec.Comment != nil
+		return spec.Doc != nil
 	}
 	return false
 }

@@ -136,15 +136,20 @@ type ErrorClass string
 
 const (
 	// ErrorClassNone is the class of a successful poll.
-	ErrorClassNone           ErrorClass = ""
+	ErrorClassNone ErrorClass = ""
+	// ErrorClassAuthentication is HTTP 401 or 403, or a missing OAuth token.
 	ErrorClassAuthentication ErrorClass = "authentication"
 	// ErrorClassRateLimited is HTTP 429, kept apart so watch backoff can
 	// react to throttling.
 	ErrorClassRateLimited ErrorClass = "rate_limited"
-	ErrorClassUpstream    ErrorClass = "upstream"
-	ErrorClassHTTP        ErrorClass = "http"
-	ErrorClassCanceled    ErrorClass = "canceled"
-	ErrorClassTransport   ErrorClass = "transport"
+	// ErrorClassUpstream is an HTTP 5xx from Yahoo.
+	ErrorClassUpstream ErrorClass = "upstream"
+	// ErrorClassHTTP is any other HTTP error status.
+	ErrorClassHTTP ErrorClass = "http"
+	// ErrorClassCanceled is a canceled or timed-out poll.
+	ErrorClassCanceled ErrorClass = "canceled"
+	// ErrorClassTransport is every other failure (network, parsing).
+	ErrorClassTransport ErrorClass = "transport"
 )
 
 // ClassifyError returns the capability-report class of a poll error.

@@ -7,9 +7,9 @@ import (
 
 // Model versions, each building on the previous one: nhl-baseline-v1 is the
 // original baseline, v2 adds faceoffs, v3 the linemate correction, v4 the
-// aging curve and v5 the team-environment adjustment. A stored snapshot keeps
-// the version that produced it, and Validate refuses settings a version does
-// not support.
+// aging curve and v5 the team-environment adjustment; v6 and v7 are described
+// below. A stored snapshot keeps the version that produced it, and Validate
+// refuses settings a version does not support.
 const (
 	LegacyModelVersion          = "nhl-baseline-v1"
 	FaceoffModelVersion         = "nhl-baseline-v2"
@@ -37,12 +37,13 @@ const (
 	AgingAgeReference        = "jan-1-season-ending-year"
 )
 
-// DefaultConfig's model parameters: the seasons of history read and the
-// weight decay per season of age, the skater (TOI seconds) and goalie (shots
-// against) priors regressing rates toward peers, the linemate regression
-// strength, the TOI a goalie needs for a shutout to count, the games cap, the
-// interval z-score with the uncertainty bounds it is clamped to, and the
-// games below which a history is insufficient.
+// Defaults of the model parameters DefaultConfig sets: the seasons of history
+// read and the weight decay per season of age, the skater (TOI seconds) and
+// goalie (shots against) priors regressing rates toward peers, the linemate
+// regression strength, the TOI a goalie needs for a shutout to count, the
+// games cap, the interval z-score with the uncertainty bounds it is clamped
+// to, and the games below which a history is insufficient; the
+// team-environment and goalie start-share defaults are described below.
 const (
 	DefaultLookbackSeasons            = 3
 	DefaultSeasonDecay                = 0.40

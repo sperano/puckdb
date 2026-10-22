@@ -144,11 +144,11 @@ func TestService_RejectsForeignSnapshotsAndUnknownLeagues(t *testing.T) {
 	assert.ErrorIs(t, err, draftrank.ErrInvalidQuery)
 }
 
-// TestService_RankingsValidatesTheQueryOnceForEveryRead pins the query
-// boundary of Rankings: an invalid query fails even when the league has no
-// snapshot to view, and the normalized query (default sort, upper-cased
-// positions) is the one the snapshot view applies.
-func TestService_RankingsValidatesTheQueryOnceForEveryRead(t *testing.T) {
+// TestService_RankingsAppliesTheNormalizedQuery pins the query boundary of
+// Rankings: an invalid query fails even when the league has no snapshot to
+// view, and the snapshot view applies the normalized query (a lower-case
+// position filter matches nothing unless it is upper-cased first).
+func TestService_RankingsAppliesTheNormalizedQuery(t *testing.T) {
 	invalid := draftrank.Query{Sort: "nope"}
 	_, err := newService(draftfixtures.NewStore(), serviceNow).Rankings(context.Background(), fixtureRef(), uuid.Nil, invalid)
 	assert.ErrorIs(t, err, draftrank.ErrInvalidQuery, "a league without a snapshot still rejects the query")
