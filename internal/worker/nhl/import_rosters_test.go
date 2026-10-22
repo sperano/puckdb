@@ -5,9 +5,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
 	nhlapi "github.com/sperano/nhl-api-go/nhl"
+	"github.com/sperano/puckdb/internal/fixtures/pgxfixtures"
 	"github.com/sperano/puckdb/internal/sqlcdb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -36,21 +35,7 @@ func TestLocalizedStringToText(t *testing.T) {
 	})
 }
 
-// mockBatchResults implements pgx.BatchResults for testing.
-type mockBatchResults struct {
-	execErr error
-	count   int
-	current int
-}
-
-func (m *mockBatchResults) Exec() (pgconn.CommandTag, error) {
-	m.current++
-	return pgconn.NewCommandTag("INSERT 0 1"), m.execErr
-}
-
-func (m *mockBatchResults) Query() (pgx.Rows, error) { return nil, nil }
-func (m *mockBatchResults) QueryRow() pgx.Row        { return nil }
-func (m *mockBatchResults) Close() error             { return nil }
+type mockBatchResults = pgxfixtures.BatchResults
 
 // fakeRosterUpserter implements SeasonRosterUpserter for testing.
 type fakeRosterUpserter struct {
@@ -68,12 +53,12 @@ func (f *fakeRosterUpserter) GetSeasonTeamAbbrevs(_ context.Context, _ int32) ([
 
 func (f *fakeRosterUpserter) EnsurePlayerExistsBatch(_ context.Context, arg []sqlcdb.EnsurePlayerExistsBatchParams) *sqlcdb.EnsurePlayerExistsBatchBatchResults {
 	f.ensuredParams = append(f.ensuredParams, arg...)
-	return sqlcdb.NewEnsurePlayerExistsBatchBatchResults(&mockBatchResults{execErr: f.ensureErr, count: len(arg)}, len(arg))
+	return sqlcdb.NewEnsurePlayerExistsBatchBatchResults(&mockBatchResults{ExecErr: f.ensureErr}, len(arg))
 }
 
 func (f *fakeRosterUpserter) UpsertSeasonRosterBatch(_ context.Context, arg []sqlcdb.UpsertSeasonRosterBatchParams) *sqlcdb.UpsertSeasonRosterBatchBatchResults {
 	f.rosterParams = append(f.rosterParams, arg...)
-	return sqlcdb.NewUpsertSeasonRosterBatchBatchResults(&mockBatchResults{execErr: f.rosterErr, count: len(arg)}, len(arg))
+	return sqlcdb.NewUpsertSeasonRosterBatchBatchResults(&mockBatchResults{ExecErr: f.rosterErr}, len(arg))
 }
 
 func testRosterPlayers() []nhlapi.RosterPlayer {

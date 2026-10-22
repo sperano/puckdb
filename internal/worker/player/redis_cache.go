@@ -73,18 +73,9 @@ func LoadYahooIDPool(ctx context.Context, client *redis.Client) (map[store.Yahoo
 
 // LoadAvailableYahooIDs loads only the available (unmatched) Yahoo IDs from Redis.
 func LoadAvailableYahooIDs(ctx context.Context, client *redis.Client) (map[store.YahooPlayerID]struct{}, error) {
-	ids, err := client.SMembers(ctx, YahooIDAvailableKey).Result()
+	available, err := loadYahooIDSet(ctx, client, YahooIDAvailableKey)
 	if err != nil {
 		return nil, fmt.Errorf("load available yahoo ids from redis: %w", err)
-	}
-
-	available := make(map[store.YahooPlayerID]struct{}, len(ids))
-	for _, idStr := range ids {
-		id, err := strconv.Atoi(idStr)
-		if err != nil {
-			continue
-		}
-		available[store.YahooPlayerID(id)] = struct{}{}
 	}
 
 	log.Debug().
@@ -190,18 +181,9 @@ func SaveVerifiedNonNHLIDs(ctx context.Context, client *redis.Client, ids []stor
 
 // LoadVerifiedNonNHLIDs loads the set of Yahoo IDs verified to have 0 NHL games.
 func LoadVerifiedNonNHLIDs(ctx context.Context, client *redis.Client) (map[store.YahooPlayerID]struct{}, error) {
-	ids, err := client.SMembers(ctx, VerifiedNonNHLKey).Result()
+	verified, err := loadYahooIDSet(ctx, client, VerifiedNonNHLKey)
 	if err != nil {
 		return nil, fmt.Errorf("load verified non-nhl ids: %w", err)
-	}
-
-	verified := make(map[store.YahooPlayerID]struct{}, len(ids))
-	for _, idStr := range ids {
-		id, err := strconv.Atoi(idStr)
-		if err != nil {
-			continue
-		}
-		verified[store.YahooPlayerID(id)] = struct{}{}
 	}
 
 	log.Debug().
@@ -209,4 +191,20 @@ func LoadVerifiedNonNHLIDs(ctx context.Context, client *redis.Client) (map[store
 		Msg("Loaded verified non-NHL Yahoo IDs from Redis")
 
 	return verified, nil
+}
+
+func loadYahooIDSet(ctx context.Context, client *redis.Client, key string) (map[store.YahooPlayerID]struct{}, error) {
+	ids, err := client.SMembers(ctx, key).Result()
+	if err != nil {
+		return nil, err
+	}
+
+	result := make(map[store.YahooPlayerID]struct{}, len(ids))
+	for _, idString := range ids {
+		id, err := strconv.Atoi(idString)
+		if err == nil {
+			result[store.YahooPlayerID(id)] = struct{}{}
+		}
+	}
+	return result, nil
 }

@@ -725,9 +725,9 @@ func TestProcessPlayerBatch_CareerDataUpserted(t *testing.T) {
 	upserter.On("UpsertPlayer", mock.Anything, mock.AnythingOfType("sqlcdb.UpsertPlayerParams")).Return(nil)
 
 	careerUpserter.On("UpsertPlayerAwardBatch", mock.Anything, mock.AnythingOfType("[]sqlcdb.UpsertPlayerAwardBatchParams")).
-		Return(sqlcdb.NewUpsertPlayerAwardBatchBatchResults(&mockBatchResults{count: 1}, 1))
+		Return(sqlcdb.NewUpsertPlayerAwardBatchBatchResults(&mockBatchResults{}, 1))
 	careerUpserter.On("UpsertPlayerSeasonTotalBatch", mock.Anything, mock.AnythingOfType("[]sqlcdb.UpsertPlayerSeasonTotalBatchParams")).
-		Return(sqlcdb.NewUpsertPlayerSeasonTotalBatchBatchResults(&mockBatchResults{count: 1}, 1))
+		Return(sqlcdb.NewUpsertPlayerSeasonTotalBatchBatchResults(&mockBatchResults{}, 1))
 
 	a := newTestProcessActivities(mem, client, redisClient, newTestGobCache(), upserter, careerUpserter)
 	players := []store.BoxscorePlayer{{ID: int64(playerID)}}

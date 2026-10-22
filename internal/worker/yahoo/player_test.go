@@ -26,7 +26,7 @@ func TestFetchYahooPlayer_AlreadyMissing(t *testing.T) {
 	missingRes := resource.MissingYahooPlayer{PlayerID: playerID}
 	require.NoError(t, mem.Write(context.Background(), missingRes.Path(), []byte("missing")))
 
-	status, err := fetchYahooPlayerImpl(ctx, mem, downloader, playerID)
+	status, err := fetchYahooPlayerImpl(ctx, mem, downloader.Downloader(), playerID)
 
 	require.NoError(t, err)
 	assert.Equal(t, fetchStatusMissing, status)
@@ -46,7 +46,7 @@ func TestFetchYahooPlayer_AlreadyCached(t *testing.T) {
 	playerRes := resource.YahooPlayer{PlayerID: playerID}
 	require.NoError(t, mem.Write(context.Background(), playerRes.Path(), []byte("<html>Player Page</html>")))
 
-	status, err := fetchYahooPlayerImpl(ctx, mem, downloader, playerID)
+	status, err := fetchYahooPlayerImpl(ctx, mem, downloader.Downloader(), playerID)
 
 	require.NoError(t, err)
 	assert.Equal(t, fetchStatusCached, status)
@@ -66,7 +66,7 @@ func TestFetchYahooPlayer_DownloadSuccess(t *testing.T) {
 	content := []byte("<html>Player Page</html>")
 	downloader.On("Download", mock.Anything, resource.YahooPlayer{PlayerID: playerID}.URL()).Return(content, nil)
 
-	status, err := fetchYahooPlayerImpl(ctx, mem, downloader, playerID)
+	status, err := fetchYahooPlayerImpl(ctx, mem, downloader.Downloader(), playerID)
 
 	require.NoError(t, err)
 	assert.Equal(t, fetchStatusDownloaded, status)
@@ -90,7 +90,7 @@ func TestFetchYahooPlayer_Download404(t *testing.T) {
 	httpErr := &httpx.HTTPError{StatusCode: 404, Status: "404 Not Found"}
 	downloader.On("Download", mock.Anything, resource.YahooPlayer{PlayerID: playerID}.URL()).Return(nil, httpErr)
 
-	status, err := fetchYahooPlayerImpl(ctx, mem, downloader, playerID)
+	status, err := fetchYahooPlayerImpl(ctx, mem, downloader.Downloader(), playerID)
 
 	require.NoError(t, err)
 	assert.Equal(t, fetchStatusMissing, status)
@@ -114,7 +114,7 @@ func TestFetchYahooPlayer_DownloadOtherError(t *testing.T) {
 	httpErr := &httpx.HTTPError{StatusCode: 500, Status: "500 Internal Server Error"}
 	downloader.On("Download", mock.Anything, resource.YahooPlayer{PlayerID: playerID}.URL()).Return(nil, httpErr)
 
-	status, err := fetchYahooPlayerImpl(ctx, mem, downloader, playerID)
+	status, err := fetchYahooPlayerImpl(ctx, mem, downloader.Downloader(), playerID)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "download player")
@@ -130,11 +130,13 @@ func TestFetchYahooPlayer_DownloadNetworkError(t *testing.T) {
 
 	playerID := store.YahooPlayerID(12345)
 	// Download returns network error
-	downloader.On("Download", mock.Anything, resource.YahooPlayer{PlayerID: playerID}.URL()).Return(nil, errors.New("network timeout"))
+	wantErr := errors.New("network timeout")
+	downloader.On("Download", mock.Anything, resource.YahooPlayer{PlayerID: playerID}.URL()).Return(nil, wantErr)
 
-	status, err := fetchYahooPlayerImpl(ctx, mem, downloader, playerID)
+	status, err := fetchYahooPlayerImpl(ctx, mem, downloader.Downloader(), playerID)
 
 	require.Error(t, err)
+	require.ErrorIs(t, err, wantErr)
 	assert.Contains(t, err.Error(), "download player")
 	assert.Equal(t, fetchStatus(0), status)
 	downloader.AssertExpectations(t)
@@ -149,7 +151,7 @@ func TestFetchYahooPlayer_ContextCancelled(t *testing.T) {
 	downloader := &MockHTTPDownloader{}
 
 	playerID := store.YahooPlayerID(12345)
-	status, err := fetchYahooPlayerImpl(ctx, mem, downloader, playerID)
+	status, err := fetchYahooPlayerImpl(ctx, mem, downloader.Downloader(), playerID)
 
 	require.Error(t, err)
 	assert.Equal(t, context.Canceled, err)

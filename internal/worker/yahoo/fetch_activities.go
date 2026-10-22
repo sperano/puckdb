@@ -32,7 +32,7 @@ type FetchActivities struct {
 	Storage          store.Storage
 	Download         shared.Downloader
 	GobCache         *cache.GobCache
-	PublicDownloader HTTPDownloader
+	PublicDownloader shared.Downloader
 }
 
 // fetcher builds the cache-or-download primitive from the activity's dependencies.

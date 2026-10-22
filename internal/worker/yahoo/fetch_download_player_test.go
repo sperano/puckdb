@@ -121,42 +121,6 @@ func TestGetGameKeyForSeason_FetcherError(t *testing.T) {
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-// HTTPDownloaderFunc tests
-// ────────────────────────────────────────────────────────────────────────────
-
-func TestHTTPDownloaderFunc_DelegatesToFunc(t *testing.T) {
-	t.Parallel()
-
-	want := []byte("response body")
-	var capturedURL string
-
-	fn := HTTPDownloaderFunc(func(_ context.Context, url string) ([]byte, error) {
-		capturedURL = url
-		return want, nil
-	})
-
-	got, err := fn.Download(context.Background(), "https://example.com/path")
-
-	require.NoError(t, err)
-	assert.Equal(t, want, got)
-	assert.Equal(t, "https://example.com/path", capturedURL)
-}
-
-func TestHTTPDownloaderFunc_PropagatesError(t *testing.T) {
-	t.Parallel()
-
-	wantErr := errors.New("connection refused")
-	fn := HTTPDownloaderFunc(func(_ context.Context, _ string) ([]byte, error) {
-		return nil, wantErr
-	})
-
-	got, err := fn.Download(context.Background(), "https://example.com/path")
-
-	require.ErrorIs(t, err, wantErr)
-	assert.Nil(t, got)
-}
-
-// ────────────────────────────────────────────────────────────────────────────
 // FetchYahooPlayerBatch tests
 // ────────────────────────────────────────────────────────────────────────────
 
@@ -184,7 +148,7 @@ func (s *FetchYahooPlayerBatchSuite) TestAllCached() {
 		require.NoError(s.T(), mem.Write(context.Background(), res.Path(), []byte("<html>player</html>")))
 	}
 
-	act := &FetchActivities{Storage: mem, PublicDownloader: downloader}
+	act := &FetchActivities{Storage: mem, PublicDownloader: downloader.Downloader()}
 	s.env.RegisterActivity(act.FetchYahooPlayerBatch)
 	val, err := s.env.ExecuteActivity(act.FetchYahooPlayerBatch, store.YahooPlayerID(100), store.YahooPlayerID(101))
 
@@ -208,7 +172,7 @@ func (s *FetchYahooPlayerBatchSuite) TestAllMissing() {
 		require.NoError(s.T(), mem.Write(context.Background(), res.Path(), []byte("missing")))
 	}
 
-	act := &FetchActivities{Storage: mem, PublicDownloader: downloader}
+	act := &FetchActivities{Storage: mem, PublicDownloader: downloader.Downloader()}
 	s.env.RegisterActivity(act.FetchYahooPlayerBatch)
 	val, err := s.env.ExecuteActivity(act.FetchYahooPlayerBatch, store.YahooPlayerID(200), store.YahooPlayerID(201))
 
@@ -231,7 +195,7 @@ func (s *FetchYahooPlayerBatchSuite) TestDownloadedAndCounted() {
 	content := []byte("<html>player page</html>")
 	downloader.On("Download", mock.Anything, res.URL()).Return(content, nil)
 
-	act := &FetchActivities{Storage: mem, PublicDownloader: downloader}
+	act := &FetchActivities{Storage: mem, PublicDownloader: downloader.Downloader()}
 	s.env.RegisterActivity(act.FetchYahooPlayerBatch)
 	val, err := s.env.ExecuteActivity(act.FetchYahooPlayerBatch, playerID, playerID)
 
@@ -253,7 +217,7 @@ func (s *FetchYahooPlayerBatchSuite) TestDownloadError_ReturnsError() {
 	res := resource.YahooPlayer{PlayerID: playerID}
 	downloader.On("Download", mock.Anything, res.URL()).Return(nil, errors.New("connection refused"))
 
-	act := &FetchActivities{Storage: mem, PublicDownloader: downloader}
+	act := &FetchActivities{Storage: mem, PublicDownloader: downloader.Downloader()}
 	s.env.RegisterActivity(act.FetchYahooPlayerBatch)
 	_, err := s.env.ExecuteActivity(act.FetchYahooPlayerBatch, playerID, playerID)
 
@@ -266,7 +230,7 @@ func (s *FetchYahooPlayerBatchSuite) TestEmptyRange() {
 	downloader := &MockHTTPDownloader{}
 
 	// startID > endID → loop body never executes.
-	act := &FetchActivities{Storage: mem, PublicDownloader: downloader}
+	act := &FetchActivities{Storage: mem, PublicDownloader: downloader.Downloader()}
 	s.env.RegisterActivity(act.FetchYahooPlayerBatch)
 	val, err := s.env.ExecuteActivity(act.FetchYahooPlayerBatch, store.YahooPlayerID(500), store.YahooPlayerID(499))
 

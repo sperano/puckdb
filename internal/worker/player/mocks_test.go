@@ -3,9 +3,8 @@ package player
 import (
 	"context"
 
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/sperano/nhl-api-go/nhl"
+	"github.com/sperano/puckdb/internal/fixtures/pgxfixtures"
 	"github.com/sperano/puckdb/internal/sqlcdb"
 	"github.com/sperano/puckdb/internal/worker/shared"
 	"github.com/stretchr/testify/mock"
@@ -373,18 +372,4 @@ var _ shared.NHLClient = (*MockNHLClient)(nil)
 // anyArgs is a redismock matcher that accepts any arguments.
 func anyArgs(expected, actual []any) error { return nil }
 
-// mockBatchResults implements pgx.BatchResults for testing.
-type mockBatchResults struct {
-	execErr error
-	count   int
-	current int
-}
-
-func (m *mockBatchResults) Exec() (pgconn.CommandTag, error) {
-	m.current++
-	return pgconn.NewCommandTag("INSERT 0 1"), m.execErr
-}
-
-func (m *mockBatchResults) Query() (pgx.Rows, error) { return nil, nil }
-func (m *mockBatchResults) QueryRow() pgx.Row        { return nil }
-func (m *mockBatchResults) Close() error             { return nil }
+type mockBatchResults = pgxfixtures.BatchResults

@@ -297,7 +297,7 @@ func TestImportYahooLeaguePlayers_UpsertBatchError_NoDelete(t *testing.T) {
 
 	q := &MockQueries{}
 	q.On("UpsertYahooLeaguePlayerBatch", mock.Anything, mock.Anything).
-		Return(sqlcdb.NewUpsertYahooLeaguePlayerBatchBatchResults(&mockBatchResults{execErr: assert.AnError}, yahoofixtures.PlayersInPage))
+		Return(sqlcdb.NewUpsertYahooLeaguePlayerBatchBatchResults(&mockBatchResults{ExecErr: assert.AnError}, yahoofixtures.PlayersInPage))
 
 	a := &ImportActivities{Storage: mem, GobCache: cache.NewGobCache(nil), Queries: q}
 	_, err := runImportPlayersActivity(t, a)
