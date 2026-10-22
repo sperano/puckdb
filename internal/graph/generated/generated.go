@@ -7874,7 +7874,16 @@ input MauriceDraftManualPickInput {
   teamKey: String!
   playerKey: String!
   cost: Int
+  """
+  The stateVersion the action was built from. The write is refused unless the
+  session is still at it, so a repeated or stale click fails once the first
+  one changed the board; this is the server's duplicate-action guard.
+  """
   expectedStateVersion: Int64!
+  """
+  Required and must be non-empty, but the server neither stores it nor
+  deduplicates on it; see expectedStateVersion.
+  """
   clientMutationId: String!
 }
 
@@ -7883,7 +7892,16 @@ input MauriceDraftSlotInput {
   season: Int
   round: Int!
   pick: Int!
+  """
+  The stateVersion the action was built from. The write is refused unless the
+  session is still at it, so a repeated or stale click fails once the first
+  one changed the board; this is the server's duplicate-action guard.
+  """
   expectedStateVersion: Int64!
+  """
+  Required and must be non-empty, but the server neither stores it nor
+  deduplicates on it; see expectedStateVersion.
+  """
   clientMutationId: String!
 }
 
@@ -7893,7 +7911,16 @@ input MauriceDraftResolveInput {
   round: Int!
   pick: Int!
   choice: MauriceDraftConflictChoice!
+  """
+  The stateVersion the action was built from. The write is refused unless the
+  session is still at it, so a repeated or stale click fails once the first
+  one changed the board; this is the server's duplicate-action guard.
+  """
   expectedStateVersion: Int64!
+  """
+  Required and must be non-empty, but the server neither stores it nor
+  deduplicates on it; see expectedStateVersion.
+  """
   clientMutationId: String!
 }
 
