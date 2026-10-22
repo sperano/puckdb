@@ -290,10 +290,14 @@ func (cache *GobCache) readParsedStorageAndCache[T any](
 	return obj, core.OriginFileSystem, nil
 }
 
-// RequiresCoherentResourceLock identifies mutable Yahoo resources whose
-// filesystem and Redis representations must change as one serialized unit.
+// RequiresCoherentResourceLock identifies the Yahoo resources whose cache
+// miss is served under the resource lock: the mutable ones (league settings,
+// draft results), whose filesystem and Redis representations must change as
+// one serialized unit, and the daily standings capture, which only the first
+// miss of a day may download so later same-day runs read its file rather
+// than overwrite it with their own capture.
 func RequiresCoherentResourceLock(ft core.FileType) bool {
-	return ft == core.League || ft == core.YahooDraftResults
+	return ft == core.League || ft == core.YahooDraftResults || ft == core.YahooLeagueStandings
 }
 
 // SetParsed stores an already-parsed resource in the gob cache, honouring the

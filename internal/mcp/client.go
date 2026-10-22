@@ -1,3 +1,9 @@
+// Package mcp is Maurice's MCP client: Client connects to one tool server
+// (internal/mcpserver or any other MCP server) over the mcp-go SDK, and
+// MultiClient discovers and merges tools from several configured servers,
+// routing each call back to the server that advertised it. Discovery is
+// partial-tolerant: MultiClient keeps the tools of servers that answered
+// and reports the ones that failed, rather than failing outright.
 package mcp
 
 import (

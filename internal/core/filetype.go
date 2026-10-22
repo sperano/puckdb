@@ -1,7 +1,10 @@
-// Package core defines the shared primitives used across PuckDB packages: the
-// resource interfaces, the [FileType] enum for categorizing stored resources,
-// and data origins. It depends only on the standard library to avoid import
-// cycles between store, metrics, and resource.
+// Package core holds primitives shared across the storage and fetch layers:
+// the [FileType] enum used for metrics and logging, DataOrigin (where a
+// resource's data came from), the Resource/URLResource interfaces that
+// resource implements and that resource.Read/Write/Exists/Delete/Stat and
+// cache.GobCache.SetParsed accept as arguments, and small time helpers. It
+// depends only on the standard library — no dependencies on store, metrics or
+// resource — so any of them can import it without an import cycle.
 package core
 
 // FileType identifies the type of stored resource for metrics and logging.
@@ -63,6 +66,7 @@ const (
 	YahooLeagueLogo
 	YahooManagerImage
 	YahooLeaguePlayers
+	YahooLeagueStandings
 )
 
 // fileTypeEntry binds a FileType constant to its display name. The display
@@ -136,6 +140,7 @@ var fileTypes = []fileTypeEntry{
 	{YahooLeagueLogo, "YahooLeagueLogo"},
 	{YahooManagerImage, "YahooManagerImage"},
 	{YahooLeaguePlayers, "YahooLeaguePlayers"},
+	{YahooLeagueStandings, "YahooLeagueStandings"},
 }
 
 // AllFileTypes lists every declared FileType in iota declaration order,

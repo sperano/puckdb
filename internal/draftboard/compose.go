@@ -11,6 +11,8 @@ import (
 	"github.com/sperano/puckdb/internal/draftsession"
 )
 
+const missingYahooPlayerNameFormat = "Yahoo player %d"
+
 func picksOf(state draftsession.State, ranking *draftrank.Snapshot) []Pick {
 	players := make(map[int]draftrank.Player, len(ranking.Players))
 	for _, player := range ranking.Players {
@@ -27,10 +29,9 @@ func picksOf(state draftsession.State, ranking *draftrank.Snapshot) []Pick {
 			pick.Conflict = change.Conflict
 		}
 		if mapped {
-			pick.PlayerKey, pick.Name = player.PlayerKey, player.Name
-		} else {
-			pick.Name = fmt.Sprintf("Yahoo player %d", entry.Pick.PlayerID)
+			pick.PlayerKey = player.PlayerKey
 		}
+		pick.Name = yahooPlayerDisplayName(player.Name, entry.Pick.PlayerID)
 		picks = append(picks, pick)
 	}
 	for key, change := range state.Manual {
@@ -44,10 +45,11 @@ func picksOf(state draftsession.State, ranking *draftrank.Snapshot) []Pick {
 		player, mapped := players[pick.PlayerID]
 		row := Pick{Round: key.Round, Pick: key.Pick, TeamID: pick.TeamID,
 			PlayerID: pick.PlayerID, Source: draftsession.SourceManual, Conflict: true, Undone: true,
-			Cost: cloneInt(pick.Cost), Name: fmt.Sprintf("Yahoo player %d", pick.PlayerID)}
+			Cost: cloneInt(pick.Cost)}
 		if mapped {
-			row.PlayerKey, row.Name = player.PlayerKey, player.Name
+			row.PlayerKey = player.PlayerKey
 		}
+		row.Name = yahooPlayerDisplayName(player.Name, pick.PlayerID)
 		picks = append(picks, row)
 	}
 	sort.Slice(picks, func(left, right int) bool { return picks[left].Pick < picks[right].Pick })
@@ -80,7 +82,8 @@ func rosterOf(state draftsession.State, imported []draft.RosterPlayer, ranking *
 		if !seen[entry.Pick.PlayerID] {
 			player, _ := rankingPlayerByID(ranking, entry.Pick.PlayerID)
 			players = append(players, draft.RosterPlayer{YahooPlayerID: entry.Pick.PlayerID,
-				Name: player.Name, EligiblePositions: slices.Clone(player.RosterEligiblePositions)})
+				Name:              yahooPlayerDisplayName(player.Name, entry.Pick.PlayerID),
+				EligiblePositions: slices.Clone(player.RosterEligiblePositions)})
 			seen[entry.Pick.PlayerID] = true
 		}
 	}
@@ -93,16 +96,21 @@ func rosterOf(state draftsession.State, imported []draft.RosterPlayer, ranking *
 // from the ranking snapshot.
 func withRankingDetails(player draft.RosterPlayer, ranking *draftrank.Snapshot) draft.RosterPlayer {
 	ranked, exists := rankingPlayerByID(ranking, player.YahooPlayerID)
-	if !exists {
-		return player
-	}
-	if player.Name == "" || player.Name == fmt.Sprintf("Yahoo player %d", player.YahooPlayerID) {
+	if exists && player.Name == "" {
 		player.Name = ranked.Name
 	}
-	if len(player.EligiblePositions) == 0 {
+	if exists && len(player.EligiblePositions) == 0 {
 		player.EligiblePositions = slices.Clone(ranked.RosterEligiblePositions)
 	}
+	player.Name = yahooPlayerDisplayName(player.Name, player.YahooPlayerID)
 	return player
+}
+
+func yahooPlayerDisplayName(name string, playerID int) string {
+	if name != "" {
+		return name
+	}
+	return fmt.Sprintf(missingYahooPlayerNameFormat, playerID)
 }
 
 func appendRosterPlayer(players []draft.RosterPlayer, player draft.RosterPlayer) []draft.RosterPlayer {

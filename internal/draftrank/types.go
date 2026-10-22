@@ -116,16 +116,16 @@ type League struct {
 
 // Options are the explicit manager assumptions a snapshot was ranked with.
 type Options struct {
-	BenchPolicy        string  `json:"benchPolicy"`
-	WorkloadCapPolicy  string  `json:"workloadCapPolicy,omitempty"`
-	UncertaintyPenalty float64 `json:"uncertaintyPenalty"`
+	BenchPolicy        draft.BenchPolicy       `json:"benchPolicy"`
+	WorkloadCapPolicy  draft.WorkloadCapPolicy `json:"workloadCapPolicy,omitempty"`
+	UncertaintyPenalty float64                 `json:"uncertaintyPenalty"`
 }
 
 // RankingOptions returns the draft ranking options.
 func (o Options) RankingOptions() draft.RankingOptions {
 	return draft.RankingOptions{
-		BenchPolicy:        draft.BenchPolicy(o.BenchPolicy),
-		WorkloadCapPolicy:  draft.WorkloadCapPolicy(o.WorkloadCapPolicy),
+		BenchPolicy:        o.BenchPolicy,
+		WorkloadCapPolicy:  o.WorkloadCapPolicy,
 		UncertaintyPenalty: o.UncertaintyPenalty,
 	}
 }

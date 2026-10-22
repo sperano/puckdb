@@ -17,8 +17,12 @@ const (
 	yahooLeagueMetadataUnits = 1
 	// yahooTeamUnits is one team page download per configured team.
 	yahooTeamUnits = 1
-	// yahooLeagueResourceUnits is the transactions and draft results downloads.
+	// yahooLeagueResourceUnits is the transactions and draft results
+	// downloads.
 	yahooLeagueResourceUnits = 2
+	// yahooStandingsCaptureUnits is the day's standings capture, which a
+	// history recorded before yahooLeagueStandingsChangeID skips.
+	yahooStandingsCaptureUnits = 1
 	// yahooMatchupEndProbeUnits is the request past the league's last week,
 	// which Yahoo rejects and which ends the matchup loop.
 	yahooMatchupEndProbeUnits = 1
@@ -41,8 +45,18 @@ const (
 	yahooImportPoolUnits       = 1
 )
 
-// yahooLeagueUnits is the initial Total of a league's bar.
+// yahooLeagueUnits is the initial Total of a league's bar as the current
+// workflow version syncs it: the parent's estimate for its mirrored bars,
+// which the child's report corrects.
 func yahooLeagueUnits(league config.League, mode seasonSyncMode) int {
+	return yahooLeagueUnitsFor(league, mode, true)
+}
+
+// yahooLeagueUnitsFor is the initial Total of a league's bar for a sync
+// whose fetch captures the day's standings (standings) or not: a history
+// recorded before yahooLeagueStandingsChangeID replays without the capture,
+// and its bar must still end exactly complete.
+func yahooLeagueUnitsFor(league config.League, mode seasonSyncMode, standings bool) int {
 	if league.UsesTemporaryMetadata() {
 		return yahooLeagueMetadataUnits
 	}
@@ -53,8 +67,12 @@ func yahooLeagueUnits(league config.League, mode seasonSyncMode) int {
 		}
 		return units
 	}
-	return yahooLeagueMetadataUnits + len(league.TeamIDs)*yahooTeamUnits + yahooLeagueResourceUnits +
+	units := yahooLeagueMetadataUnits + len(league.TeamIDs)*yahooTeamUnits + yahooLeagueResourceUnits +
 		yahooMatchupCalls(0) + yahooPoolUnits(true, yahooPoolPages(0))
+	if standings {
+		units += yahooStandingsCaptureUnits
+	}
+	return units
 }
 
 // yahooMatchupCalls is the number of matchup week requests for a league whose

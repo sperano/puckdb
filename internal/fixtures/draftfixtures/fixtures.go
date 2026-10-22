@@ -190,7 +190,7 @@ func BuildInput() (draftrank.BuildInput, error) {
 	return draftrank.BuildInput{
 		Rules: Rules(), Pool: Pool(), Baseline: Baseline(), BaselineID: uuid.NewSHA1(uuid.NameSpaceOID, []byte("baseline")),
 		Adjustment: &adjustment, AdjustmentRunID: uuid.NewSHA1(uuid.NameSpaceOID, []byte("run")),
-		Options: draftrank.Options{BenchPolicy: string(draft.BenchIncluded)}, News: News(), AsOf: AsOf,
+		Options: draftrank.Options{BenchPolicy: draft.BenchIncluded}, News: News(), AsOf: AsOf,
 	}, nil
 }
 

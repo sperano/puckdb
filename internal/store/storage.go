@@ -1,3 +1,8 @@
+// Package store holds the raw-file storage backends for cached NHL/Yahoo
+// API responses (Storage: FSStorage for the filesystem, MemStorage for
+// tests, an instrumented wrapper reporting to internal/metrics), the Yahoo
+// Fantasy XML deserialization types, and small Yahoo/NHL ID types that
+// keep separate ID namespaces from being mixed.
 package store
 
 import (

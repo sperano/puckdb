@@ -23,7 +23,9 @@
 // declarations are split by registry across the sibling files worker.go,
 // api.go, collector.go, and database.go. This file holds the registries, the
 // shared histogram buckets, the Result* label constants, and the HTTP-server
-// plumbing that serves them.
+// plumbing that serves them; database.go holds the instrumented pgx wrappers
+// that feed the worker metrics — PGXPoolCollector (pool stat gauges and
+// counters) and SQLCQueryTracer (a pgx.QueryTracer that times sqlc queries).
 package metrics
 
 import (

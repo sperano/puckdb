@@ -1,3 +1,31 @@
+// Package mcpserver exposes curated, read-only puckdb queries as MCP tools
+// for Maurice and other MCP clients (the `mcp-server` command), in three
+// toolsets (Toolset, toolsets.go): nhl (public NHL data, the default),
+// yahoo (private Yahoo league data, league-scoped by leagueGuard in
+// league_guard.go) and news (news coverage and quoted player news). A
+// server instance registers one or more toolsets; registerToolsets and
+// registerNHLTools below, and registerYahooTools in tools_yahoo.go, are
+// the authoritative map from toolset to tool — check them, not a file
+// name, when adding or looking up a tool.
+//
+// A tools_*.go file does not reliably say which toolset, or even which
+// other file, registers its tools: several are builder-only files whose
+// server.ServerTool values are folded into a same-area file's registration
+// list rather than registered on their own, e.g. tools_game_summary.go and
+// tools_game_log.go into tools_games.go/tools_stats.go, tools_player_lookup.go's
+// two tools split between tools_players.go (get_player) and tools_resolve.go
+// (search_player), tools_edge_leaders.go into tools_edge.go, and
+// every tools_yahoo_*.go/tools_draft_*.go file into tools_yahoo.go's single
+// registerYahooTools. Two names are easy to swap: tools_stats.go
+// (box-score and bulk season-total queries) vs. tools_season_stats.go
+// (sorted, filtered season leaderboards) — both nhl. tools_news.go (nhl
+// toolset: "get_recent_news_events", validated player-news events with
+// lifecycle fields and evidence metadata/quotes) is not part of the news
+// toolset; the news toolset's tools are tools_news_coverage.go (source
+// freshness) and tools_player_news.go
+// (quoted articles for one player). tools_common.go, format.go,
+// draft_player_keys.go and tools_edge_metrics.go (shared Edge metric
+// tables) hold helpers with no server.ServerTool of their own.
 package mcpserver
 
 import (
@@ -7,6 +35,7 @@ import (
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 	"github.com/rs/zerolog/log"
+	"github.com/sperano/puckdb/internal/news"
 	"github.com/sperano/puckdb/internal/sqlcdb"
 )
 
@@ -58,8 +87,7 @@ func registerToolsets(srv *server.MCPServer, queries *sqlcdb.Queries, opts Optio
 		case ToolsetYahoo:
 			registerYahooTools(srv, queries, newLeagueGuard(queries, opts.YahooLeagues), opts.Draft)
 		case ToolsetNews:
-			registerNewsCoverageTools(srv, queries, opts.NewsSources)
-			registerPlayerNewsTools(srv, queries)
+			registerNewsTools(srv, queries, opts.NewsSources)
 		}
 	}
 }
@@ -79,5 +107,12 @@ func registerNHLTools(srv *server.MCPServer, queries *sqlcdb.Queries) {
 	registerLinemateTools(srv, queries)
 	registerTeamSummaryTools(srv, queries)
 	registerTeamScheduleTools(srv, queries)
-	registerNewsTools(srv, queries)
+}
+
+// registerNewsTools adds the player news tools: source coverage, one
+// player's events and recent events across the NHL.
+func registerNewsTools(srv *server.MCPServer, queries *sqlcdb.Queries, sources []news.Source) {
+	registerNewsCoverageTools(srv, queries, sources)
+	registerPlayerNewsTools(srv, queries)
+	registerRecentNewsTools(srv, queries)
 }

@@ -101,6 +101,23 @@ func TestBuild_IdentityIsDeterministicAndTracksOptions(t *testing.T) {
 	assert.NotEqual(t, first.Identity, penalized.Identity)
 }
 
+func TestBuild_RejectsUnknownRankingPolicies(t *testing.T) {
+	tests := map[string]draftrank.Options{
+		"bench":    {BenchPolicy: draft.BenchPolicy("sometimes")},
+		"workload": {WorkloadCapPolicy: draft.WorkloadCapPolicy("league-wide")},
+	}
+	for name, options := range tests {
+		t.Run(name, func(t *testing.T) {
+			input := fixtureInput(t)
+			input.Options = options
+			_, err := draftrank.Build(input)
+			var coded *draftrank.RefreshError
+			require.ErrorAs(t, err, &coded)
+			assert.Equal(t, draftrank.IssueRankingFailed, coded.Code)
+		})
+	}
+}
+
 func TestBuild_WithoutNewsKeepsBaselineAndSaysWhy(t *testing.T) {
 	input := fixtureInput(t)
 	input.Adjustment = nil

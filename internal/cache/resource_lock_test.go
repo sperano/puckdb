@@ -7,6 +7,7 @@ import (
 
 	"github.com/bsm/redislock"
 	"github.com/go-redis/redismock/v8"
+	"github.com/sperano/puckdb/internal/core"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -60,4 +61,16 @@ func TestLockResourceNilCacheIsNoOp(t *testing.T) {
 	release, err := cache.LockResource(context.Background(), resourceLockTestKey)
 	require.NoError(t, err)
 	assert.NotPanics(t, release)
+}
+
+// The lock set is the mutable league-level resources plus the daily standings
+// capture, whose first miss of a day must be the only download.
+func TestRequiresCoherentResourceLock(t *testing.T) {
+	t.Parallel()
+	for _, ft := range []core.FileType{core.League, core.YahooDraftResults, core.YahooLeagueStandings} {
+		assert.True(t, RequiresCoherentResourceLock(ft), ft.String())
+	}
+	for _, ft := range []core.FileType{core.YahooTransactions, core.YahooLeaguePlayers, core.Boxscore} {
+		assert.False(t, RequiresCoherentResourceLock(ft), ft.String())
+	}
 }

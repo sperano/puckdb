@@ -12,12 +12,15 @@ import (
 )
 
 const (
-	rosterTestLeague   = "500.l.5621"
-	rosterTestOurTeam  = 3
-	rosterTestOpponent = 8
-	keeperPlayerID     = 101
-	draftedPlayerID    = 102
-	replacementID      = 103
+	rosterTestLeague          = "500.l.5621"
+	rosterTestOurTeam         = 3
+	rosterTestOpponent        = 8
+	keeperPlayerID            = 101
+	draftedPlayerID           = 102
+	replacementID             = 103
+	unrankedPlayerID          = 999
+	placeholderLikeKeeperName = "Yahoo player 101"
+	missingUnrankedDisplay    = "Yahoo player 999"
 )
 
 var (
@@ -104,13 +107,32 @@ func TestKeeperEnteredManuallyForOpponentReturnsWhenUndone(t *testing.T) {
 }
 
 func TestImportedKeeperGetsRankingNameAndEligibility(t *testing.T) {
-	imported := []draft.RosterPlayer{{YahooPlayerID: keeperPlayerID, Name: "Yahoo player 101"}}
+	imported := []draft.RosterPlayer{{YahooPlayerID: keeperPlayerID}}
 
 	roster := rosterOf(draftsession.State{}, imported, boardRanking(rosterTestLeague), rosterSlots, rosterTestOurTeam)
 
 	require.Len(t, roster.Players, 1)
 	assert.Equal(t, "Opponent pick", roster.Players[0].Name)
 	assert.Equal(t, []string{"C"}, roster.Players[0].EligiblePositions)
+}
+
+func TestPlaceholderLikeImportedNameIsNotTreatedAsMissing(t *testing.T) {
+	imported := []draft.RosterPlayer{{YahooPlayerID: keeperPlayerID, Name: placeholderLikeKeeperName}}
+
+	roster := rosterOf(draftsession.State{}, imported, boardRanking(rosterTestLeague), rosterSlots, rosterTestOurTeam)
+
+	require.Len(t, roster.Players, 1)
+	assert.Equal(t, placeholderLikeKeeperName, roster.Players[0].Name)
+	assert.Equal(t, []string{"C"}, roster.Players[0].EligiblePositions)
+}
+
+func TestMissingUnrankedRosterNameGetsDisplayPlaceholder(t *testing.T) {
+	imported := []draft.RosterPlayer{{YahooPlayerID: unrankedPlayerID}}
+
+	roster := rosterOf(draftsession.State{}, imported, boardRanking(rosterTestLeague), rosterSlots, rosterTestOurTeam)
+
+	require.Len(t, roster.Players, 1)
+	assert.Equal(t, missingUnrankedDisplay, roster.Players[0].Name)
 }
 
 func importedRoster(playerIDs ...int) []draft.RosterPlayer {

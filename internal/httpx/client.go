@@ -1,3 +1,9 @@
+// Package httpx is the HTTP client used to call the NHL and Yahoo APIs: a
+// metrics-instrumented client (internal/metrics), Yahoo's OAuth2 URL
+// builders and login flow, and a token source (token_source.go) that
+// refreshes the stored access token, deleting it and asking for login
+// again when the provider's response classifies the refresh as rejected
+// rather than transient (see refreshRejected).
 package httpx
 
 import (

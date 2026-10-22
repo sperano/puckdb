@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/sperano/puckdb/internal/config"
+	"github.com/sperano/puckdb/internal/draft"
 	"github.com/sperano/puckdb/internal/draftrank"
 	"github.com/sperano/puckdb/internal/graph/model"
 	"github.com/sperano/puckdb/internal/worker/draftranking"
@@ -80,7 +81,8 @@ func TestRefreshDraftRankings_NamedLeaguesAndOptions(t *testing.T) {
 	var act *draftranking.Activities
 	env.OnActivity(act.RefreshDraftRanking, mock.Anything, mock.MatchedBy(func(input draftranking.RefreshInput) bool {
 		return input.LeagueID == draftTestLeagueB && input.Options == draftrank.Options{
-			BenchPolicy: "excluded", WorkloadCapPolicy: "per-player", UncertaintyPenalty: draftTestPenalty,
+			BenchPolicy: draft.BenchExcluded, WorkloadCapPolicy: draft.WorkloadCapsPerPlayer,
+			UncertaintyPenalty: draftTestPenalty,
 		} && input.RunID != "" && len(input.Sources) == len(fixedNewsSources())
 	})).Return(succeeded(draftTestLeagueB), nil).Once()
 

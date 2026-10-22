@@ -1,3 +1,8 @@
+// Package cmd wires PuckDB's Cobra commands (api, worker, sync, db, draft,
+// news, sim, yahoo, mcp-server, maurice, metrics, redis) to the
+// internal/config flag groups bound by their PreRunE, and constructs the
+// library clients (database, cache, temporal, httpx) each command needs
+// from those flags via the xxxFrom readers in settings.go.
 package cmd
 
 import (

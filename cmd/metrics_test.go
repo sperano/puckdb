@@ -323,6 +323,13 @@ func TestClassifyFileType(t *testing.T) {
 			want:     core.YahooMatchups,
 		},
 		{
+			name:     "yahoo league standings capture",
+			dataPath: "/data",
+			filePath: "/data/seasons/2026/yahoo/1001/standings/standings-2026-10-22.xml",
+			filename: "standings-2026-10-22.xml",
+			want:     core.YahooLeagueStandings,
+		},
+		{
 			name:     "yahoo league player pool page",
 			dataPath: "/data",
 			filePath: "/data/seasons/2026/yahoo/1001/players/1758369600000/players-0025.xml",

@@ -1,3 +1,8 @@
+// Package database opens and configures the pgx connection pool
+// (database.Config, database.PoolOptions) that sqlcdb.Queries runs against,
+// wires in internal/metrics.SQLCQueryTracer to time sqlc query calls, and
+// runs schema migrations. Pool stat metrics are collected separately: cmd
+// registers internal/metrics.PGXPoolCollector against the opened pool.
 package database
 
 import (

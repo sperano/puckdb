@@ -1,3 +1,12 @@
+// Package admin holds the database and Redis administration
+// workflows/activities (DropDatabaseWorkflow, MigrateDatabaseWorkflow,
+// ResetDatabaseWorkflow, FlushRedisWorkflow) that the worker command
+// executes; the api command's admin GraphQL mutations (dropDatabase,
+// createDatabase, clearDatabase, flushRedisDB) start them. Of the CLI's
+// db/redis subcommands, only `db init`, `db drop` and `redis flush` reach
+// those mutations over HTTP; `db migrate`, `db force-version`,
+// `db provision` and `db check-teams` operate on PostgreSQL directly,
+// bypassing the API.
 package admin
 
 import (

@@ -26,7 +26,6 @@ const (
 	// league no longer has (draftrank.AdviceWithheld); no candidates.
 	BoardStatusWithheld = "withheld"
 	maxCategoryReasons  = 3
-	maxCategoryWeight   = 10.0
 )
 
 type playerRef struct {
@@ -103,7 +102,7 @@ func validateInput(in Input) error {
 		categoryIDs[category.StatID] = true
 	}
 	for id, weight := range in.Strategy.CategoryWeights {
-		if !categoryIDs[id] || weight < 0 || weight > maxCategoryWeight || !finite(weight) {
+		if !categoryIDs[id] || weight < 0 || weight > draft.MaxCategoryWeight || !finite(weight) {
 			return fmt.Errorf("%w: invalid category weight for stat %d", ErrInvalidInput, id)
 		}
 	}
