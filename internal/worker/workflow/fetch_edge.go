@@ -163,7 +163,7 @@ func FetchEdgeWorkflow(ctx workflow.Context, input FetchEdgeWorkflowInput) (core
 				return core.OriginCounts{core.OriginRemoteNHLAPI: activityCount}, fmt.Errorf("fetch edge %s for %s (gt=%d): %w", activityType, teams[teamIdx].Abbrev, gameType, err)
 			}
 			activityCount++
-			tracker.IncrementBar(ctx, 0, 0)
+			tracker.IncrementBar(ctx, shared.BarRef{Group: 0})
 		}
 	}
 

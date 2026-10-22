@@ -56,7 +56,7 @@ func (s *BarRangesSuite) TestIncrementBarsAndTotals() {
 		s.Require().NoError(err)
 		tracker.IncrementBars(ctx, 0, []int{0, 2})
 		s.Equal([]int{2, 3, 4}, tracker.GroupBarTotals(0))
-		s.Equal(ProgressBar{Current: 1, Total: 4}, tracker.Bar(0, 2))
+		s.Equal(ProgressBar{Current: 1, Total: 4}, tracker.Bar(BarRef{Group: 0, Bar: 2}))
 		return nil
 	})
 	s.NoError(s.env.GetWorkflowError())
@@ -81,7 +81,7 @@ func (s *BarRangesSuite) TestRunWorkerPoolBarRangesSuccessful() {
 				if err := future.Get(ctx, nil); err != nil {
 					return err
 				}
-				tracker.SetBarTotal(0, 0, barRangesResizedTotal)
+				tracker.SetBarTotal(BarRef{Group: 0}, barRangesResizedTotal)
 				tracker.RecalcTotal()
 				return nil
 			})

@@ -53,7 +53,7 @@ func applyYahooLeagueTotals(tracker *shared.ReportTracker, bars shared.BarRange,
 		return
 	}
 	for i, total := range totals {
-		tracker.SetBarTotal(groupYahooMetadata, bars.Start+i, total)
+		tracker.SetBarTotal(shared.BarRef{Group: groupYahooMetadata, Bar: bars.Start + i}, total)
 	}
 	tracker.RecalcTotal()
 }

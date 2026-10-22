@@ -41,6 +41,10 @@ type newsConfig struct {
 	Extract                  newsExtractConfig `json:"extract"`
 }
 
+// newsSourcesBar is the single bar of RefreshNewsWorkflow's report: one unit
+// per enabled source, counted when it is not due or once its fetch ends.
+var newsSourcesBar = shared.BarRef{Group: 0}
+
 // loadNewsSources reads the source set; a variable so tests can swap it.
 var loadNewsSources = news.LoadSources
 
@@ -135,7 +139,7 @@ func RefreshNewsWorkflow(ctx workflow.Context, input *model.RefreshNewsInput) (R
 		return result, fmt.Errorf("plan news refresh: %w", err)
 	}
 	result.NotDue = plan.NotDue
-	tracker.IncrementBarBy(ctx, 0, 0, len(plan.NotDue))
+	tracker.IncrementBarBy(ctx, newsSourcesBar, len(plan.NotDue))
 	fetchNewsSources(ctx, cfg, plan.Due, &result, tracker)
 	if err := processNewsVersions(ctx, cfg, &result); err != nil {
 		return result, err
@@ -182,7 +186,7 @@ func fetchNewsSources(ctx workflow.Context, cfg newsConfig, due []news.Source, r
 	for i, src := range due {
 		var fetched newsfeed.FetchResult
 		err := futures[i].Get(ctx, &fetched)
-		tracker.IncrementBar(ctx, 0, 0)
+		tracker.IncrementBar(ctx, newsSourcesBar)
 		if err != nil {
 			recordNewsFailure(ctx, src, result, err)
 			continue

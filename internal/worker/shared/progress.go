@@ -157,14 +157,15 @@ func ChainRunID(info *workflow.Info) string {
 
 // StartGroup marks a group as started with the current timestamp and saves to Redis.
 func (t *ReportTracker) StartGroup(ctx workflow.Context, groupIdx int) {
-	t.report.Groups[groupIdx].StartedAt = workflow.Now(ctx).UnixMilli()
+	g := t.group(groupIdx)
+	g.StartedAt = workflow.Now(ctx).UnixMilli()
 	t.Save(ctx)
 }
 
 // CompleteGroup marks a group as completed with message and timestamp.
 // Sets all bars to complete, recomputes the report's Completed count, and saves to Redis.
 func (t *ReportTracker) CompleteGroup(ctx workflow.Context, groupIdx int, msg string) {
-	g := &t.report.Groups[groupIdx]
+	g := t.group(groupIdx)
 	for i := range g.Bars {
 		g.Bars[i].Current = g.Bars[i].Total
 	}
@@ -214,34 +215,35 @@ func LoadReportTracker(ctx workflow.Context) (*ReportTracker, error) {
 }
 
 // IncrementBar increments the current count of a specific bar and saves to Redis.
-func (t *ReportTracker) IncrementBar(ctx workflow.Context, groupIdx, barIdx int) {
-	t.report.Groups[groupIdx].Bars[barIdx].Current++
+func (t *ReportTracker) IncrementBar(ctx workflow.Context, ref BarRef) {
+	t.bar(ref).Current++
 	t.Save(ctx)
 }
 
 // IncrementBarBy increments the current count of a specific bar by the given amount and saves to Redis.
-func (t *ReportTracker) IncrementBarBy(ctx workflow.Context, groupIdx, barIdx, amount int) {
-	t.report.Groups[groupIdx].Bars[barIdx].Current += amount
+func (t *ReportTracker) IncrementBarBy(ctx workflow.Context, ref BarRef, amount int) {
+	t.bar(ref).Current += amount
 	t.Save(ctx)
 }
 
 // IncrementBars increments several bars of a group by one each and saves to
 // Redis once. Use it when one unit of work counts toward several bars.
 func (t *ReportTracker) IncrementBars(ctx workflow.Context, groupIdx int, barIdxs []int) {
+	t.group(groupIdx) // panics on a bad group even when no bar is named
 	for _, barIdx := range barIdxs {
-		t.report.Groups[groupIdx].Bars[barIdx].Current++
+		t.bar(BarRef{Group: groupIdx, Bar: barIdx}).Current++
 	}
 	t.Save(ctx)
 }
 
 // Bar returns a copy of a specific bar.
-func (t *ReportTracker) Bar(groupIdx, barIdx int) ProgressBar {
-	return t.report.Groups[groupIdx].Bars[barIdx]
+func (t *ReportTracker) Bar(ref BarRef) ProgressBar {
+	return *t.bar(ref)
 }
 
 // GroupBarTotals returns the Total of every bar in a group, in order.
 func (t *ReportTracker) GroupBarTotals(groupIdx int) []int {
-	bars := t.report.Groups[groupIdx].Bars
+	bars := t.group(groupIdx).Bars
 	totals := make([]int, len(bars))
 	for i, bar := range bars {
 		totals[i] = bar.Total
@@ -255,13 +257,13 @@ func (t *ReportTracker) GroupBarTotals(groupIdx int) []int {
 // saving call, or an explicit Save, writes the new size to Redis). For one
 // bar resized at runtime, use ResizeBar; SetBarTotal is for resizing several
 // bars before a single RecalcTotal and save.
-func (t *ReportTracker) SetBarTotal(groupIdx, barIdx, total int) {
-	t.report.Groups[groupIdx].Bars[barIdx].Total = total
+func (t *ReportTracker) SetBarTotal(ref BarRef, total int) {
+	t.bar(ref).Total = total
 }
 
 // ResizeBar sets a bar's Total, refreshes the report Total and saves.
-func (t *ReportTracker) ResizeBar(ctx workflow.Context, groupIdx, barIdx, total int) {
-	t.SetBarTotal(groupIdx, barIdx, total)
+func (t *ReportTracker) ResizeBar(ctx workflow.Context, ref BarRef, total int) {
+	t.SetBarTotal(ref, total)
 	t.RecalcTotal()
 	t.Save(ctx)
 }
@@ -274,19 +276,19 @@ func (t *ReportTracker) RecalcTotal() {
 }
 
 // SetBarLabel sets the label for a specific bar.
-func (t *ReportTracker) SetBarLabel(groupIdx, barIdx int, label string) {
-	t.report.Groups[groupIdx].Bars[barIdx].Label = label
+func (t *ReportTracker) SetBarLabel(ref BarRef, label string) {
+	t.bar(ref).Label = label
 }
 
 // StartBar marks a bar as started and saves to Redis.
-func (t *ReportTracker) StartBar(ctx workflow.Context, groupIdx, barIdx int) {
-	t.report.Groups[groupIdx].Bars[barIdx].Started = true
+func (t *ReportTracker) StartBar(ctx workflow.Context, ref BarRef) {
+	t.bar(ref).Started = true
 	t.Save(ctx)
 }
 
 // CompleteBar marks a specific bar as complete (sets Current = Total) and saves to Redis.
-func (t *ReportTracker) CompleteBar(ctx workflow.Context, groupIdx, barIdx int) {
-	bar := &t.report.Groups[groupIdx].Bars[barIdx]
+func (t *ReportTracker) CompleteBar(ctx workflow.Context, ref BarRef) {
+	bar := t.bar(ref)
 	bar.Current = bar.Total
 	t.Save(ctx)
 }
@@ -299,8 +301,9 @@ type BarRange struct {
 
 // StartBars marks every bar of a range as started and saves to Redis once.
 func (t *ReportTracker) StartBars(ctx workflow.Context, groupIdx int, bars BarRange) {
+	t.group(groupIdx) // panics on a bad group even when no bar is named
 	for i := bars.Start; i < bars.Start+bars.Count; i++ {
-		t.report.Groups[groupIdx].Bars[i].Started = true
+		t.bar(BarRef{Group: groupIdx, Bar: i}).Started = true
 	}
 	t.Save(ctx)
 }
@@ -308,8 +311,9 @@ func (t *ReportTracker) StartBars(ctx workflow.Context, groupIdx int, bars BarRa
 // CompleteBars sets Current = Total on every bar of a range and saves to
 // Redis once.
 func (t *ReportTracker) CompleteBars(ctx workflow.Context, groupIdx int, bars BarRange) {
+	t.group(groupIdx) // panics on a bad group even when no bar is named
 	for i := bars.Start; i < bars.Start+bars.Count; i++ {
-		bar := &t.report.Groups[groupIdx].Bars[i]
+		bar := t.bar(BarRef{Group: groupIdx, Bar: i})
 		bar.Current = bar.Total
 	}
 	t.Save(ctx)
@@ -332,6 +336,7 @@ type ChildWorkflowStarter func(ctx workflow.Context, season nhl.SeasonInfo, isLa
 // can merge per-season progress from Redis at query time.
 // Returns a map of startYear -> barIdx for looking up bars later.
 func (t *ReportTracker) AddBarsForSeasons(ctx workflow.Context, groupIdx int, seasons []nhl.SeasonInfo, counter SeasonCounterFunc, sourceKeyFunc ProgressSourceKeyFunc) (map[int]int, error) {
+	g := t.group(groupIdx)
 	barIndex := make(map[int]int)
 
 	for i, season := range seasons {
@@ -346,7 +351,7 @@ func (t *ReportTracker) AddBarsForSeasons(ctx workflow.Context, groupIdx int, se
 		if sourceKeyFunc != nil {
 			bar.ProgressSourceKey = sourceKeyFunc(season.ID.StartYear())
 		}
-		t.report.Groups[groupIdx].Bars = append(t.report.Groups[groupIdx].Bars, bar)
+		g.Bars = append(g.Bars, bar)
 		barIndex[season.ID.StartYear()] = i
 	}
 
@@ -357,7 +362,8 @@ func (t *ReportTracker) AddBarsForSeasons(ctx workflow.Context, groupIdx int, se
 // AddBar appends a bar to a group and refreshes the report-level Total.
 // Use it when bars are derived from runtime input (e.g. one per Yahoo season).
 func (t *ReportTracker) AddBar(groupIdx int, bar ProgressBar) {
-	t.report.Groups[groupIdx].Bars = append(t.report.Groups[groupIdx].Bars, bar)
+	g := t.group(groupIdx)
+	g.Bars = append(g.Bars, bar)
 	t.report.Total = t.totalFromBars()
 }
 
@@ -374,7 +380,7 @@ func (t *ReportTracker) totalFromBars() int {
 
 // GetElapsed returns the formatted elapsed time since group started.
 func (t *ReportTracker) GetElapsed(ctx workflow.Context, groupIdx int) string {
-	startedAt := t.report.Groups[groupIdx].StartedAt
+	startedAt := t.group(groupIdx).StartedAt
 	if startedAt == 0 {
 		return ""
 	}
