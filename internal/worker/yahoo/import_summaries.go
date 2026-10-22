@@ -83,13 +83,16 @@ func (a *ImportActivities) collectSummaryParams(ctx context.Context, teams []Tea
 }
 
 // parseStatValue converts a Yahoo stat value string to a nullable float.
-// Yahoo uses "-" for stats with no data (e.g., goalie stats for a skater-only day).
+// Yahoo uses "-" for stats with no data (e.g., goalie stats for a skater-only
+// day). A text that is not a finite number is NULL, as in
+// yahoo_team_summary_stats (summaryStatNumber), so both representations of a
+// category agree.
 func parseStatValue(s string) pgtype.Float4 {
-	if s == "-" || s == "" {
+	if s == noStatValue || s == "" {
 		return pgtype.Float4{}
 	}
 	v, err := strconv.ParseFloat(s, 32)
-	if err != nil {
+	if err != nil || math.IsNaN(v) || math.IsInf(v, 0) {
 		return pgtype.Float4{}
 	}
 	return pgtype.Float4{Float32: float32(v), Valid: true}
@@ -172,15 +175,16 @@ type summaryStat struct {
 // summaryStatSet is the ReplaceYahooTeamSummaryStatsBatch row of one team
 // summary: every category of stats with an integer stat ID, sorted by stat
 // ID. A stat ID listed twice keeps its last value, as the fixed columns do
-// (assignStatField); a stat ID that is not a non-negative integer is logged
-// and left out, as the fixed columns leave it out.
+// (assignStatField); a stat ID that is not an integer in [0, MaxInt32] (the
+// stat_id integer column) is logged and left out, as the fixed columns leave
+// it out, so one odd stat cannot fail the whole date's import.
 func summaryStatSet(leagueID, teamID int32, date pgtype.Date, stats []store.Stat) (sqlcdb.ReplaceYahooTeamSummaryStatsBatchParams, error) {
 	byID := make(map[int]summaryStat, len(stats))
 	for _, stat := range stats {
 		statID, err := strconv.Atoi(stat.StatID)
-		if err != nil || statID < 0 {
+		if err != nil || statID < 0 || statID > math.MaxInt32 {
 			log.Warn().Int32("leagueID", leagueID).Int32("teamID", teamID).Str("statID", stat.StatID).
-				Msg("Skipping Yahoo summary stat without a non-negative integer stat ID")
+				Msg("Skipping Yahoo summary stat whose stat ID is not an integer in [0, MaxInt32]")
 			continue
 		}
 		byID[statID] = summaryStat{StatID: statID, Value: summaryStatNumber(stat.Value), RawValue: stat.Value}

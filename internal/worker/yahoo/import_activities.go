@@ -21,10 +21,13 @@ import (
 )
 
 // ImportActivities holds dependencies for Yahoo data import activities.
+// Tx runs the writes that must be atomic, such as all the rows of one date
+// in ImportYahooDataForDate.
 type ImportActivities struct {
 	Storage  store.Storage
 	GobCache *cache.GobCache
 	Queries  Queries
+	Tx       Transactor
 }
 
 // ImportYahooTeams imports Yahoo teams from cached XML into the database.
@@ -150,29 +153,21 @@ func (a *ImportActivities) ImportYahooDataForDate(ctx context.Context, input Imp
 	rosterParams, rosterFailures := a.collectRosterParams(ctx, input.Teams, input.Date, result.Origins)
 	result.ReadFailures = summaryFailures + standingFailures + rosterFailures
 
-	// Batch upsert summaries (includes stats as columns), then replace their
-	// category rows, which reference the summary rows.
-	if len(summaries.summaries) > 0 {
-		if err := upsertSummaries(ctx, a.Queries, summaries.summaries); err != nil {
-			return result, err
-		}
-		if err := replaceSummaryStats(ctx, a.Queries, summaries.stats); err != nil {
-			return result, err
-		}
-		result.SummariesImported = len(summaries.summaries)
+	rows := dateRows{date: input.Date, summaries: summaries, standings: standings, rosters: rosterParams}
+	if rows.empty() {
+		return result, nil
 	}
-
-	if result.StandingsImported, err = importStandings(ctx, a.Queries, input.Date, standings); err != nil {
+	var written dateCounts
+	if err := a.Tx.InTx(ctx, func(q YahooDataUpserter) error {
+		var err error
+		written, err = writeDateRows(ctx, q, rows)
+		return err
+	}); err != nil {
 		return result, err
 	}
-
-	// Batch upsert rosters
-	if len(rosterParams) > 0 {
-		if err := upsertRosters(ctx, a.Queries, rosterParams); err != nil {
-			return result, err
-		}
-		result.RostersImported = len(rosterParams)
-	}
+	result.SummariesImported = written.summaries
+	result.StandingsImported = written.standings
+	result.RostersImported = written.rosters
 
 	if result.SummariesImported > 0 || result.StandingsImported > 0 || result.RostersImported > 0 {
 		logger.Info("Imported Yahoo data for date",

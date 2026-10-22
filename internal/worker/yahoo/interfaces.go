@@ -6,6 +6,13 @@ import (
 	"github.com/sperano/puckdb/internal/sqlcdb"
 )
 
+// Transactor runs fn in one database transaction: it commits when fn returns
+// nil and rolls back otherwise. fn must use only the upserter it is given;
+// the pool-scoped Queries would write outside the transaction.
+type Transactor interface {
+	InTx(ctx context.Context, fn func(YahooDataUpserter) error) error
+}
+
 // YahooLeagueUpserter is the interface for database operations needed by Yahoo league import.
 type YahooLeagueUpserter interface {
 	UpsertYahooLeague(ctx context.Context, arg sqlcdb.UpsertYahooLeagueParams) error

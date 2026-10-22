@@ -8,6 +8,7 @@ package yahoo
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -66,7 +67,7 @@ func newStandingsPGFixture(t *testing.T) *standingsPGFixture {
 	require.NoError(t, err)
 
 	mem := store.NewMemStorage()
-	acts := &ImportActivities{Storage: mem, GobCache: cache.NewGobCache(nil), Queries: sqlcdb.New(pool)}
+	acts := &ImportActivities{Storage: mem, GobCache: cache.NewGobCache(nil), Queries: sqlcdb.New(pool), Tx: NewPgxTransactor(pool)}
 	var suite testsuite.WorkflowTestSuite
 	env := suite.NewTestActivityEnvironment()
 	env.RegisterActivity(acts.ImportYahooDataForDate)
@@ -266,4 +267,43 @@ func TestPg_LatestSnapshotIsTheLeaguesOwn(t *testing.T) {
 	latest := f.summaries(t, standingsPGOtherLeague, standingsPGDay2, pgtype.Int4{})
 	require.Len(t, latest, 1)
 	assert.EqualValues(t, standingsPGOtherLeague, latest[0].LeagueID)
+}
+
+// errClearFailed is the standings clear failure failingClearTx injects.
+var errClearFailed = errors.New("clear failed")
+
+// failingClearTx runs the import in a real transaction whose standings clear
+// fails, after the summaries, their categories and the standing rows were
+// written in it.
+type failingClearTx struct{ tx Transactor }
+
+func (f failingClearTx) InTx(ctx context.Context, fn func(YahooDataUpserter) error) error {
+	return f.tx.InTx(ctx, func(q YahooDataUpserter) error { return fn(failingClear{q}) })
+}
+
+type failingClear struct{ YahooDataUpserter }
+
+func (failingClear) ClearYahooTeamStandingsExcept(context.Context, sqlcdb.ClearYahooTeamStandingsExceptParams) error {
+	return errClearFailed
+}
+
+func TestPg_FailedImportLeavesTheDateAsItWas(t *testing.T) {
+	f := newStandingsPGFixture(t)
+	teams := []TeamInfo{pointsTeam(1), pointsTeam(2)}
+	f.writeSummary(pointsTeam(1), standingsPGDay1, [2]string{"1", "2"})
+	f.writeStandings(yahoofixtures.PointsLeagueID, standingsPGDay1, yahoofixtures.H2HStandings, standingsPGCaptured)
+	f.importDay(t, standingsPGDay1, teams...)
+	before := f.summaries(t, yahoofixtures.PointsLeagueID, standingsPGDay1, pgtype.Int4{})
+
+	f.writeSummary(pointsTeam(1), standingsPGDay1, [2]string{"1", "5"}, [2]string{"31", "3"})
+	f.writeStandings(yahoofixtures.PointsLeagueID, standingsPGDay1, yahoofixtures.PreseasonStandings, standingsPGCaptured.Add(time.Hour))
+	f.acts.Tx = failingClearTx{tx: NewPgxTransactor(f.pool)}
+	_, err := f.env.ExecuteActivity(f.acts.ImportYahooDataForDate,
+		ImportYahooDataForDateInput{Season: yahoofixtures.PointsSeason, Teams: teams, Date: standingsPGDay1})
+
+	require.ErrorContains(t, err, errClearFailed.Error())
+	assert.Equal(t, before, f.summaries(t, yahoofixtures.PointsLeagueID, standingsPGDay1, pgtype.Int4{}),
+		"neither the fixed columns nor the standings of the failed import are kept")
+	assert.Equal(t, map[int32]string{1: "2"}, f.statValues(t, pointsTeam(1), standingsPGDay1),
+		"nor its category rows")
 }

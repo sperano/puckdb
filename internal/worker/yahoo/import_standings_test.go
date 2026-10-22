@@ -148,11 +148,12 @@ func TestCollectStandingParams_ForeignLeagueIsAReadFailure(t *testing.T) {
 
 func TestStandingParams_RefusesAPercentageOutsideTheUnitRange(t *testing.T) {
 	t.Parallel()
-	tooHigh := 1.5
-	_, err := standingParams(1, pgDate(importStandingsDate), pgtype.Timestamptz{Time: importStandingsCaptured, Valid: true},
-		resource.TeamStandingRecord{TeamID: 1, Rank: 1, Outcome: &resource.OutcomeRecord{Wins: 1, Percentage: &tooHigh}})
+	for _, percentage := range []float64{-0.25, 1.5} {
+		_, err := standingParams(1, pgDate(importStandingsDate), pgtype.Timestamptz{Time: importStandingsCaptured, Valid: true},
+			resource.TeamStandingRecord{TeamID: 1, Rank: 1, Outcome: &resource.OutcomeRecord{Wins: 1, Percentage: &percentage}})
 
-	require.ErrorContains(t, err, "outside [0, 1]")
+		require.ErrorContains(t, err, "outside [0, 1]", percentage)
+	}
 }
 
 func TestStandingParams_RefusesACountAboveInt32(t *testing.T) {
@@ -171,14 +172,16 @@ func TestImportStandings_WritesRowsThenClearsTheOtherTeams(t *testing.T) {
 		{leagueID: 1, rows: []sqlcdb.UpsertYahooTeamStandingBatchParams{{LeagueID: 1, TeamID: 3, Date: date}, {LeagueID: 1, TeamID: 1, Date: date}}},
 		{leagueID: 2}, // a snapshot without configured teams clears every team
 	}
-	q.On("UpsertYahooTeamStandingBatch", mock.Anything, append(leagues[0].rows[:0:0], leagues[0].rows...)).
-		Return(sqlcdb.NewUpsertYahooTeamStandingBatchBatchResults(&mockBatchResults{}, 2)).Once()
-	q.On("ClearYahooTeamStandingsExcept", mock.Anything,
-		sqlcdb.ClearYahooTeamStandingsExceptParams{LeagueID: 1, Date: date, TeamIds: []int32{3, 1}}).Return(nil).Once()
-	q.On("ClearYahooTeamStandingsExcept", mock.Anything, mock.MatchedBy(func(p sqlcdb.ClearYahooTeamStandingsExceptParams) bool {
-		// A nil array would be NULL in SQL, and "<> ALL(NULL)" clears nothing.
-		return p.LeagueID == 2 && p.TeamIds != nil && len(p.TeamIds) == 0
-	})).Return(nil).Once()
+	mock.InOrder(
+		q.On("UpsertYahooTeamStandingBatch", mock.Anything, leagues[0].rows).
+			Return(sqlcdb.NewUpsertYahooTeamStandingBatchBatchResults(&mockBatchResults{}, 2)).Once(),
+		q.On("ClearYahooTeamStandingsExcept", mock.Anything,
+			sqlcdb.ClearYahooTeamStandingsExceptParams{LeagueID: 1, Date: date, TeamIds: []int32{3, 1}}).Return(nil).Once(),
+		q.On("ClearYahooTeamStandingsExcept", mock.Anything, mock.MatchedBy(func(p sqlcdb.ClearYahooTeamStandingsExceptParams) bool {
+			// A nil array would be NULL in SQL, and "<> ALL(NULL)" clears nothing.
+			return p.LeagueID == 2 && p.TeamIds != nil && len(p.TeamIds) == 0
+		})).Return(nil).Once(),
+	)
 
 	written, err := importStandings(context.Background(), q, importStandingsDate, leagues)
 

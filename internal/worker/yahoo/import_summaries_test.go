@@ -2,6 +2,7 @@ package yahoo
 
 import (
 	"encoding/json"
+	"math"
 	"testing"
 	"time"
 
@@ -34,6 +35,8 @@ func TestSummaryStatSet_KeepsEveryCategory(t *testing.T) {
 		{StatID: "1", Value: "4"}, // listed twice: the last value wins
 		{StatID: "goals", Value: "5"},
 		{StatID: "-3", Value: "5"},
+		{StatID: "2147483648", Value: "5"}, // above the integer stat_id column
+		{StatID: "2147483647", Value: "6"},
 		{StatID: "32", Value: "NaN"},
 	}
 
@@ -52,6 +55,7 @@ func TestSummaryStatSet_KeepsEveryCategory(t *testing.T) {
 		{StatID: 31, RawValue: "n/a"},
 		{StatID: 32, RawValue: "NaN"},
 		{StatID: 999, Value: floatPtr(7), RawValue: "7"},
+		{StatID: math.MaxInt32, Value: floatPtr(6), RawValue: "6"},
 	}, decodeStatSet(t, set.Stats), "sorted by stat ID, invalid IDs left out")
 }
 
