@@ -22,8 +22,9 @@ const (
 	IssueMissingPool IssueCode = "MISSING_POOL"
 	// IssueMissingProjections: the baseline projection failed coverage
 	// validation (projection.CoverageError): an enabled scoring category the
-	// model cannot project or no draftable player of its kind, a draftable
-	// player whose projection lacks a category, or no draftable pool.
+	// model cannot project or with no draftable player of its kind, or a
+	// draftable player whose projection lacks a category. (An empty pool is
+	// IssueMissingPool, checked first.)
 	IssueMissingProjections IssueCode = "MISSING_PROJECTIONS"
 	// IssueRankingFailed: the baseline or a scenario ranking failed.
 	IssueRankingFailed IssueCode = "RANKING_FAILED"

@@ -64,8 +64,9 @@ type EntrySource string
 const (
 	// SourceYahoo is a pick Yahoo reported.
 	SourceYahoo EntrySource = "yahoo"
-	// SourceManual is a local add, correction or undo (a tombstone hiding a
-	// Yahoo pick) that Yahoo has not confirmed.
+	// SourceManual is a local add or correction Yahoo has not confirmed. The
+	// live board also labels a conflicted undo (the Yahoo pick it hides)
+	// manual; EffectiveBoard itself omits undone picks.
 	SourceManual EntrySource = "manual"
 )
 

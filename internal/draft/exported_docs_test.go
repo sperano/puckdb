@@ -75,7 +75,13 @@ func (T) String(int) string { return "" }
 
 func (*T) Unwrap() []error { return nil }
 
-func (T) Unwrap() int { return 0 }
+type U struct{}
+
+func (*U) Error() (message string) { return "" }
+
+func (U) String(...int) string { return "" }
+
+func (U) Unwrap() (error, bool) { return nil, false }
 
 type hidden struct{}
 
@@ -105,7 +111,7 @@ var V = 7
 	for _, missing := range undocumentedExports(fset, file) {
 		names = append(names, missing.name)
 	}
-	require.Equal(t, []string{"Bare", "T", "T.Method", "T.String", "T.Unwrap", "D", "E", "V"}, names)
+	require.Equal(t, []string{"Bare", "T", "T.Method", "T.String", "U", "U.String", "U.Unwrap", "D", "E", "V"}, names)
 }
 
 type undocumented struct {
