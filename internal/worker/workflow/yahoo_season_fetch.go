@@ -152,12 +152,14 @@ func fetchYahooMatchups(ctx workflow.Context, startYear, leagueID int, weeks *ya
 	return false, nil
 }
 
-// yahooLeagueStandingsChangeID gates the daily standings capture. Histories
+// The daily standings capture is gated by a GetVersion change: histories
 // recorded before it carry no marker for it and replay without the capture
 // (their league bar then ends one unit short of its estimate).
 const (
+	// yahooLeagueStandingsChangeID is the change's GetVersion ID.
 	yahooLeagueStandingsChangeID = "yahoo-league-standings"
-	yahooLeagueStandingsVersion  = 1
+	// yahooLeagueStandingsVersion is the version that runs the capture.
+	yahooLeagueStandingsVersion = 1
 )
 
 // fetchYahooLeagueStandings captures the league's current standings under

@@ -17,7 +17,10 @@ type FetchYahooLeagueStandingsResult struct {
 	// Date is the capture day (YYYY-MM-DD) the snapshot is filed under;
 	// empty when nothing was captured.
 	Date string `json:"date,omitempty"`
-	// Unavailable reports a preseason 400: Yahoo serves no standings yet.
+	// Unavailable reports a 400 from Yahoo, its answer for a league-level
+	// resource that does not exist yet: the day's capture is reported in
+	// the sync result instead of failing the season sync, since a 400 is
+	// definitive and a retry would not change it.
 	Unavailable bool `json:"unavailable,omitempty"`
 	// SkipReason says why the capture day was not in the league's season,
 	// in which case no request was made.
@@ -40,13 +43,14 @@ func (a *FetchActivities) FetchYahooLeagueStandings(ctx context.Context, input F
 func (a *FetchActivities) fetchYahooLeagueStandings(ctx context.Context, input FetchYahooLeagueDataInput, now time.Time) (FetchYahooLeagueStandingsResult, error) {
 	logger := activity.GetLogger(ctx)
 	date := resource.StandingsCaptureDate(now)
+	day := date.Format(config.DateFormat)
 	league, _, err := readLeagueSettings(ctx, a.Storage, resource.League{Season: input.Season, LeagueID: input.LeagueID})
 	if err != nil {
 		return FetchYahooLeagueStandingsResult{}, err
 	}
 	if reason := standingsCaptureSkip(input.Season, league, date); reason != "" {
 		logger.Info("Standings capture skipped", "season", input.Season, "leagueID", input.LeagueID,
-			"date", date.Format(config.DateFormat), "reason", reason)
+			"date", day, "reason", reason)
 		return FetchYahooLeagueStandingsResult{SkipReason: reason}, nil
 	}
 	gameKey, err := GetGameKeyForSeason(ctx, a.Storage, a.GobCache, a.Download, input.Season)
@@ -60,22 +64,27 @@ func (a *FetchActivities) fetchYahooLeagueStandings(ctx context.Context, input F
 			return FetchYahooLeagueStandingsResult{Unavailable: true}, nil
 		}
 		return FetchYahooLeagueStandingsResult{}, fmt.Errorf("fetch standings %d/%d for %s: %w",
-			input.Season, input.LeagueID, date.Format(config.DateFormat), err)
+			input.Season, input.LeagueID, day, err)
 	}
-	logFetched(logger, origin, "Standings", "season", input.Season, "leagueID", input.LeagueID,
-		"date", date.Format(config.DateFormat))
-	return FetchYahooLeagueStandingsResult{Date: date.Format(config.DateFormat)}, nil
+	logFetched(logger, origin, "Standings", "season", input.Season, "leagueID", input.LeagueID, "date", day)
+	return FetchYahooLeagueStandingsResult{Date: day}, nil
 }
 
 // standingsCaptureSkip says why no snapshot is taken on date for the league,
 // or "" when one is: the date must fall in the league's season (its start
 // date through its end date plus the grace day) and in NHL season season,
-// so the snapshot's path and its date agree.
+// so the snapshot's path and its date agree. A league whose start date is
+// unreadable is skipped and says so; an unreadable end date counts as
+// current, as leagueSeasonEnded has it.
 func standingsCaptureSkip(season int, league store.League, date time.Time) string {
 	if resource.DeduceSeason(date) != season {
 		return fmt.Sprintf("capture day %s is not in season %d", date.Format(config.DateFormat), season)
 	}
-	if !leagueRegularSeasonStarted(league, date) {
+	start, err := time.Parse(config.DateFormat, league.StartDate)
+	if err != nil {
+		return fmt.Sprintf("league start date %q is not a date", league.StartDate)
+	}
+	if date.Before(start) {
 		return fmt.Sprintf("league season starts %s", league.StartDate)
 	}
 	if leagueSeasonEnded(league, date) {

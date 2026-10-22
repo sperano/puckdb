@@ -2,6 +2,7 @@ package resource
 
 import (
 	"encoding/xml"
+	"errors"
 	"fmt"
 	"strconv"
 	"time"
@@ -122,7 +123,7 @@ type OutcomeRecord struct {
 func TeamStandingRecords(league store.League) ([]TeamStandingRecord, error) {
 	teams := league.Standings.Teams
 	if len(teams.Slice) == 0 {
-		return nil, fmt.Errorf("response contains no standings")
+		return nil, errors.New("response contains no standings")
 	}
 	if teams.Count > 0 && teams.Count != len(teams.Slice) {
 		return nil, fmt.Errorf("standings list %d teams but count says %d", len(teams.Slice), teams.Count)

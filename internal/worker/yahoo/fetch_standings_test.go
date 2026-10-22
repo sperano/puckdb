@@ -145,7 +145,23 @@ func TestFetchYahooLeagueStandings_CapturesSeasonBounds(t *testing.T) {
 	}
 }
 
-func TestFetchYahooLeagueStandings_PreseasonRejectionIsUnavailable(t *testing.T) {
+// A league whose settings carry no readable start date is skipped with a
+// reason that says so, not with an empty start date.
+func TestFetchYahooLeagueStandings_UnreadableStartDateIsSkipped(t *testing.T) {
+	seedGameKey()
+	mem := store.NewMemStorage()
+	writeLeagueXML(t, mem, testYahooSeason, testLeagueID, []byte(testLeagueXML))
+	act := newFetchActivities(mem, mockDownloader(nil, errors.New("must not download")), cache.NewGobCache(nil))
+
+	result, err := runStandings(t, act, standingsTestNow)
+
+	require.NoError(t, err)
+	assert.Equal(t, FetchYahooLeagueStandingsResult{SkipReason: `league start date "" is not a date`}, result)
+}
+
+// Yahoo answers 400 for a league-level resource that does not exist yet:
+// the day's capture is reported unavailable, not retried.
+func TestFetchYahooLeagueStandings_RejectionIsUnavailable(t *testing.T) {
 	act := newStandingsActivities(t, mockDownloader(nil, errNoMoreWeeks), cache.NewGobCache(nil))
 
 	result, err := runStandings(t, act, standingsTestNow)
