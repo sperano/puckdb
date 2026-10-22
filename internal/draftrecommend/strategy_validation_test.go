@@ -27,7 +27,7 @@ func TestEvaluateValidatesSharedCategoryWeightLimit(t *testing.T) {
 			input.Strategy.CategoryWeights = map[int]float64{strategyValidationStatID: test.weight}
 			_, err := Evaluate(input)
 			if test.wantErr {
-				assert.Error(t, err)
+				assert.ErrorIs(t, err, ErrInvalidInput)
 			} else {
 				assert.NoError(t, err)
 			}
