@@ -85,8 +85,8 @@ func (a *ImportActivities) collectSummaryParams(ctx context.Context, teams []Tea
 // parseStatValue converts a Yahoo stat value string to a nullable float.
 // Yahoo uses "-" for stats with no data (e.g., goalie stats for a skater-only
 // day). A text that is not a finite number is NULL, as in
-// yahoo_team_summary_stats (summaryStatNumber), so both representations of a
-// category agree.
+// yahoo_team_summary_stats (summaryStatNumber); a number beyond the real
+// column's range is NULL here only.
 func parseStatValue(s string) pgtype.Float4 {
 	if s == noStatValue || s == "" {
 		return pgtype.Float4{}

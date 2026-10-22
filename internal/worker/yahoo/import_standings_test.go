@@ -152,7 +152,7 @@ func TestStandingParams_RefusesAPercentageOutsideTheUnitRange(t *testing.T) {
 		_, err := standingParams(1, pgDate(importStandingsDate), pgtype.Timestamptz{Time: importStandingsCaptured, Valid: true},
 			resource.TeamStandingRecord{TeamID: 1, Rank: 1, Outcome: &resource.OutcomeRecord{Wins: 1, Percentage: &percentage}})
 
-		require.ErrorContains(t, err, "outside [0, 1]", percentage)
+		require.ErrorContains(t, err, "outside [0, 1]", "percentage %g", percentage)
 	}
 }
 
