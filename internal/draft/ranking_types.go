@@ -15,8 +15,11 @@ const RankingVersion = "league-replacement-v2"
 const (
 	defaultCategoryWeight     = 1.0
 	defaultUncertaintyPenalty = 0.0
-	maxCategoryWeight         = 10.0
 )
+
+// MaxCategoryWeight is the largest category preference accepted by ranking
+// and recommendation inputs.
+const MaxCategoryWeight = 10.0
 
 // BenchPolicy controls whether ordinary bench seats contribute to draft demand.
 type BenchPolicy string
@@ -54,8 +57,8 @@ func (o RankingOptions) validate(scoring Scoring) error {
 		return fmt.Errorf("uncertainty penalty must be finite and nonnegative")
 	}
 	for id, weight := range o.CategoryWeights {
-		if !finiteRanking(weight) || weight < 0 || weight > maxCategoryWeight {
-			return fmt.Errorf("category %d preference must be in [0, %.0f]", id, maxCategoryWeight)
+		if !finiteRanking(weight) || weight < 0 || weight > MaxCategoryWeight {
+			return fmt.Errorf("category %d preference must be in [0, %.0f]", id, MaxCategoryWeight)
 		}
 		if !slices.ContainsFunc(scoring.Stats, func(stat ScoringStat) bool { return stat.StatID == id }) {
 			return fmt.Errorf("category %d preference does not match a scoring stat", id)

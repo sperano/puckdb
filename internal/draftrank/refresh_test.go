@@ -146,7 +146,7 @@ func refreshFixtureAt(t *testing.T, pool *pgxpool.Pool, runID string, at time.Ti
 	refresher.Now = func() time.Time { return at }
 	return refresher.Refresh(context.Background(), draftrank.RefreshRequest{
 		RunID: runID, Season: draftfixtures.Season, LeagueID: draftfixtures.LeagueID,
-		Options: draftrank.Options{BenchPolicy: string(draft.BenchIncluded)}, Keep: testKeep,
+		Options: draftrank.Options{BenchPolicy: draft.BenchIncluded}, Keep: testKeep,
 	})
 }
 
@@ -251,7 +251,7 @@ func TestRefresher_CancellationStoresNothingAndIsRecorded(t *testing.T) {
 	}
 	outcome, err := refresher.Refresh(ctx, draftrank.RefreshRequest{
 		RunID: refreshRunID, Season: draftfixtures.Season, LeagueID: draftfixtures.LeagueID,
-		Options: draftrank.Options{BenchPolicy: string(draft.BenchIncluded)},
+		Options: draftrank.Options{BenchPolicy: draft.BenchIncluded},
 	})
 	require.ErrorIs(t, err, context.Canceled)
 	assert.Equal(t, draftrank.RefreshCanceled, outcome.State)
