@@ -92,6 +92,49 @@ func TestManualEditOnSameSlotIsReconciledAndIdempotent(t *testing.T) {
 	assert.Equal(t, version, state.Version)
 }
 
+// TestManualUndoTombstonesOnlyWhatHidesAYahooPick pins each undo branch:
+// undoing a local add with no Yahoo pick beneath it deletes the entry, every
+// other undo leaves a tombstone whose base is the Yahoo pick it hides.
+func TestManualUndoTombstonesOnlyWhatHidesAYahooPick(t *testing.T) {
+	key := PickKey{Round: 1, Pick: 1}
+	yahoo := pick(key, 1, 101)
+	tests := []struct {
+		name      string
+		state     State
+		tombstone *ManualChange
+	}{
+		{"manual add on an empty slot",
+			State{Manual: map[PickKey]ManualChange{key: {Kind: ManualAdd, Pick: pick(key, 2, 201)}}}, nil},
+		{"Yahoo pick",
+			State{Upstream: map[PickKey]Pick{key: *yahoo}},
+			&ManualChange{Kind: ManualUndo, Base: yahoo}},
+		{"manual add over an undone Yahoo pick",
+			State{Upstream: map[PickKey]Pick{key: *yahoo},
+				Manual: map[PickKey]ManualChange{key: {Kind: ManualAdd, Pick: pick(key, 2, 201), Base: yahoo}}},
+			&ManualChange{Kind: ManualUndo, Base: yahoo}},
+		{"manual correction of a Yahoo pick",
+			State{Upstream: map[PickKey]Pick{key: *yahoo},
+				Manual: map[PickKey]ManualChange{key: {Kind: ManualCorrect, Pick: pick(key, 2, 201), Base: yahoo}}},
+			&ManualChange{Kind: ManualUndo, Base: yahoo}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.state.Version = 3
+			next, report, err := ApplyManual(tt.state, ManualOperation{Kind: ManualUndo, Key: key})
+
+			require.NoError(t, err)
+			assert.True(t, report.Changed)
+			assert.Equal(t, uint64(4), next.Version)
+			assert.Empty(t, EffectiveBoard(next))
+			if tt.tombstone == nil {
+				assert.NotContains(t, next.Manual, key)
+			} else {
+				assert.Equal(t, *tt.tombstone, next.Manual[key])
+			}
+		})
+	}
+}
+
 func TestManualOperationValidation(t *testing.T) {
 	key := PickKey{Round: 1, Pick: 1}
 	_, _, err := ApplyManual(State{}, ManualOperation{Kind: ManualAdd, Key: key})

@@ -96,6 +96,13 @@ func (s *Snapshot) View(q Query) (View, error) {
 	if err != nil {
 		return View{}, err
 	}
+	return s.view(q), nil
+}
+
+// view is View for a query normalizeQuery already accepted, so Rankings can
+// reject an invalid query before reading the snapshot without normalizing it
+// twice.
+func (s *Snapshot) view(q Query) View {
 	view := View{Offset: q.Offset, Limit: q.Limit}
 	view.Scenario, view.Issues = s.ResolveScenario(q.Scenario)
 	var rows []Row
@@ -105,7 +112,7 @@ func (s *Snapshot) View(q Query) (View, error) {
 	}
 	view.Total = len(rows)
 	view.Rows = page(rows, q.Offset, q.Limit)
-	return view, nil
+	return view
 }
 
 func normalizeQuery(q Query) (Query, error) {

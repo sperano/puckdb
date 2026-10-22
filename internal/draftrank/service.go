@@ -74,7 +74,8 @@ type Page struct {
 // when set: a client paging through one snapshot passes the ID it got on
 // the first page, so a refresh in between cannot mix two versions.
 func (s *Service) Rankings(ctx context.Context, ref LeagueRef, snapshotID uuid.UUID, q Query) (Page, error) {
-	if _, err := normalizeQuery(q); err != nil {
+	q, err := normalizeQuery(q)
+	if err != nil {
 		return Page{}, err
 	}
 	read, err := s.Read(ctx, ref, snapshotID)
@@ -84,10 +85,7 @@ func (s *Service) Rankings(ctx context.Context, ref LeagueRef, snapshotID uuid.U
 	if read.Snapshot == nil {
 		return emptyPage(read, q), nil
 	}
-	view, err := read.Snapshot.View(q)
-	if err != nil {
-		return Page{}, err
-	}
+	view := read.Snapshot.view(q)
 	info := read.Snapshot.SnapshotInfo
 	page := Page{League: read.League, Status: read.Status, Snapshot: &info, LatestSnapshotID: read.LatestSnapshotID,
 		Refresh: read.Refresh, View: view}

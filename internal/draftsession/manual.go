@@ -41,16 +41,16 @@ func ApplyManual(current State, operation ManualOperation) (State, Report, error
 			return current, Report{}, fmt.Errorf("%w: cannot undo an empty slot", ErrInvalidManual)
 		}
 		if hasChange && change.Kind == ManualAdd && !upstreamExists {
+			// Undoing a local add with no Yahoo pick beneath it leaves
+			// nothing to hide, so the slot needs no tombstone.
 			delete(next.Manual, operation.Key)
-			break
+			return finishManualTransition(current, next)
 		}
 		change = ManualChange{Kind: ManualUndo, Base: clonePickIfPresent(current.Upstream, operation.Key)}
 	default:
 		return current, Report{}, fmt.Errorf("%w: unknown operation %q", ErrInvalidManual, operation.Kind)
 	}
-	if operation.Kind != ManualUndo || upstreamExists || !hasChange || change.Kind != ManualAdd {
-		next.Manual[operation.Key] = change
-	}
+	next.Manual[operation.Key] = change
 	return finishManualTransition(current, next)
 }
 
