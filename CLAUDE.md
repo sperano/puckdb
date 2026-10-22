@@ -182,7 +182,7 @@ func FetchEdgeWorkflow(ctx workflow.Context, input FetchEdgeWorkflowInput) (core
 - If child has no tracker/query handler registered, query returns empty → bar stays at 0
 - Child's progress report Total must match parent's `Counter` function return value
 - Return `core.OriginCounts` for aggregation in parent (separate from progress tracking)
-- Bar methods (`IncrementBar`, `IncrementBarBy`, `StartBar`, `CompleteBar`, `ResizeBar`, `SetBarTotal`, `SetBarLabel`, `Bar`) take a `shared.BarRef`; a workflow that names the same bar several times declares it once (`var fetchDaysBar = shared.BarRef{Group: GroupFetchSeasonData}`). A reference or group index outside the report panics with a message naming the group, bar and sizes
+- Bar methods (`IncrementBar`, `IncrementBarBy`, `StartBar`, `CompleteBar`, `ResizeBar`, `SetBarTotal`, `SetBarLabel`, `Bar`) take a `shared.BarRef`; a workflow that names the same bar several times declares it once (`var upcomingSeasonBar = shared.BarRef{Group: groupUpcomingSeason}` in `upcoming_season.go`). A reference or group index outside the report panics with a message naming the group, bar and sizes
 
 **Reference implementations:**
 - `FetchNHLSeasonWorkflow` — uses `RunWorkerPool` for automatic tracking
