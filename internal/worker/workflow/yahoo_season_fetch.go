@@ -153,8 +153,8 @@ func fetchYahooMatchups(ctx workflow.Context, startYear, leagueID int, weeks *ya
 }
 
 // The daily standings capture is gated by a GetVersion change: histories
-// recorded before it carry no marker for it and replay without the capture
-// (their league bar then ends one unit short of its estimate).
+// recorded before it carry no marker for it and replay without the capture,
+// with a league bar sized without it (yahooLeagueUnitsFor).
 const (
 	// yahooLeagueStandingsChangeID is the change's GetVersion ID.
 	yahooLeagueStandingsChangeID = "yahoo-league-standings"
@@ -162,14 +162,21 @@ const (
 	yahooLeagueStandingsVersion = 1
 )
 
+// yahooFetchCapturesStandings reports whether this execution captures the
+// day's standings. The first call records the version in a new execution's
+// history; every later call, wherever it is, returns the same answer.
+func yahooFetchCapturesStandings(ctx workflow.Context) bool {
+	version := workflow.GetVersion(ctx, yahooLeagueStandingsChangeID, workflow.DefaultVersion,
+		yahooLeagueStandingsVersion)
+	return version != workflow.DefaultVersion
+}
+
 // fetchYahooLeagueStandings captures the league's current standings under
 // today's date (the activity skips days outside the league's season) and
 // reports whether Yahoo serves no standings yet.
 func fetchYahooLeagueStandings(ctx workflow.Context, input yahoo.FetchYahooLeagueDataInput,
 	bar yahooLeagueBar) (bool, error) {
-	version := workflow.GetVersion(ctx, yahooLeagueStandingsChangeID, workflow.DefaultVersion,
-		yahooLeagueStandingsVersion)
-	if version == workflow.DefaultVersion {
+	if !yahooFetchCapturesStandings(ctx) {
 		return false, nil
 	}
 	var act *yahoo.FetchActivities

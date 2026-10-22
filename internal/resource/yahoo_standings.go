@@ -4,6 +4,7 @@ import (
 	"encoding/xml"
 	"errors"
 	"fmt"
+	"math"
 	"strconv"
 	"time"
 	// The capture date is a calendar day in YahooFantasyDayZone; the embedded
@@ -119,21 +120,21 @@ type OutcomeRecord struct {
 
 // TeamStandingRecords converts a standings document's teams, in Yahoo's
 // (rank) order. It fails on a document without standings, a team without an
-// ID or team_standings, a duplicate team, a teams count that does not match
-// the teams listed, or a rank, seed, outcome or percentage that is not a
-// number.
+// ID or team_standings, a team whose key is not the league's, a duplicate
+// team, a teams count that does not match the teams listed, or a rank, seed,
+// outcome or percentage that is not a (finite) number.
 func TeamStandingRecords(league store.League) ([]TeamStandingRecord, error) {
 	teams := league.Standings.Teams
 	if len(teams.Slice) == 0 {
 		return nil, errors.New("response contains no standings")
 	}
-	if teams.Count > 0 && teams.Count != len(teams.Slice) {
+	if teams.HasCount && teams.Count != len(teams.Slice) {
 		return nil, fmt.Errorf("standings list %d teams but count says %d", len(teams.Slice), teams.Count)
 	}
 	records := make([]TeamStandingRecord, 0, len(teams.Slice))
 	seen := make(map[int]struct{}, len(teams.Slice))
 	for i, team := range teams.Slice {
-		record, err := teamStandingRecord(team)
+		record, err := teamStandingRecord(league.Key, team)
 		if err != nil {
 			return nil, fmt.Errorf("standings entry %d: %w", i+1, err)
 		}
@@ -146,9 +147,15 @@ func TeamStandingRecords(league store.League) ([]TeamStandingRecord, error) {
 	return records, nil
 }
 
-func teamStandingRecord(team store.Team) (TeamStandingRecord, error) {
+// teamStandingRecord converts one team of the league whose key is leagueKey.
+// The team's key must be <league key>.t.<team ID>, so a row from another
+// league or game cannot pass under a validated league envelope.
+func teamStandingRecord(leagueKey string, team store.Team) (TeamStandingRecord, error) {
 	if team.ID <= 0 {
 		return TeamStandingRecord{}, fmt.Errorf("team %q has no team_id", team.Key)
+	}
+	if want := yahooTeamKey(leagueKey, team.ID); team.Key != want {
+		return TeamStandingRecord{}, fmt.Errorf("team %d has key %q, not %q", team.ID, team.Key, want)
 	}
 	if team.TeamStandings == nil {
 		return TeamStandingRecord{}, fmt.Errorf("team %d has no team_standings", team.ID)
@@ -195,13 +202,20 @@ func outcomeRecord(field string, totals *store.OutcomeTotals) (*OutcomeRecord, e
 	}
 	record := &OutcomeRecord{Wins: wins, Losses: losses, Ties: ties}
 	if totals.Percentage != "" {
+		// ParseFloat accepts "NaN" and "Inf" without error; neither is a
+		// percentage.
 		percentage, err := strconv.ParseFloat(totals.Percentage, 64)
-		if err != nil {
+		if err != nil || math.IsNaN(percentage) || math.IsInf(percentage, 0) {
 			return nil, fmt.Errorf("%s percentage %q is not a number", field, totals.Percentage)
 		}
 		record.Percentage = &percentage
 	}
 	return record, nil
+}
+
+// yahooTeamKey is the key of team teamID of the league whose key is leagueKey.
+func yahooTeamKey(leagueKey string, teamID int) string {
+	return fmt.Sprintf("%s.t.%d", leagueKey, teamID)
 }
 
 // optionalCount converts a non-negative integer Yahoo may leave empty (0).

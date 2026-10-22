@@ -17,6 +17,7 @@ import (
 	"go.temporal.io/sdk/converter"
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/testsuite"
+	"go.temporal.io/sdk/workflow"
 )
 
 const preseasonSecondLeagueID = 1002
@@ -54,8 +55,8 @@ func TestFetchYahooSeasonWorkflow_TwoConfiguredLeagues(t *testing.T) {
 	expectTeamFetches(env, preseasonTestLeagueID, 1, 2)
 	expectTeamFetches(env, preseasonSecondLeagueID, 3)
 	expectLeagueData(env, leagueDataMock{leagueID: preseasonTestLeagueID, lastWeek: 2})
-	// Week 1 rejected: preseason, no matchups yet.
-	expectLeagueData(env, leagueDataMock{leagueID: preseasonSecondLeagueID, lastWeek: 0, noDrafts: true})
+	// Week 1 rejected: preseason, no draft, standings or matchups yet.
+	expectLeagueData(env, leagueDataMock{leagueID: preseasonSecondLeagueID, lastWeek: 0, noDrafts: true, noStandings: true})
 	expectPoolUpToDate(env, preseasonTestLeagueID)
 	expectPoolUpToDate(env, preseasonSecondLeagueID)
 
@@ -64,8 +65,41 @@ func TestFetchYahooSeasonWorkflow_TwoConfiguredLeagues(t *testing.T) {
 	require.NoError(t, env.GetWorkflowError())
 	var result YahooSeasonSyncResult
 	require.NoError(t, env.GetWorkflowResult(&result))
-	assert.Equal(t, []string{"league 1002 draft results", "league 1002 matchups"}, result.UnavailableResources)
+	assert.Equal(t, []string{"league 1002 draft results", "league 1002 standings", "league 1002 matchups"},
+		result.UnavailableResources)
 	env.AssertExpectations(t)
+}
+
+// A run recorded before the standings capture existed replays without it:
+// no capture activity, and the league's bar is sized without its unit from
+// the start, so it still ends exactly complete.
+func TestFetchYahooSeasonWorkflow_LegacyVersionSkipsStandings(t *testing.T) {
+	var suite testsuite.WorkflowTestSuite
+	env := suite.NewTestWorkflowEnvironment()
+	env.RegisterWorkflow(FetchYahooSeasonWorkflow)
+	env.OnGetVersion(yahooLeagueStandingsChangeID, workflow.DefaultVersion, yahooLeagueStandingsVersion).
+		Return(workflow.DefaultVersion)
+	saves := recordBarSaves(env)
+	expectLeagueFetch(env, preseasonTestYear, preseasonTestLeagueID, unknownEndWeek)
+	expectTeamFetches(env, preseasonTestLeagueID, 1)
+	expectLeagueData(env, leagueDataMock{leagueID: preseasonTestLeagueID, lastWeek: 2, legacyVersion: true})
+	expectPoolUpToDate(env, preseasonTestLeagueID)
+
+	env.ExecuteWorkflow(FetchYahooSeasonWorkflow, singleLeagueYahooInput())
+
+	require.NoError(t, env.GetWorkflowError())
+	env.AssertExpectations(t)
+	league := singleLeagueYahooInput().Season.Leagues[0]
+	history := barHistory(*saves, 0)
+	assert.Equal(t, yahooLeagueUnits(league, seasonSyncFetch)-yahooStandingsCaptureUnits, history[0].Total,
+		"the estimate leaves the capture out")
+	// Metadata, the team, transactions, draft results, matchup weeks 1 and 2
+	// plus the rejected week 3, and the pool plan.
+	want := 4 + 3 + yahooPoolPlanUnits
+	assert.Equal(t, barPoint{want, want}, history[len(history)-1], "the bar ends exactly complete: %v", history)
+	var result YahooSeasonSyncResult
+	require.NoError(t, env.GetWorkflowResult(&result))
+	assert.Equal(t, []int{want}, result.LeagueTotals)
 }
 
 func TestImportYahooSeasonWorkflow_TwoConfiguredLeagues(t *testing.T) {

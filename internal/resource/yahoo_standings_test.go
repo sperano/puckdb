@@ -197,8 +197,17 @@ func TestLeagueStandings_Parse_RejectsMalformed(t *testing.T) {
 			"contains no standings"},
 		{"empty teams", standingsDoc(` count="0"`, ""), "contains no standings"},
 		{"count mismatch", standingsDoc(` count="2"`, standingsTeam), "list 1 teams but count says 2"},
+		{"explicit zero count", standingsDoc(` count="0"`, standingsTeam), "list 1 teams but count says 0"},
 		{"team without id", standingsDoc("", strings.Replace(standingsTeam, "<team_id>1</team_id>", "", 1)),
 			`team "465.l.77777.t.1" has no team_id`},
+		{"team of another league", standingsDoc("", strings.Replace(standingsTeam, "465.l.77777.t.1", "465.l.77778.t.1", 1)),
+			`team 1 has key "465.l.77778.t.1", not "465.l.77777.t.1"`},
+		{"team of another game", standingsDoc("", strings.Replace(standingsTeam, "465.l.77777.t.1", "453.l.77777.t.1", 1)),
+			`team 1 has key "453.l.77777.t.1", not "465.l.77777.t.1"`},
+		{"team key names another team", standingsDoc("", strings.Replace(standingsTeam, "465.l.77777.t.1", "465.l.77777.t.2", 1)),
+			`team 1 has key "465.l.77777.t.2", not "465.l.77777.t.1"`},
+		{"team without key", standingsDoc("", strings.Replace(standingsTeam, "<team_key>465.l.77777.t.1</team_key>", "", 1)),
+			`team 1 has key "", not "465.l.77777.t.1"`},
 		{"team without standings", standingsDoc("", `<team><team_key>465.l.77777.t.1</team_key><team_id>1</team_id></team>`),
 			"team 1 has no team_standings"},
 		{"duplicate team", standingsDoc("", standingsTeam+standingsTeam), "team 1 listed twice"},
@@ -214,6 +223,10 @@ func TestLeagueStandings_Parse_RejectsMalformed(t *testing.T) {
 			`outcome_totals ties "1.5"`},
 		{"percentage not a number", standingsDoc("", strings.Replace(standingsTeam, "<percentage>.700</percentage>",
 			"<percentage>70%</percentage>", 1)), `outcome_totals percentage "70%" is not a number`},
+		{"percentage NaN", standingsDoc("", strings.Replace(standingsTeam, "<percentage>.700</percentage>",
+			"<percentage>NaN</percentage>", 1)), `outcome_totals percentage "NaN" is not a number`},
+		{"percentage infinite", standingsDoc("", strings.Replace(standingsTeam, "<percentage>.700</percentage>",
+			"<percentage>-Inf</percentage>", 1)), `outcome_totals percentage "-Inf" is not a number`},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

@@ -18,9 +18,11 @@ type FetchYahooLeagueStandingsResult struct {
 	// empty when nothing was captured.
 	Date string `json:"date,omitempty"`
 	// Unavailable reports a 400 from Yahoo, its answer for a league-level
-	// resource that does not exist yet: the day's capture is reported in
-	// the sync result instead of failing the season sync, since a 400 is
-	// definitive and a retry would not change it.
+	// resource it does not serve (standings it has not published yet, say):
+	// the day's capture is reported in the sync result instead of failing
+	// the season sync, since a 400 is definitive and a retry of the same
+	// request would not change it. Nothing is cached, so a later run of the
+	// same day asks again.
 	Unavailable bool `json:"unavailable,omitempty"`
 	// SkipReason says why the capture day was not in the league's season,
 	// in which case no request was made.
@@ -30,11 +32,15 @@ type FetchYahooLeagueStandingsResult struct {
 // FetchYahooLeagueStandings captures the league's current standings under
 // today's date (resource.StandingsCaptureDate): Yahoo only serves current
 // standings, so a snapshot is only ever made for the day it is taken, and
-// the first capture of a day is kept (later runs read the cached file). The
-// capture is skipped, without a request, when the capture day is outside
-// the league's season (before its start date or past its end date plus the
-// grace day) or belongs to another NHL season. A preseason 400 is reported
-// as unavailable; any other failure is returned so Temporal retries it.
+// the first capture of a day is kept: later runs read the cached file, and
+// a run that misses while another's download is in flight waits for it
+// (the resource lock) instead of downloading its own. The capture is
+// skipped, without a request, when the capture day is outside the league's
+// season (before its start date or past its end date plus the grace day) or
+// belongs to another NHL season. Any 400 from Yahoo, whenever in the season
+// it comes, is reported as unavailable rather than retried (see
+// FetchYahooLeagueStandingsResult.Unavailable); any other failure is
+// returned so Temporal retries it.
 func (a *FetchActivities) FetchYahooLeagueStandings(ctx context.Context, input FetchYahooLeagueDataInput) (FetchYahooLeagueStandingsResult, error) {
 	defer metrics.TrackActivityDuration("FetchYahooLeagueStandings")()
 	return a.fetchYahooLeagueStandings(ctx, input, time.Now())

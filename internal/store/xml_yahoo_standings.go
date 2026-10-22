@@ -17,10 +17,34 @@ type Standings struct {
 }
 
 // StandingsTeams is the ranked teams collection of a standings document.
+// HasCount says whether Yahoo supplied the count attribute at all, so an
+// explicit count="0" over a non-empty list is caught as the contradiction it
+// is rather than read as "no count".
 type StandingsTeams struct {
-	XMLName xml.Name `xml:"teams"`
-	Count   int      `xml:"count,attr"`
-	Slice   []Team   `xml:"team"`
+	XMLName  xml.Name `xml:"teams"`
+	Count    int      `xml:"-"`
+	HasCount bool     `xml:"-"`
+	Slice    []Team   `xml:"team"`
+}
+
+// UnmarshalXML preserves whether Yahoo supplied the count attribute, as
+// DraftResultList does.
+func (s *StandingsTeams) UnmarshalXML(decoder *xml.Decoder, start xml.StartElement) error {
+	type standingsTeamsXML struct {
+		Slice []Team `xml:"team"`
+		Count *int   `xml:"count,attr"`
+	}
+	var decoded standingsTeamsXML
+	if err := decoder.DecodeElement(&decoded, &start); err != nil {
+		return err
+	}
+	s.XMLName = start.Name
+	s.Slice = decoded.Slice
+	s.HasCount = decoded.Count != nil
+	if decoded.Count != nil {
+		s.Count = *decoded.Count
+	}
+	return nil
 }
 
 // TeamStandings is a team's place in its league: its rank and, in

@@ -119,6 +119,30 @@ func TestYahooLeagueUnits(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			assert.Equal(t, tt.want, yahooLeagueUnits(tt.league, tt.mode))
+			assert.Equal(t, tt.want, yahooLeagueUnitsFor(tt.league, tt.mode, true), "the current version captures standings")
+		})
+	}
+}
+
+// A fetch recorded before the standings capture is sized without it; the
+// import and a stand-in league never counted it.
+func TestYahooLeagueUnitsFor_WithoutStandings(t *testing.T) {
+	t.Parallel()
+	twoTeams := config.League{LeagueID: preseasonTestLeagueID, TeamIDs: []int{1, 2}}
+	tests := []struct {
+		name   string
+		league config.League
+		mode   seasonSyncMode
+		want   int
+	}{
+		{"fetch with teams", twoTeams, seasonSyncFetch, fetchEstimateNoTeams + 2 - yahooStandingsCaptureUnits},
+		{"fetch stand-in", standInLeague(standInTestLeagueID), seasonSyncFetch, 1},
+		{"import with teams", twoTeams, seasonSyncImport, importUnitsNoTeams + 1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tt.want, yahooLeagueUnitsFor(tt.league, tt.mode, false))
 		})
 	}
 }

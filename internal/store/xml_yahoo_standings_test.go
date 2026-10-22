@@ -18,6 +18,7 @@ func TestStandingsUnmarshal_H2H(t *testing.T) {
 	require.NoError(t, xml.Unmarshal(yahoofixtures.Read(yahoofixtures.H2HStandings), &content))
 
 	teams := content.League.Standings.Teams
+	assert.True(t, teams.HasCount)
 	assert.Equal(t, yahoofixtures.TeamsInH2HStandings, teams.Count)
 	require.Len(t, teams.Slice, yahoofixtures.TeamsInH2HStandings)
 
@@ -72,4 +73,33 @@ func TestStandingsUnmarshal_AbsentInOtherDocuments(t *testing.T) {
 	assert.Nil(t, team.Team.TeamStandings)
 	assert.Equal(t, "date", team.Team.TeamStats.CoverageType)
 	require.Len(t, team.Team.TeamStats.Stats.Slice, 1)
+}
+
+// The teams count attribute is kept apart from its absence: count="0" is a
+// statement, a missing attribute is none.
+func TestStandingsTeamsUnmarshal_PreservesCountPresence(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name     string
+		xml      string
+		hasCount bool
+		count    int
+		teams    int
+	}{
+		{name: "missing", xml: `<teams><team><team_id>1</team_id></team></teams>`, teams: 1},
+		{name: "explicit zero", xml: `<teams count="0"><team><team_id>1</team_id></team></teams>`, hasCount: true, teams: 1},
+		{name: "positive", xml: `<teams count="2"><team><team_id>1</team_id></team><team><team_id>2</team_id></team></teams>`,
+			hasCount: true, count: 2, teams: 2},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			var got store.StandingsTeams
+			require.NoError(t, xml.Unmarshal([]byte(tt.xml), &got))
+			assert.Equal(t, tt.hasCount, got.HasCount)
+			assert.Equal(t, tt.count, got.Count)
+			assert.Len(t, got.Slice, tt.teams)
+			assert.Equal(t, "teams", got.XMLName.Local)
+		})
+	}
 }

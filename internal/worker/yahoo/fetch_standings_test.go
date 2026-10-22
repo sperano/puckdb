@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alicebob/miniredis/v2"
+	"github.com/go-redis/redis/v8"
 	"github.com/go-redis/redismock/v8"
 	"github.com/sperano/puckdb/internal/cache"
 	"github.com/sperano/puckdb/internal/resource"
@@ -30,6 +32,13 @@ const (
 	standingsNoTeamsXML = `<fantasy_content><league><league_key>423.l.12345</league_key><league_id>12345</league_id>` +
 		`<game_code>nhl</game_code><season>2023</season><standings><teams count="0"></teams></standings></league></fantasy_content>`
 )
+
+// laterStandingsXML is a capture made moments after standingsTestXML's.
+const laterStandingsXML = `<fantasy_content><league><league_key>423.l.12345</league_key><league_id>12345</league_id>` +
+	`<game_code>nhl</game_code><season>2023</season><standings><teams count="1"><team>` +
+	`<team_key>423.l.12345.t.1</team_key><team_id>1</team_id><name>One</name>` +
+	`<team_standings><rank>1</rank><outcome_totals><wins>2</wins><losses>0</losses><ties>0</ties>` +
+	`<percentage>1.000</percentage></outcome_totals></team_standings></team></teams></standings></league></fantasy_content>`
 
 // standingsTestNow is 2023-12-01 20:30 Pacific (2023-12-02 04:30 UTC): the
 // capture day is 2023-12-01, not the UTC day.
@@ -67,7 +76,9 @@ func runStandings(t *testing.T, act *FetchActivities, now time.Time) (FetchYahoo
 
 func TestFetchYahooLeagueStandings_CapturesUnderTheCaptureDay(t *testing.T) {
 	redisClient, mockRedis := redismock.NewClientMock()
-	expectRedisMiss(mockRedis, standingsRes())
+	// A capture is a locked miss: the lock is taken on the Redis miss and
+	// again for the download, so a concurrent run reads this capture.
+	expectCoherentFetchMiss(mockRedis, standingsRes())
 	expectRedisPopulate(mockRedis, standingsRes())
 	act := newStandingsActivities(t, mockDownloader([]byte(standingsTestXML), nil), cache.NewGobCache(redisClient))
 
@@ -130,17 +141,22 @@ func TestFetchYahooLeagueStandings_SkipsOutsideTheLeagueSeason(t *testing.T) {
 
 // The first day of the league and the grace day after its end are captured.
 func TestFetchYahooLeagueStandings_CapturesSeasonBounds(t *testing.T) {
-	for name, now := range map[string]time.Time{
-		"start date": time.Date(2023, time.October, 10, 20, 0, 0, 0, time.UTC),
-		"grace day":  time.Date(2024, time.April, 19, 20, 0, 0, 0, time.UTC),
-	} {
-		t.Run(name, func(t *testing.T) {
+	tests := []struct {
+		name     string
+		now      time.Time
+		wantDate string
+	}{
+		{"start date", time.Date(2023, time.October, 10, 20, 0, 0, 0, time.UTC), "2023-10-10"},
+		{"grace day", time.Date(2024, time.April, 19, 20, 0, 0, 0, time.UTC), "2024-04-19"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
 			act := newStandingsActivities(t, mockDownloader([]byte(standingsTestXML), nil), cache.NewGobCache(nil))
 
-			result, err := runStandings(t, act, now)
+			result, err := runStandings(t, act, tt.now)
 
 			require.NoError(t, err)
-			assert.Equal(t, resource.StandingsCaptureDate(now).Format(time.DateOnly), result.Date)
+			assert.Equal(t, FetchYahooLeagueStandingsResult{Date: tt.wantDate}, result)
 		})
 	}
 }
@@ -201,4 +217,53 @@ func TestFetchYahooLeagueStandings_MissingLeagueFileIsAnError(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "read league file 2023/12345")
+}
+
+// Two runs capturing the same day at once make one download: the second
+// misses while the first's download is in flight, waits for it under the
+// resource lock, and reads the first capture instead of overwriting it.
+func TestFetchYahooLeagueStandings_ConcurrentSameDayCapturesKeepTheFirst(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	server := miniredis.RunT(t)
+	redisClient := redis.NewClient(&redis.Options{Addr: server.Addr()})
+	t.Cleanup(func() { require.NoError(t, redisClient.Close()) })
+	lockAttempts := installLockAttemptHook(redisClient)
+	gobCache := cache.NewGobCache(redisClient)
+	memory := store.NewMemStorage()
+	res := standingsRes()
+	firstEntered := make(chan struct{})
+	firstResume := make(chan struct{})
+	firstDone := runFetch(ctx, Fetcher{
+		Storage: memory, GobCache: gobCache,
+		Download: blockingDownloader(standingsTestXML, firstEntered, firstResume),
+	}, res)
+	<-firstEntered
+	waitForLockAttempts(t, lockAttempts, 2)
+
+	secondDownloaded := make(chan struct{})
+	secondDone := runFetch(ctx, Fetcher{
+		Storage: memory, GobCache: gobCache,
+		Download: signalingDownloader(laterStandingsXML, secondDownloaded),
+	}, res)
+	waitForLockAttempts(t, lockAttempts, 1)
+	assertNotCompleted(t, secondDone)
+	assertNotSignaled(t, secondDownloaded)
+
+	close(firstResume)
+	require.NoError(t, <-firstDone)
+	require.NoError(t, <-secondDone)
+	assertNotSignaled(t, secondDownloaded)
+	stored, err := memory.Read(ctx, res.Path())
+	require.NoError(t, err)
+	assert.Equal(t, standingsTestXML, string(stored), "the first capture is the day's file")
+}
+
+func runFetch(ctx context.Context, fetcher Fetcher, res Resource) <-chan error {
+	done := make(chan error, 1)
+	go func() {
+		_, _, err := fetcher.Fetch(ctx, res)
+		done <- err
+	}()
+	return done
 }

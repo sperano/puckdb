@@ -80,10 +80,13 @@ func (p yahooSeasonProgress) leagueTotals() []int {
 }
 
 // startYahooSeasonProgress registers the child's progress query handler and
-// starts its only group.
+// starts its only group. A fetch sizes its bars by whether this execution
+// captures standings, so a history recorded before the capture existed
+// replays with bars that still end exactly complete.
 func startYahooSeasonProgress(ctx workflow.Context, input YahooSeasonWorkflowInput,
 	mode seasonSyncMode) (yahooSeasonProgress, error) {
-	tracker, err := shared.InitTracker(ctx, newYahooSeasonProgressReport(input, mode))
+	standings := mode == seasonSyncFetch && yahooFetchCapturesStandings(ctx)
+	tracker, err := shared.InitTracker(ctx, newYahooSeasonProgressReport(input, mode, standings))
 	if err != nil {
 		return yahooSeasonProgress{}, err
 	}
@@ -91,13 +94,14 @@ func startYahooSeasonProgress(ctx workflow.Context, input YahooSeasonWorkflowInp
 	return yahooSeasonProgress{tracker: tracker, saving: workflow.NewMutex(ctx)}, nil
 }
 
-func newYahooSeasonProgressReport(input YahooSeasonWorkflowInput, mode seasonSyncMode) *shared.ProgressReport {
+func newYahooSeasonProgressReport(input YahooSeasonWorkflowInput, mode seasonSyncMode,
+	standings bool) *shared.ProgressReport {
 	bars := make([]shared.ProgressBar, len(input.Season.Leagues))
 	total := 0
 	for i, league := range input.Season.Leagues {
 		bars[i] = shared.ProgressBar{
 			Label: strconv.Itoa(league.LeagueID),
-			Total: yahooLeagueUnits(league, mode),
+			Total: yahooLeagueUnitsFor(league, mode, standings),
 		}
 		total += bars[i].Total
 	}

@@ -29,16 +29,20 @@ func expectTeamFetches(env *testsuite.TestWorkflowEnvironment, leagueID int, tea
 }
 
 // leagueDataMock describes the league-level downloads of one league:
-// whether transactions, draft results and standings are published, and the
-// last week Yahoo serves (the week after it is rejected, ending the series).
+// whether transactions, draft results and standings are published, the last
+// week Yahoo serves (the week after it is rejected, ending the series), and
+// whether the run predates the standings capture (legacyVersion: no capture
+// activity at all).
 type leagueDataMock struct {
 	leagueID                              int
 	lastWeek                              int
 	noTransactions, noDrafts, noStandings bool
+	legacyVersion                         bool
 }
 
-// expectLeagueData mocks transactions, draft results, the standings capture,
-// and every matchup week up to and including the rejected one.
+// expectLeagueData mocks transactions, draft results, the standings capture
+// (unless legacyVersion), and every matchup week up to and including the
+// rejected one.
 func expectLeagueData(env *testsuite.TestWorkflowEnvironment, m leagueDataMock) {
 	var activities *yahoo.FetchActivities
 	input := yahoo.FetchYahooLeagueDataInput{Season: preseasonTestYear, LeagueID: m.leagueID}
@@ -46,8 +50,10 @@ func expectLeagueData(env *testsuite.TestWorkflowEnvironment, m leagueDataMock) 
 		Return(yahoo.FetchYahooLeagueResourceResult{Unavailable: m.noTransactions}, nil).Once()
 	env.OnActivity(activities.FetchYahooDraftResults, mock.Anything, input).
 		Return(yahoo.FetchYahooLeagueResourceResult{Unavailable: m.noDrafts}, nil).Once()
-	env.OnActivity(activities.FetchYahooLeagueStandings, mock.Anything, input).
-		Return(yahoo.FetchYahooLeagueStandingsResult{Unavailable: m.noStandings}, nil).Once()
+	if !m.legacyVersion {
+		env.OnActivity(activities.FetchYahooLeagueStandings, mock.Anything, input).
+			Return(yahoo.FetchYahooLeagueStandingsResult{Unavailable: m.noStandings}, nil).Once()
+	}
 	for week := 1; week <= min(m.lastWeek+1, yahoo.MaxMatchupWeeks); week++ {
 		env.OnActivity(activities.FetchYahooMatchupWeek, mock.Anything, yahoo.FetchYahooMatchupWeekInput{
 			Season: preseasonTestYear, LeagueID: m.leagueID, Week: week,
