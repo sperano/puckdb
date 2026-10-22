@@ -1,9 +1,9 @@
 // Package core holds primitives shared across the storage and fetch layers:
 // the FileType enum used for metrics and logging, DataOrigin (where a
 // resource's data came from), the Resource/URLResource interfaces that
-// store and resource implement, and small time helpers. It has no
-// dependencies on store, metrics or resource, so any of them can import it
-// without an import cycle.
+// resource implements and store/cache accept as arguments, and small time
+// helpers. It has no dependencies on store, metrics or resource, so any of
+// them can import it without an import cycle.
 package core
 
 // FileType identifies the type of stored resource for metrics and logging.

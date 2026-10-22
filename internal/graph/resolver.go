@@ -1,5 +1,6 @@
-// Package graph implements the gqlgen resolvers for schema.graphqls (and
-// data.graphqls, draft.graphqls, simulation.graphqls): Resolver holds the
+// Package graph implements the gqlgen resolvers for the *.graphqls schema
+// files (schema.graphqls, data.graphqls, draft.graphqls,
+// draft_board.graphqls, simulation.graphqls): Resolver holds the
 // shared dependencies (database pool, Redis, Temporal client, the
 // draftrank/draftboard services, Maurice), schema.resolvers.go,
 // data.resolvers.go and draft*.resolvers.go/simulation.resolvers.go
