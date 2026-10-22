@@ -12,10 +12,11 @@ import (
 // the call, so a caller should not do its own expensive formatting there.
 // It is the shared byte-level mechanics behind the pointer-returning
 // resource Parse methods in this package that decode a single JSON value
-// with no extra handling of their own; SeasonRoster.Parse (nhl_roster.go)
-// still decodes independently, and LeaguePlayers.Parse
-// (yahoo_league_players.go) deliberately returns a partially decoded value
-// on error, which parsePointer's nil-on-error contract would change. Path,
+// with no extra handling of their own. SeasonRoster.Parse (nhl_roster.go)
+// still decodes independently (left out of this refactor's scope, not for a
+// behavioral reason). LeaguePlayers.Parse (yahoo_league_players.go) also
+// decodes independently, because it decodes XML, not JSON, and validates
+// the response league ID/key against the request before returning. Path,
 // URL and any custom Format stay on the resource type, since those carry
 // the actual domain information (and some resources need a Format that is
 // not plain json.Marshal).
@@ -33,6 +34,10 @@ func parsePointer[T any](data []byte, errFormat string, args ...any) (*T, error)
 
 // parseValue is parsePointer for the resource types whose Parse returns a
 // value (a slice, or an API envelope struct) rather than a pointer.
+// LeaguePlayerPool.Parse (yahoo_league_players.go) is the one value-returning
+// JSON Parse left out: it deliberately returns the partially decoded
+// manifest on error instead of the zero value, which parseValue's
+// zero-on-error contract would change.
 func parseValue[T any](data []byte, errFormat string, args ...any) (T, error) {
 	var v T
 	if err := json.Unmarshal(data, &v); err != nil {
