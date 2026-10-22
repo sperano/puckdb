@@ -17,8 +17,9 @@ const (
 	yahooLeagueMetadataUnits = 1
 	// yahooTeamUnits is one team page download per configured team.
 	yahooTeamUnits = 1
-	// yahooLeagueResourceUnits is the transactions and draft results downloads.
-	yahooLeagueResourceUnits = 2
+	// yahooLeagueResourceUnits is the transactions, draft results and
+	// standings capture downloads.
+	yahooLeagueResourceUnits = 3
 	// yahooMatchupEndProbeUnits is the request past the league's last week,
 	// which Yahoo rejects and which ends the matchup loop.
 	yahooMatchupEndProbeUnits = 1

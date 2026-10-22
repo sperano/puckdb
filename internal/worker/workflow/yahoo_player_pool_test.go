@@ -17,7 +17,7 @@ const (
 	poolTestGameKey      = 465
 	poolTestLastPage     = 3
 	poolTestUpToDateWhy  = "pool downloaded 1h0m0s ago"
-	poolUnavailableUnits = 8
+	poolUnavailableUnits = 9
 )
 
 // expectPoolUpToDate makes the league's pool plan say no download is due.

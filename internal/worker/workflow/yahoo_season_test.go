@@ -106,8 +106,8 @@ func TestImportYahooSeasonWorkflow_TwoConfiguredLeagues(t *testing.T) {
 
 // singleLeagueFixedUnits is the single test league's units outside matchups
 // and pool pages: metadata, its one team, transactions, draft results, the
-// pool plan, and the pool commit.
-const singleLeagueFixedUnits = 6
+// standings capture, the pool plan, and the pool commit.
+const singleLeagueFixedUnits = 7
 
 // TestFetchYahooSeasonWorkflow_LeagueTotalAdjusts runs one league whose
 // matchup weeks and pool pages differ from the estimates and checks the bar
@@ -186,6 +186,8 @@ func TestFetchYahooSeasonWorkflow_FailedMatchupWeekLeavesBarIncomplete(t *testin
 		Return(yahoo.FetchYahooLeagueResourceResult{}, nil).Once()
 	env.OnActivity(activities.FetchYahooDraftResults, mock.Anything, input).
 		Return(yahoo.FetchYahooLeagueResourceResult{}, nil).Once()
+	env.OnActivity(activities.FetchYahooLeagueStandings, mock.Anything, input).
+		Return(yahoo.FetchYahooLeagueStandingsResult{}, nil).Once()
 	env.OnActivity(activities.FetchYahooMatchupWeek, mock.Anything, mock.Anything).
 		Return(yahoo.FetchYahooMatchupWeekResult{}, temporal.NewNonRetryableApplicationError("boom", "test", nil)).Once()
 
@@ -195,7 +197,7 @@ func TestFetchYahooSeasonWorkflow_FailedMatchupWeekLeavesBarIncomplete(t *testin
 	assert.Contains(t, env.GetWorkflowError().Error(), "fetch yahoo league data 1001")
 	history := barHistory(*saves, 0)
 	last := history[len(history)-1]
-	assert.Equal(t, 4, last.Current, "metadata, team, transactions, draft results")
+	assert.Equal(t, 5, last.Current, "metadata, team, transactions, draft results, standings")
 	assert.Equal(t, yahooLeagueUnits(singleLeagueYahooInput().Season.Leagues[0], seasonSyncFetch), last.Total)
 }
 
