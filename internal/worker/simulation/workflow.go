@@ -509,7 +509,7 @@ func runDraftPhase(
 			notesByAgent[agentID] = res.Notes
 		}
 		state.TotalLLMCostUsd += res.CostUsd
-		tracker.IncrementBar(ctx, 0, 0)
+		tracker.IncrementBar(ctx, shared.BarRef{Group: 0})
 
 		// Cost-cap exit: the tripped pick already paused the pool.
 		// Stop executing picks — every later pick would only find the
@@ -733,7 +733,7 @@ func runSeasonPhase(
 
 		in.SimDate = addOneDay(in.SimDate)
 		in.DayCount++
-		tracker.IncrementBar(ctx, 1, 0)
+		tracker.IncrementBar(ctx, shared.BarRef{Group: 1})
 
 		// Cost-cap exit between days, after the day's telemetry and
 		// progress, the same point the old pause-signal check used, so

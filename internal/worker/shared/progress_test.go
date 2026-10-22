@@ -151,8 +151,8 @@ func TestSetBarTotal(t *testing.T) {
 	}
 	tracker := &ReportTracker{report: report}
 
-	tracker.SetBarTotal(0, 0, 42)
-	tracker.SetBarTotal(0, 1, 7)
+	tracker.SetBarTotal(BarRef{Group: 0}, 42)
+	tracker.SetBarTotal(BarRef{Group: 0, Bar: 1}, 7)
 
 	assert.Equal(t, 42, report.Groups[0].Bars[0].Total)
 	assert.Equal(t, 7, report.Groups[0].Bars[1].Total)
@@ -172,7 +172,7 @@ func TestSetBarLabel(t *testing.T) {
 	}
 	tracker := &ReportTracker{report: report}
 
-	tracker.SetBarLabel(0, 0, "updated label")
+	tracker.SetBarLabel(BarRef{Group: 0}, "updated label")
 
 	assert.Equal(t, "updated label", report.Groups[0].Bars[0].Label)
 }
@@ -236,7 +236,7 @@ func runConcurrentSaves(t *testing.T, serialize bool) *saveRecorder {
 			workflow.Go(ctx, func(ctx workflow.Context) {
 				defer wg.Done()
 				for range concurrentSaveRounds {
-					tracker.IncrementBar(ctx, 0, 0)
+					tracker.IncrementBar(ctx, BarRef{Group: 0})
 				}
 			})
 		}
@@ -285,7 +285,7 @@ func TestSerializeSaves_CanceledWaiterSavesWithoutLock(t *testing.T) {
 		holderDone.Add(1)
 		workflow.Go(ctx, func(ctx workflow.Context) {
 			defer holderDone.Done()
-			tracker.IncrementBar(ctx, 0, 0)
+			tracker.IncrementBar(ctx, BarRef{Group: 0})
 		})
 		if err := workflow.Await(ctx, tracker.saving.IsLocked); err != nil {
 			return err

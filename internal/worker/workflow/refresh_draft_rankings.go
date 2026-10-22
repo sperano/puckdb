@@ -137,7 +137,7 @@ func RefreshDraftRankingsWorkflow(ctx workflow.Context, input *model.RefreshDraf
 			return result, err
 		}
 		result.Leagues = append(result.Leagues, outcome)
-		tracker.IncrementBar(ctx, 0, 0)
+		tracker.IncrementBar(ctx, shared.BarRef{Group: 0})
 	}
 	if len(leagues) == 0 {
 		workflow.GetLogger(ctx).Warn("No draft leagues to refresh: name leagueIds or configure the season in seasons.yaml", "season", result.Season)

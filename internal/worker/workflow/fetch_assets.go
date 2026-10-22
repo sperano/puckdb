@@ -168,7 +168,7 @@ func populateClassBarTotals(ctx workflow.Context, tracker *shared.ReportTracker,
 		if err := f.Get(ctx, &rowCount); err != nil {
 			return fmt.Errorf("count %s: %w", parentAssetClasses[i].Class.Label, err)
 		}
-		tracker.SetBarTotal(fetchAssetsGroupIdx, i, batchesForRows(rowCount, batchSize))
+		tracker.SetBarTotal(shared.BarRef{Group: fetchAssetsGroupIdx, Bar: i}, batchesForRows(rowCount, batchSize))
 	}
 	tracker.RecalcTotal()
 	return nil

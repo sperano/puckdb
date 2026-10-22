@@ -45,7 +45,7 @@ func (t *ReportTracker) RunWorkerPool(ctx workflow.Context, groupIdx, barIdx, to
 func (t *ReportTracker) RunWorkerPoolWithIncrement(ctx workflow.Context, groupIdx, barIdx, total, concurrency int, incrementFunc IncrementFunc, startActivity ActivityStarter, handler ResultHandler) error {
 	return runWorkerPool(ctx, total, concurrency, startActivity, handler, workerPoolHooks{
 		onComplete: func(ctx workflow.Context, index int) {
-			t.IncrementBarBy(ctx, groupIdx, barIdx, incrementFunc(index))
+			t.IncrementBarBy(ctx, BarRef{Group: groupIdx, Bar: barIdx}, incrementFunc(index))
 		},
 	})
 }
@@ -56,10 +56,10 @@ func (t *ReportTracker) RunWorkerPoolWithIncrement(ctx workflow.Context, groupId
 func (t *ReportTracker) RunWorkerPoolMultiBar(ctx workflow.Context, groupIdx, barStart, total, concurrency int, startActivity ActivityStarter, handler ResultHandler) error {
 	return runWorkerPool(ctx, total, concurrency, startActivity, handler, workerPoolHooks{
 		onStart: func(ctx workflow.Context, index int) {
-			t.StartBar(ctx, groupIdx, barStart+index)
+			t.StartBar(ctx, BarRef{Group: groupIdx, Bar: barStart + index})
 		},
 		onComplete: func(ctx workflow.Context, index int) {
-			t.CompleteBar(ctx, groupIdx, barStart+index)
+			t.CompleteBar(ctx, BarRef{Group: groupIdx, Bar: barStart + index})
 		},
 	})
 }
@@ -76,10 +76,10 @@ func (t *ReportTracker) RunWorkerPoolMultiBarSuccessful(ctx workflow.Context, gr
 		} else if err := future.Get(ctx, nil); err != nil {
 			return err
 		}
-		t.CompleteBar(ctx, groupIdx, barStart+index)
+		t.CompleteBar(ctx, BarRef{Group: groupIdx, Bar: barStart + index})
 		return nil
 	}, workerPoolHooks{onStart: func(ctx workflow.Context, index int) {
-		t.StartBar(ctx, groupIdx, barStart+index)
+		t.StartBar(ctx, BarRef{Group: groupIdx, Bar: barStart + index})
 	}})
 }
 

@@ -86,8 +86,8 @@ func TestSetBarTotal_MultiGroup(t *testing.T) {
 	report := makeReport(2, 3)
 	tracker := &ReportTracker{report: report}
 
-	tracker.SetBarTotal(0, 1, 99)
-	tracker.SetBarTotal(1, 2, 77)
+	tracker.SetBarTotal(BarRef{Group: 0, Bar: 1}, 99)
+	tracker.SetBarTotal(BarRef{Group: 1, Bar: 2}, 77)
 
 	assert.Equal(t, 99, report.Groups[0].Bars[1].Total)
 	assert.Equal(t, 77, report.Groups[1].Bars[2].Total)
@@ -131,6 +131,6 @@ func TestReportTracker_LiveReference(t *testing.T) {
 	require.NotNil(t, tracker)
 
 	// Mutations through SetBarTotal are reflected in the original pointer.
-	tracker.SetBarTotal(0, 0, 99)
+	tracker.SetBarTotal(BarRef{Group: 0}, 99)
 	assert.Equal(t, 99, report.Groups[0].Bars[0].Total)
 }

@@ -125,7 +125,7 @@ func ImportEdgeWorkflow(ctx workflow.Context, season nhl.SeasonInfo) (core.Origi
 				return core.OriginCounts{core.OriginFileSystem: activityCount}, fmt.Errorf("import edge %s for %s (gt=%d): %w", activityType, teams[teamIdx].Abbrev, gameType, err)
 			}
 			activityCount++
-			tracker.IncrementBar(ctx, 0, 0)
+			tracker.IncrementBar(ctx, shared.BarRef{Group: 0})
 		}
 	}
 

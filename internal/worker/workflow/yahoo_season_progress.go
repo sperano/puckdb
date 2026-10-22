@@ -13,6 +13,11 @@ import (
 // a league's position in the season config is its bar index.
 const yahooChildGroup = 0
 
+// yahooChildBar is the child report's bar of the league at index league.
+func yahooChildBar(league int) shared.BarRef {
+	return shared.BarRef{Group: yahooChildGroup, Bar: league}
+}
+
 // yahooSeasonProgress advances the per-league bars of the child workflow's
 // own progress report. Every change is saved so the parent's mirrored bars
 // follow along.
@@ -40,7 +45,7 @@ func (p yahooSeasonProgress) serialized(ctx workflow.Context, change func()) {
 
 // advance records one completed unit of a league's bar.
 func (p yahooSeasonProgress) advance(ctx workflow.Context, bar int) {
-	p.serialized(ctx, func() { p.tracker.IncrementBar(ctx, yahooChildGroup, bar) })
+	p.serialized(ctx, func() { p.tracker.IncrementBar(ctx, yahooChildBar(bar)) })
 }
 
 // advanceBars records one unit shared by several leagues (a batched import).
@@ -58,7 +63,8 @@ func (p yahooSeasonProgress) resize(ctx workflow.Context, bar, delta int) {
 		return
 	}
 	p.serialized(ctx, func() {
-		p.tracker.ResizeBar(ctx, yahooChildGroup, bar, p.tracker.Bar(yahooChildGroup, bar).Total+delta)
+		ref := yahooChildBar(bar)
+		p.tracker.ResizeBar(ctx, ref, p.tracker.Bar(ref).Total+delta)
 	})
 }
 

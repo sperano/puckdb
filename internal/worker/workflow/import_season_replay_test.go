@@ -155,7 +155,7 @@ func replayLegacyImportNHLSeasonWorkflow(ctx workflow.Context, season nhl.Season
 	if err := workflow.ExecuteActivity(ctx, pa.ListSeasonTeams, startYear).Get(ctx, &teams); err != nil {
 		return nil, fmt.Errorf("list season teams: %w", err)
 	}
-	tracker.SetBarTotal(GroupImportPlayoff, 0, len(teams))
+	tracker.SetBarTotal(shared.BarRef{Group: GroupImportPlayoff}, len(teams))
 	tracker.RecalcTotal()
 	tracker.Save(ctx)
 

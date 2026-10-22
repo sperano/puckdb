@@ -307,7 +307,7 @@ func runManifestVerify(ctx workflow.Context, tracker *shared.ReportTracker, stat
 	logger := workflow.GetLogger(ctx)
 
 	unmatchedPlayers := loadUnmatchedPlayers(ctx)
-	tracker.SetBarTotal(GroupVerifyUnmatched, 0, len(unmatchedPlayers))
+	tracker.SetBarTotal(shared.BarRef{Group: GroupVerifyUnmatched}, len(unmatchedPlayers))
 	tracker.RecalcTotal()
 	tracker.Save(ctx)
 	unmatchedReport := verifyUnmatchedPlayers(ctx, tracker, unmatchedPlayers)

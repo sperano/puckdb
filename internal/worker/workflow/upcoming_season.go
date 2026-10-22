@@ -10,12 +10,15 @@ import (
 	"go.temporal.io/sdk/workflow"
 )
 
+// upcomingSeasonBar is the single bar of the upcoming-season group.
+var upcomingSeasonBar = shared.BarRef{Group: groupUpcomingSeason}
+
 // processUpcomingSeason fetches or imports the rosters of the NHL season
 // that has not started yet (see worknhl.FetchUpcomingSeasonRosters), so the
 // draft helper sees offseason moves before puck drop.
 func processUpcomingSeason(ctx workflow.Context, tracker *shared.ReportTracker, input *model.SeasonsInput,
 	rangeLabel string, mode seasonSyncMode) (int, error) {
-	tracker.SetBarTotal(groupUpcomingSeason, 0, 1)
+	tracker.SetBarTotal(upcomingSeasonBar, 1)
 	tracker.RecalcTotal()
 	tracker.StartGroup(ctx, groupUpcomingSeason)
 	var sa *worknhl.SeasonsActivities
@@ -28,7 +31,7 @@ func processUpcomingSeason(ctx workflow.Context, tracker *shared.ReportTracker, 
 		tracker.SetMessage(ctx, fmt.Sprintf("Upcoming NHL season rosters failed for %s: %v", rangeLabel, err))
 		return seasonYearUnset, err
 	}
-	tracker.IncrementBar(ctx, groupUpcomingSeason, 0)
+	tracker.IncrementBar(ctx, upcomingSeasonBar)
 	tracker.CompleteGroup(ctx, groupUpcomingSeason,
 		upcomingSeasonMessage(result, mode, tracker.GetElapsed(ctx, groupUpcomingSeason), rangeLabel))
 	return result.Season, nil

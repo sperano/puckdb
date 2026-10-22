@@ -104,7 +104,7 @@ func (s *ReportTrackerSuite) TestInitTracker_ReturnsTrackerAndRegistersQuery() {
 		// The tracker wraps the same *ProgressReport pointer that was
 		// passed in — mutations through the tracker are visible to the
 		// caller's reference. Pin that contract.
-		tracker.SetBarTotal(0, 0, 999)
+		tracker.SetBarTotal(BarRef{Group: 0}, 999)
 		s.Equal(999, report.Groups[0].Bars[0].Total)
 		return nil
 	})
@@ -165,7 +165,7 @@ func (s *ReportTrackerSuite) TestResizeBar_UpdatesTotalsAndSavesOnce() {
 	env.ExecuteWorkflow(func(ctx workflow.Context) error {
 		tracker, err := InitTracker(ctx, report)
 		s.Require().NoError(err)
-		tracker.ResizeBar(ctx, 1, 0, resizedTotal)
+		tracker.ResizeBar(ctx, BarRef{Group: 1}, resizedTotal)
 		return nil
 	})
 	s.Require().NoError(env.GetWorkflowError())
@@ -213,9 +213,9 @@ func (s *ReportTrackerSuite) TestIncrementBar_IncrementsCurrent() {
 	s.env.ExecuteWorkflow(func(ctx workflow.Context) error {
 		tracker, err := InitTracker(ctx, report)
 		s.Require().NoError(err)
-		tracker.IncrementBar(ctx, 0, 0)
-		tracker.IncrementBar(ctx, 0, 0)
-		tracker.IncrementBar(ctx, 1, 0)
+		tracker.IncrementBar(ctx, BarRef{Group: 0})
+		tracker.IncrementBar(ctx, BarRef{Group: 0})
+		tracker.IncrementBar(ctx, BarRef{Group: 1})
 		s.Equal(2, report.Groups[0].Bars[0].Current)
 		s.Equal(1, report.Groups[1].Bars[0].Current)
 		return nil
@@ -347,7 +347,7 @@ func (s *LoadReportTrackerSuite) TestRoundTrip() {
 		s.Require().NoError(err)
 		s.Require().NotNil(tracker)
 		// Mutate via tracker; the report inside must be the decoded one.
-		tracker.SetBarLabel(0, 0, "after-load")
+		tracker.SetBarLabel(BarRef{Group: 0}, "after-load")
 		return nil
 	})
 	s.NoError(env.GetWorkflowError())

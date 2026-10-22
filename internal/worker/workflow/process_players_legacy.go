@@ -287,7 +287,7 @@ func runPhaseVerifyUnmatched(ctx workflow.Context, tracker *shared.ReportTracker
 	unmatchedPlayers := loadUnmatchedPlayers(ctx)
 	// No save here, unlike runManifestVerify: recorded legacy histories
 	// have none.
-	tracker.SetBarTotal(GroupVerifyUnmatched, 0, len(unmatchedPlayers))
+	tracker.SetBarTotal(shared.BarRef{Group: GroupVerifyUnmatched}, len(unmatchedPlayers))
 	tracker.RecalcTotal()
 	unmatchedReport := verifyUnmatchedPlayers(ctx, tracker, unmatchedPlayers)
 

@@ -105,7 +105,7 @@ func ExtractBoxscorePlayersWorkflow(ctx workflow.Context, input *model.SeasonsIn
 		return err
 	}
 
-	tracker.IncrementBar(ctx, GroupConsolidatePlayers, 0)
+	tracker.IncrementBar(ctx, shared.BarRef{Group: GroupConsolidatePlayers})
 	tracker.CompleteGroup(ctx, GroupConsolidatePlayers,
 		fmt.Sprintf("Consolidated %d unique players from %d total in %s.",
 			consolidateResult.UniquePlayers, consolidateResult.TotalPlayers,

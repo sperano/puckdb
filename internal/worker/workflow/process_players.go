@@ -169,7 +169,7 @@ func loadYahooPool(ctx workflow.Context, tracker *shared.ReportTracker, batchSiz
 	// (ResizeBar would add a local activity they lack); the next save (the
 	// first batch's IncrementBarBy in RunWorkerPool, or CompleteGroup with
 	// no batches) writes the new size.
-	tracker.SetBarTotal(GroupLoadYahoo, 0, numBatches)
+	tracker.SetBarTotal(shared.BarRef{Group: GroupLoadYahoo}, numBatches)
 	tracker.RecalcTotal()
 
 	if err := tracker.RunWorkerPool(ctx, GroupLoadYahoo, 0, numBatches, concurrency,

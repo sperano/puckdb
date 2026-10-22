@@ -111,7 +111,7 @@ func importSeasonPlayoffs(ctx workflow.Context, tracker *shared.ReportTracker, s
 	if err := workflow.ExecuteActivity(ctx, pa.ListSeasonTeams, startYear).Get(ctx, &teams); err != nil {
 		return playoffTotals, fmt.Errorf("list season teams: %w", err)
 	}
-	tracker.ResizeBar(ctx, GroupImportPlayoff, 0, len(teams))
+	tracker.ResizeBar(ctx, shared.BarRef{Group: GroupImportPlayoff}, len(teams))
 
 	err := tracker.RunWorkerPool(ctx, GroupImportPlayoff, 0, len(teams), concurrency,
 		func(_ workflow.Context, i int) workflow.Future {
