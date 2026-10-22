@@ -56,8 +56,7 @@ type PoolOptions struct {
 // flight, reporting them on the tracker as opts.Progress says. It validates
 // opts before issuing any command, so a rejected call records no activity and
 // no Save; the first item error stops dispatching and is returned. A zero
-// Total returns nil without validating, as the positional variants did, so a
-// replayed zero-item pool still succeeds whatever its other options.
+// Total returns nil without validating its other options.
 func (t *ReportTracker) RunWorkerPool(ctx workflow.Context, opts PoolOptions) error {
 	if opts.Total == 0 {
 		return nil

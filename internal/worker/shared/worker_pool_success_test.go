@@ -87,8 +87,7 @@ func runFailingPool(t *testing.T, opts PoolOptions) *ProgressReport {
 
 // TestRunWorkerPool_OnlyOnSuccess runs each progress mode on a pool whose last
 // item fails. The successful items advance either way; the failed item
-// advances only without OnlyOnSuccess (the default), as the variants without
-// "Successful" in their name did.
+// advances only without OnlyOnSuccess (the default).
 func TestRunWorkerPool_OnlyOnSuccess(t *testing.T) {
 	t.Parallel()
 	modes := []struct {
@@ -165,8 +164,7 @@ func TestRunWorkerPool_OnlyOnSuccessWithoutProgress(t *testing.T) {
 // TestRunWorkerPool_OnlyOnSuccessCommandOrder pins the trace of a BarPerItem
 // pool whose last item fails, with and without OnlyOnSuccess. Each item saves
 // its started bar before its handler runs and its completed bar after it;
-// OnlyOnSuccess drops only the failed item's completion Save. The trace with
-// OnlyOnSuccess is the one RunWorkerPoolMultiBarSuccessful issued.
+// OnlyOnSuccess drops only the failed item's completion Save.
 func TestRunWorkerPool_OnlyOnSuccessCommandOrder(t *testing.T) {
 	t.Parallel()
 	itemTrace := func(i int) []string {
