@@ -33,11 +33,7 @@ func (r EdgeSkaterDetail) URL() string {
 func (r EdgeSkaterDetail) Type() core.FileType { return core.EdgeSkaterDetail }
 
 func (r EdgeSkaterDetail) Parse(data []byte) (*nhl.EdgeSkaterDetail, error) {
-	var v nhl.EdgeSkaterDetail
-	if err := json.Unmarshal(data, &v); err != nil {
-		return nil, fmt.Errorf("parse edge skater detail %s: %w", r.PlayerID, err)
-	}
-	return &v, nil
+	return parsePointer[nhl.EdgeSkaterDetail](data, "parse edge skater detail %s", r.PlayerID)
 }
 
 func (r EdgeSkaterDetail) Format(obj *nhl.EdgeSkaterDetail) ([]byte, error) {
@@ -62,11 +58,7 @@ func (r EdgeSkaterSpeedDetail) URL() string {
 func (r EdgeSkaterSpeedDetail) Type() core.FileType { return core.EdgeSkaterSpeedDetail }
 
 func (r EdgeSkaterSpeedDetail) Parse(data []byte) (*nhl.EdgeSkaterSpeedDetail, error) {
-	var v nhl.EdgeSkaterSpeedDetail
-	if err := json.Unmarshal(data, &v); err != nil {
-		return nil, fmt.Errorf("parse edge skater speed detail %s: %w", r.PlayerID, err)
-	}
-	return &v, nil
+	return parsePointer[nhl.EdgeSkaterSpeedDetail](data, "parse edge skater speed detail %s", r.PlayerID)
 }
 
 func (r EdgeSkaterSpeedDetail) Format(obj *nhl.EdgeSkaterSpeedDetail) ([]byte, error) {
@@ -91,11 +83,7 @@ func (r EdgeSkaterDistanceDetail) URL() string {
 func (r EdgeSkaterDistanceDetail) Type() core.FileType { return core.EdgeSkaterDistanceDetail }
 
 func (r EdgeSkaterDistanceDetail) Parse(data []byte) (*nhl.EdgeSkaterDistanceDetail, error) {
-	var v nhl.EdgeSkaterDistanceDetail
-	if err := json.Unmarshal(data, &v); err != nil {
-		return nil, fmt.Errorf("parse edge skater distance detail %s: %w", r.PlayerID, err)
-	}
-	return &v, nil
+	return parsePointer[nhl.EdgeSkaterDistanceDetail](data, "parse edge skater distance detail %s", r.PlayerID)
 }
 
 func (r EdgeSkaterDistanceDetail) Format(obj *nhl.EdgeSkaterDistanceDetail) ([]byte, error) {
@@ -120,11 +108,7 @@ func (r EdgeSkaterShotSpeedDetail) URL() string {
 func (r EdgeSkaterShotSpeedDetail) Type() core.FileType { return core.EdgeSkaterShotSpeedDetail }
 
 func (r EdgeSkaterShotSpeedDetail) Parse(data []byte) (*nhl.EdgeSkaterShotSpeedDetail, error) {
-	var v nhl.EdgeSkaterShotSpeedDetail
-	if err := json.Unmarshal(data, &v); err != nil {
-		return nil, fmt.Errorf("parse edge skater shot speed detail %s: %w", r.PlayerID, err)
-	}
-	return &v, nil
+	return parsePointer[nhl.EdgeSkaterShotSpeedDetail](data, "parse edge skater shot speed detail %s", r.PlayerID)
 }
 
 func (r EdgeSkaterShotSpeedDetail) Format(obj *nhl.EdgeSkaterShotSpeedDetail) ([]byte, error) {
@@ -149,11 +133,7 @@ func (r EdgeSkaterShotLocationDetail) URL() string {
 func (r EdgeSkaterShotLocationDetail) Type() core.FileType { return core.EdgeSkaterShotLocationDetail }
 
 func (r EdgeSkaterShotLocationDetail) Parse(data []byte) (*nhl.EdgeSkaterShotLocationDetail, error) {
-	var v nhl.EdgeSkaterShotLocationDetail
-	if err := json.Unmarshal(data, &v); err != nil {
-		return nil, fmt.Errorf("parse edge skater shot location detail %s: %w", r.PlayerID, err)
-	}
-	return &v, nil
+	return parsePointer[nhl.EdgeSkaterShotLocationDetail](data, "parse edge skater shot location detail %s", r.PlayerID)
 }
 
 func (r EdgeSkaterShotLocationDetail) Format(obj *nhl.EdgeSkaterShotLocationDetail) ([]byte, error) {
@@ -178,11 +158,7 @@ func (r EdgeSkaterZoneTime) URL() string {
 func (r EdgeSkaterZoneTime) Type() core.FileType { return core.EdgeSkaterZoneTime }
 
 func (r EdgeSkaterZoneTime) Parse(data []byte) (*nhl.EdgeSkaterZoneTimeDetail, error) {
-	var v nhl.EdgeSkaterZoneTimeDetail
-	if err := json.Unmarshal(data, &v); err != nil {
-		return nil, fmt.Errorf("parse edge skater zone time %s: %w", r.PlayerID, err)
-	}
-	return &v, nil
+	return parsePointer[nhl.EdgeSkaterZoneTimeDetail](data, "parse edge skater zone time %s", r.PlayerID)
 }
 
 func (r EdgeSkaterZoneTime) Format(obj *nhl.EdgeSkaterZoneTimeDetail) ([]byte, error) {
@@ -207,11 +183,7 @@ func (r EdgeSkaterComparison) URL() string {
 func (r EdgeSkaterComparison) Type() core.FileType { return core.EdgeSkaterComparison }
 
 func (r EdgeSkaterComparison) Parse(data []byte) (*nhl.EdgeSkaterComparison, error) {
-	var v nhl.EdgeSkaterComparison
-	if err := json.Unmarshal(data, &v); err != nil {
-		return nil, fmt.Errorf("parse edge skater comparison %s: %w", r.PlayerID, err)
-	}
-	return &v, nil
+	return parsePointer[nhl.EdgeSkaterComparison](data, "parse edge skater comparison %s", r.PlayerID)
 }
 
 func (r EdgeSkaterComparison) Format(obj *nhl.EdgeSkaterComparison) ([]byte, error) {
@@ -238,11 +210,7 @@ func (r EdgeGoalieDetail) URL() string {
 func (r EdgeGoalieDetail) Type() core.FileType { return core.EdgeGoalieDetail }
 
 func (r EdgeGoalieDetail) Parse(data []byte) (*nhl.EdgeGoalieDetail, error) {
-	var v nhl.EdgeGoalieDetail
-	if err := json.Unmarshal(data, &v); err != nil {
-		return nil, fmt.Errorf("parse edge goalie detail %s: %w", r.GoalieID, err)
-	}
-	return &v, nil
+	return parsePointer[nhl.EdgeGoalieDetail](data, "parse edge goalie detail %s", r.GoalieID)
 }
 
 func (r EdgeGoalieDetail) Format(obj *nhl.EdgeGoalieDetail) ([]byte, error) {
@@ -267,11 +235,7 @@ func (r EdgeGoalie5v5Detail) URL() string {
 func (r EdgeGoalie5v5Detail) Type() core.FileType { return core.EdgeGoalie5v5Detail }
 
 func (r EdgeGoalie5v5Detail) Parse(data []byte) (*nhl.EdgeGoalie5v5Detail, error) {
-	var v nhl.EdgeGoalie5v5Detail
-	if err := json.Unmarshal(data, &v); err != nil {
-		return nil, fmt.Errorf("parse edge goalie 5v5 detail %s: %w", r.GoalieID, err)
-	}
-	return &v, nil
+	return parsePointer[nhl.EdgeGoalie5v5Detail](data, "parse edge goalie 5v5 detail %s", r.GoalieID)
 }
 
 func (r EdgeGoalie5v5Detail) Format(obj *nhl.EdgeGoalie5v5Detail) ([]byte, error) {
@@ -296,11 +260,7 @@ func (r EdgeGoalieShotLocationDetail) URL() string {
 func (r EdgeGoalieShotLocationDetail) Type() core.FileType { return core.EdgeGoalieShotLocationDetail }
 
 func (r EdgeGoalieShotLocationDetail) Parse(data []byte) (*nhl.EdgeGoalieShotLocationDetail, error) {
-	var v nhl.EdgeGoalieShotLocationDetail
-	if err := json.Unmarshal(data, &v); err != nil {
-		return nil, fmt.Errorf("parse edge goalie shot location detail %s: %w", r.GoalieID, err)
-	}
-	return &v, nil
+	return parsePointer[nhl.EdgeGoalieShotLocationDetail](data, "parse edge goalie shot location detail %s", r.GoalieID)
 }
 
 func (r EdgeGoalieShotLocationDetail) Format(obj *nhl.EdgeGoalieShotLocationDetail) ([]byte, error) {
@@ -325,11 +285,7 @@ func (r EdgeGoalieSavePctgDetail) URL() string {
 func (r EdgeGoalieSavePctgDetail) Type() core.FileType { return core.EdgeGoalieSavePctgDetail }
 
 func (r EdgeGoalieSavePctgDetail) Parse(data []byte) (*nhl.EdgeGoalieSavePctgDetail, error) {
-	var v nhl.EdgeGoalieSavePctgDetail
-	if err := json.Unmarshal(data, &v); err != nil {
-		return nil, fmt.Errorf("parse edge goalie save pctg detail %s: %w", r.GoalieID, err)
-	}
-	return &v, nil
+	return parsePointer[nhl.EdgeGoalieSavePctgDetail](data, "parse edge goalie save pctg detail %s", r.GoalieID)
 }
 
 func (r EdgeGoalieSavePctgDetail) Format(obj *nhl.EdgeGoalieSavePctgDetail) ([]byte, error) {
@@ -354,11 +310,7 @@ func (r EdgeGoalieComparison) URL() string {
 func (r EdgeGoalieComparison) Type() core.FileType { return core.EdgeGoalieComparison }
 
 func (r EdgeGoalieComparison) Parse(data []byte) (*nhl.EdgeGoalieComparison, error) {
-	var v nhl.EdgeGoalieComparison
-	if err := json.Unmarshal(data, &v); err != nil {
-		return nil, fmt.Errorf("parse edge goalie comparison %s: %w", r.GoalieID, err)
-	}
-	return &v, nil
+	return parsePointer[nhl.EdgeGoalieComparison](data, "parse edge goalie comparison %s", r.GoalieID)
 }
 
 func (r EdgeGoalieComparison) Format(obj *nhl.EdgeGoalieComparison) ([]byte, error) {
@@ -385,11 +337,7 @@ func (r EdgeTeamDetail) URL() string {
 func (r EdgeTeamDetail) Type() core.FileType { return core.EdgeTeamDetail }
 
 func (r EdgeTeamDetail) Parse(data []byte) (*nhl.EdgeTeamDetail, error) {
-	var v nhl.EdgeTeamDetail
-	if err := json.Unmarshal(data, &v); err != nil {
-		return nil, fmt.Errorf("parse edge team detail %s: %w", r.TeamID, err)
-	}
-	return &v, nil
+	return parsePointer[nhl.EdgeTeamDetail](data, "parse edge team detail %s", r.TeamID)
 }
 
 func (r EdgeTeamDetail) Format(obj *nhl.EdgeTeamDetail) ([]byte, error) {
@@ -414,11 +362,7 @@ func (r EdgeTeamSpeedDetail) URL() string {
 func (r EdgeTeamSpeedDetail) Type() core.FileType { return core.EdgeTeamSpeedDetail }
 
 func (r EdgeTeamSpeedDetail) Parse(data []byte) (*nhl.EdgeTeamSpeedDetail, error) {
-	var v nhl.EdgeTeamSpeedDetail
-	if err := json.Unmarshal(data, &v); err != nil {
-		return nil, fmt.Errorf("parse edge team speed detail %s: %w", r.TeamID, err)
-	}
-	return &v, nil
+	return parsePointer[nhl.EdgeTeamSpeedDetail](data, "parse edge team speed detail %s", r.TeamID)
 }
 
 func (r EdgeTeamSpeedDetail) Format(obj *nhl.EdgeTeamSpeedDetail) ([]byte, error) {
@@ -443,11 +387,7 @@ func (r EdgeTeamDistanceDetail) URL() string {
 func (r EdgeTeamDistanceDetail) Type() core.FileType { return core.EdgeTeamDistanceDetail }
 
 func (r EdgeTeamDistanceDetail) Parse(data []byte) (*nhl.EdgeTeamDistanceDetail, error) {
-	var v nhl.EdgeTeamDistanceDetail
-	if err := json.Unmarshal(data, &v); err != nil {
-		return nil, fmt.Errorf("parse edge team distance detail %s: %w", r.TeamID, err)
-	}
-	return &v, nil
+	return parsePointer[nhl.EdgeTeamDistanceDetail](data, "parse edge team distance detail %s", r.TeamID)
 }
 
 func (r EdgeTeamDistanceDetail) Format(obj *nhl.EdgeTeamDistanceDetail) ([]byte, error) {
@@ -472,11 +412,7 @@ func (r EdgeTeamShotSpeedDetail) URL() string {
 func (r EdgeTeamShotSpeedDetail) Type() core.FileType { return core.EdgeTeamShotSpeedDetail }
 
 func (r EdgeTeamShotSpeedDetail) Parse(data []byte) (*nhl.EdgeTeamShotSpeedDetail, error) {
-	var v nhl.EdgeTeamShotSpeedDetail
-	if err := json.Unmarshal(data, &v); err != nil {
-		return nil, fmt.Errorf("parse edge team shot speed detail %s: %w", r.TeamID, err)
-	}
-	return &v, nil
+	return parsePointer[nhl.EdgeTeamShotSpeedDetail](data, "parse edge team shot speed detail %s", r.TeamID)
 }
 
 func (r EdgeTeamShotSpeedDetail) Format(obj *nhl.EdgeTeamShotSpeedDetail) ([]byte, error) {
@@ -501,11 +437,7 @@ func (r EdgeTeamShotLocationDetail) URL() string {
 func (r EdgeTeamShotLocationDetail) Type() core.FileType { return core.EdgeTeamShotLocationDetail }
 
 func (r EdgeTeamShotLocationDetail) Parse(data []byte) (*nhl.EdgeTeamShotLocationDetail, error) {
-	var v nhl.EdgeTeamShotLocationDetail
-	if err := json.Unmarshal(data, &v); err != nil {
-		return nil, fmt.Errorf("parse edge team shot location detail %s: %w", r.TeamID, err)
-	}
-	return &v, nil
+	return parsePointer[nhl.EdgeTeamShotLocationDetail](data, "parse edge team shot location detail %s", r.TeamID)
 }
 
 func (r EdgeTeamShotLocationDetail) Format(obj *nhl.EdgeTeamShotLocationDetail) ([]byte, error) {
@@ -530,11 +462,7 @@ func (r EdgeTeamZoneTimeDetails) URL() string {
 func (r EdgeTeamZoneTimeDetails) Type() core.FileType { return core.EdgeTeamZoneTimeDetails }
 
 func (r EdgeTeamZoneTimeDetails) Parse(data []byte) (*nhl.EdgeTeamZoneTimeDetails, error) {
-	var v nhl.EdgeTeamZoneTimeDetails
-	if err := json.Unmarshal(data, &v); err != nil {
-		return nil, fmt.Errorf("parse edge team zone time details %s: %w", r.TeamID, err)
-	}
-	return &v, nil
+	return parsePointer[nhl.EdgeTeamZoneTimeDetails](data, "parse edge team zone time details %s", r.TeamID)
 }
 
 func (r EdgeTeamZoneTimeDetails) Format(obj *nhl.EdgeTeamZoneTimeDetails) ([]byte, error) {
@@ -559,11 +487,7 @@ func (r EdgeTeamComparison) URL() string {
 func (r EdgeTeamComparison) Type() core.FileType { return core.EdgeTeamComparison }
 
 func (r EdgeTeamComparison) Parse(data []byte) (*nhl.EdgeTeamComparison, error) {
-	var v nhl.EdgeTeamComparison
-	if err := json.Unmarshal(data, &v); err != nil {
-		return nil, fmt.Errorf("parse edge team comparison %s: %w", r.TeamID, err)
-	}
-	return &v, nil
+	return parsePointer[nhl.EdgeTeamComparison](data, "parse edge team comparison %s", r.TeamID)
 }
 
 func (r EdgeTeamComparison) Format(obj *nhl.EdgeTeamComparison) ([]byte, error) {
@@ -589,11 +513,7 @@ func (r EdgeSkaterLanding) URL() string {
 func (r EdgeSkaterLanding) Type() core.FileType { return core.EdgeSkaterLanding }
 
 func (r EdgeSkaterLanding) Parse(data []byte) (*nhl.EdgeSkaterLanding, error) {
-	var v nhl.EdgeSkaterLanding
-	if err := json.Unmarshal(data, &v); err != nil {
-		return nil, fmt.Errorf("parse edge skater landing: %w", err)
-	}
-	return &v, nil
+	return parsePointer[nhl.EdgeSkaterLanding](data, "parse edge skater landing")
 }
 
 func (r EdgeSkaterLanding) Format(obj *nhl.EdgeSkaterLanding) ([]byte, error) {
@@ -617,11 +537,7 @@ func (r EdgeGoalieLanding) URL() string {
 func (r EdgeGoalieLanding) Type() core.FileType { return core.EdgeGoalieLanding }
 
 func (r EdgeGoalieLanding) Parse(data []byte) (*nhl.EdgeGoalieLanding, error) {
-	var v nhl.EdgeGoalieLanding
-	if err := json.Unmarshal(data, &v); err != nil {
-		return nil, fmt.Errorf("parse edge goalie landing: %w", err)
-	}
-	return &v, nil
+	return parsePointer[nhl.EdgeGoalieLanding](data, "parse edge goalie landing")
 }
 
 func (r EdgeGoalieLanding) Format(obj *nhl.EdgeGoalieLanding) ([]byte, error) {
@@ -645,11 +561,7 @@ func (r EdgeTeamLanding) URL() string {
 func (r EdgeTeamLanding) Type() core.FileType { return core.EdgeTeamLanding }
 
 func (r EdgeTeamLanding) Parse(data []byte) (*nhl.EdgeTeamLanding, error) {
-	var v nhl.EdgeTeamLanding
-	if err := json.Unmarshal(data, &v); err != nil {
-		return nil, fmt.Errorf("parse edge team landing: %w", err)
-	}
-	return &v, nil
+	return parsePointer[nhl.EdgeTeamLanding](data, "parse edge team landing")
 }
 
 func (r EdgeTeamLanding) Format(obj *nhl.EdgeTeamLanding) ([]byte, error) {
