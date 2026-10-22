@@ -33,7 +33,7 @@ func (a *SeasonsActivities) FetchSeasonRosters(ctx context.Context, input FetchS
 
 	for _, team := range teams {
 		activity.RecordHeartbeat(ctx, fmt.Sprintf("roster:%s", team.Abbrev))
-		res := resource.SeasonRoster{Season: input.Season, TeamAbbrev: team.Abbrev}
+		res := resource.SeasonRoster{Season: season, TeamAbbrev: team.Abbrev}
 		schedule := readCachedClubSchedule(ctx, a.Storage, a.GobCache, input.Season, team.Abbrev)
 		fetch := func(ctx context.Context) (*nhlapi.Roster, error) {
 			return a.NHLClient.RosterSeason(ctx, team.Abbrev, season)

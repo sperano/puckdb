@@ -37,9 +37,9 @@ func (a *SeasonsActivities) importClubStats(ctx context.Context, queries ClubSta
 			activity.RecordHeartbeat(ctx, fmt.Sprintf("import-clubstats:%s:%d", team.Abbrev, gameType))
 
 			res := resource.ClubStatsResource{
-				Season:     input.Season,
+				Season:     season,
 				TeamAbbrev: team.Abbrev,
-				GameType:   gameType.Int(),
+				GameType:   gameType,
 			}
 			if !resource.Exists(ctx, a.Storage, res) {
 				continue

@@ -47,7 +47,7 @@ func seedSettledClubSchedule(t *testing.T, mem *store.MemStorage, season int, te
 		scheduleGame(1, nhlapi.GameTypeRegularSeason, nhlapi.GameStateOff, team, "MTL", lastGame),
 	}}
 	require.NoError(t, resource.WriteParsed(context.Background(), mem,
-		resource.ClubScheduleSeason{Season: season, TeamAbbrev: team}, schedule))
+		resource.ClubScheduleSeason{Season: nhlapi.NewSeason(season), TeamAbbrev: team}, schedule))
 }
 
 // completeSchedule is a season where every game, regular and playoff, is final.
@@ -106,7 +106,7 @@ func TestSeasonAggregateStale(t *testing.T) {
 func TestSeasonAggregateNeedsRefetch(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	res := resource.ClubStatsResource{Season: testAggregateSeason, TeamAbbrev: testAggregateTeam, GameType: nhlapi.GameTypeRegularSeason.Int()}
+	res := resource.ClubStatsResource{Season: nhlapi.NewSeason(testAggregateSeason), TeamAbbrev: testAggregateTeam, GameType: nhlapi.GameTypeRegularSeason}
 
 	t.Run("stale file needs a refetch", func(t *testing.T) {
 		t.Parallel()

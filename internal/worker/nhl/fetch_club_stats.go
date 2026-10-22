@@ -41,9 +41,9 @@ func (a *SeasonsActivities) FetchClubStats(ctx context.Context, input FetchClubS
 			activity.RecordHeartbeat(ctx, fmt.Sprintf("clubstats:%s:%d", team.Abbrev, gameType))
 
 			res := resource.ClubStatsResource{
-				Season:     input.Season,
+				Season:     season,
 				TeamAbbrev: team.Abbrev,
-				GameType:   gameType.Int(),
+				GameType:   gameType,
 			}
 			_, err := fetchSeasonAggregate(ctx, a.Storage, a.GobCache, res, schedule,
 				func(ctx context.Context) (*nhlapi.ClubStats, error) {

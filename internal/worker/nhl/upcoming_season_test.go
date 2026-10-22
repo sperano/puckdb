@@ -98,7 +98,7 @@ func TestFetchUpcomingSeasonRosters_FetchesPriorSeasonClubs(t *testing.T) {
 	require.NoError(t, encoded.Get(&result))
 
 	assert.Equal(t, UpcomingSeasonRostersResult{Season: upcomingYear, Teams: 2, TeamsWithRosters: 1}, result)
-	assert.True(t, mem.Exists(context.Background(), resource.SeasonRoster{Season: upcomingYear, TeamAbbrev: upcomingRosterTeam}.Path()))
+	assert.True(t, mem.Exists(context.Background(), resource.SeasonRoster{Season: nhlapi.NewSeason(upcomingYear), TeamAbbrev: upcomingRosterTeam}.Path()))
 	client.AssertExpectations(t)
 }
 
@@ -107,7 +107,7 @@ func TestImportUpcomingSeasonRosters_CarriesClubsForwardAndImports(t *testing.T)
 	mem := upcomingStorage(t)
 	data, err := json.Marshal(&nhlapi.Roster{Forwards: testRosterPlayers()})
 	require.NoError(t, err)
-	require.NoError(t, mem.Write(context.Background(), resource.SeasonRoster{Season: upcomingYear, TeamAbbrev: upcomingRosterTeam}.Path(), data))
+	require.NoError(t, mem.Write(context.Background(), resource.SeasonRoster{Season: nhlapi.NewSeason(upcomingYear), TeamAbbrev: upcomingRosterTeam}.Path(), data))
 
 	upcomingID := int32(nhlapi.NewSeason(upcomingYear).ID())
 	upcoming := new(mockUpcomingQueries)

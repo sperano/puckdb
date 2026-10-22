@@ -20,13 +20,13 @@ import (
 func TestFetchSeasonRosters_RefetchesWhileSeasonRuns(t *testing.T) {
 	t.Parallel()
 	mem := store.NewMemStorage()
-	res := resource.SeasonRoster{Season: testAggregateSeason, TeamAbbrev: testAggregateTeam}
+	res := resource.SeasonRoster{Season: nhlapi.NewSeason(testAggregateSeason), TeamAbbrev: testAggregateTeam}
 	mem.SetFileWithTime(res.Path(), []byte(`{}`), testMidSeasonAt)
 	schedule := completeSchedule()
 	schedule.Games = append(schedule.Games,
 		scheduleGame(4, nhlapi.GameTypePlayoffs, nhlapi.GameStateFuture, "UTA", testAggregateTeam, "2026-04-22"))
 	require.NoError(t, resource.WriteParsed(context.Background(), mem,
-		resource.ClubScheduleSeason{Season: testAggregateSeason, TeamAbbrev: testAggregateTeam}, schedule))
+		resource.ClubScheduleSeason{Season: nhlapi.NewSeason(testAggregateSeason), TeamAbbrev: testAggregateTeam}, schedule))
 
 	queries := new(MockSeasonRosterUpserter)
 	queries.On("GetSeasonTeamAbbrevs", mock.Anything, int32(nhlapi.NewSeason(testAggregateSeason).ID())).
@@ -49,7 +49,7 @@ func TestFetchSeasonRosters_RefetchesWhileSeasonRuns(t *testing.T) {
 func runFetchSeasonRosters(t *testing.T, mem *store.MemStorage, client *MockNHLClient) {
 	t.Helper()
 	require.NoError(t, resource.WriteParsed(context.Background(), mem,
-		resource.ClubScheduleSeason{Season: testAggregateSeason, TeamAbbrev: testAggregateTeam}, completeSchedule()))
+		resource.ClubScheduleSeason{Season: nhlapi.NewSeason(testAggregateSeason), TeamAbbrev: testAggregateTeam}, completeSchedule()))
 	queries := new(MockSeasonRosterUpserter)
 	queries.On("GetSeasonTeamAbbrevs", mock.Anything, int32(nhlapi.NewSeason(testAggregateSeason).ID())).
 		Return([]sqlcdb.GetSeasonTeamAbbrevsRow{{TeamID: 28, Abbrev: testAggregateTeam}}, nil)
@@ -69,7 +69,7 @@ func runFetchSeasonRosters(t *testing.T, mem *store.MemStorage, client *MockNHLC
 func TestFetchSeasonRosters_RefetchesRosterWithoutPositions(t *testing.T) {
 	t.Parallel()
 	mem := store.NewMemStorage()
-	res := resource.SeasonRoster{Season: testAggregateSeason, TeamAbbrev: testAggregateTeam}
+	res := resource.SeasonRoster{Season: nhlapi.NewSeason(testAggregateSeason), TeamAbbrev: testAggregateTeam}
 	mem.SetFileWithTime(res.Path(), []byte(`{"forwards": [{"id": 1, "position": ""}]}`), testSettledAt)
 	fresh := &nhlapi.Roster{Forwards: []nhlapi.RosterPlayer{{ID: 1, Position: nhlapi.PositionCenter}}}
 	client := new(MockNHLClient)
@@ -89,7 +89,7 @@ func TestFetchSeasonRosters_RefetchesRosterWithoutPositions(t *testing.T) {
 func TestFetchSeasonRosters_KeepsSettledRosterWithPositions(t *testing.T) {
 	t.Parallel()
 	mem := store.NewMemStorage()
-	res := resource.SeasonRoster{Season: testAggregateSeason, TeamAbbrev: testAggregateTeam}
+	res := resource.SeasonRoster{Season: nhlapi.NewSeason(testAggregateSeason), TeamAbbrev: testAggregateTeam}
 	mem.SetFileWithTime(res.Path(), []byte(`{"forwards": [{"id": 1, "positionCode": "C"}, {"id": 2, "positionCode": ""}]}`), testSettledAt)
 	client := new(MockNHLClient)
 

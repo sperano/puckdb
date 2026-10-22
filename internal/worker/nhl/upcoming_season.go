@@ -97,7 +97,7 @@ func (a *SeasonsActivities) FetchUpcomingSeasonRosters(ctx context.Context, inpu
 	logger := activity.GetLogger(ctx)
 	for _, team := range teams {
 		activity.RecordHeartbeat(ctx, fmt.Sprintf("upcoming-roster:%s", team.Abbrev))
-		res := resource.SeasonRoster{Season: startYear, TeamAbbrev: team.Abbrev}
+		res := resource.SeasonRoster{Season: season, TeamAbbrev: team.Abbrev}
 		_, _, err := shared.FetchAndCache(ctx, a.Storage, a.GobCache, res, func(ctx context.Context) (*nhlapi.Roster, error) {
 			return a.NHLClient.RosterSeason(ctx, team.Abbrev, season)
 		})

@@ -15,8 +15,6 @@ import (
 	"go.temporal.io/sdk/activity"
 )
 
-const regularSeasonGameType = 2
-
 // ImportPlayerGameLogsBatchInput contains parameters for importing player game logs.
 type ImportPlayerGameLogsBatchInput struct {
 	Season    nhlapi.Season `json:"season"`
@@ -42,7 +40,7 @@ func (a *ImportActivities) ImportPlayerGameLogsBatch(ctx context.Context, input 
 		gameLogRes := resource.PlayerGameLog{
 			PlayerID: nhlapi.NewPlayerID(playerID),
 			Season:   input.Season,
-			GameType: regularSeasonGameType,
+			GameType: nhlapi.GameTypeRegularSeason,
 		}
 
 		if !resource.Exists(ctx, a.Storage, gameLogRes) {

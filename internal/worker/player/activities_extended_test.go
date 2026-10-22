@@ -462,7 +462,7 @@ func (s *DownloadGameLogSuite) TestCurrentSeasonRefresh() {
 	season := nhl.NewSeason(startYear)
 
 	// Pre-write an existing file to trigger the "file exists" branch.
-	existingPath := resource.PlayerGameLog{PlayerID: playerID, Season: season, GameType: nhl.GameTypeRegularSeason.Int()}.Path()
+	existingPath := resource.PlayerGameLog{PlayerID: playerID, Season: season, GameType: nhl.GameTypeRegularSeason}.Path()
 	require.NoError(s.T(), mem.Write(context.Background(), existingPath, []byte(`{"gameLog":[]}`)))
 
 	// The client must be called because RefreshCurrent=true overrides cache.

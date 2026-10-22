@@ -145,7 +145,7 @@ func TestWriteParsed(t *testing.T) {
 		// nhl.ClubStats has a GameType with a strict marshaler that rejects its
 		// zero value, so passing a zero-value ClubStats exercises the Format error path.
 		s := newMockStorage()
-		cr := resource.ClubStatsResource{Season: 2024, TeamAbbrev: "MTL", GameType: 2}
+		cr := resource.ClubStatsResource{Season: nhl.NewSeason(2024), TeamAbbrev: "MTL", GameType: nhl.GameTypeRegularSeason}
 		err := resource.WriteParsed(context.Background(), s, cr, &nhl.ClubStats{}) // zero GameType → marshal error
 		if err == nil {
 			t.Fatal("WriteParsed() expected format error, got nil")
@@ -186,16 +186,15 @@ func TestWriteParsed(t *testing.T) {
 func labelTestResources() []core.Resource {
 	date := time.Date(2025, 1, 15, 0, 0, 0, 0, time.UTC)
 	const (
-		gameID       = nhl.GameID(2024020123)
-		playerID     = nhl.PlayerID(8478402)
-		gameType     = nhl.GameType(2)
-		teamID       = nhl.TeamID(8)
-		startSeason  = 2024
-		leagueID     = 12345
-		yahooTeamID  = 3
-		yahooPlayer  = resource.YahooPlayerID(6743)
-		teamAbbrev   = "MTL"
-		regularGames = 2
+		gameID      = nhl.GameID(2024020123)
+		playerID    = nhl.PlayerID(8478402)
+		gameType    = nhl.GameTypeRegularSeason
+		teamID      = nhl.TeamID(8)
+		startSeason = 2024
+		leagueID    = 12345
+		yahooTeamID = 3
+		yahooPlayer = resource.YahooPlayerID(6743)
+		teamAbbrev  = "MTL"
 	)
 	season := nhl.NewSeason(startSeason)
 	nhlResources := []core.Resource{
@@ -210,11 +209,11 @@ func labelTestResources() []core.Resource {
 		resource.Franchises{},
 		resource.SeasonsManifest{},
 		resource.SeasonStandings{Season: season},
-		resource.PlayerGameLog{PlayerID: playerID, Season: season, GameType: regularGames},
+		resource.PlayerGameLog{PlayerID: playerID, Season: season, GameType: gameType},
 		resource.DailyStandings{Date: date},
-		resource.ClubStatsResource{Season: startSeason, TeamAbbrev: teamAbbrev, GameType: regularGames},
-		resource.ClubScheduleSeason{Season: startSeason, TeamAbbrev: teamAbbrev},
-		resource.SeasonRoster{Season: startSeason, TeamAbbrev: teamAbbrev},
+		resource.ClubStatsResource{Season: season, TeamAbbrev: teamAbbrev, GameType: gameType},
+		resource.ClubScheduleSeason{Season: season, TeamAbbrev: teamAbbrev},
+		resource.SeasonRoster{Season: season, TeamAbbrev: teamAbbrev},
 	}
 	yahooResources := []core.Resource{
 		resource.League{Season: startSeason, LeagueID: leagueID},

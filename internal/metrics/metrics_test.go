@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/sperano/puckdb/internal/core"
@@ -365,6 +366,41 @@ func TestResponseWriter_WriteHeader(t *testing.T) {
 
 	assert.Equal(t, http.StatusNotFound, rw.statusCode)
 	assert.Equal(t, http.StatusNotFound, rr.Code)
+}
+
+func TestHTTPMetricsMiddleware_LabelsByRoutePattern(t *testing.T) {
+	r := chi.NewRouter()
+	r.Use(HTTPMetricsMiddleware)
+	r.Get("/ping", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+	r.Get("/users/{id}", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	for _, path := range []string{"/ping", "/users/42", "/no-such-route"} {
+		req := httptest.NewRequest("GET", path, nil)
+		rr := httptest.NewRecorder()
+		r.ServeHTTP(rr, req)
+	}
+
+	seen := map[string]bool{}
+	families, err := APIRegistry.Gather()
+	require.NoError(t, err)
+	for _, family := range families {
+		if family.GetName() != "puckdb_http_request_duration_seconds" {
+			continue
+		}
+		for _, m := range family.GetMetric() {
+			seen[metricLabel(m.GetLabel(), "api")] = true
+		}
+	}
+	for _, name := range []string{"/ping", "/users/{id}", apiLabelUnmatched} {
+		assert.Truef(t, seen[name], "api label %q must be recorded", name)
+	}
+	for _, name := range []string{"/users/42", "/no-such-route"} {
+		assert.Falsef(t, seen[name], "raw request path %q must not be recorded as api label", name)
+	}
 }
 
 func TestHandlerFor(t *testing.T) {

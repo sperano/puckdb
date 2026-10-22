@@ -123,11 +123,11 @@ func TestPlayerGameLog_Path(t *testing.T) {
 		name     string
 		playerID nhl.PlayerID
 		season   nhl.Season
-		gameType int
+		gameType nhl.GameType
 		expected string
 	}{
-		{"regular_season", nhl.PlayerID(8478402), nhl.NewSeason(2024), 2, "/seasons/2024/player-gamelogs/player-8478402-2.json"},
-		{"playoffs", nhl.PlayerID(8478402), nhl.NewSeason(2024), 3, "/seasons/2024/player-gamelogs/player-8478402-3.json"},
+		{"regular_season", nhl.PlayerID(8478402), nhl.NewSeason(2024), nhl.GameTypeRegularSeason, "/seasons/2024/player-gamelogs/player-8478402-2.json"},
+		{"playoffs", nhl.PlayerID(8478402), nhl.NewSeason(2024), nhl.GameTypePlayoffs, "/seasons/2024/player-gamelogs/player-8478402-3.json"},
 	}
 
 	for _, tt := range tests {
@@ -202,11 +202,12 @@ func TestResource_Type(t *testing.T) {
 		{"Franchises", resource.Franchises{}, core.Franchises},
 		{"SeasonsManifest", resource.SeasonsManifest{}, core.SeasonsManifest},
 		{"SeasonStandings", resource.SeasonStandings{Season: nhl.NewSeason(2024)}, core.SeasonStandings},
-		{"PlayerGameLog", resource.PlayerGameLog{PlayerID: playerID, Season: nhl.NewSeason(2024), GameType: 2}, core.PlayerGameLog},
+		{"PlayerGameLog", resource.PlayerGameLog{PlayerID: playerID, Season: nhl.NewSeason(2024), GameType: nhl.GameTypeRegularSeason}, core.PlayerGameLog},
 		{"SeasonSeries", resource.SeasonSeries{Date: date, GameID: gameID}, core.SeasonSeries},
 		{"DailyStandings", resource.DailyStandings{Date: date}, core.DailyStandings},
-		{"SeasonRoster", resource.SeasonRoster{Season: 2024, TeamAbbrev: "MTL"}, core.SeasonRoster},
-		{"ClubStatsResource", resource.ClubStatsResource{Season: 2024, TeamAbbrev: "MTL", GameType: 2}, core.ClubStatsResource},
+		{"SeasonRoster", resource.SeasonRoster{Season: nhl.NewSeason(2024), TeamAbbrev: "MTL"}, core.SeasonRoster},
+		{"ClubStatsResource", resource.ClubStatsResource{Season: nhl.NewSeason(2024), TeamAbbrev: "MTL", GameType: nhl.GameTypeRegularSeason}, core.ClubStatsResource},
+		{"ClubScheduleSeason", resource.ClubScheduleSeason{Season: nhl.NewSeason(2024), TeamAbbrev: "MTL"}, core.ClubScheduleSeasonResource},
 	}
 
 	for _, tt := range tests {
@@ -235,7 +236,7 @@ func TestDailyStandings_Path(t *testing.T) {
 }
 
 func TestSeasonRoster_Path(t *testing.T) {
-	r := resource.SeasonRoster{Season: 2024, TeamAbbrev: "MTL"}
+	r := resource.SeasonRoster{Season: nhl.NewSeason(2024), TeamAbbrev: "MTL"}
 	expected := "seasons/2024/rosters/roster-MTL.json"
 	if got := r.Path(); got != expected {
 		t.Errorf("SeasonRoster.Path() = %q, want %q", got, expected)
@@ -243,10 +244,18 @@ func TestSeasonRoster_Path(t *testing.T) {
 }
 
 func TestClubStatsResource_Path(t *testing.T) {
-	r := resource.ClubStatsResource{Season: 2024, TeamAbbrev: "MTL", GameType: 2}
+	r := resource.ClubStatsResource{Season: nhl.NewSeason(2024), TeamAbbrev: "MTL", GameType: nhl.GameTypeRegularSeason}
 	expected := "seasons/2024/clubstats/clubstats-MTL-2.json"
 	if got := r.Path(); got != expected {
 		t.Errorf("ClubStatsResource.Path() = %q, want %q", got, expected)
+	}
+}
+
+func TestClubScheduleSeason_Path(t *testing.T) {
+	r := resource.ClubScheduleSeason{Season: nhl.NewSeason(2024), TeamAbbrev: "MTL"}
+	expected := "seasons/2024/club-schedule/club-schedule-MTL.json"
+	if got := r.Path(); got != expected {
+		t.Errorf("ClubScheduleSeason.Path() = %q, want %q", got, expected)
 	}
 }
 
@@ -752,7 +761,7 @@ func TestSeasonStandings_ParseFormat(t *testing.T) {
 
 func TestPlayerGameLog_ParseURL(t *testing.T) {
 	t.Parallel()
-	r := resource.PlayerGameLog{PlayerID: nhl.PlayerID(8478402), Season: nhl.NewSeason(2024), GameType: 2}
+	r := resource.PlayerGameLog{PlayerID: nhl.PlayerID(8478402), Season: nhl.NewSeason(2024), GameType: nhl.GameTypeRegularSeason}
 
 	t.Run("parse_valid", func(t *testing.T) {
 		// Use a minimal JSON object rather than marshaling nhl.PlayerGameLog{}
@@ -824,7 +833,7 @@ func TestDailyStandings_ParseFormat(t *testing.T) {
 
 func TestSeasonRoster_ParseFormat(t *testing.T) {
 	t.Parallel()
-	r := resource.SeasonRoster{Season: 2024, TeamAbbrev: "MTL"}
+	r := resource.SeasonRoster{Season: nhl.NewSeason(2024), TeamAbbrev: "MTL"}
 
 	t.Run("parse_valid", func(t *testing.T) {
 		result, err := r.Parse(mustMarshal(&nhl.Roster{}))
@@ -859,7 +868,7 @@ func TestSeasonRoster_ParseFormat(t *testing.T) {
 
 func TestClubStatsResource_ParseFormat(t *testing.T) {
 	t.Parallel()
-	r := resource.ClubStatsResource{Season: 2024, TeamAbbrev: "MTL", GameType: 2}
+	r := resource.ClubStatsResource{Season: nhl.NewSeason(2024), TeamAbbrev: "MTL", GameType: nhl.GameTypeRegularSeason}
 
 	t.Run("parse_valid", func(t *testing.T) {
 		result, err := r.Parse([]byte(`{}`))

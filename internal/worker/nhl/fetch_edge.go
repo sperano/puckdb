@@ -323,7 +323,7 @@ func (a *SeasonsActivities) fetchOptional[T any](ctx context.Context, r core.Rea
 
 // loadSeasonRoster loads a cached roster for the season.
 func (a *SeasonsActivities) loadSeasonRoster(ctx context.Context, teamAbbrev string, season nhlapi.Season) (*nhlapi.Roster, error) {
-	res := resource.SeasonRoster{Season: season.StartYear(), TeamAbbrev: teamAbbrev}
+	res := resource.SeasonRoster{Season: season, TeamAbbrev: teamAbbrev}
 	if !resource.Exists(ctx, a.Storage, res) {
 		return nil, fmt.Errorf("roster not cached for %s/%d", teamAbbrev, season.StartYear())
 	}

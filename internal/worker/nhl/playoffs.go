@@ -81,7 +81,7 @@ func (a *PlayoffActivities) FetchTeamPlayoffGames(ctx context.Context, input Fet
 	result := FetchTeamPlayoffGamesResult{}
 
 	season := nhlapi.NewSeason(input.Season)
-	res := resource.ClubScheduleSeason{Season: input.Season, TeamAbbrev: input.TeamAbbrev}
+	res := resource.ClubScheduleSeason{Season: season, TeamAbbrev: input.TeamAbbrev}
 
 	// A cached schedule that still lists non-final games is incomplete by
 	// definition — those games will change state, and playoff games are
@@ -196,7 +196,7 @@ func (a *PlayoffActivities) ImportTeamPlayoffGames(ctx context.Context, input Im
 	logger := activity.GetLogger(ctx)
 	result := ImportTeamPlayoffGamesResult{Origins: core.OriginCounts{}}
 
-	res := resource.ClubScheduleSeason{Season: input.Season, TeamAbbrev: input.TeamAbbrev}
+	res := resource.ClubScheduleSeason{Season: nhlapi.NewSeason(input.Season), TeamAbbrev: input.TeamAbbrev}
 	if !resource.Exists(ctx, a.Storage, res) {
 		log.Warn().Str("team", input.TeamAbbrev).Int("season", input.Season).
 			Msg("Club schedule not cached, skipping playoff import for team")
@@ -254,7 +254,7 @@ func collectPlayoffGames(ctx context.Context, storage store.Storage, gobCache *c
 			continue
 		}
 
-		res := resource.ClubScheduleSeason{Season: season, TeamAbbrev: abbrev}
+		res := resource.ClubScheduleSeason{Season: nhlapi.NewSeason(season), TeamAbbrev: abbrev}
 		schedule, _, err := gobCache.ReadParsedCached(ctx, storage, res)
 		if err != nil {
 			return nil, fmt.Errorf("read club schedule for %s: %w", abbrev, err)

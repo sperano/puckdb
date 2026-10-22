@@ -88,7 +88,7 @@ func gameTypeCounted(gameType nhlapi.GameType, gameTypes []nhlapi.GameType) bool
 // stale, which costs one refetch per resource per run and never a stale
 // import.
 func readCachedClubSchedule(ctx context.Context, storage store.Storage, gobCache *cache.GobCache, season int, teamAbbrev string) *nhlapi.TeamScheduleResponse {
-	res := resource.ClubScheduleSeason{Season: season, TeamAbbrev: teamAbbrev}
+	res := resource.ClubScheduleSeason{Season: nhlapi.NewSeason(season), TeamAbbrev: teamAbbrev}
 	schedule, _, err := gobCache.ReadParsedCached(ctx, storage, res)
 	if err != nil {
 		return nil
