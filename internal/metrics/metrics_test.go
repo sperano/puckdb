@@ -384,7 +384,7 @@ func TestHTTPMetricsMiddleware_LabelsByRoutePattern(t *testing.T) {
 		r.ServeHTTP(rr, req)
 	}
 
-	want := map[string]bool{"/ping": false, "/users/{id}": false, apiLabelUnmatched: false}
+	seen := map[string]bool{}
 	families, err := APIRegistry.Gather()
 	require.NoError(t, err)
 	for _, family := range families {
@@ -392,15 +392,14 @@ func TestHTTPMetricsMiddleware_LabelsByRoutePattern(t *testing.T) {
 			continue
 		}
 		for _, m := range family.GetMetric() {
-			for name := range want {
-				if metricLabel(m.GetLabel(), "api") == name {
-					want[name] = true
-				}
-			}
+			seen[metricLabel(m.GetLabel(), "api")] = true
 		}
 	}
-	for name, found := range want {
-		assert.Truef(t, found, "api label %q must be recorded", name)
+	for _, name := range []string{"/ping", "/users/{id}", apiLabelUnmatched} {
+		assert.Truef(t, seen[name], "api label %q must be recorded", name)
+	}
+	for _, name := range []string{"/users/42", "/no-such-route"} {
+		assert.Falsef(t, seen[name], "raw request path %q must not be recorded as api label", name)
 	}
 }
 
