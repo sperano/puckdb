@@ -30,11 +30,7 @@ func (d DailySchedule) Path() string {
 func (d DailySchedule) Type() core.FileType { return core.DailySchedule }
 
 func (d DailySchedule) Parse(data []byte) (*nhl.DailySchedule, error) {
-	var schedule nhl.DailySchedule
-	if err := json.Unmarshal(data, &schedule); err != nil {
-		return nil, fmt.Errorf("parse daily schedule for %s: %w", d.Date.Format(time.DateOnly), err)
-	}
-	return &schedule, nil
+	return parsePointer[nhl.DailySchedule](data, fmt.Sprintf("parse daily schedule for %s", d.Date.Format(time.DateOnly)))
 }
 
 func (d DailySchedule) Format(obj *nhl.DailySchedule) ([]byte, error) {
@@ -58,11 +54,7 @@ func (b Boxscore) URL() string {
 func (b Boxscore) Type() core.FileType { return core.Boxscore }
 
 func (b Boxscore) Parse(data []byte) (*nhl.Boxscore, error) {
-	var boxscore nhl.Boxscore
-	if err := json.Unmarshal(data, &boxscore); err != nil {
-		return nil, fmt.Errorf("parse boxscore %s: %w", b.GameID, err)
-	}
-	return &boxscore, nil
+	return parsePointer[nhl.Boxscore](data, fmt.Sprintf("parse boxscore %s", b.GameID))
 }
 
 func (b Boxscore) Format(obj *nhl.Boxscore) ([]byte, error) {
@@ -86,11 +78,7 @@ func (p PlayByPlay) URL() string {
 func (p PlayByPlay) Type() core.FileType { return core.PlayByPlay }
 
 func (p PlayByPlay) Parse(data []byte) (*nhl.PlayByPlay, error) {
-	var pbp nhl.PlayByPlay
-	if err := json.Unmarshal(data, &pbp); err != nil {
-		return nil, fmt.Errorf("parse play-by-play %s: %w", p.GameID, err)
-	}
-	return &pbp, nil
+	return parsePointer[nhl.PlayByPlay](data, fmt.Sprintf("parse play-by-play %s", p.GameID))
 }
 
 func (p PlayByPlay) Format(obj *nhl.PlayByPlay) ([]byte, error) {
@@ -115,11 +103,7 @@ func (s ShiftChart) URL() string {
 func (s ShiftChart) Type() core.FileType { return core.ShiftChart }
 
 func (s ShiftChart) Parse(data []byte) (*nhl.ShiftChart, error) {
-	var shifts nhl.ShiftChart
-	if err := json.Unmarshal(data, &shifts); err != nil {
-		return nil, fmt.Errorf("parse shift chart %s: %w", s.GameID, err)
-	}
-	return &shifts, nil
+	return parsePointer[nhl.ShiftChart](data, fmt.Sprintf("parse shift chart %s", s.GameID))
 }
 
 func (s ShiftChart) Format(obj *nhl.ShiftChart) ([]byte, error) {
@@ -143,11 +127,7 @@ func (g GameStory) URL() string {
 func (g GameStory) Type() core.FileType { return core.GameStory }
 
 func (g GameStory) Parse(data []byte) (*nhl.GameStory, error) {
-	var story nhl.GameStory
-	if err := json.Unmarshal(data, &story); err != nil {
-		return nil, fmt.Errorf("parse game story %s: %w", g.GameID, err)
-	}
-	return &story, nil
+	return parsePointer[nhl.GameStory](data, fmt.Sprintf("parse game story %s", g.GameID))
 }
 
 func (g GameStory) Format(obj *nhl.GameStory) ([]byte, error) {
@@ -168,11 +148,7 @@ func (s SeasonSeries) Path() string {
 func (s SeasonSeries) Type() core.FileType { return core.SeasonSeries }
 
 func (s SeasonSeries) Parse(data []byte) (*nhl.SeasonSeriesMatchup, error) {
-	var matchup nhl.SeasonSeriesMatchup
-	if err := json.Unmarshal(data, &matchup); err != nil {
-		return nil, fmt.Errorf("parse season series %s: %w", s.GameID, err)
-	}
-	return &matchup, nil
+	return parsePointer[nhl.SeasonSeriesMatchup](data, fmt.Sprintf("parse season series %s", s.GameID))
 }
 
 func (s SeasonSeries) Format(obj *nhl.SeasonSeriesMatchup) ([]byte, error) {
@@ -195,11 +171,7 @@ func (p PlayerLanding) URL() string {
 func (p PlayerLanding) Type() core.FileType { return core.PlayerLanding }
 
 func (p PlayerLanding) Parse(data []byte) (*nhl.PlayerLanding, error) {
-	var landing nhl.PlayerLanding
-	if err := json.Unmarshal(data, &landing); err != nil {
-		return nil, fmt.Errorf("parse player landing %d: %w", p.PlayerID, err)
-	}
-	return &landing, nil
+	return parsePointer[nhl.PlayerLanding](data, fmt.Sprintf("parse player landing %d", p.PlayerID))
 }
 
 func (p PlayerLanding) Format(obj *nhl.PlayerLanding) ([]byte, error) {
@@ -219,11 +191,7 @@ func (m MissingPlayerLanding) Path() string {
 func (m MissingPlayerLanding) Type() core.FileType { return core.PlayerLanding }
 
 func (m MissingPlayerLanding) Parse(data []byte) (*store.MissingPlayerLandingData, error) {
-	var missing store.MissingPlayerLandingData
-	if err := json.Unmarshal(data, &missing); err != nil {
-		return nil, fmt.Errorf("parse missing player landing %d: %w", m.PlayerID, err)
-	}
-	return &missing, nil
+	return parsePointer[store.MissingPlayerLandingData](data, fmt.Sprintf("parse missing player landing %d", m.PlayerID))
 }
 
 func (m MissingPlayerLanding) Format(obj *store.MissingPlayerLandingData) ([]byte, error) {
@@ -244,11 +212,7 @@ func (f Franchises) URL() string {
 func (f Franchises) Type() core.FileType { return core.Franchises }
 
 func (f Franchises) Parse(data []byte) (nhl.FranchisesResponse, error) {
-	var response nhl.FranchisesResponse
-	if err := json.Unmarshal(data, &response); err != nil {
-		return nhl.FranchisesResponse{}, fmt.Errorf("parse franchises: %w", err)
-	}
-	return response, nil
+	return parseValue[nhl.FranchisesResponse](data, "parse franchises")
 }
 
 func (f Franchises) Format(obj nhl.FranchisesResponse) ([]byte, error) {
@@ -269,11 +233,7 @@ func (s SeasonsManifest) URL() string {
 func (s SeasonsManifest) Type() core.FileType { return core.SeasonsManifest }
 
 func (s SeasonsManifest) Parse(data []byte) (nhl.SeasonsResponse, error) {
-	var response nhl.SeasonsResponse
-	if err := json.Unmarshal(data, &response); err != nil {
-		return nhl.SeasonsResponse{}, fmt.Errorf("parse seasons manifest: %w", err)
-	}
-	return response, nil
+	return parseValue[nhl.SeasonsResponse](data, "parse seasons manifest")
 }
 
 func (s SeasonsManifest) Format(obj nhl.SeasonsResponse) ([]byte, error) {
@@ -294,11 +254,7 @@ func (s SeasonStandings) Path() string {
 func (s SeasonStandings) Type() core.FileType { return core.SeasonStandings }
 
 func (s SeasonStandings) Parse(data []byte) ([]nhl.Standing, error) {
-	var standings []nhl.Standing
-	if err := json.Unmarshal(data, &standings); err != nil {
-		return nil, fmt.Errorf("parse season standings %d: %w", s.Season.ID(), err)
-	}
-	return standings, nil
+	return parseValue[[]nhl.Standing](data, fmt.Sprintf("parse season standings %d", s.Season.ID()))
 }
 
 func (s SeasonStandings) Format(obj []nhl.Standing) ([]byte, error) {
@@ -324,11 +280,7 @@ func (p PlayerGameLog) URL() string {
 func (p PlayerGameLog) Type() core.FileType { return core.PlayerGameLog }
 
 func (p PlayerGameLog) Parse(data []byte) (*nhl.PlayerGameLog, error) {
-	var gameLog nhl.PlayerGameLog
-	if err := json.Unmarshal(data, &gameLog); err != nil {
-		return nil, fmt.Errorf("parse player game log %d season %d: %w", p.PlayerID, p.Season.StartYear(), err)
-	}
-	return &gameLog, nil
+	return parsePointer[nhl.PlayerGameLog](data, fmt.Sprintf("parse player game log %d season %d", p.PlayerID, p.Season.StartYear()))
 }
 
 // DailyStandings represents NHL standings for a specific date.
@@ -345,11 +297,7 @@ func (d DailyStandings) Path() string {
 func (d DailyStandings) Type() core.FileType { return core.DailyStandings }
 
 func (d DailyStandings) Parse(data []byte) ([]nhl.Standing, error) {
-	var standings []nhl.Standing
-	if err := json.Unmarshal(data, &standings); err != nil {
-		return nil, fmt.Errorf("parse daily standings for %s: %w", d.Date.Format(time.DateOnly), err)
-	}
-	return standings, nil
+	return parseValue[[]nhl.Standing](data, fmt.Sprintf("parse daily standings for %s", d.Date.Format(time.DateOnly)))
 }
 
 func (d DailyStandings) Format(obj []nhl.Standing) ([]byte, error) {
@@ -371,11 +319,7 @@ func (c ClubStatsResource) Path() string {
 func (c ClubStatsResource) Type() core.FileType { return core.ClubStatsResource }
 
 func (c ClubStatsResource) Parse(data []byte) (*nhl.ClubStats, error) {
-	var stats nhl.ClubStats
-	if err := json.Unmarshal(data, &stats); err != nil {
-		return nil, fmt.Errorf("parse club stats %s/%d/%d: %w", c.TeamAbbrev, c.Season, c.GameType, err)
-	}
-	return &stats, nil
+	return parsePointer[nhl.ClubStats](data, fmt.Sprintf("parse club stats %s/%d/%d", c.TeamAbbrev, c.Season, c.GameType))
 }
 
 func (c ClubStatsResource) Format(obj *nhl.ClubStats) ([]byte, error) {
@@ -396,11 +340,7 @@ func (c ClubScheduleSeason) Path() string {
 func (c ClubScheduleSeason) Type() core.FileType { return core.ClubScheduleSeasonResource }
 
 func (c ClubScheduleSeason) Parse(data []byte) (*nhl.TeamScheduleResponse, error) {
-	var schedule nhl.TeamScheduleResponse
-	if err := json.Unmarshal(data, &schedule); err != nil {
-		return nil, fmt.Errorf("parse club schedule season %s/%d: %w", c.TeamAbbrev, c.Season, err)
-	}
-	return &schedule, nil
+	return parsePointer[nhl.TeamScheduleResponse](data, fmt.Sprintf("parse club schedule season %s/%d", c.TeamAbbrev, c.Season))
 }
 
 func (c ClubScheduleSeason) Format(obj *nhl.TeamScheduleResponse) ([]byte, error) {
