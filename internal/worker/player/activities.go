@@ -3,10 +3,11 @@
 // player's landing and matching it to a Yahoo ID (via internal/matching)
 // from a Redis-cached ID pool (process_batch.go, yahoo_id_pool.go,
 // yahoo_pool_ensure.go), the durable manifest that manifest-enabled
-// ProcessPlayers chains with a non-empty boxscore list read their player
-// list from (manifest.go, manifest_activities.go, manifest_store.go; a
-// legacy chain sources players directly instead), and the
-// unmatched/verification reports (report_unmatched.go, verify_unmatched.go).
+// ProcessPlayers chains store and read their player list from, but only
+// when the boxscore list is non-empty (manifest.go, manifest_activities.go,
+// manifest_store.go; an empty list or a legacy chain sources players
+// directly instead), and the unmatched/verification reports
+// (report_unmatched.go, verify_unmatched.go).
 package player
 
 import (
