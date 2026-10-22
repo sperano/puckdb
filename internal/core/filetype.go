@@ -1,5 +1,7 @@
-// Package filetype defines the FileType enum for categorizing stored resources.
-// This package has no dependencies to avoid import cycles between store, metrics, and resource.
+// Package core defines the shared primitives used across PuckDB packages: the
+// [Resource] interfaces, the [FileType] enum for categorizing stored
+// resources, and data origins. It depends only on the standard library to
+// avoid import cycles between store, metrics, and resource.
 package core
 
 // FileType identifies the type of stored resource for metrics and logging.

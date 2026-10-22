@@ -309,16 +309,16 @@ func (s SeasonStandings) Format(obj []nhl.Standing) ([]byte, error) {
 type PlayerGameLog struct {
 	PlayerID nhl.PlayerID
 	Season   nhl.Season
-	GameType int // 2 = regular season, 3 = playoffs // TODO enum
+	GameType nhl.GameType
 }
 
 func (p PlayerGameLog) Path() string {
-	return fmt.Sprintf("/seasons/%d/player-gamelogs/player-%s-%d.json", p.Season.StartYear(), p.PlayerID.String(), p.GameType)
+	return fmt.Sprintf("/seasons/%d/player-gamelogs/player-%s-%d.json", p.Season.StartYear(), p.PlayerID.String(), p.GameType.Int())
 }
 
 func (p PlayerGameLog) URL() string {
 	// Season needs to be formatted as "20242025" for the API
-	return fmt.Sprintf("%s/player/%s/game-log/%d/%d", baseURLAPIWebV1, p.PlayerID.String(), p.Season.StartYear(), p.GameType)
+	return fmt.Sprintf("%s/player/%s/game-log/%d/%d", baseURLAPIWebV1, p.PlayerID.String(), p.Season.StartYear(), p.GameType.Int())
 }
 
 func (p PlayerGameLog) Type() core.FileType { return core.PlayerGameLog }
@@ -359,13 +359,13 @@ func (d DailyStandings) Format(obj []nhl.Standing) ([]byte, error) {
 // ClubStatsResource represents pre-aggregated team stats per season from the NHL API.
 // Includes fields not available from individual boxscores (e.g., shorthanded goals, shooting %).
 type ClubStatsResource struct {
-	Season     int
+	Season     nhl.Season
 	TeamAbbrev string
-	GameType   int
+	GameType   nhl.GameType
 }
 
 func (c ClubStatsResource) Path() string {
-	return fmt.Sprintf("seasons/%d/clubstats/clubstats-%s-%d.json", c.Season, c.TeamAbbrev, c.GameType)
+	return fmt.Sprintf("seasons/%d/clubstats/clubstats-%s-%d.json", c.Season.StartYear(), c.TeamAbbrev, c.GameType.Int())
 }
 
 func (c ClubStatsResource) Type() core.FileType { return core.ClubStatsResource }
@@ -373,7 +373,7 @@ func (c ClubStatsResource) Type() core.FileType { return core.ClubStatsResource 
 func (c ClubStatsResource) Parse(data []byte) (*nhl.ClubStats, error) {
 	var stats nhl.ClubStats
 	if err := json.Unmarshal(data, &stats); err != nil {
-		return nil, fmt.Errorf("parse club stats %s/%d/%d: %w", c.TeamAbbrev, c.Season, c.GameType, err)
+		return nil, fmt.Errorf("parse club stats %s/%d/%d: %w", c.TeamAbbrev, c.Season.StartYear(), c.GameType.Int(), err)
 	}
 	return &stats, nil
 }
@@ -385,12 +385,12 @@ func (c ClubStatsResource) Format(obj *nhl.ClubStats) ([]byte, error) {
 // ClubScheduleSeason represents a team's full season schedule from the NHL API.
 // Includes preseason, regular season, and playoff games.
 type ClubScheduleSeason struct {
-	Season     int
+	Season     nhl.Season
 	TeamAbbrev string
 }
 
 func (c ClubScheduleSeason) Path() string {
-	return fmt.Sprintf("seasons/%d/club-schedule/club-schedule-%s.json", c.Season, c.TeamAbbrev)
+	return fmt.Sprintf("seasons/%d/club-schedule/club-schedule-%s.json", c.Season.StartYear(), c.TeamAbbrev)
 }
 
 func (c ClubScheduleSeason) Type() core.FileType { return core.ClubScheduleSeasonResource }
@@ -398,7 +398,7 @@ func (c ClubScheduleSeason) Type() core.FileType { return core.ClubScheduleSeaso
 func (c ClubScheduleSeason) Parse(data []byte) (*nhl.TeamScheduleResponse, error) {
 	var schedule nhl.TeamScheduleResponse
 	if err := json.Unmarshal(data, &schedule); err != nil {
-		return nil, fmt.Errorf("parse club schedule season %s/%d: %w", c.TeamAbbrev, c.Season, err)
+		return nil, fmt.Errorf("parse club schedule season %s/%d: %w", c.TeamAbbrev, c.Season.StartYear(), err)
 	}
 	return &schedule, nil
 }

@@ -11,12 +11,12 @@ import (
 // SeasonRoster represents the full roster for a team in a specific season.
 // Fetched via RosterSeason and includes players who never appeared in a game.
 type SeasonRoster struct {
-	Season     int
+	Season     nhl.Season
 	TeamAbbrev string
 }
 
 func (r SeasonRoster) Path() string {
-	return fmt.Sprintf("seasons/%d/rosters/roster-%s.json", r.Season, r.TeamAbbrev)
+	return fmt.Sprintf("seasons/%d/rosters/roster-%s.json", r.Season.StartYear(), r.TeamAbbrev)
 }
 
 func (r SeasonRoster) Type() core.FileType { return core.SeasonRoster }
@@ -28,7 +28,7 @@ func (r SeasonRoster) Type() core.FileType { return core.SeasonRoster }
 func (r SeasonRoster) Parse(data []byte) (*nhl.Roster, error) {
 	var roster nhl.Roster
 	if err := json.Unmarshal(data, &roster); err != nil {
-		return nil, fmt.Errorf("parse season roster %s/%d: %w", r.TeamAbbrev, r.Season, err)
+		return nil, fmt.Errorf("parse season roster %s/%d: %w", r.TeamAbbrev, r.Season.StartYear(), err)
 	}
 	return &roster, nil
 }

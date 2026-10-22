@@ -834,7 +834,7 @@ func (s *ImportPlayerGameLogsBatchSuite) TestPlayerWithZeroStatEntries_Processed
 	res := resource.PlayerGameLog{
 		PlayerID: nhlapi.NewPlayerID(playerID),
 		Season:   season,
-		GameType: regularSeasonGameType,
+		GameType: nhlapi.GameTypeRegularSeason,
 	}
 	s.Require().NoError(mem.Write(context.Background(), res.Path(), data))
 
@@ -877,7 +877,7 @@ func (s *ImportPlayerGameLogsBatchSuite) TestPlayerWithPPP_UpdatesCalled() {
 	res := resource.PlayerGameLog{
 		PlayerID: nhlapi.NewPlayerID(playerID),
 		Season:   season,
-		GameType: regularSeasonGameType,
+		GameType: nhlapi.GameTypeRegularSeason,
 	}
 	s.Require().NoError(mem.Write(context.Background(), res.Path(), data))
 
@@ -1054,7 +1054,7 @@ func (s *ImportClubStatsSuite) TestWithSkaterStats_CallsBatch() {
 			},
 			Goalies: []nhlapi.ClubGoalieStats{},
 		}
-		res := resource.ClubStatsResource{Season: 2023, TeamAbbrev: "EDM", GameType: gameType.Int()}
+		res := resource.ClubStatsResource{Season: nhlapi.NewSeason(2023), TeamAbbrev: "EDM", GameType: gameType}
 		data, err := json.Marshal(clubStats)
 		s.Require().NoError(err)
 		s.Require().NoError(mem.Write(context.Background(), res.Path(), data))
@@ -1146,7 +1146,7 @@ func (s *ImportSeasonRostersSuite) TestWithRosterData_CallsBatch() {
 	roster := &nhlapi.Roster{Forwards: players[:1], Defensemen: players[1:]}
 	data, err := json.Marshal(roster)
 	s.Require().NoError(err)
-	res := resource.SeasonRoster{Season: 2023, TeamAbbrev: "EDM"}
+	res := resource.SeasonRoster{Season: nhlapi.NewSeason(2023), TeamAbbrev: "EDM"}
 	s.Require().NoError(mem.Write(context.Background(), res.Path(), data))
 
 	q.On("EnsurePlayerExistsBatch", mock.Anything, mock.Anything).Return(nil)
@@ -1228,7 +1228,7 @@ func (s *FetchSeasonRostersSuite) TestCacheHit_DoesNotCallAPI() {
 
 	seedSettledClubSchedule(s.T(), mem, 2023, "EDM")
 	season := nhlapi.NewSeason(2023)
-	res := resource.SeasonRoster{Season: 2023, TeamAbbrev: "EDM"}
+	res := resource.SeasonRoster{Season: nhlapi.NewSeason(2023), TeamAbbrev: "EDM"}
 	roster := &nhlapi.Roster{}
 	data, err := json.Marshal(roster)
 	s.Require().NoError(err)
@@ -1272,7 +1272,7 @@ func (s *FetchSeasonRostersSuite) TestCacheMiss_CallsAPI() {
 	_, err := s.env.ExecuteActivity(act.FetchSeasonRosters, input)
 	s.Require().NoError(err)
 	client.AssertExpectations(s.T())
-	assert.True(s.T(), mem.Exists(context.Background(), resource.SeasonRoster{Season: 2023, TeamAbbrev: "EDM"}.Path()))
+	assert.True(s.T(), mem.Exists(context.Background(), resource.SeasonRoster{Season: nhlapi.NewSeason(2023), TeamAbbrev: "EDM"}.Path()))
 }
 
 func (s *FetchSeasonRostersSuite) TestAPINotFound_IsSkipped() {
@@ -1367,7 +1367,7 @@ func (s *FetchClubStatsSuite) TestCacheHit_DoesNotCallAPI() {
 
 	seedSettledClubSchedule(s.T(), mem, 2023, "EDM")
 	for _, gameType := range gameTypesToFetch {
-		res := resource.ClubStatsResource{Season: 2023, TeamAbbrev: "EDM", GameType: gameType.Int()}
+		res := resource.ClubStatsResource{Season: nhlapi.NewSeason(2023), TeamAbbrev: "EDM", GameType: gameType}
 		stats := &nhlapi.ClubStats{Season: nhlapi.NewSeason(2023), GameType: gameType}
 		data, err := json.Marshal(stats)
 		s.Require().NoError(err)

@@ -36,7 +36,7 @@ func rosterPositions(roster *nhl.Roster) map[nhl.PlayerID]nhl.Position {
 
 func TestSeasonRoster_ParseReadsPositionCode(t *testing.T) {
 	t.Parallel()
-	res := resource.SeasonRoster{Season: 2024, TeamAbbrev: "TOR"}
+	res := resource.SeasonRoster{Season: nhl.NewSeason(2024), TeamAbbrev: "TOR"}
 
 	roster, err := res.Parse([]byte(rosterEndpointBody))
 	require.NoError(t, err)
@@ -55,7 +55,7 @@ func TestSeasonRoster_ParseReadsPositionCode(t *testing.T) {
 // keeps its positions.
 func TestSeasonRoster_FormatParseRoundTrip(t *testing.T) {
 	t.Parallel()
-	res := resource.SeasonRoster{Season: 2024, TeamAbbrev: "TOR"}
+	res := resource.SeasonRoster{Season: nhl.NewSeason(2024), TeamAbbrev: "TOR"}
 	fetched, err := res.Parse([]byte(rosterEndpointBody))
 	require.NoError(t, err)
 
@@ -69,7 +69,7 @@ func TestSeasonRoster_FormatParseRoundTrip(t *testing.T) {
 
 func TestSeasonRoster_ParseMissingPositionStaysEmpty(t *testing.T) {
 	t.Parallel()
-	res := resource.SeasonRoster{Season: 2024, TeamAbbrev: "TOR"}
+	res := resource.SeasonRoster{Season: nhl.NewSeason(2024), TeamAbbrev: "TOR"}
 
 	roster, err := res.Parse([]byte(`{"forwards": [{"id": 1}], "defensemen": [], "goalies": []}`))
 	require.NoError(t, err)
@@ -82,7 +82,7 @@ func TestSeasonRoster_ParseMissingPositionStaysEmpty(t *testing.T) {
 // fails the whole roster, as nhl.RosterPlayer decodes positions strictly.
 func TestSeasonRoster_ParseUnknownPositionCodeFails(t *testing.T) {
 	t.Parallel()
-	res := resource.SeasonRoster{Season: 2024, TeamAbbrev: "TOR"}
+	res := resource.SeasonRoster{Season: nhl.NewSeason(2024), TeamAbbrev: "TOR"}
 
 	_, err := res.Parse([]byte(`{"forwards": [{"id": 1, "positionCode": "X"}, {"id": 2, "positionCode": "C"}]}`))
 

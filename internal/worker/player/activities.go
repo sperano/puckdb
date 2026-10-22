@@ -304,8 +304,7 @@ type gameLogDownloadOptions struct {
 
 // downloadPlayerGameLogToCache downloads a single player game log to cache.
 func (a *Activities) downloadPlayerGameLogToCache(ctx context.Context, playerID nhl.PlayerID, season nhl.Season, gameType nhl.GameType, opts gameLogDownloadOptions) (gameLogDownloadStatus, error) {
-	gameTypeID := gameType.Int()
-	gameLogRes := resource.PlayerGameLog{PlayerID: playerID, Season: season, GameType: gameTypeID}
+	gameLogRes := resource.PlayerGameLog{PlayerID: playerID, Season: season, GameType: gameType}
 	fileExists := resource.Exists(ctx, a.Storage, gameLogRes)
 
 	if fileExists {

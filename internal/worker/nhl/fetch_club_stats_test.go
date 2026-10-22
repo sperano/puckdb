@@ -20,7 +20,7 @@ func fetchClubStatsFixture(t *testing.T, mem *store.MemStorage, schedule *nhlapi
 	t.Helper()
 	if schedule != nil {
 		require.NoError(t, resource.WriteParsed(context.Background(), mem,
-			resource.ClubScheduleSeason{Season: testAggregateSeason, TeamAbbrev: testAggregateTeam}, schedule))
+			resource.ClubScheduleSeason{Season: nhlapi.NewSeason(testAggregateSeason), TeamAbbrev: testAggregateTeam}, schedule))
 	}
 	queries := new(MockClubStatsUpserter)
 	queries.On("GetSeasonTeamAbbrevs", mock.Anything, int32(nhlapi.NewSeason(testAggregateSeason).ID())).
@@ -39,7 +39,7 @@ func runFetchClubStats(t *testing.T, activities *SeasonsActivities) {
 }
 
 func clubStatsPath(gameType nhlapi.GameType) string {
-	return resource.ClubStatsResource{Season: testAggregateSeason, TeamAbbrev: testAggregateTeam, GameType: gameType.Int()}.Path()
+	return resource.ClubStatsResource{Season: nhlapi.NewSeason(testAggregateSeason), TeamAbbrev: testAggregateTeam, GameType: gameType}.Path()
 }
 
 // TestFetchClubStats_RefetchesMidSeasonSnapshot reproduces the 2025-26
@@ -63,7 +63,7 @@ func TestFetchClubStats_RefetchesMidSeasonSnapshot(t *testing.T) {
 	runFetchClubStats(t, activities)
 
 	client.AssertExpectations(t)
-	got, err := resource.ReadParsed(context.Background(), mem, resource.ClubStatsResource{Season: testAggregateSeason, TeamAbbrev: testAggregateTeam, GameType: nhlapi.GameTypeRegularSeason.Int()})
+	got, err := resource.ReadParsed(context.Background(), mem, resource.ClubStatsResource{Season: nhlapi.NewSeason(testAggregateSeason), TeamAbbrev: testAggregateTeam, GameType: nhlapi.GameTypeRegularSeason})
 	require.NoError(t, err)
 	require.Len(t, got.Skaters, 1)
 	assert.Equal(t, 82, got.Skaters[0].GamesPlayed)

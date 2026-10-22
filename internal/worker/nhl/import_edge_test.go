@@ -285,7 +285,7 @@ func baseTeamZoneTimeDetail() *nhlapi.EdgeTeamZoneTimeDetails {
 
 func seedSeasonRoster(t *testing.T, mem *store.MemStorage, teamAbbrev string, seasonStartYear int, roster *nhlapi.Roster) {
 	t.Helper()
-	res := resource.SeasonRoster{Season: seasonStartYear, TeamAbbrev: teamAbbrev}
+	res := resource.SeasonRoster{Season: nhlapi.NewSeason(seasonStartYear), TeamAbbrev: teamAbbrev}
 	require.NoError(t, resource.WriteParsed(context.Background(), mem, res, roster))
 }
 
