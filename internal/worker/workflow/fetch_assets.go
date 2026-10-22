@@ -89,8 +89,8 @@ var parentAssetClasses = []assetClassEntry{
 //     event counts small.
 //  3. Sets each bar's ProgressSourceKey to its child's stable workflow ID so
 //     the GraphQL resolver merges live progress from Redis.
-//  4. Dispatches the children via RunWorkerPoolMultiBar bounded by
-//     MaxAssetClassConcurrencyParam.
+//  4. Dispatches the children via RunWorkerPool, one bar per child
+//     (shared.BarPerItem), bounded by MaxAssetClassConcurrencyParam.
 //  5. Aggregates core.OriginCounts from every child.
 //
 // On a child error, returns whatever children completed before the failure
@@ -181,9 +181,9 @@ func batchesForRows(rowCount, batchSize int) int {
 }
 
 // dispatchClassChildren spawns one child workflow per class via
-// RunWorkerPoolMultiBar and aggregates their OriginCounts. The pool is bounded
-// by concurrency (the resolved cross-class concurrency); each child runs on
-// the inherited puckdb-asset-tasks queue.
+// RunWorkerPool, one bar per child, and aggregates their OriginCounts. The
+// pool is bounded by concurrency (the resolved cross-class concurrency); each
+// child runs on the inherited puckdb-asset-tasks queue.
 //
 // The parent's input is forwarded wholesale, with one exception: each child's
 // copy gets AssetBatchSize set to the parent's own snapshotted batchSize, so
@@ -193,8 +193,10 @@ func batchesForRows(rowCount, batchSize int) int {
 // keeps the path open for future fields without parent-side bookkeeping.
 func dispatchClassChildren(ctx workflow.Context, tracker *shared.ReportTracker, input *FetchAssetsInput, concurrency, batchSize int) (core.OriginCounts, error) {
 	counts := core.OriginCounts{}
-	err := tracker.RunWorkerPoolMultiBar(ctx, fetchAssetsGroupIdx, 0, len(parentAssetClasses), concurrency,
-		func(wfCtx workflow.Context, i int) workflow.Future {
+	err := tracker.RunWorkerPool(ctx, shared.PoolOptions{
+		Total: len(parentAssetClasses), Concurrency: concurrency,
+		Progress: shared.BarPerItem{Group: fetchAssetsGroupIdx},
+		Start: func(wfCtx workflow.Context, i int) workflow.Future {
 			e := parentAssetClasses[i]
 			childInput := *input
 			childInput.AssetBatchSize = &batchSize
@@ -202,13 +204,14 @@ func dispatchClassChildren(ctx workflow.Context, tracker *shared.ReportTracker, 
 				shared.WithChildOptions(wfCtx, shared.WorkflowIDFetchAssetsClass(e.Slug)),
 				e.Workflow, childInput)
 		},
-		func(wfCtx workflow.Context, i int, f workflow.Future) error {
+		Handle: func(wfCtx workflow.Context, i int, f workflow.Future) error {
 			var classCounts core.OriginCounts
 			if err := f.Get(wfCtx, &classCounts); err != nil {
 				return fmt.Errorf("fetch %s: %w", parentAssetClasses[i].Class.Label, err)
 			}
 			counts.Add(classCounts)
 			return nil
-		})
+		},
+	})
 	return counts, err
 }

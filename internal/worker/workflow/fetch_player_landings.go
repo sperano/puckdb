@@ -119,13 +119,18 @@ func FetchPlayerLandingsWorkflow(ctx workflow.Context, input *FetchPlayerLanding
 	result := &FetchPlayerLandingsResult{TotalPlayers: len(players)}
 
 	// Run batches with concurrency control
-	err = tracker.RunWorkerPoolWithIncrement(ctx, GroupFetchPlayerLandings, 0, numBatches, concurrency,
-		func(i int) int { return len(shared.BatchSlice(players, i, batchSize)) },
-		func(_ workflow.Context, batchIndex int) workflow.Future {
+	err = tracker.RunWorkerPool(ctx, shared.PoolOptions{
+		Total: numBatches, Concurrency: concurrency,
+		Progress: shared.SingleBar{
+			Bar:       shared.BarRef{Group: GroupFetchPlayerLandings},
+			Increment: func(i int) int { return len(shared.BatchSlice(players, i, batchSize)) },
+		},
+		Start: func(_ workflow.Context, batchIndex int) workflow.Future {
 			batch := shared.BatchSlice(players, batchIndex, batchSize)
 			return workflow.ExecuteActivity(fetchCtx, playerAct.FetchPlayerLandingsBatch, batch)
 		},
-		shared.AggregateInto[shared.FetchStats](&result.FetchStats))
+		Handle: shared.AggregateInto[shared.FetchStats](&result.FetchStats),
+	})
 	if err != nil {
 		return nil, err
 	}

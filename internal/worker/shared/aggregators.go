@@ -15,8 +15,12 @@ type Adder[T any] interface {
 // Example:
 //
 //	counts := core.OriginCounts{}
-//	err := tracker.RunWorkerPool(ctx, group, 0, total, concurrency, starter,
-//	    AggregateInto[core.OriginCounts](&counts))
+//	err := tracker.RunWorkerPool(ctx, PoolOptions{
+//	    Total: total, Concurrency: concurrency,
+//	    Progress: SingleBar{Bar: BarRef{Group: group}},
+//	    Start:    starter,
+//	    Handle:   AggregateInto[core.OriginCounts](&counts),
+//	})
 func AggregateInto[T any](acc Adder[T]) ResultHandler {
 	return func(ctx workflow.Context, _ int, f workflow.Future) error {
 		var result T
@@ -34,8 +38,12 @@ func AggregateInto[T any](acc Adder[T]) ResultHandler {
 // Example:
 //
 //	var players []Player
-//	err := tracker.RunWorkerPool(ctx, group, 0, total, concurrency, starter,
-//	    CollectInto(&players))
+//	err := tracker.RunWorkerPool(ctx, PoolOptions{
+//	    Total: total, Concurrency: concurrency,
+//	    Progress: SingleBar{Bar: BarRef{Group: group}},
+//	    Start:    starter,
+//	    Handle:   CollectInto(&players),
+//	})
 func CollectInto[T any](target *[]T) ResultHandler {
 	return func(ctx workflow.Context, _ int, f workflow.Future) error {
 		var result T
@@ -53,8 +61,12 @@ func CollectInto[T any](target *[]T) ResultHandler {
 // Example:
 //
 //	var allPlayers []Player
-//	err := tracker.RunWorkerPool(ctx, group, 0, numBatches, concurrency, starter,
-//	    CollectSlicesInto(&allPlayers))
+//	err := tracker.RunWorkerPool(ctx, PoolOptions{
+//	    Total: numBatches, Concurrency: concurrency,
+//	    Progress: SingleBar{Bar: BarRef{Group: group}},
+//	    Start:    starter,
+//	    Handle:   CollectSlicesInto(&allPlayers),
+//	})
 func CollectSlicesInto[T any](target *[]T) ResultHandler {
 	return func(ctx workflow.Context, _ int, f workflow.Future) error {
 		var result []T

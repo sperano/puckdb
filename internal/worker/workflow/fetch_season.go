@@ -98,18 +98,23 @@ func FetchNHLSeasonWorkflow(ctx workflow.Context, season nhl.SeasonInfo) (core.O
 	startDate := season.StandingsStart.Time
 	startSeason := season.ID.StartYear()
 	counts := core.OriginCounts{}
-	err = tracker.RunWorkerPool(ctx, GroupFetchSeasonData, 0, numDays, concurrency, func(_ workflow.Context, i int) workflow.Future {
-		day := startDate.AddDate(0, 0, i)
-		dayInput := worknhl.FetchDayInput{
-			Day:         day,
-			StartSeason: startSeason,
-			TeamIDs:     teamIDs,
-			DayIndex:    i,
-			TotalDays:   numDays,
-		}
-		var dsa *worknhl.DailyScheduleActivities
-		return workflow.ExecuteActivity(dayCtx, dsa.FetchDay, dayInput)
-	}, shared.AggregateInto[core.OriginCounts](counts))
+	err = tracker.RunWorkerPool(ctx, shared.PoolOptions{
+		Total: numDays, Concurrency: concurrency,
+		Progress: shared.SingleBar{Bar: shared.BarRef{Group: GroupFetchSeasonData}},
+		Start: func(_ workflow.Context, i int) workflow.Future {
+			day := startDate.AddDate(0, 0, i)
+			dayInput := worknhl.FetchDayInput{
+				Day:         day,
+				StartSeason: startSeason,
+				TeamIDs:     teamIDs,
+				DayIndex:    i,
+				TotalDays:   numDays,
+			}
+			var dsa *worknhl.DailyScheduleActivities
+			return workflow.ExecuteActivity(dayCtx, dsa.FetchDay, dayInput)
+		},
+		Handle: shared.AggregateInto[core.OriginCounts](counts),
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -129,19 +134,22 @@ func FetchNHLSeasonWorkflow(ctx workflow.Context, season nhl.SeasonInfo) (core.O
 	tracker.ResizeBar(ctx, shared.BarRef{Group: GroupFetchSeasonPlayoff}, len(teams))
 
 	playoffGames := 0
-	err = tracker.RunWorkerPool(ctx, GroupFetchSeasonPlayoff, 0, len(teams), concurrency,
-		func(_ workflow.Context, i int) workflow.Future {
+	err = tracker.RunWorkerPool(ctx, shared.PoolOptions{
+		Total: len(teams), Concurrency: concurrency,
+		Progress: shared.SingleBar{Bar: shared.BarRef{Group: GroupFetchSeasonPlayoff}},
+		Start: func(_ workflow.Context, i int) workflow.Future {
 			input := worknhl.FetchTeamPlayoffGamesInput{Season: startSeason, TeamAbbrev: teams[i]}
 			return workflow.ExecuteActivity(ctx, pa.FetchTeamPlayoffGames, input)
 		},
-		func(ctx workflow.Context, i int, f workflow.Future) error {
+		Handle: func(ctx workflow.Context, i int, f workflow.Future) error {
 			var res worknhl.FetchTeamPlayoffGamesResult
 			if err := f.Get(ctx, &res); err != nil {
 				return fmt.Errorf("fetch playoff games for %s: %w", teams[i], err)
 			}
 			playoffGames += res.GamesFetched
 			return nil
-		})
+		},
+	})
 	if err != nil {
 		return nil, err
 	}

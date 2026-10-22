@@ -236,22 +236,28 @@ func runManifestWindow(ctx workflow.Context, tracker *shared.ReportTracker, stat
 
 	next := *state
 	var playerAct *workplayer.Activities
-	if err := tracker.RunWorkerPoolWithIncrement(ctx, GroupProcessPlayers, 0, len(batches), cfg.Concurrency,
-		func(i int) int { return batches[i].To - batches[i].From },
-		func(_ workflow.Context, i int) workflow.Future {
+	opts := shared.PoolOptions{
+		Total: len(batches), Concurrency: cfg.Concurrency,
+		Progress: shared.SingleBar{
+			Bar:       shared.BarRef{Group: GroupProcessPlayers},
+			Increment: func(i int) int { return batches[i].To - batches[i].From },
+		},
+		Start: func(_ workflow.Context, i int) workflow.Future {
 			return workflow.ExecuteActivity(ctx, playerAct.ProcessPlayerManifestBatch, workplayer.ManifestBatchInput{
 				Manifest: state.Manifest, From: batches[i].From, To: batches[i].To,
 				YahooPoolSize: state.YahooPool.PoolSize,
 			})
 		},
-		func(ctx workflow.Context, _ int, f workflow.Future) error {
+		Handle: func(ctx workflow.Context, _ int, f workflow.Future) error {
 			var result workplayer.ManifestBatchResult
 			if err := f.Get(ctx, &result); err != nil {
 				return err
 			}
 			next.Totals.add(result.ProcessPlayerBatchResult)
 			return recordBatchErrors(ctx, &next, result.PlayerErrors)
-		}); err != nil {
+		},
+	}
+	if err := tracker.RunWorkerPool(ctx, opts); err != nil {
 		return nil, err
 	}
 

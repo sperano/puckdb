@@ -172,12 +172,16 @@ func loadYahooPool(ctx workflow.Context, tracker *shared.ReportTracker, batchSiz
 	tracker.SetBarTotal(shared.BarRef{Group: GroupLoadYahoo}, numBatches)
 	tracker.RecalcTotal()
 
-	if err := tracker.RunWorkerPool(ctx, GroupLoadYahoo, 0, numBatches, concurrency,
-		func(_ workflow.Context, batchIndex int) workflow.Future {
+	opts := shared.PoolOptions{
+		Total: numBatches, Concurrency: concurrency,
+		Progress: shared.SingleBar{Bar: shared.BarRef{Group: GroupLoadYahoo}},
+		Start: func(_ workflow.Context, batchIndex int) workflow.Future {
 			batch := shared.BatchSlice(yahooPlayerIDs, batchIndex, batchSize)
 			return workflow.ExecuteActivity(ctx, playerAct.ParseYahooPlayerBatch, batch)
 		},
-		shared.CollectSlicesInto(&allYahooPlayers)); err != nil {
+		Handle: shared.CollectSlicesInto(&allYahooPlayers),
+	}
+	if err := tracker.RunWorkerPool(ctx, opts); err != nil {
 		return nil, fmt.Errorf("parse yahoo players: %w", err)
 	}
 	logger.Info("Parsed Yahoo players", "count", len(allYahooPlayers))
@@ -233,13 +237,17 @@ func verifyUnmatchedPlayers(ctx workflow.Context, tracker *shared.ReportTracker,
 	numBatches := shared.BatchCount(len(unmatchedPlayers), batchSize)
 	concurrency := verifyConcurrency
 
-	err := tracker.RunWorkerPoolWithIncrement(ctx, GroupVerifyUnmatched, 0, numBatches, concurrency,
-		func(i int) int { return len(shared.BatchSlice(unmatchedPlayers, i, batchSize)) },
-		func(_ workflow.Context, batchIndex int) workflow.Future {
+	err := tracker.RunWorkerPool(ctx, shared.PoolOptions{
+		Total: numBatches, Concurrency: concurrency,
+		Progress: shared.SingleBar{
+			Bar:       shared.BarRef{Group: GroupVerifyUnmatched},
+			Increment: func(i int) int { return len(shared.BatchSlice(unmatchedPlayers, i, batchSize)) },
+		},
+		Start: func(_ workflow.Context, batchIndex int) workflow.Future {
 			batch := shared.BatchSlice(unmatchedPlayers, batchIndex, batchSize)
 			return workflow.ExecuteActivity(ctx, playerAct.VerifyUnmatchedBatch, batch)
 		},
-		func(ctx workflow.Context, batchIndex int, f workflow.Future) error {
+		Handle: func(ctx workflow.Context, batchIndex int, f workflow.Future) error {
 			var batchResult *workplayer.VerifyUnmatchedResult
 			if err := f.Get(ctx, &batchResult); err != nil {
 				logger.Warn("Failed to verify batch", "error", err, "batch_index", batchIndex)
@@ -250,7 +258,8 @@ func verifyUnmatchedPlayers(ctx workflow.Context, tracker *shared.ReportTracker,
 			unmatchedReport.NotFoundCount += len(batchResult.NotFoundInNHL)
 			unmatchedReport.UnverifiedCount += len(batchResult.Unverified)
 			return nil
-		})
+		},
+	})
 	if err != nil {
 		logger.Warn("Error during verify pool execution", "error", err)
 	}

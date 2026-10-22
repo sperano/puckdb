@@ -54,18 +54,25 @@ func importSeasonDays(ctx workflow.Context, tracker *shared.ReportTracker, seaso
 	var ia *worknhl.ImportActivities
 	result := seasonDaysResult{origins: core.OriginCounts{}}
 	skipUnchanged := workflow.GetVersion(ctx, importDaySkipChangeID, workflow.DefaultVersion, importDaySkipVersion) >= importDaySkipVersion
+	importDaysProgress := shared.SingleBar{Bar: shared.BarRef{Group: GroupImportDays}}
 	var err error
 	if skipUnchanged {
-		err = tracker.RunWorkerPool(ctx, GroupImportDays, 0, numDays, cfg.DayConcurrency,
-			func(_ workflow.Context, i int) workflow.Future {
+		err = tracker.RunWorkerPool(ctx, shared.PoolOptions{
+			Total: numDays, Concurrency: cfg.DayConcurrency, Progress: importDaysProgress,
+			Start: func(_ workflow.Context, i int) workflow.Future {
 				input := worknhl.ImportDayIfChangedInput{ImportDayInput: dayInput(i), Force: opts.ReimportDays}
 				return workflow.ExecuteActivity(ctx, ia.ImportDayIfChanged, input)
-			}, result.collect)
+			},
+			Handle: result.collect,
+		})
 	} else {
-		err = tracker.RunWorkerPool(ctx, GroupImportDays, 0, numDays, cfg.DayConcurrency,
-			func(_ workflow.Context, i int) workflow.Future {
+		err = tracker.RunWorkerPool(ctx, shared.PoolOptions{
+			Total: numDays, Concurrency: cfg.DayConcurrency, Progress: importDaysProgress,
+			Start: func(_ workflow.Context, i int) workflow.Future {
 				return workflow.ExecuteActivity(ctx, ia.ImportDay, dayInput(i))
-			}, shared.AggregateInto[core.OriginCounts](result.origins))
+			},
+			Handle: shared.AggregateInto[core.OriginCounts](result.origins),
+		})
 	}
 	if err != nil {
 		return nil, err
