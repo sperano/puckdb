@@ -61,6 +61,7 @@ const (
 	YahooLeagueLogo
 	YahooManagerImage
 	YahooLeaguePlayers
+	YahooLeagueStandings
 )
 
 // fileTypeEntry binds a FileType constant to its display name. The display
@@ -134,6 +135,7 @@ var fileTypes = []fileTypeEntry{
 	{YahooLeagueLogo, "YahooLeagueLogo"},
 	{YahooManagerImage, "YahooManagerImage"},
 	{YahooLeaguePlayers, "YahooLeaguePlayers"},
+	{YahooLeagueStandings, "YahooLeagueStandings"},
 }
 
 // AllFileTypes lists every declared FileType in iota declaration order,

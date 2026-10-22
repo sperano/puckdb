@@ -26,10 +26,10 @@ const (
 	mixedStandInSourceSsn = preseasonTestYear - 1
 
 	// fetchEstimateNoTeams is an API league's initial fetch Total without
-	// teams: metadata + transactions + draft results + 26 matchup calls
-	// (default 25 weeks + the end probe) + 52 pool units (plan + 50 default
-	// pages + commit).
-	fetchEstimateNoTeams = 81
+	// teams: metadata + transactions + draft results + standings + 26
+	// matchup calls (default 25 weeks + the end probe) + 52 pool units
+	// (plan + 50 default pages + commit).
+	fetchEstimateNoTeams = 82
 	// importUnitsNoTeams is an API league's import Total without teams:
 	// metadata + league data + player pool.
 	importUnitsNoTeams = 3
@@ -119,6 +119,30 @@ func TestYahooLeagueUnits(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			assert.Equal(t, tt.want, yahooLeagueUnits(tt.league, tt.mode))
+			assert.Equal(t, tt.want, yahooLeagueUnitsFor(tt.league, tt.mode, true), "the current version captures standings")
+		})
+	}
+}
+
+// A fetch recorded before the standings capture is sized without it; the
+// import and a stand-in league never counted it.
+func TestYahooLeagueUnitsFor_WithoutStandings(t *testing.T) {
+	t.Parallel()
+	twoTeams := config.League{LeagueID: preseasonTestLeagueID, TeamIDs: []int{1, 2}}
+	tests := []struct {
+		name   string
+		league config.League
+		mode   seasonSyncMode
+		want   int
+	}{
+		{"fetch with teams", twoTeams, seasonSyncFetch, fetchEstimateNoTeams + 2 - yahooStandingsCaptureUnits},
+		{"fetch stand-in", standInLeague(standInTestLeagueID), seasonSyncFetch, 1},
+		{"import with teams", twoTeams, seasonSyncImport, importUnitsNoTeams + 1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tt.want, yahooLeagueUnitsFor(tt.league, tt.mode, false))
 		})
 	}
 }
@@ -191,22 +215,22 @@ func TestFetchYahooSeasonWorkflow_PerLeagueBarsAdvancePerDownload(t *testing.T) 
 
 	require.NoError(t, env.GetWorkflowError())
 	env.AssertExpectations(t)
-	// 83 = 81 + 2 teams; end week 3 shrinks 26 matchup calls to 4 (61); the
-	// plan sizes the pool at 1 + 3 + 1 instead of 52 (14).
+	// 84 = 82 + 2 teams; end week 3 shrinks 26 matchup calls to 4 (62); the
+	// plan sizes the pool at 1 + 3 + 1 instead of 52 (15).
 	assert.Equal(t, concatPoints(
-		counting(0, 1, 83), counting(1, 10, 61), counting(10, 14, 14),
+		counting(0, 1, 84), counting(1, 11, 62), counting(11, 15, 15),
 	), barHistory(*saves, 0), "league 1001")
-	// Matchups stop after 2 calls of 26 (57); the up-to-date pool keeps only its plan (6).
+	// Matchups stop after 2 calls of 26 (58); the up-to-date pool keeps only its plan (7).
 	assert.Equal(t, concatPoints(
-		counting(0, 5, fetchEstimateNoTeams), counting(5, 6, 57), []barPoint{{6, 6}},
+		counting(0, 6, fetchEstimateNoTeams), counting(6, 7, 58), []barPoint{{7, 7}},
 	), barHistory(*saves, 1), "league 3001")
 	assert.Equal(t, counting(0, 1, 1), barHistory(*saves, 2), "stand-in league 3002")
 
 	var result YahooSeasonSyncResult
 	require.NoError(t, env.GetWorkflowResult(&result))
-	assert.Equal(t, []int{14, 6, 1}, result.LeagueTotals)
+	assert.Equal(t, []int{15, 7, 1}, result.LeagueTotals)
 	report := queryProgress(t, env)
-	assert.Equal(t, 14+6+1, report.Total)
+	assert.Equal(t, 15+7+1, report.Total)
 	assert.Equal(t, []string{"1001", "3001", "3002"}, barLabels(report.Groups[0].Bars))
 }
 

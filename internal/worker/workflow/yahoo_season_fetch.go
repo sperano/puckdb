@@ -89,8 +89,9 @@ func fetchYahooTeams(ctx workflow.Context, startYear int, leagues []config.Leagu
 	return nil
 }
 
-// fetchYahooLeagueData downloads a league's transactions, draft results, and
-// matchup weeks, returning the resources Yahoo has not published yet.
+// fetchYahooLeagueData downloads a league's transactions, draft results,
+// today's standings snapshot and matchup weeks, returning the resources
+// Yahoo has not published yet.
 func fetchYahooLeagueData(ctx workflow.Context, startYear, leagueID, endWeek int,
 	bar yahooLeagueBar) ([]string, error) {
 	var act *yahoo.FetchActivities
@@ -112,6 +113,13 @@ func fetchYahooLeagueData(ctx workflow.Context, startYear, leagueID, endWeek int
 		if result.Unavailable {
 			unavailable = append(unavailable, res.name)
 		}
+	}
+	noStandings, err := fetchYahooLeagueStandings(ctx, input, bar)
+	if err != nil {
+		return unavailable, err
+	}
+	if noStandings {
+		unavailable = append(unavailable, "standings")
 	}
 	matchups := bar.estimate(yahooMatchupCalls(endWeek))
 	noMatchups, err := fetchYahooMatchups(ctx, startYear, leagueID, matchups)
@@ -142,4 +150,40 @@ func fetchYahooMatchups(ctx workflow.Context, startYear, leagueID int, weeks *ya
 	}
 	weeks.finish(ctx)
 	return false, nil
+}
+
+// The daily standings capture is gated by a GetVersion change: histories
+// recorded before it carry no marker for it and replay without the capture,
+// with a league bar sized without it (yahooLeagueUnitsFor).
+const (
+	// yahooLeagueStandingsChangeID is the change's GetVersion ID.
+	yahooLeagueStandingsChangeID = "yahoo-league-standings"
+	// yahooLeagueStandingsVersion is the version that runs the capture.
+	yahooLeagueStandingsVersion = 1
+)
+
+// yahooFetchCapturesStandings reports whether this execution captures the
+// day's standings. The first call records the version in a new execution's
+// history; every later call, wherever it is, returns the same answer.
+func yahooFetchCapturesStandings(ctx workflow.Context) bool {
+	version := workflow.GetVersion(ctx, yahooLeagueStandingsChangeID, workflow.DefaultVersion,
+		yahooLeagueStandingsVersion)
+	return version != workflow.DefaultVersion
+}
+
+// fetchYahooLeagueStandings captures the league's current standings under
+// today's date (the activity skips days outside the league's season) and
+// reports whether Yahoo serves no standings yet.
+func fetchYahooLeagueStandings(ctx workflow.Context, input yahoo.FetchYahooLeagueDataInput,
+	bar yahooLeagueBar) (bool, error) {
+	if !yahooFetchCapturesStandings(ctx) {
+		return false, nil
+	}
+	var act *yahoo.FetchActivities
+	var result yahoo.FetchYahooLeagueStandingsResult
+	if err := workflow.ExecuteActivity(ctx, act.FetchYahooLeagueStandings, input).Get(ctx, &result); err != nil {
+		return false, err
+	}
+	bar.advance(ctx)
+	return result.Unavailable, nil
 }

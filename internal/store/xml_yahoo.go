@@ -98,6 +98,8 @@ type League struct {
 	Players Players `xml:"players"`
 	// EndWeek is the league's last matchup week; 0 when Yahoo omits it.
 	EndWeek int `xml:"end_week"`
+	// Standings is filled by the league standings sub-resource.
+	Standings Standings `xml:"standings"`
 }
 
 // ============================================================================
@@ -122,6 +124,9 @@ type Team struct {
 	Managers              Managers
 	Roster                Roster
 	TeamStats             TeamStats
+	// TeamStandings is nil unless the document carries the team's standings
+	// (the league standings sub-resource does).
+	TeamStandings *TeamStandings `xml:"team_standings"`
 }
 
 // TeamLogos contains team logo information.

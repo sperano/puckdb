@@ -362,6 +362,7 @@ func registerYahooFetchActivities(w worker.Worker, d taskActivityDeps) {
 	w.RegisterActivity(fetchYahooActivities.FetchYahooPlayerBatch)
 	w.RegisterActivity(fetchYahooActivities.FetchYahooTransactions)
 	w.RegisterActivity(fetchYahooActivities.FetchYahooDraftResults)
+	w.RegisterActivity(fetchYahooActivities.FetchYahooLeagueStandings)
 	w.RegisterActivity(fetchYahooActivities.FetchYahooMatchupWeek)
 	w.RegisterActivity(fetchYahooActivities.PlanYahooLeaguePlayerPool)
 	w.RegisterActivity(fetchYahooActivities.FetchYahooLeaguePlayersPage)

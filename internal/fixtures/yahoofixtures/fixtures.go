@@ -26,6 +26,16 @@ const (
 	PointsLeagueMissingWeight = "league-points-missing-weight.xml"
 	// PlayersPage is one page of the 2026 points league's player pool.
 	PlayersPage = "league-players.xml"
+	// H2HStandings is the 2026 points league's standings six weeks in: four
+	// ranked teams with outcome totals, streaks and points; one team also
+	// carries divisional outcome totals.
+	H2HStandings = "league-standings-h2h.xml"
+	// PreseasonStandings is the 2026 points league's standings before its
+	// first game: two teams with empty ranks, seeds and percentages.
+	PreseasonStandings = "league-standings-preseason.xml"
+	// RotoStandings is the 2025 rotisserie league's standings: two ranked
+	// teams with roto points and no outcome totals.
+	RotoStandings = "league-standings-roto.xml"
 )
 
 // Identities used by the fixtures.
@@ -38,6 +48,8 @@ const (
 	PointsLeagueID = 77777
 	// PlayersInPage is how many players PlayersPage lists.
 	PlayersInPage = 7
+	// TeamsInH2HStandings is how many teams H2HStandings ranks.
+	TeamsInH2HStandings = 4
 )
 
 //go:embed *.xml
