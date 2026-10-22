@@ -42,6 +42,143 @@ func TestPlayersByBirthplaceLimit(t *testing.T) {
 	assert.Empty(t, db.calls)
 }
 
+func TestAwardsRequiresExactlyOneOfSeasonOrTrophy(t *testing.T) {
+	cases := map[string]struct {
+		args      map[string]any
+		wantError string
+	}{
+		"neither given": {
+			args:      map[string]any{},
+			wantError: "season or trophy is required",
+		},
+		"both given": {
+			args:      map[string]any{"season": float64(testSeasonID), trophyArg: "Hart Memorial Trophy"},
+			wantError: "pass either season or trophy, not both",
+		},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			result, db := callNHLTool(t, "get_awards", tc.args)
+			require.True(t, result.IsError)
+			assert.Equal(t, tc.wantError, resultText(t, result))
+			assert.Empty(t, db.calls)
+		})
+	}
+}
+
+func TestAwardsBindsSeasonOrTrophy(t *testing.T) {
+	t.Run("season", func(t *testing.T) {
+		// player_awards.season stores the start year, not the full season
+		// ID the tool argument takes; the handler must convert.
+		result, db := callNHLTool(t, "get_awards", map[string]any{"season": float64(testSeasonID)})
+		require.False(t, result.IsError, resultText(t, result))
+		require.Len(t, db.calls, 1)
+		assert.Contains(t, db.calls[0].sql, "name: GetAwardsBySeason")
+		assert.Equal(t, []any{testSeasonID / awardSeasonStartYearDivisor}, db.calls[0].args)
+	})
+	t.Run("trophy", func(t *testing.T) {
+		const trophy = "Hart Memorial Trophy"
+		result, db := callNHLTool(t, "get_awards", map[string]any{trophyArg: trophy})
+		require.False(t, result.IsError, resultText(t, result))
+		require.Len(t, db.calls, 1)
+		assert.Contains(t, db.calls[0].sql, "name: GetAwardsByTrophy")
+		assert.Equal(t, []any{trophy}, db.calls[0].args)
+	})
+}
+
+// Fixture for the PostgreSQL-backed get_awards test: a season, player and
+// trophy pair no import uses. player_awards.season holds the start year
+// (awardsTestStartYear), as the importer writes it; awardsTestSeasonID is
+// the full season ID the tool's "season" argument takes, which the handler
+// must convert down to the start year before it reaches SQL.
+const (
+	awardsTestStartYear      = 3000
+	awardsTestOtherStartYear = 3001
+	awardsTestSeasonID       = awardsTestStartYear*10000 + awardsTestStartYear + 1
+	awardsTestPlayerID       = 9704001
+	awardsTestOtherID        = 9704002
+	awardsTestTrophy         = "Fixture Memorial Trophy"
+	awardsTestOtherTrophy    = "Other Fixture Trophy"
+)
+
+// TestAwardsFromDatabase runs the tool against the real queries: filtering
+// and ordering come from GetAwardsBySeason (trophy, then last name) and
+// GetAwardsByTrophy (season descending), not from Go code.
+func TestAwardsFromDatabase(t *testing.T) {
+	pool := openMCPTestDB(t)
+	deleteAwardsFixture(t, pool)
+	t.Cleanup(func() { deleteAwardsFixture(t, pool) })
+	seedAwardsFixture(t, pool)
+
+	tool := awardsTool(sqlcdb.New(pool))
+
+	t.Run("by season", func(t *testing.T) {
+		result := callTool(t, tool.Handler, map[string]any{"season": float64(awardsTestSeasonID)})
+		text := resultText(t, result)
+		require.False(t, result.IsError, text)
+		rows := parseCSV(t, text)
+		require.Len(t, rows, 3, text)
+		header := rows[0]
+		var got [][]string
+		for _, row := range rows[1:] {
+			got = append(got, []string{
+				row[columnIndex(t, header, "trophy_name")],
+				row[columnIndex(t, header, "last_name")],
+			})
+		}
+		assert.Equal(t, [][]string{
+			{awardsTestTrophy, "Winner"},
+			{awardsTestOtherTrophy, "OtherWinner"},
+		}, got)
+	})
+
+	t.Run("by trophy", func(t *testing.T) {
+		result := callTool(t, tool.Handler, map[string]any{trophyArg: awardsTestTrophy})
+		text := resultText(t, result)
+		require.False(t, result.IsError, text)
+		rows := parseCSV(t, text)
+		require.Len(t, rows, 3, text)
+		header := rows[0]
+		var got []string
+		for _, row := range rows[1:] {
+			got = append(got, row[columnIndex(t, header, "season")])
+		}
+		assert.Equal(t, []string{
+			strconv.Itoa(awardsTestOtherStartYear),
+			strconv.Itoa(awardsTestStartYear),
+		}, got)
+	})
+}
+
+func seedAwardsFixture(t *testing.T, pool *pgxpool.Pool) {
+	t.Helper()
+	ctx := context.Background()
+	exec := func(sql string, args ...any) {
+		t.Helper()
+		_, err := pool.Exec(ctx, sql, args...)
+		require.NoError(t, err)
+	}
+	exec(`INSERT INTO players (id, first_name, last_name) VALUES ($1, 'Fixture', 'Winner')`, awardsTestPlayerID)
+	exec(`INSERT INTO players (id, first_name, last_name) VALUES ($1, 'Fixture', 'OtherWinner')`, awardsTestOtherID)
+	exec(`INSERT INTO player_awards (player_id, trophy_name, season) VALUES ($1, $2, $3)`,
+		awardsTestPlayerID, awardsTestTrophy, awardsTestStartYear)
+	exec(`INSERT INTO player_awards (player_id, trophy_name, season) VALUES ($1, $2, $3)`,
+		awardsTestOtherID, awardsTestOtherTrophy, awardsTestStartYear)
+	exec(`INSERT INTO player_awards (player_id, trophy_name, season) VALUES ($1, $2, $3)`,
+		awardsTestPlayerID, awardsTestTrophy, awardsTestOtherStartYear)
+}
+
+func deleteAwardsFixture(t *testing.T, pool *pgxpool.Pool) {
+	t.Helper()
+	ctx := context.Background()
+	_, err := pool.Exec(ctx, `DELETE FROM player_awards WHERE player_id = ANY($1)`,
+		[]int64{awardsTestPlayerID, awardsTestOtherID})
+	require.NoError(t, err)
+	_, err = pool.Exec(ctx, `DELETE FROM players WHERE id = ANY($1)`,
+		[]int64{awardsTestPlayerID, awardsTestOtherID})
+	require.NoError(t, err)
+}
+
 const (
 	seasonRosterToolName = "get_season_roster"
 
