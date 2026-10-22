@@ -77,3 +77,20 @@ func TestParseValue_ErrorReturnsZeroValue(t *testing.T) {
 		t.Errorf("parseValue() error = %q, want prefix %q", err.Error(), "parse fixtures: ")
 	}
 }
+
+// json.Unmarshal decodes a slice element by element, so a type mismatch in
+// a later element leaves earlier, successfully decoded elements sitting in
+// the destination slice (verified directly: unmarshaling
+// `[{"name":"sidney"},{"name":5}]` into a []jsonCodecFixture yields a
+// non-nil, two-element slice alongside the error). parseValue must discard
+// that partially decoded slice and return the zero value instead of
+// handing the caller back something that looks like a decoded result.
+func TestParseValue_DiscardsPartiallyDecodedSliceOnLaterError(t *testing.T) {
+	got, err := parseValue[[]jsonCodecFixture]([]byte(`[{"name":"sidney"},{"name":5}]`), "parse fixtures")
+	if err == nil {
+		t.Fatal("parseValue() expected error, got nil")
+	}
+	if got != nil {
+		t.Fatalf("parseValue() on error = %+v, want nil slice, not the partially decoded elements", got)
+	}
+}

@@ -10,10 +10,15 @@ import (
 // cause stays unwrappable). errFormat is only formatted into the error
 // message on the error path; args are still evaluated by the caller before
 // the call, so a caller should not do its own expensive formatting there.
-// It is the shared byte-level mechanics behind every pointer-returning
-// resource Parse in this package; Path, URL and any custom Format stay on
-// the resource type, since those carry the actual domain information (and
-// some resources need a Format that is not plain json.Marshal).
+// It is the shared byte-level mechanics behind the pointer-returning
+// resource Parse methods in this package that decode a single JSON value
+// with no extra handling of their own; SeasonRoster.Parse (nhl_roster.go)
+// still decodes independently, and LeaguePlayers.Parse
+// (yahoo_league_players.go) deliberately returns a partially decoded value
+// on error, which parsePointer's nil-on-error contract would change. Path,
+// URL and any custom Format stay on the resource type, since those carry
+// the actual domain information (and some resources need a Format that is
+// not plain json.Marshal).
 //
 // On error it returns nil, not a partially decoded value: json.Unmarshal
 // can populate fields before hitting a later decode error, and a caller
