@@ -14,14 +14,24 @@ import (
 )
 
 var (
+	// ErrInvalidInput rejects a malformed Input (missing ranking, invalid
+	// pick order, out-of-range strategy).
 	ErrInvalidInput = errors.New("invalid draft recommendation input")
+	// ErrUnsafeRoster rejects a current roster that has invalid players or
+	// cannot be allocated to the league's slots.
 	ErrUnsafeRoster = errors.New("draft roster is incomplete or infeasible")
 )
 
 const (
-	BoardStatusReady      = "ready"
+	// BoardStatusReady means the board and ranking support advice.
+	BoardStatusReady = "ready"
+	// BoardStatusIncomplete means the session is partial, conflicted or
+	// unsafe, the ranking's pool is incomplete, or a pick lies outside the
+	// supplied order; no candidates.
 	BoardStatusIncomplete = "incomplete"
-	BoardStatusStale      = "stale"
+	// BoardStatusStale means the session is stale (no candidates) or the
+	// ranking is outdated (draftrank.AdviceOutdated; candidates kept).
+	BoardStatusStale = "stale"
 	// BoardStatusWithheld means the ranking was computed under rules the
 	// league no longer has (draftrank.AdviceWithheld); no candidates.
 	BoardStatusWithheld = "withheld"

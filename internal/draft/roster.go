@@ -40,8 +40,12 @@ var reserveSlots = []string{SlotInjuredReserve, SlotInjuredPlus, SlotNotActive}
 type SlotKind int
 
 const (
+	// SlotKindStarting is a base-position or flex slot whose player scores.
 	SlotKindStarting SlotKind = iota
+	// SlotKindBench is the ordinary bench, open to any base position.
 	SlotKindBench
+	// SlotKindReserve is an IR, IR+ or NA slot, open only to players Yahoo
+	// lists as eligible for it.
 	SlotKindReserve
 	// SlotKindUnsupported is a slot name the model does not know.
 	SlotKindUnsupported

@@ -22,10 +22,17 @@ import (
 type Scenario string
 
 const (
-	ScenarioBaseline     Scenario = "baseline"
-	ScenarioConservative          = Scenario(newsadjust.ScenarioConservative)
-	ScenarioBase                  = Scenario(newsadjust.ScenarioBase)
-	ScenarioOptimistic            = Scenario(newsadjust.ScenarioOptimistic)
+	// ScenarioBaseline ranks the unadjusted projection.
+	ScenarioBaseline Scenario = "baseline"
+	// ScenarioConservative ranks the news-adjusted projection that assumes
+	// the longest plausible absences.
+	ScenarioConservative = Scenario(newsadjust.ScenarioConservative)
+	// ScenarioBase ranks the news-adjusted projection under the expected
+	// absences.
+	ScenarioBase = Scenario(newsadjust.ScenarioBase)
+	// ScenarioOptimistic ranks the news-adjusted projection that assumes the
+	// shortest plausible absences.
+	ScenarioOptimistic = Scenario(newsadjust.ScenarioOptimistic)
 )
 
 // Scenarios lists every scenario in display order.

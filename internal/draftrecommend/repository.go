@@ -12,6 +12,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+// ErrRunNotFound is returned when no stored run matches the requested ID or
+// league session version.
 var ErrRunNotFound = errors.New("draft recommendation run not found")
 
 const maxDatabaseVersion = uint64(^uint64(0) >> 1)
@@ -27,6 +29,7 @@ type StoredRun struct {
 // deterministic replay. It does not regenerate or mutate a recommendation.
 type Repository struct{ pool *pgxpool.Pool }
 
+// NewRepository returns a Repository on pool.
 func NewRepository(pool *pgxpool.Pool) *Repository { return &Repository{pool: pool} }
 
 // Save persists one generated result. Metadata columns are derived from the

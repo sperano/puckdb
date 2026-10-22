@@ -27,9 +27,12 @@ type OverrideStore interface {
 type OverrideState string
 
 const (
-	OverrideActive  OverrideState = "active"
+	// OverrideActive is in force: neither reset nor expired.
+	OverrideActive OverrideState = "active"
+	// OverrideExpired passed its ExpiresAt.
 	OverrideExpired OverrideState = "expired"
-	OverrideReset   OverrideState = "reset"
+	// OverrideReset was ended by a manager (ResetAt); it wins over expiry.
+	OverrideReset OverrideState = "reset"
 )
 
 // OverrideStatus is an override with its state now.

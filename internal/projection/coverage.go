@@ -6,14 +6,20 @@ import (
 	"strings"
 )
 
+// CoverageIssueCode classifies a coverage failure.
 type CoverageIssueCode string
 
+// Coverage issue codes: a league category the model cannot project, a
+// draftable player whose projection lacks a category, and a scoring league
+// without a draftable player pool.
 const (
 	CoverageUnsupportedCategory CoverageIssueCode = "unsupported_category"
 	CoverageMissingProjection   CoverageIssueCode = "missing_projection"
 	CoverageMissingPlayerPool   CoverageIssueCode = "missing_player_pool"
 )
 
+// CoverageIssue is one coverage failure for a league category, and for one
+// player when PlayerKey is set.
 type CoverageIssue struct {
 	LeagueID    int
 	StatID      int
@@ -23,6 +29,8 @@ type CoverageIssue struct {
 	Explanation string
 }
 
+// CoverageError is the error ValidateCoverage returns, with every issue it
+// found.
 type CoverageError struct {
 	Issues []CoverageIssue
 }

@@ -22,7 +22,9 @@ const (
 type BenchPolicy string
 
 const (
+	// BenchIncluded counts bench seats as demand (the default).
 	BenchIncluded BenchPolicy = "included"
+	// BenchExcluded leaves bench seats out of demand, like reserve slots.
 	BenchExcluded BenchPolicy = "excluded"
 )
 
@@ -31,6 +33,9 @@ const (
 type WorkloadCapPolicy string
 
 const (
+	// WorkloadCapsPerPlayer applies max_games_played and max_goalie_starts
+	// to each player's projected games and starts. Without it, a league with
+	// such a cap fails to rank.
 	WorkloadCapsPerPlayer WorkloadCapPolicy = "per-player"
 )
 

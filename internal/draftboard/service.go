@@ -23,7 +23,9 @@ var (
 	// longer current. The error also wraps a *draftwatch.StaleStateVersionError
 	// carrying the expected and current versions.
 	ErrVersionConflict = errors.New("draft board state version conflict")
-	ErrNoOwnedTeam     = errors.New("owned Yahoo draft team is unavailable")
+	// ErrNoOwnedTeam means no imported team of the league is owned by the
+	// signed-in Yahoo user, so there is no roster to advise.
+	ErrNoOwnedTeam = errors.New("owned Yahoo draft team is unavailable")
 )
 
 // LeagueData contains current imported rules and the user's imported roster.
@@ -81,6 +83,8 @@ type Service struct {
 	recommendationCache map[string]draftrecommend.StoredRun
 }
 
+// NewService composes a board service. Options.Now defaults to time.Now; a
+// nil Options.Watch leaves watch controls unavailable.
 func NewService(data DataSource, recommendations RecommendationEngine, refresher Refresher, options Options) *Service {
 	if options.Now == nil {
 		options.Now = time.Now

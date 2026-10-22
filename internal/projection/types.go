@@ -1,24 +1,43 @@
+// Package projection builds the draft helper's deterministic baseline
+// projections: per-player season estimates (mean and interval) for every
+// scoring statistic, generated from regular-season NHL history available at
+// an as-of time, merged with the draftable player pool and with imported or
+// manual overrides, and stored as immutable snapshots whose config and
+// source-data hashes make each one reproducible. Evaluate scores a model
+// version against a held-out season.
 package projection
 
 import "time"
 
+// PlayerKind separates skater from goalie projections; the two project
+// different statistics.
 type PlayerKind string
 
+// Player kinds.
 const (
 	PlayerKindSkater PlayerKind = "skater"
 	PlayerKindGoalie PlayerKind = "goalie"
 )
 
+// Source says where a player projection's values come from.
 type Source string
 
+// Projection sources: SourceInternal is the model's own baseline,
+// SourceImported an external provider's row (Provider, ProviderVersion and
+// SourceAsOf required) and SourceManual a value entered by hand.
 const (
 	SourceInternal Source = "internal"
 	SourceImported Source = "imported"
 	SourceManual   Source = "manual"
 )
 
+// Stat names one projected season statistic; Values maps are keyed by it.
 type Stat string
 
+// Projected statistics. Skaters project StatGamesPlayed, StatTOISeconds and
+// StatGoals through StatFaceoffsLost (faceoffs from nhl-baseline-v2 on);
+// goalies StatGamesPlayed through StatTOISeconds and StatWins through
+// StatGoalsAgainstAvg.
 const (
 	StatGamesPlayed     Stat = "games_played"
 	StatGamesStarted    Stat = "games_started"
@@ -43,12 +62,19 @@ const (
 	StatGoalsAgainstAvg Stat = "goals_against_average"
 )
 
+// Estimate is one projected season total: Mean within the interval
+// [Low, High], nominally Mean ± Uncertainty × Mean, floored at zero for
+// counts and capped at Config.MaxGames for games played.
 type Estimate struct {
 	Mean float64
 	Low  float64
 	High float64
 }
 
+// SkaterSeason is a skater's regular-season totals for one season, credited
+// to one club (TeamID; SkaterClubSeason splits a traded skater's games), with
+// the TOI-weighted even-strength points per 60 of their linemates and the
+// shared TOI behind it for the linemate correction.
 type SkaterSeason struct {
 	PlayerID            int64
 	BirthDate           time.Time
@@ -181,6 +207,13 @@ type Override struct {
 	Values                  map[Stat]Estimate
 }
 
+// PlayerProjection is one player's row of a snapshot: the estimates, where
+// they come from, and the history behind them. HistorySeasons and
+// HistoryGames count the seasons and games read, SampleExposure the TOI
+// seconds (skaters) or shots against (goalies) they add up to, Uncertainty
+// the interval fraction the estimates use, InsufficientHistory a history
+// shorter than Config.MinimumHistoryGames, and MissingStats the statistics
+// the player's kind should have but Values lacks.
 type PlayerProjection struct {
 	PlayerKey               string
 	PlayerID                *int64
@@ -226,6 +259,10 @@ type LeagueCategory struct {
 	DisplayOnly bool
 }
 
+// Snapshot is the output of Generate for one target season and as-of time:
+// every projected player, sorted by PlayerKey, with the config that produced
+// them, the latest game date in the source data, and SourceDataHash over the
+// inputs, so an identical rebuild reproduces it.
 type Snapshot struct {
 	TargetSeason      int
 	AsOf              time.Time
@@ -235,6 +272,9 @@ type Snapshot struct {
 	Players           []PlayerProjection
 }
 
+// Input is everything Generate reads. History rows from TargetSeason or
+// later are ignored, so an evaluation can pass the held-out season's rows as
+// outcomes; ObservedAt is when those outcomes were read.
 type Input struct {
 	TargetSeason      int
 	AsOf              time.Time
@@ -255,6 +295,8 @@ type Input struct {
 	GoalieStarts []GoalieStart
 }
 
+// Value returns the estimate for stat, or the zero Estimate when the
+// projection has none.
 func (p PlayerProjection) Value(stat Stat) Estimate {
 	return p.Values[stat]
 }

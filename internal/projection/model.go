@@ -14,6 +14,12 @@ const (
 	typicalSkaterTOIPerGame = 15 * secondsPerMinute
 )
 
+// Generate projects every skater and goalie in the input's history plus
+// every player of the pool (pool players without history get maximum
+// uncertainty and explicit missing stats), applies the overrides, and returns
+// the snapshot sorted by player key. It is deterministic: the same config and
+// input give the same snapshot. Model versions that support an aging curve
+// fit one from the input when cfg carries none.
 func Generate(cfg Config, input Input) (Snapshot, error) {
 	if err := cfg.Validate(); err != nil {
 		return Snapshot{}, err
