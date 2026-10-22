@@ -130,7 +130,8 @@ func ObserveDBQueryDuration(query string, duration time.Duration) {
 }
 
 // IncValkeyCacheRequest records one logical cache read. Cache names must be a
-// bounded set such as core.FileType names; never pass resource keys.
+// bounded set: the resource file types (core.FileType.String()) and "gob", the
+// name GobCache.Get emits directly for key-based reads; never pass resource keys.
 func IncValkeyCacheRequest(cache, result string) {
 	valkeyCacheRequests.WithLabelValues(cache, result).Inc()
 }

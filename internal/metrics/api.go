@@ -3,9 +3,9 @@ package metrics
 import (
 	"fmt"
 	"net/http"
-	"strings"
 	"time"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -18,6 +18,10 @@ var (
 	}, []string{"api", "method", "status_code"})
 )
 
+// apiLabelUnmatched is the api label recorded for requests that match no route,
+// so scanner traffic and 404s cannot mint an unbounded set of histogram series.
+const apiLabelUnmatched = "unmatched"
+
 // HTTPMetricsMiddleware returns middleware that records HTTP request metrics for the API.
 func HTTPMetricsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -27,11 +31,11 @@ func HTTPMetricsMiddleware(next http.Handler) http.Handler {
 		next.ServeHTTP(ww, r)
 
 		duration := time.Since(start)
-		path := strings.TrimSuffix(r.URL.Path, "/")
-		if path == "" {
-			path = "/"
+		pattern := chi.RouteContext(r.Context()).RoutePattern()
+		if pattern == "" {
+			pattern = apiLabelUnmatched
 		}
-		apiHTTPRequestDuration.WithLabelValues(path, r.Method, fmt.Sprintf("%d", ww.statusCode)).Observe(duration.Seconds())
+		apiHTTPRequestDuration.WithLabelValues(pattern, r.Method, fmt.Sprintf("%d", ww.statusCode)).Observe(duration.Seconds())
 	})
 }
 

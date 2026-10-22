@@ -4,17 +4,26 @@
 //
 //   - WorkerRegistry — served by the worker process (StartWorkerServer):
 //     filesystem, HTTP-client, download, Temporal activity, database-query,
-//     Valkey-cache, and simulation metrics.
+//     Valkey-cache, and simulation metrics declared in worker.go; the pgx pool
+//     collector declared in database.go (registered at runtime by cmd/worker.go,
+//     not in init()); and the Temporal SDK's temporal_* series (schedule-to-start
+//     latency, task-slot gauges, poller counts), also registered at runtime by
+//     cmd/worker.go.
 //   - APIRegistry — served by the API process via HTTPMetricsMiddleware: the
 //     API server's own request duration.
 //   - CollectorRegistry — served by the standalone collector process
 //     (StartServer): cache, Redis, and database-state gauges plus build info.
 //
 // A metric is registered on exactly one registry; its owning registry is
-// stated next to its declaration. The metric declarations are split by
-// registry across the sibling files worker.go, api.go, and collector.go. This
-// file holds the registries, the shared histogram buckets, the Result* label
-// constants, and the HTTP-server plumbing that serves them.
+// stated next to its declaration. One name is the exception:
+// puckdb_http_request_duration_seconds is declared twice, once on WorkerRegistry
+// as the HTTP client's external-request duration (worker.go, api label = the
+// remote API such as "yahoo") and once on APIRegistry as the API server's
+// request duration (api.go, api label = the chi route pattern). The metric
+// declarations are split by registry across the sibling files worker.go,
+// api.go, collector.go, and database.go. This file holds the registries, the
+// shared histogram buckets, the Result* label constants, and the HTTP-server
+// plumbing that serves them.
 package metrics
 
 import (
