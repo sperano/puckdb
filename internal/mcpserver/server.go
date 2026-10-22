@@ -13,17 +13,17 @@
 // server.ServerTool values are folded into a same-area file's registration
 // list rather than registered on their own, e.g. tools_game_summary.go and
 // tools_game_log.go into tools_games.go/tools_stats.go, tools_player_lookup.go
-// into tools_players.go, tools_edge_leaders.go/tools_edge_metrics.go into
-// tools_edge.go, and every tools_yahoo_*.go/tools_draft_*.go file into
-// tools_yahoo.go's single registerYahooTools. Two names are easy to swap:
-// tools_stats.go (box-score and bulk season-total queries) vs.
-// tools_season_stats.go (sorted, filtered season leaderboards) — both nhl.
-// tools_news.go (nhl toolset: "get_recent_news_events", a short validated
-// headline list) is not part of the news toolset; the news toolset's tools
-// are tools_news_coverage.go (source freshness) and tools_player_news.go
-// (quoted articles for one player). tools_common.go, format.go and
-// draft_player_keys.go hold helpers shared across toolsets rather than
-// tools of their own.
+// into tools_players.go, tools_edge_leaders.go into tools_edge.go, and
+// every tools_yahoo_*.go/tools_draft_*.go file into tools_yahoo.go's single
+// registerYahooTools. Two names are easy to swap: tools_stats.go
+// (box-score and bulk season-total queries) vs. tools_season_stats.go
+// (sorted, filtered season leaderboards) — both nhl. tools_news.go (nhl
+// toolset: "get_recent_news_events", a short validated headline list) is
+// not part of the news toolset; the news toolset's tools are
+// tools_news_coverage.go (source freshness) and tools_player_news.go
+// (quoted articles for one player). tools_common.go, format.go,
+// draft_player_keys.go and tools_edge_metrics.go (shared Edge metric
+// tables) hold helpers with no server.ServerTool of their own.
 package mcpserver
 
 import (
