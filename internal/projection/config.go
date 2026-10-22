@@ -5,6 +5,11 @@ import (
 	"math"
 )
 
+// Model versions, each building on the previous one: nhl-baseline-v1 is the
+// original baseline, v2 adds faceoffs, v3 the linemate correction, v4 the
+// aging curve and v5 the team-environment adjustment; v6 and v7 are described
+// below. A stored snapshot keeps the version that produced it, and Validate
+// refuses settings a version does not support.
 const (
 	LegacyModelVersion          = "nhl-baseline-v1"
 	FaceoffModelVersion         = "nhl-baseline-v2"
@@ -19,11 +24,27 @@ const (
 	// ModelVersion (nhl-baseline-v7) builds on nhl-baseline-v6 and blends a
 	// goalie's share of his club's recent starts, playoffs included, into
 	// his projected starts; see goalie_share.go.
-	ModelVersion             = "nhl-baseline-v7"
+	ModelVersion = "nhl-baseline-v7"
+)
+
+// AgingCurveVersion, AgingTrainingFloorSeason and AgingAgeReference identify
+// how an AgingCurve was fitted: the delta method over consecutive seasons
+// from 2005-06 on, with a player's age taken on January 1 of the season's
+// ending year. Validate refuses a curve that names other values.
+const (
 	AgingCurveVersion        = "delta-v1"
 	AgingTrainingFloorSeason = 20052006
 	AgingAgeReference        = "jan-1-season-ending-year"
+)
 
+// Defaults of the model parameters DefaultConfig sets: the seasons of history
+// read and the weight decay per season of age, the skater (TOI seconds) and
+// goalie (shots against) priors regressing rates toward peers, the linemate
+// regression strength, the TOI a goalie needs for a shutout to count, the
+// games cap, the interval z-score with the uncertainty bounds it is clamped
+// to, and the games below which a history is insufficient; the
+// team-environment and goalie start-share defaults are described below.
+const (
 	DefaultLookbackSeasons            = 3
 	DefaultSeasonDecay                = 0.40
 	DefaultSkaterPriorTOISeconds      = 9_000
@@ -97,6 +118,8 @@ type Config struct {
 	GoalieShareBlend         float64 `json:",omitempty"`
 }
 
+// DefaultConfig returns the current model version with its default
+// parameters.
 func DefaultConfig() Config {
 	return Config{
 		ModelVersion:               ModelVersion,
@@ -135,6 +158,8 @@ func (c Config) HistoryFloorSeason(targetSeason int) int {
 	return historyFloorSeason(targetSeason, c.LookbackSeasons)
 }
 
+// Validate refuses a config with a missing model version, non-finite or
+// out-of-range parameters, or settings its model version does not support.
 func (c Config) Validate() error {
 	switch {
 	case c.ModelVersion == "":

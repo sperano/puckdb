@@ -7,11 +7,18 @@ import (
 	"time"
 )
 
+// These constants name the comparison model an Evaluation scores the
+// projection against: PreviousSeasonComparison is each player's
+// previous-season total (Evaluate), LinemateDisabledComparison the same
+// model without its linemate correction (EvaluateLinemateAdjustment).
 const (
 	PreviousSeasonComparison   = "previous-season-total"
 	LinemateDisabledComparison = "linemate-adjustment-disabled"
 )
 
+// Metric is the held-out error of one statistic: the mean absolute and
+// root-mean-square errors of the projection's means and of the comparison
+// model, over the SampleSize players both cover.
 type Metric struct {
 	Stat           Stat
 	SampleSize     int
@@ -21,6 +28,8 @@ type Metric struct {
 	ComparisonRMSE float64
 }
 
+// Evaluation is one held-out scoring of a model version for one player kind,
+// identified by the config and source-data hashes it ran on.
 type Evaluation struct {
 	ModelVersion    string
 	ConfigHash      string

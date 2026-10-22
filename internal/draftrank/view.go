@@ -21,6 +21,10 @@ var ErrInvalidQuery = errors.New("invalid ranking query")
 // player key, so every order is total and pages never overlap.
 type SortField string
 
+// Sort fields: the placement's overall rank (the default), position rank,
+// official score, value, adjusted value, uncertainty and tier; the player's
+// name (case- and accent-insensitive) and team; the baseline rank and the
+// rank change from it.
 const (
 	SortOverallRank   SortField = "overall_rank"
 	SortPositionRank  SortField = "position_rank"
@@ -39,6 +43,7 @@ const (
 // and uncertainty ascending; scores, values and rank changes descending).
 type SortDirection string
 
+// Sort directions: SortNatural keeps the field's own direction.
 const (
 	SortNatural    SortDirection = ""
 	SortAscending  SortDirection = "asc"
@@ -96,6 +101,13 @@ func (s *Snapshot) View(q Query) (View, error) {
 	if err != nil {
 		return View{}, err
 	}
+	return s.view(q), nil
+}
+
+// view is View for a query normalizeQuery already accepted, so Rankings can
+// reject an invalid query before reading the snapshot without normalizing it
+// twice.
+func (s *Snapshot) view(q Query) View {
 	view := View{Offset: q.Offset, Limit: q.Limit}
 	view.Scenario, view.Issues = s.ResolveScenario(q.Scenario)
 	var rows []Row
@@ -105,7 +117,7 @@ func (s *Snapshot) View(q Query) (View, error) {
 	}
 	view.Total = len(rows)
 	view.Rows = page(rows, q.Offset, q.Limit)
-	return view, nil
+	return view
 }
 
 func normalizeQuery(q Query) (Query, error) {

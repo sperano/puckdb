@@ -13,17 +13,23 @@ import (
 	"github.com/sperano/puckdb/internal/sqlcdb"
 )
 
+// Repository loads projection inputs from PostgreSQL and stores snapshots
+// and evaluations.
 type Repository struct {
 	pool    *pgxpool.Pool
 	queries *sqlcdb.Queries
 }
 
+// BuildRequest is what BuildSnapshot projects beyond the NHL history: the
+// draftable pool, the league categories its coverage must include, and the
+// overrides of a second, overridden snapshot.
 type BuildRequest struct {
 	PlayerPool []PoolPlayer
 	Categories []LeagueCategory
 	Overrides  []Override
 }
 
+// NewRepository returns a Repository on pool.
 func NewRepository(pool *pgxpool.Pool) *Repository {
 	return &Repository{pool: pool, queries: sqlcdb.New(pool)}
 }
@@ -117,6 +123,9 @@ func (r *Repository) loadInput(
 	return input, nil
 }
 
+// LoadEvaluationInput loads the input of a held-out evaluation of
+// targetSeason: history available at projectionAsOf, and the target season's
+// rows observed by observedAt as outcomes.
 func (r *Repository) LoadEvaluationInput(
 	ctx context.Context,
 	cfg Config,
@@ -370,6 +379,8 @@ func StoreSnapshotWith(ctx context.Context, queries *sqlcdb.Queries, snapshot Sn
 	return uuid.UUID(row.ID.Bytes), nil
 }
 
+// StoreEvaluation validates evaluation and stores it with its metrics in one
+// transaction, returning the new row's ID.
 func (r *Repository) StoreEvaluation(ctx context.Context, evaluation Evaluation) (uuid.UUID, error) {
 	if err := validateEvaluation(evaluation); err != nil {
 		return uuid.Nil, err

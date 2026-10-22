@@ -33,8 +33,10 @@ const (
 type Direction string
 
 const (
+	// HigherIsBetter ranks a larger value first (goals, saves).
 	HigherIsBetter Direction = "higher"
-	LowerIsBetter  Direction = "lower"
+	// LowerIsBetter ranks a smaller value first (goals against average).
+	LowerIsBetter Direction = "lower"
 	// DirectionUnknown means Yahoo did not say; it is never guessed.
 	DirectionUnknown Direction = ""
 )

@@ -13,6 +13,7 @@ import (
 // Format is an export format of a rankings page.
 type Format string
 
+// Export formats, written by WriteTable, WriteCSV and WriteJSON.
 const (
 	FormatTable Format = "table"
 	FormatCSV   Format = "csv"

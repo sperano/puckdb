@@ -15,6 +15,8 @@ import (
 const maxDraftEventPageSize = 200
 
 var (
+	// ErrStaleStateVersion means a versioned mutation's expected state
+	// version is no longer the session's; StaleStateVersionError carries both.
 	ErrStaleStateVersion = errors.New("draft state version is stale")
 	// ErrSessionNotFound means no draft session row exists for a league key
 	// yet; Ensure creates one.
@@ -32,6 +34,7 @@ func (e *StaleStateVersionError) Error() string {
 	return fmt.Sprintf("%v: expected %d, current %d", ErrStaleStateVersion, e.Expected, e.Actual)
 }
 
+// Is makes errors.Is(err, ErrStaleStateVersion) match.
 func (e *StaleStateVersionError) Is(target error) bool { return target == ErrStaleStateVersion }
 
 // Session is the persisted status needed by CLI and later API consumers.
@@ -85,6 +88,7 @@ type Observation struct {
 // Repository persists each reducer transition and its observation atomically.
 type Repository struct{ pool *pgxpool.Pool }
 
+// NewRepository returns a Repository on pool.
 func NewRepository(pool *pgxpool.Pool) *Repository { return &Repository{pool: pool} }
 
 // Ensure creates an empty persisted session when a board is opened before its

@@ -22,14 +22,20 @@ const (
 type Objective string
 
 const (
-	ObjectiveSeasonLong  Objective = "season-long"
-	ObjectiveHeadToHead  Objective = "head-to-head"
-	scoringTypeRoto                = "roto"
-	scoringTypeHead                = "head"
-	scoringTypeHeadOne             = "headone"
-	scoringTypePoint               = "point"
-	scoringTypeHeadPoint           = "headpoint"
-	problemListSeparator           = "; "
+	// ObjectiveSeasonLong ranks teams on season totals (roto, point).
+	ObjectiveSeasonLong Objective = "season-long"
+	// ObjectiveHeadToHead ranks teams on weekly matchups (head, headone,
+	// headpoint).
+	ObjectiveHeadToHead Objective = "head-to-head"
+)
+
+const (
+	scoringTypeRoto      = "roto"
+	scoringTypeHead      = "head"
+	scoringTypeHeadOne   = "headone"
+	scoringTypePoint     = "point"
+	scoringTypeHeadPoint = "headpoint"
+	problemListSeparator = "; "
 )
 
 // scoringTypes maps Yahoo's scoring_type to the format and objective it uses.

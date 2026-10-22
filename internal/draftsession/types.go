@@ -9,8 +9,12 @@ import (
 )
 
 var (
+	// ErrInvalidSnapshot rejects a Yahoo observation with a negative result
+	// count. Reconcile skips invalid picks rather than rejecting them.
 	ErrInvalidSnapshot = errors.New("invalid draft snapshot")
-	ErrInvalidManual   = errors.New("invalid manual draft operation")
+	// ErrInvalidManual rejects a manual operation or conflict resolution
+	// that does not fit the slot's current state.
+	ErrInvalidManual = errors.New("invalid manual draft operation")
 	// ErrDuplicatePlayer rejects a manual change or conflict resolution that
 	// would place one player in two effective slots. It wraps ErrInvalidManual.
 	ErrDuplicatePlayer = fmt.Errorf("%w: player is already drafted", ErrInvalidManual)
@@ -58,7 +62,11 @@ type Snapshot struct {
 type EntrySource string
 
 const (
-	SourceYahoo  EntrySource = "yahoo"
+	// SourceYahoo is a pick Yahoo reported.
+	SourceYahoo EntrySource = "yahoo"
+	// SourceManual is a local add or correction Yahoo has not confirmed. The
+	// live board also labels a conflicted undo (the Yahoo pick it hides)
+	// manual; EffectiveBoard itself omits undone picks.
 	SourceManual EntrySource = "manual"
 )
 
@@ -72,9 +80,14 @@ type BoardEntry struct {
 type ManualKind string
 
 const (
-	ManualAdd     ManualKind = "add"
+	// ManualAdd fills an empty slot.
+	ManualAdd ManualKind = "add"
+	// ManualCorrect replaces the pick in an occupied slot.
 	ManualCorrect ManualKind = "correct"
-	ManualUndo    ManualKind = "undo"
+	// ManualUndo empties an occupied slot: a tombstone hides a Yahoo pick
+	// until Yahoo agrees, and a local add with no Yahoo pick beneath it is
+	// simply removed.
+	ManualUndo ManualKind = "undo"
 )
 
 // ManualOperation adds, corrects, or undoes a slot in the advice-session
@@ -144,6 +157,8 @@ type DuplicatePlayer struct {
 type ConflictChoice string
 
 const (
-	KeepManual     ConflictChoice = "keep_manual"
+	// KeepManual keeps the manual change over Yahoo's current pick.
+	KeepManual ConflictChoice = "keep_manual"
+	// AcceptUpstream discards the manual change in favor of Yahoo's pick.
 	AcceptUpstream ConflictChoice = "accept_upstream"
 )

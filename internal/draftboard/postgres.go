@@ -47,10 +47,14 @@ func NewPGDataSource(pool *pgxpool.Pool, ranking RankingReader) *PGDataSource {
 		session: draftwatch.NewRepository(pool)}
 }
 
+// ResolveIdentity resolves a full league key or numeric league ID for season
+// to the session identity (draftwatch.ResolveIdentity).
 func (s *PGDataSource) ResolveIdentity(ctx context.Context, ref string, season int) (draftwatch.Identity, error) {
 	return draftwatch.ResolveIdentity(ctx, s.pool, ref, season)
 }
 
+// Session returns the league's persisted draft session, creating an empty
+// one on first use.
 func (s *PGDataSource) Session(ctx context.Context, id draftwatch.Identity) (draftwatch.Session, error) {
 	session, err := s.session.Get(ctx, id.LeagueKey)
 	if errors.Is(err, draftwatch.ErrSessionNotFound) {
@@ -59,20 +63,29 @@ func (s *PGDataSource) Session(ctx context.Context, id draftwatch.Identity) (dra
 	return session, err
 }
 
+// ApplyManual applies a manual board edit only while the session is still at
+// expectedVersion; a newer version fails with draftwatch.ErrStaleStateVersion.
 func (s *PGDataSource) ApplyManual(ctx context.Context, id draftwatch.Identity, operation draftsession.ManualOperation,
 	expectedVersion uint64, at time.Time) (draftwatch.Session, draftsession.Report, error) {
 	return s.session.ApplyManualAtVersion(ctx, id, operation, expectedVersion, at)
 }
 
+// ResolveConflict records a conflict choice only while the session is still
+// at expectedVersion; a newer version fails with
+// draftwatch.ErrStaleStateVersion.
 func (s *PGDataSource) ResolveConflict(ctx context.Context, id draftwatch.Identity, key draftsession.PickKey,
 	choice draftsession.ConflictChoice, expectedVersion uint64, at time.Time) (draftwatch.Session, draftsession.Report, error) {
 	return s.session.ResolveConflictAtVersion(ctx, id, key, choice, expectedVersion, at)
 }
 
+// ListEvents returns up to limit session events after afterVersion, oldest
+// first.
 func (s *PGDataSource) ListEvents(ctx context.Context, leagueKey string, afterVersion uint64, limit int) ([]draftwatch.Event, error) {
 	return s.session.ListEvents(ctx, leagueKey, afterVersion, limit)
 }
 
+// Ranking reads the league's latest ranking with its dynamic issues through
+// the shared draftrank read; a league without a snapshot is an error.
 func (s *PGDataSource) Ranking(ctx context.Context, id draftwatch.Identity) (draftrank.Read, error) {
 	return readRanking(ctx, s.ranking, id)
 }
@@ -91,6 +104,10 @@ func readRanking(ctx context.Context, reader RankingReader, id draftwatch.Identi
 	return read, nil
 }
 
+// LeagueData loads the league's current imported rules, the owned team
+// (ErrNoOwnedTeam when none is imported) with its roster and draft position,
+// the draft format and pick clock, and the estimated snake order when the
+// format allows one.
 func (s *PGDataSource) LeagueData(ctx context.Context, id draftwatch.Identity) (LeagueData, error) {
 	rules, err := draft.LoadSnapshot(ctx, s.queries, id.Season, id.LeagueID)
 	if err != nil {
@@ -190,6 +207,8 @@ func sameDate(left, right pgtype.Date) bool {
 	return left.Valid == right.Valid && (!left.Valid || left.Time.Equal(right.Time))
 }
 
+// ListShortlist returns the league's shortlisted player keys ordered by when
+// they were added (created_at), then by player key for equal timestamps.
 func (s *PGDataSource) ListShortlist(ctx context.Context, leagueKey string) ([]string, error) {
 	const query = `SELECT player_key FROM draft_shortlist WHERE league_key=$1 ORDER BY created_at, player_key`
 	rows, err := s.pool.Query(ctx, query, leagueKey)
@@ -208,6 +227,9 @@ func (s *PGDataSource) ListShortlist(ctx context.Context, leagueKey string) ([]s
 	return keys, rows.Err()
 }
 
+// SetShortlist adds or removes a shortlisted player while the session is
+// still at expectedVersion (ErrVersionConflict otherwise). A change advances
+// the session's sync version, not its state version.
 func (s *PGDataSource) SetShortlist(ctx context.Context, leagueKey, playerKey string, expectedVersion uint64, selected bool) error {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {

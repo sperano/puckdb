@@ -25,6 +25,10 @@ type AgingCurve struct {
 	Steps               []AgingStep
 }
 
+// AgingStep is one age's fitted change for a position group (C, W, D, G)
+// and statistic: DeltaPer60 is the mean change per 60 minutes, weighted by
+// the harmonic mean of each player's TOI in the two seasons, over Pairs
+// consecutive-season pairs whose weights sum to HarmonicTOISeconds.
 type AgingStep struct {
 	Group              string
 	Stat               Stat

@@ -46,6 +46,8 @@ type WatchController struct {
 	entries  map[string]*watchEntry
 }
 
+// NewWatchController returns a controller that resolves leagues with
+// resolver and runs each watch on a fresh runner from factory.
 func NewWatchController(resolver IdentityResolver, factory func() WatchRunner, options draftwatch.WatchOptions) *WatchController {
 	return &WatchController{resolver: resolver, factory: factory, options: options,
 		entries: make(map[string]*watchEntry)}

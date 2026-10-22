@@ -8,6 +8,8 @@ import (
 	"github.com/google/uuid"
 )
 
+// ErrStoreRequired is returned by Recommend on a Service without a store, so
+// no recommendation is ever returned unsaved.
 var ErrStoreRequired = errors.New("draft recommendation store is required")
 
 // RunStore persists every recommendation result before it is returned.
@@ -19,6 +21,7 @@ type RunStore interface {
 // available for deterministic replay and tests that must not write.
 type Service struct{ store RunStore }
 
+// NewService returns a Service that saves every result to store.
 func NewService(store RunStore) *Service { return &Service{store: store} }
 
 // Recommend evaluates one frozen input and persists its exact input/output.

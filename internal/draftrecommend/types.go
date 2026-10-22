@@ -10,6 +10,8 @@ import (
 	"github.com/sperano/puckdb/internal/draftsession"
 )
 
+// RecommendationVersion identifies the evaluation rules a Result was
+// produced with; stored runs keep it so a replay can tell them apart.
 const RecommendationVersion = "draft-recommendation-v1"
 
 // PickSlot is one pick in the verified chronological draft order. Supplying
@@ -19,6 +21,11 @@ type PickSlot struct {
 	TeamID int                  `json:"teamId"`
 }
 
+// Strategy is the drafter's explicit preferences. CategoryWeights multiply
+// a category's contribution to the selected scenario's adjusted value.
+// RiskTolerance in [0, 1] applies only when RiskToleranceSet: it discounts a
+// candidate's strategy value by uncertainty × (1 − RiskTolerance) × |value|,
+// so 1 ignores risk and a negative value is pushed further down.
 type Strategy struct {
 	CategoryWeights  map[int]float64 `json:"categoryWeights,omitempty"`
 	RiskTolerance    float64         `json:"riskTolerance,omitempty"`
@@ -65,6 +72,15 @@ type ADPSource struct {
 	ByPlayer map[string]float64 `json:"byPlayer,omitempty"`
 }
 
+// NumericReasons are the audited numbers behind a candidate: LeagueValue is
+// the ranking's adjusted value, StrategyValue that value under the strategy's
+// category weights, RiskAdjustment its uncertainty discount, MarginalValue
+// StrategyValue minus RiskAdjustment, and NewsDelta the selected scenario's
+// value minus the baseline's. AssignedSlot and AdditionalStarts are where the
+// player fits the roster and how many starting assignments that adds;
+// ScarcityCount counts the roster-feasible candidates (this one included)
+// who fit that slot, and the position rank and tier fields compare the
+// player with the next one who does.
 type NumericReasons struct {
 	LeagueValue        float64          `json:"leagueValue"`
 	StrategyValue      float64          `json:"strategyValue"`
@@ -84,12 +100,17 @@ type NumericReasons struct {
 	Tradeoffs          []string         `json:"tradeoffs,omitempty"`
 }
 
+// CategoryReason is one scoring category's contribution to a candidate's
+// value.
 type CategoryReason struct {
 	StatID int     `json:"statId"`
 	Name   string  `json:"name"`
 	Value  float64 `json:"value"`
 }
 
+// WaitRisk compares a candidate's sourced ADP with the drafter's next pick
+// number. Kind is the labeled estimate; it never claims the player will or
+// will not be available.
 type WaitRisk struct {
 	Kind           string    `json:"kind"`
 	Source         string    `json:"source"`
@@ -99,6 +120,10 @@ type WaitRisk struct {
 	NextPickNumber int       `json:"nextPickNumber"`
 }
 
+// Candidate is one available player with both recommendation ranks:
+// ValueRank by marginal value, RosterFitRank by roster fit (starting
+// assignments added, then the assigned slot's kind: starting before reserve
+// before bench, then slot scarcity, then marginal value).
 type Candidate struct {
 	PlayerKey     string         `json:"playerKey"`
 	Name          string         `json:"name"`
@@ -111,6 +136,10 @@ type Candidate struct {
 	WaitRisk      *WaitRisk      `json:"waitRisk,omitempty"`
 }
 
+// Result is one evaluation: the versions of every input it read, the board
+// status (BoardStatus* constants) and issues, the current pick and turn
+// estimate when an order was supplied, the best-value and best-roster-fit
+// recommendations, and every candidate.
 type Result struct {
 	RecommendationVersion string             `json:"recommendationVersion"`
 	SessionVersion        uint64             `json:"sessionVersion"`
@@ -136,6 +165,8 @@ type Result struct {
 	LatencyMillis         int64              `json:"latencyMillis"`
 }
 
+// ReplayCase is a stored result with the player the drafter actually
+// selected.
 type ReplayCase struct {
 	Result            Result `json:"result"`
 	SelectedPlayerKey string `json:"selectedPlayerKey"`
@@ -144,6 +175,10 @@ type ReplayCase struct {
 	ShownRecommendationKey string `json:"shownRecommendationKey,omitempty"`
 }
 
+// ReplayMetrics summarizes EvaluateReplay: how many selections matched the
+// recommendation shown (Correct of Cases, as the Correctness fraction), and
+// the 50th and 95th nearest-rank percentiles of evaluation latency (for an
+// even number of cases, P50 is the lower of the two middle values).
 type ReplayMetrics struct {
 	Cases        int     `json:"cases"`
 	Correct      int     `json:"correct"`

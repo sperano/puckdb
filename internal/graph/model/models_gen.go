@@ -756,16 +756,21 @@ type MauriceDraftBoardInput struct {
 }
 
 type MauriceDraftManualPickInput struct {
-	League               string                   `json:"league"`
-	Season               *int                     `json:"season,omitempty"`
-	Action               MauriceDraftManualAction `json:"action"`
-	Round                int                      `json:"round"`
-	Pick                 int                      `json:"pick"`
-	TeamKey              string                   `json:"teamKey"`
-	PlayerKey            string                   `json:"playerKey"`
-	Cost                 *int                     `json:"cost,omitempty"`
-	ExpectedStateVersion int64                    `json:"expectedStateVersion"`
-	ClientMutationID     string                   `json:"clientMutationId"`
+	League    string                   `json:"league"`
+	Season    *int                     `json:"season,omitempty"`
+	Action    MauriceDraftManualAction `json:"action"`
+	Round     int                      `json:"round"`
+	Pick      int                      `json:"pick"`
+	TeamKey   string                   `json:"teamKey"`
+	PlayerKey string                   `json:"playerKey"`
+	Cost      *int                     `json:"cost,omitempty"`
+	// The stateVersion the action was built from. The write is refused unless the
+	// session is still at it, so a repeated or stale click fails once the first
+	// one changed the board; this is the server's duplicate-action guard.
+	ExpectedStateVersion int64 `json:"expectedStateVersion"`
+	// Required and must be non-empty, but the server neither stores it nor
+	// deduplicates on it; see expectedStateVersion.
+	ClientMutationID string `json:"clientMutationId"`
 }
 
 type MauriceDraftNewsReason struct {
@@ -828,13 +833,18 @@ type MauriceDraftRecommendations struct {
 }
 
 type MauriceDraftResolveInput struct {
-	League               string                     `json:"league"`
-	Season               *int                       `json:"season,omitempty"`
-	Round                int                        `json:"round"`
-	Pick                 int                        `json:"pick"`
-	Choice               MauriceDraftConflictChoice `json:"choice"`
-	ExpectedStateVersion int64                      `json:"expectedStateVersion"`
-	ClientMutationID     string                     `json:"clientMutationId"`
+	League string                     `json:"league"`
+	Season *int                       `json:"season,omitempty"`
+	Round  int                        `json:"round"`
+	Pick   int                        `json:"pick"`
+	Choice MauriceDraftConflictChoice `json:"choice"`
+	// The stateVersion the action was built from. The write is refused unless the
+	// session is still at it, so a repeated or stale click fails once the first
+	// one changed the board; this is the server's duplicate-action guard.
+	ExpectedStateVersion int64 `json:"expectedStateVersion"`
+	// Required and must be non-empty, but the server neither stores it nor
+	// deduplicates on it; see expectedStateVersion.
+	ClientMutationID string `json:"clientMutationId"`
 }
 
 type MauriceDraftRoster struct {
@@ -874,12 +884,17 @@ type MauriceDraftShortlistInput struct {
 }
 
 type MauriceDraftSlotInput struct {
-	League               string `json:"league"`
-	Season               *int   `json:"season,omitempty"`
-	Round                int    `json:"round"`
-	Pick                 int    `json:"pick"`
-	ExpectedStateVersion int64  `json:"expectedStateVersion"`
-	ClientMutationID     string `json:"clientMutationId"`
+	League string `json:"league"`
+	Season *int   `json:"season,omitempty"`
+	Round  int    `json:"round"`
+	Pick   int    `json:"pick"`
+	// The stateVersion the action was built from. The write is refused unless the
+	// session is still at it, so a repeated or stale click fails once the first
+	// one changed the board; this is the server's duplicate-action guard.
+	ExpectedStateVersion int64 `json:"expectedStateVersion"`
+	// Required and must be non-empty, but the server neither stores it nor
+	// deduplicates on it; see expectedStateVersion.
+	ClientMutationID string `json:"clientMutationId"`
 }
 
 type MauriceDraftSyncStatus struct {
