@@ -208,10 +208,11 @@ func (s *ImportDayIfChangedSuite) TestFailedImportIsNotRecorded() {
 
 func TestDayInputs_ListsYahooTeamFilesWithoutSchedule(t *testing.T) {
 	day := time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC)
+	const season = 2023
 	act := &ImportActivities{Storage: store.NewMemStorage(), GobCache: newImportTestGobCache()}
-	teams := []yahoo.TeamInfo{{LeagueID: 1, TeamID: 2}}
+	teams := []yahoo.TeamInfo{{LeagueID: 1, TeamID: 2}, {LeagueID: 1, TeamID: 3}, {LeagueID: 4, TeamID: 5}}
 
-	inputs, err := act.dayInputs(context.Background(), ImportDayInput{Date: day, TeamIDs: teams})
+	inputs, err := act.dayInputs(context.Background(), ImportDayInput{Date: day, Season: season, TeamIDs: teams})
 
 	require.NoError(t, err)
 	paths := make([]string, len(inputs))
@@ -223,7 +224,33 @@ func TestDayInputs_ListsYahooTeamFilesWithoutSchedule(t *testing.T) {
 		resource.DailyStandings{Date: day}.Path(),
 		resource.Roster{LeagueID: 1, TeamID: 2, Date: day}.Path(),
 		resource.TeamSummary{LeagueID: 1, TeamID: 2, Date: day}.Path(),
-	}, paths)
+		resource.Roster{LeagueID: 1, TeamID: 3, Date: day}.Path(),
+		resource.TeamSummary{LeagueID: 1, TeamID: 3, Date: day}.Path(),
+		resource.Roster{LeagueID: 4, TeamID: 5, Date: day}.Path(),
+		resource.TeamSummary{LeagueID: 4, TeamID: 5, Date: day}.Path(),
+		resource.LeagueStandings{Season: season, LeagueID: 1, Date: day}.Path(),
+		resource.LeagueStandings{Season: season, LeagueID: 4, Date: day}.Path(),
+	}, paths, "one standings snapshot per league, after the team files")
+}
+
+// A league standings snapshot captured after the last import changes the
+// fingerprint, so the day is imported again.
+func TestDayInputsFingerprint_ChangesWhenStandingsAreCaptured(t *testing.T) {
+	day := time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC)
+	const season = 2023
+	mem := store.NewMemStorage()
+	act := &ImportActivities{Storage: mem, GobCache: newImportTestGobCache()}
+	input := ImportDayInput{Date: day, Season: season, TeamIDs: []yahoo.TeamInfo{{LeagueID: 1, TeamID: 2}}}
+
+	before, err := act.dayInputsFingerprint(context.Background(), input)
+	require.NoError(t, err)
+	standings := resource.LeagueStandings{Season: season, LeagueID: 1, Date: day}
+	require.NoError(t, mem.Write(context.Background(), standings.Path(), []byte("<fantasy_content/>")))
+	after, err := act.dayInputsFingerprint(context.Background(), input)
+	require.NoError(t, err)
+
+	require.NotEqual(t, before.Hash, after.Hash)
+	require.Equal(t, before.Files, after.Files, "a missing snapshot is already an input")
 }
 
 // A season-series row that fails on database state (here the game's teams)

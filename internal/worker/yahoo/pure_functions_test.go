@@ -146,12 +146,14 @@ func TestCollectSummaryParams_NoFiles(t *testing.T) {
 	a := &ImportActivities{Storage: mem, GobCache: cache.NewGobCache(nil)}
 	teams := []TeamInfo{{LeagueID: 1, TeamID: 1}}
 
-	summaryParams, _ := a.collectSummaryParams(
+	rows, _, err := a.collectSummaryParams(
 		context.Background(),
 		teams,
 		time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC),
 		make(core.OriginCounts),
 	)
+	require.NoError(t, err)
+	summaryParams := rows.summaries
 
 	assert.Empty(t, summaryParams)
 }
@@ -180,12 +182,14 @@ func TestCollectSummaryParams_ValidFile(t *testing.T) {
 	res := resource.TeamSummary{LeagueID: 12345, TeamID: 1, Date: date}
 	require.NoError(t, mem.Write(context.Background(), res.Path(), xmlContent))
 
-	summaryParams, _ := a.collectSummaryParams(
+	rows, _, err := a.collectSummaryParams(
 		context.Background(),
 		teams,
 		date,
 		make(core.OriginCounts),
 	)
+	require.NoError(t, err)
+	summaryParams := rows.summaries
 
 	require.Len(t, summaryParams, 1)
 	assert.Equal(t, int32(12345), summaryParams[0].LeagueID)
@@ -214,12 +218,14 @@ func TestCollectSummaryParams_MultipleTeams(t *testing.T) {
 		require.NoError(t, mem.Write(context.Background(), res.Path(), xmlContent))
 	}
 
-	summaryParams, _ := a.collectSummaryParams(
+	rows, _, err := a.collectSummaryParams(
 		context.Background(),
 		teams,
 		date,
 		make(core.OriginCounts),
 	)
+	require.NoError(t, err)
+	summaryParams := rows.summaries
 
 	// Only the two teams with files produce summaries.
 	assert.Len(t, summaryParams, 2)
@@ -314,6 +320,10 @@ func TestParseStatValue(t *testing.T) {
 		{"yahoo dash sentinel", "-", false, 0},
 		{"empty string", "", false, 0},
 		{"unparseable", "not-a-number", false, 0},
+		{"NaN", "NaN", false, 0},
+		{"infinity", "Inf", false, 0},
+		{"negative infinity", "-Infinity", false, 0},
+		{"beyond float32", "1e40", false, 0},
 		{"integer string", "42", true, 42},
 		{"float string", "3.14", true, 3.14},
 		{"negative", "-7", true, -7},
@@ -408,10 +418,12 @@ func TestCollectParams_CountUnreadableFiles(t *testing.T) {
 	require.NoError(t, mem.Write(context.Background(), resource.TeamSummary{LeagueID: 1, TeamID: 1, Date: date}.Path(), garbage))
 
 	rosters, rosterFailures := a.collectRosterParams(context.Background(), teams, date, make(core.OriginCounts))
-	summaries, summaryFailures := a.collectSummaryParams(context.Background(), teams, date, make(core.OriginCounts))
+	summaries, summaryFailures, err := a.collectSummaryParams(context.Background(), teams, date, make(core.OriginCounts))
+	require.NoError(t, err)
 
 	assert.Empty(t, rosters)
-	assert.Empty(t, summaries)
+	assert.Empty(t, summaries.summaries)
+	assert.Empty(t, summaries.stats)
 	assert.Equal(t, 1, rosterFailures, "team 2 has no file, which is not a failure")
 	assert.Equal(t, 1, summaryFailures)
 }

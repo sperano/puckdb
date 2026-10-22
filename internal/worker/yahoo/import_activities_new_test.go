@@ -411,7 +411,8 @@ func (s *ImportYahooDataForDateSuite) TestEmptyTeams_ReturnsEmpty() {
 func (s *ImportYahooDataForDateSuite) TestNoFiles_ReturnsEmpty() {
 	mem := store.NewMemStorage()
 	q := &MockQueries{}
-	a := &ImportActivities{Storage: mem, GobCache: cache.NewGobCache(nil), Queries: q}
+	tx := &stubTx{q: q}
+	a := &ImportActivities{Storage: mem, GobCache: cache.NewGobCache(nil), Queries: q, Tx: tx}
 
 	input := ImportYahooDataForDateInput{
 		Season: 2023,
@@ -428,6 +429,7 @@ func (s *ImportYahooDataForDateSuite) TestNoFiles_ReturnsEmpty() {
 	require.NoError(s.T(), val.Get(&result))
 	assert.Equal(s.T(), 0, result.SummariesImported)
 	assert.Equal(s.T(), 0, result.RostersImported)
+	assert.Zero(s.T(), tx.calls, "a date with nothing to write opens no transaction")
 }
 
 func (s *ImportYahooDataForDateSuite) TestWithSummaryAndRoster() {
@@ -443,10 +445,16 @@ func (s *ImportYahooDataForDateSuite) TestWithSummaryAndRoster() {
 
 	q.On("UpsertYahooTeamSummaryBatch", mock.Anything, mock.Anything).
 		Return(sqlcdb.NewUpsertYahooTeamSummaryBatchBatchResults(&mockBatchResults{}, 1))
+	q.On("ReplaceYahooTeamSummaryStatsBatch", mock.Anything, mock.MatchedBy(func(p []sqlcdb.ReplaceYahooTeamSummaryStatsBatchParams) bool {
+		return len(p) == 1 && p[0].LeagueID == 12345 && p[0].TeamID == 1
+	})).Return(sqlcdb.NewReplaceYahooTeamSummaryStatsBatchBatchResults(&mockBatchResults{}, 1))
 	q.On("UpsertYahooTeamRosterBatch", mock.Anything, mock.Anything).
 		Return(sqlcdb.NewUpsertYahooTeamRosterBatchBatchResults(&mockBatchResults{}, 1))
 
-	a := &ImportActivities{Storage: mem, GobCache: cache.NewGobCache(nil), Queries: q}
+	// Every write goes through the transaction's queries: the pool-scoped
+	// Queries has no expectations, so a call to it would fail the test.
+	tx := &stubTx{q: q}
+	a := &ImportActivities{Storage: mem, GobCache: cache.NewGobCache(nil), Queries: &MockQueries{}, Tx: tx}
 
 	input := ImportYahooDataForDateInput{
 		Season: 2023,
@@ -463,6 +471,7 @@ func (s *ImportYahooDataForDateSuite) TestWithSummaryAndRoster() {
 	require.NoError(s.T(), val.Get(&result))
 	assert.Equal(s.T(), 1, result.SummariesImported)
 	assert.Equal(s.T(), 1, result.RostersImported)
+	assert.Equal(s.T(), 1, tx.calls, "the date's writes run in one transaction")
 	q.AssertExpectations(s.T())
 }
 
@@ -478,13 +487,14 @@ func (s *ImportYahooDataForDateSuite) TestSummaryUpsertError() {
 	q.On("UpsertYahooTeamSummaryBatch", mock.Anything, mock.Anything).
 		Return(sqlcdb.NewUpsertYahooTeamSummaryBatchBatchResults(&mockBatchResults{ExecErr: assert.AnError}, 1))
 
-	a := &ImportActivities{Storage: mem, GobCache: cache.NewGobCache(nil), Queries: q}
+	a := &ImportActivities{Storage: mem, GobCache: cache.NewGobCache(nil), Queries: q, Tx: &stubTx{q: q}}
 	input := ImportYahooDataForDateInput{Season: 2023, Teams: teams, Date: date}
 
 	s.env.RegisterActivity(a.ImportYahooDataForDate)
 	_, err := s.env.ExecuteActivity(a.ImportYahooDataForDate, input)
 
 	require.Error(s.T(), err)
+	q.AssertNotCalled(s.T(), "ReplaceYahooTeamSummaryStatsBatch", mock.Anything, mock.Anything)
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -728,9 +738,11 @@ func TestCollectSummaryParams_InvalidStatID_Skipped(t *testing.T) {
 	res := resource.TeamSummary{LeagueID: 12345, TeamID: 1, Date: date}
 	require.NoError(t, mem.Write(context.Background(), res.Path(), xml))
 
-	summaryParams, _ := a.collectSummaryParams(
+	rows, _, err := a.collectSummaryParams(
 		context.Background(), teams, date, make(core.OriginCounts),
 	)
+	require.NoError(t, err)
+	summaryParams := rows.summaries
 
 	// The summary should have the valid stat (2=assists) populated, invalid stat ID skipped.
 	require.Len(t, summaryParams, 1)

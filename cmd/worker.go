@@ -377,6 +377,7 @@ func registerYahooImportActivities(w worker.Worker, d taskActivityDeps) *yahoo.I
 		Storage:  d.storage,
 		GobCache: d.gobCache,
 		Queries:  d.queries,
+		Tx:       yahoo.NewPgxTransactor(d.pool),
 	}
 	w.RegisterActivity(importYahooActivities.ImportYahooLeague)
 	w.RegisterActivity(importYahooActivities.ImportYahooStandInLeague) // TEMPORARY: see config.LeagueMetadataSource

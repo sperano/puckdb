@@ -18,6 +18,7 @@ import (
 	"github.com/sperano/puckdb/internal/resource"
 	"github.com/sperano/puckdb/internal/sqlcdb"
 	"github.com/sperano/puckdb/internal/store"
+	"github.com/sperano/puckdb/internal/worker/yahoo"
 	"go.temporal.io/sdk/activity"
 )
 
@@ -26,7 +27,11 @@ import (
 // new or changed column mapping, a new table filled per day, a parser
 // dependency upgrade that changes parsed values, or a migration that drops
 // or rebuilds day-level rows. The next import then re-imports every day once.
-const DayImporterVersion = 1
+//
+// Version 2: Yahoo summaries also write every category to
+// yahoo_team_summary_stats, and each league's standings snapshot fills the
+// summaries' standings columns.
+const DayImporterVersion = 2
 
 // Reasons ImportDayIfChanged logs for importing a day; dayImportReasonNoChange
 // is the skip verdict and never logged.
@@ -193,7 +198,8 @@ func writeFileFingerprint(ctx context.Context, h hash.Hash, s store.Storage, r c
 
 // dayInputs lists the cached files ImportDay reads for the day: the daily
 // schedule, every scheduled game's five game files, the daily standings and
-// each Yahoo team's roster and summary.
+// the Yahoo files of yahoo.DateInputs (each team's roster and summary, each
+// league's standings snapshot).
 func (a *ImportActivities) dayInputs(ctx context.Context, input ImportDayInput) ([]core.Resource, error) {
 	scheduleRes := resource.DailySchedule{Date: input.Date}
 	inputs := []core.Resource{scheduleRes}
@@ -213,11 +219,6 @@ func (a *ImportActivities) dayInputs(ctx context.Context, input ImportDayInput) 
 		}
 	}
 	inputs = append(inputs, resource.DailyStandings{Date: input.Date})
-	for _, team := range input.TeamIDs {
-		inputs = append(inputs,
-			resource.Roster{LeagueID: team.LeagueID, TeamID: team.TeamID, Date: input.Date},
-			resource.TeamSummary{LeagueID: team.LeagueID, TeamID: team.TeamID, Date: input.Date},
-		)
-	}
+	inputs = append(inputs, yahoo.DateInputs(yahooDateInput(input))...)
 	return inputs, nil
 }

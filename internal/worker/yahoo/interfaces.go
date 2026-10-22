@@ -6,6 +6,13 @@ import (
 	"github.com/sperano/puckdb/internal/sqlcdb"
 )
 
+// Transactor runs fn in one database transaction: it commits when fn returns
+// nil and rolls back otherwise. fn must use only the upserter it is given;
+// the pool-scoped Queries would write outside the transaction.
+type Transactor interface {
+	InTx(ctx context.Context, fn func(YahooDataUpserter) error) error
+}
+
 // YahooLeagueUpserter is the interface for database operations needed by Yahoo league import.
 type YahooLeagueUpserter interface {
 	UpsertYahooLeague(ctx context.Context, arg sqlcdb.UpsertYahooLeagueParams) error
@@ -22,6 +29,9 @@ type YahooTeamUpserter interface {
 // YahooDataUpserter defines the interface for batch Yahoo data upsert operations.
 type YahooDataUpserter interface {
 	UpsertYahooTeamSummaryBatch(ctx context.Context, arg []sqlcdb.UpsertYahooTeamSummaryBatchParams) *sqlcdb.UpsertYahooTeamSummaryBatchBatchResults
+	ReplaceYahooTeamSummaryStatsBatch(ctx context.Context, arg []sqlcdb.ReplaceYahooTeamSummaryStatsBatchParams) *sqlcdb.ReplaceYahooTeamSummaryStatsBatchBatchResults
+	UpsertYahooTeamStandingBatch(ctx context.Context, arg []sqlcdb.UpsertYahooTeamStandingBatchParams) *sqlcdb.UpsertYahooTeamStandingBatchBatchResults
+	ClearYahooTeamStandingsExcept(ctx context.Context, arg sqlcdb.ClearYahooTeamStandingsExceptParams) error
 	UpsertYahooTeamRosterBatch(ctx context.Context, arg []sqlcdb.UpsertYahooTeamRosterBatchParams) *sqlcdb.UpsertYahooTeamRosterBatchBatchResults
 	UpsertYahooTransactionBatch(ctx context.Context, arg []sqlcdb.UpsertYahooTransactionBatchParams) *sqlcdb.UpsertYahooTransactionBatchBatchResults
 	UpsertYahooTransactionPlayerBatch(ctx context.Context, arg []sqlcdb.UpsertYahooTransactionPlayerBatchParams) *sqlcdb.UpsertYahooTransactionPlayerBatchBatchResults

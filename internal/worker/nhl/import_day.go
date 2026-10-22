@@ -98,8 +98,7 @@ func (a *ImportActivities) importDay(ctx context.Context, input ImportDayInput) 
 	activity.RecordHeartbeat(ctx, "yahoo")
 
 	if len(input.TeamIDs) > 0 {
-		yahooInput := yahoo.ImportYahooDataForDateInput{Season: input.Season, Teams: input.TeamIDs, Date: input.Date}
-		yahooResult, err := a.Yahoo.ImportYahooDataForDate(ctx, yahooInput)
+		yahooResult, err := a.Yahoo.ImportYahooDataForDate(ctx, yahooDateInput(input))
 		if err != nil {
 			return result, fmt.Errorf("import Yahoo data for %s: %w", input.Date.Format(config.DateFormat), err)
 		}
@@ -109,4 +108,10 @@ func (a *ImportActivities) importDay(ctx context.Context, input ImportDayInput) 
 
 	logger.Debug("Imported day data", "date", input.Date.Format(config.DateFormat))
 	return result, nil
+}
+
+// yahooDateInput is the Yahoo part of a day import, shared by the import and
+// its fingerprint (dayInputs) so both name the same files.
+func yahooDateInput(input ImportDayInput) yahoo.ImportYahooDataForDateInput {
+	return yahoo.ImportYahooDataForDateInput{Season: input.Season, Teams: input.TeamIDs, Date: input.Date}
 }

@@ -97,6 +97,141 @@ WHERE (yahoo_team_summaries.coverage_type,
        EXCLUDED.shp, EXCLUDED.gwg,
        EXCLUDED.hits, EXCLUDED.blocks);
 
+-- name: UpsertYahooTeamStandingBatch :batchexec
+-- Writes the standings snapshot of one team and date, creating the summary
+-- row when the team's stats of that date were not imported. Only the
+-- standings columns change, so the category columns are left as they are.
+INSERT INTO yahoo_team_summaries (
+    league_id, team_id, date,
+    standings_captured_at, standings_rank, standings_playoff_seed,
+    h2h_wins, h2h_losses, h2h_ties, h2h_percentage,
+    h2h_division_wins, h2h_division_losses, h2h_division_ties, h2h_division_percentage
+)
+VALUES ($1, $2, $3,
+    $4, $5, $6,
+    $7, $8, $9, $10,
+    $11, $12, $13, $14)
+ON CONFLICT (league_id, team_id, date) DO UPDATE SET
+    standings_captured_at = EXCLUDED.standings_captured_at,
+    standings_rank = EXCLUDED.standings_rank,
+    standings_playoff_seed = EXCLUDED.standings_playoff_seed,
+    h2h_wins = EXCLUDED.h2h_wins,
+    h2h_losses = EXCLUDED.h2h_losses,
+    h2h_ties = EXCLUDED.h2h_ties,
+    h2h_percentage = EXCLUDED.h2h_percentage,
+    h2h_division_wins = EXCLUDED.h2h_division_wins,
+    h2h_division_losses = EXCLUDED.h2h_division_losses,
+    h2h_division_ties = EXCLUDED.h2h_division_ties,
+    h2h_division_percentage = EXCLUDED.h2h_division_percentage,
+    updated_at = NOW()
+WHERE (yahoo_team_summaries.standings_captured_at, yahoo_team_summaries.standings_rank,
+       yahoo_team_summaries.standings_playoff_seed,
+       yahoo_team_summaries.h2h_wins, yahoo_team_summaries.h2h_losses,
+       yahoo_team_summaries.h2h_ties, yahoo_team_summaries.h2h_percentage,
+       yahoo_team_summaries.h2h_division_wins, yahoo_team_summaries.h2h_division_losses,
+       yahoo_team_summaries.h2h_division_ties, yahoo_team_summaries.h2h_division_percentage)
+      IS DISTINCT FROM
+      (EXCLUDED.standings_captured_at, EXCLUDED.standings_rank,
+       EXCLUDED.standings_playoff_seed,
+       EXCLUDED.h2h_wins, EXCLUDED.h2h_losses,
+       EXCLUDED.h2h_ties, EXCLUDED.h2h_percentage,
+       EXCLUDED.h2h_division_wins, EXCLUDED.h2h_division_losses,
+       EXCLUDED.h2h_division_ties, EXCLUDED.h2h_division_percentage);
+
+-- name: ClearYahooTeamStandingsExcept :exec
+-- Removes the standings snapshot of a league's date from every team but
+-- team_ids (the teams the current snapshot file wrote), so a team the file no
+-- longer lists keeps no standing from an earlier file.
+UPDATE yahoo_team_summaries SET
+    standings_captured_at = NULL,
+    standings_rank = NULL,
+    standings_playoff_seed = NULL,
+    h2h_wins = NULL,
+    h2h_losses = NULL,
+    h2h_ties = NULL,
+    h2h_percentage = NULL,
+    h2h_division_wins = NULL,
+    h2h_division_losses = NULL,
+    h2h_division_ties = NULL,
+    h2h_division_percentage = NULL,
+    updated_at = NOW()
+WHERE league_id = sqlc.arg(league_id)
+  AND date = sqlc.arg(date)
+  AND standings_captured_at IS NOT NULL
+  AND team_id <> ALL(sqlc.arg(team_ids)::integer[]);
+
+-- name: GetLatestYahooStandingsSnapshotDate :one
+-- The latest date of the league with a standings snapshot; NULL when the
+-- league has none. Only this league's rows count, so another league's later
+-- capture never moves it.
+SELECT MAX(date)::date AS date
+FROM yahoo_team_summaries
+WHERE league_id = $1 AND standings_captured_at IS NOT NULL;
+
+-- name: GetYahooTeamSummarySnapshot :many
+-- A league's summary rows of one date, every team or only team_id: the
+-- standings snapshot captured that date (NULL standings columns when none
+-- was) and the fixed category columns. Ordered by team.
+SELECT * FROM yahoo_team_summaries
+WHERE league_id = sqlc.arg(league_id)
+  AND date = sqlc.arg(date)
+  AND (sqlc.narg(team_id)::integer IS NULL OR team_id = sqlc.narg(team_id))
+ORDER BY team_id;
+
+-- =============================================================================
+-- Yahoo Team Summary Stats
+-- =============================================================================
+
+-- name: ReplaceYahooTeamSummaryStatsBatch :batchexec
+-- Replaces the category values of one team summary with stats, a JSON array
+-- of {"stat_id", "value", "raw_value"} objects with distinct stat IDs: values
+-- the array lists are upserted, every other stat of the summary is deleted.
+-- One statement, so a reader never sees half of a replacement.
+WITH incoming AS (
+    SELECT (e ->> 'stat_id')::integer AS stat_id,
+           (e ->> 'value')::double precision AS value,
+           (e ->> 'raw_value')::text AS raw_value
+    FROM jsonb_array_elements(sqlc.arg(stats)::jsonb) AS e
+), removed AS (
+    DELETE FROM yahoo_team_summary_stats old
+    WHERE old.league_id = sqlc.arg(league_id)::integer
+      AND old.team_id = sqlc.arg(team_id)::integer
+      AND old.date = sqlc.arg(date)::date
+      AND old.stat_id NOT IN (SELECT incoming.stat_id FROM incoming)
+)
+INSERT INTO yahoo_team_summary_stats (league_id, team_id, date, stat_id, value, raw_value)
+SELECT sqlc.arg(league_id)::integer, sqlc.arg(team_id)::integer, sqlc.arg(date)::date,
+       incoming.stat_id, incoming.value, incoming.raw_value
+FROM incoming
+ON CONFLICT (league_id, team_id, date, stat_id) DO UPDATE SET
+    value = EXCLUDED.value,
+    raw_value = EXCLUDED.raw_value,
+    updated_at = NOW()
+WHERE (yahoo_team_summary_stats.value, yahoo_team_summary_stats.raw_value)
+      IS DISTINCT FROM (EXCLUDED.value, EXCLUDED.raw_value);
+
+-- name: GetYahooTeamSummaryStatsSnapshot :many
+-- A league's category values of one date, every team or only team_id, with
+-- the league's category definition when it has one (NULL columns for a stat
+-- ID the league settings do not list). Ordered by team, then stat ID.
+SELECT s.team_id,
+       s.stat_id,
+       s.value,
+       s.raw_value,
+       c.name,
+       c.display_name,
+       c.abbr,
+       c.position_type,
+       c.sort_order,
+       c.is_only_display_stat
+FROM yahoo_team_summary_stats s
+LEFT JOIN yahoo_league_stat_categories c
+    ON c.league_id = s.league_id AND c.stat_id = s.stat_id
+WHERE s.league_id = sqlc.arg(league_id)
+  AND s.date = sqlc.arg(date)
+  AND (sqlc.narg(team_id)::integer IS NULL OR s.team_id = sqlc.narg(team_id))
+ORDER BY s.team_id, s.stat_id;
+
 -- =============================================================================
 -- Yahoo Team Rosters
 -- =============================================================================

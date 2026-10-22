@@ -117,7 +117,7 @@ License: GPL-3.0-or-later (`LICENSE`, copyright notice in `COPYRIGHT`). A new de
 
 Defined in `internal/worker/workflow/`:
 - `FetchSeasonsWorkflow` / `FetchNHLSeasonWorkflow` / `FetchYahooSeasonWorkflow` — NHL season data (parent + children); the parent runs the Yahoo and NHL season groups concurrently (the import runs them in order: day-level Yahoo roster rows need the imported teams), then fetches the upcoming (not yet started) season's camp rosters for the prior season's clubs. `FetchYahooSeasonWorkflow` also captures each league's current standings (`resource.LeagueStandings`, `league/<key>/standings`, no date filter at Yahoo) under the capture day in `America/Los_Angeles` (`resource.StandingsCaptureDate`): the first capture of a day is the day's snapshot, nothing is ever backfilled for another day, and days outside the league's season are skipped (see https://wiki.spe.quebec/en/puckdb/plans/yahoo-team-standings)
-- `ImportSeasonsWorkflow` / `ImportNHLSeasonWorkflow` / `ImportYahooSeasonWorkflow` — Parse cached files into Postgres; the parent also carries the prior season's clubs forward to the upcoming season (`season_teams`) and imports its camp rosters. `ImportNHLSeasonWorkflow` runs `ImportDayIfChanged` per day: a day whose cached files (path, size, mtime) and `worknhl.DayImporterVersion` match its `nhl_day_imports` row is skipped (a day whose game-story/season-series rows or Yahoo files were skipped after errors is not recorded, so it is retried); bump `DayImporterVersion` whenever the same files would produce different rows, and use `sync --reimport-days` (GraphQL `SeasonsInput.reimportDays`) to force a full re-import
+- `ImportSeasonsWorkflow` / `ImportNHLSeasonWorkflow` / `ImportYahooSeasonWorkflow` — Parse cached files into Postgres; the parent also carries the prior season's clubs forward to the upcoming season (`season_teams`) and imports its camp rosters. `ImportNHLSeasonWorkflow` runs `ImportDayIfChanged` per day: a day whose cached files (path, size, mtime; the Yahoo files are `yahoo.DateInputs`: rosters, summaries and each league's standings snapshot) and `worknhl.DayImporterVersion` match its `nhl_day_imports` row is skipped (a day whose game-story/season-series rows or Yahoo files were skipped after errors is not recorded, so it is retried); bump `DayImporterVersion` whenever the same files would produce different rows, and use `sync --reimport-days` (GraphQL `SeasonsInput.reimportDays`) to force a full re-import
 - `FetchPlayerLogsWorkflow` / `FetchSeasonPlayerLogsWorkflow` — Per-player game logs
 - `ImportPlayerLogsWorkflow` / `ImportSeasonPlayerLogsWorkflow` — Import those logs
 - `FetchPlayerLandingsWorkflow` — NHL player landing pages
@@ -320,7 +320,6 @@ PostgreSQL database storing NHL game data and Yahoo Fantasy league data. Two mai
 | `play_events` | ~7.8M | Per play (PBP) per game |
 | `game_skater_stats` | ~2.26M | Per game per player |
 | `yahoo_team_rosters` | ~1.0M | Per day per roster slot |
-| `yahoo_team_summary_stats` | ~624K | Per stat per team-day |
 | `goal_highlights` | ~400K | Per goal |
 | `player_season_totals` | ~319K | Per player per season |
 | `standings_snapshots` | ~305K | Per team per day |
@@ -328,7 +327,7 @@ PostgreSQL database storing NHL game data and Yahoo Fantasy league data. Two mai
 | `club_skater_stats` | ~76K | Per team per season |
 | `games` | ~65K | ~1,300/season |
 | `season_rosters` | ~59K | Per season roster slot |
-| `yahoo_team_summaries` | ~54K | Per league per team-week |
+| `yahoo_team_summaries` | ~54K | Per team per day |
 | `players` | ~9.6K | Slow (new players only) |
 
 ### NHL Data
@@ -391,8 +390,8 @@ PostgreSQL database storing NHL game data and Yahoo Fantasy league data. Two mai
 | `yahoo_teams` | Fantasy teams in leagues | `league_id`, `id`, `team_key`, `name`, `is_owned_by_current_login` |
 | `yahoo_team_rosters` | Daily roster snapshots | `league_id`, `team_id`, `date`, `player_id`, `selected_position` |
 | `yahoo_team_managers` | Team managers | `league_id`, `team_id`, `manager_id`, `nickname` |
-| `yahoo_team_summaries` | Team standings/records (per snapshot) | `league_id`, `team_id`, `rank`, `wins`, `losses` |
-| `yahoo_team_summary_stats` | Per-stat values for team summaries (PK `(league_id, team_id, date, stat_id)`, FK → `yahoo_team_summaries`) | `league_id`, `team_id`, `date`, `stat_id`, `value` |
+| `yahoo_team_summaries` | A team's day (PK `(league_id, team_id, date)`): fixed category columns from the daily team stats (`wins` is the goalie-wins category), plus the H2H standings snapshot captured that day, NULL when none was (Yahoo serves current standings only, so a missed day stays a gap); `GetLatestYahooStandingsSnapshotDate` is the league's latest snapshot | `goals` … `blocks`, `standings_captured_at` (file mtime; NULL = no snapshot), `standings_rank`, `standings_playoff_seed`, `h2h_wins`/`h2h_losses`/`h2h_ties`/`h2h_percentage`, `h2h_division_*` |
+| `yahoo_team_summary_stats` | Every category of a team summary, any Yahoo stat ID (PK `(league_id, team_id, date, stat_id)`, FK → `yahoo_team_summaries` ON DELETE CASCADE); the import replaces a summary's whole set, so no stale category stays | `stat_id`, `value` (double, NULL for `-`/non-numeric), `raw_value` (Yahoo's text) |
 | `yahoo_matchups` | Head-to-head matchups (PK `(league_id, week, team1_id, team2_id)`) | `league_id`, `week`, `team1_id`, `team2_id`, `team1_points`, `team2_points`, `status`, `is_playoffs`, `is_consolation` |
 | `yahoo_draft_results` | Draft picks (PK `(league_id, round, pick)`) | `league_id`, `round`, `pick`, `team_id`, `player_id`, `cost` |
 | `yahoo_transactions` | Adds, drops, trades (PK `(league_id, transaction_key)`). `players` is a JSONB blob | `league_id`, `transaction_key`, `type`, `timestamp`, `status`, `players` (jsonb) |
