@@ -3,6 +3,7 @@ package yahoo
 import (
 	"context"
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
@@ -94,6 +95,9 @@ func (a *ImportActivities) collectStandingParams(ctx context.Context, input Impo
 // its teams in teams. Teams of the file outside teams are left out: their
 // yahoo_teams rows are not imported.
 func (a *ImportActivities) readLeagueStandings(ctx context.Context, res resource.LeagueStandings, teams []TeamInfo) ([]sqlcdb.UpsertYahooTeamStandingBatchParams, error) {
+	// Stat before reading: a file rewritten in between pairs the older
+	// capture time with the newer content, and the day's fingerprint, taken
+	// before both, has the older file, so the next run imports it again.
 	info, err := resource.Stat(ctx, a.Storage, res)
 	if err != nil {
 		return nil, fmt.Errorf("stat %s: %w", res.Path(), err)
@@ -131,6 +135,9 @@ func (a *ImportActivities) readLeagueStandings(ctx context.Context, res resource
 // standingParams is the row of one team's standing record. A rank or seed
 // Yahoo left empty (0) is NULL, as is a record the league does not keep.
 func standingParams(leagueID int, date pgtype.Date, capturedAt pgtype.Timestamptz, record resource.TeamStandingRecord) (sqlcdb.UpsertYahooTeamStandingBatchParams, error) {
+	if err := standingCountsFit(record); err != nil {
+		return sqlcdb.UpsertYahooTeamStandingBatchParams{}, err
+	}
 	row := sqlcdb.UpsertYahooTeamStandingBatchParams{
 		LeagueID:             int32(leagueID),
 		TeamID:               int32(record.TeamID),
@@ -160,6 +167,24 @@ func standingParams(leagueID int, date pgtype.Date, capturedAt pgtype.Timestampt
 		row.H2hDivisionPercentage = percentage
 	}
 	return row, nil
+}
+
+// standingCountsFit refuses a rank, seed or record count an integer column
+// cannot hold, so such a file fails only its own league's snapshot instead of
+// the whole batch.
+func standingCountsFit(record resource.TeamStandingRecord) error {
+	counts := []int{record.Rank, record.PlayoffSeed}
+	for _, outcome := range []*resource.OutcomeRecord{record.Outcome, record.DivisionalOutcome} {
+		if outcome != nil {
+			counts = append(counts, outcome.Wins, outcome.Losses, outcome.Ties)
+		}
+	}
+	for _, n := range counts {
+		if n > math.MaxInt32 {
+			return fmt.Errorf("team %d: %d does not fit an integer column", record.TeamID, n)
+		}
+	}
+	return nil
 }
 
 // Bounds of a winning percentage, a fraction of the games played.
@@ -210,6 +235,8 @@ func importStandings(ctx context.Context, queries YahooDataUpserter, date time.T
 	}
 	pgDate := pgtype.Date{Time: date, Valid: true}
 	for _, league := range leagues {
+		// Never nil: a nil array is NULL in SQL, and "<> ALL(NULL)" would
+		// clear nothing instead of every other team.
 		teamIDs := make([]int32, 0, len(league.rows))
 		for _, row := range league.rows {
 			teamIDs = append(teamIDs, row.TeamID)

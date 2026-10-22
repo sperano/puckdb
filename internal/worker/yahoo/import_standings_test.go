@@ -2,6 +2,7 @@ package yahoo
 
 import (
 	"context"
+	"math"
 	"testing"
 	"time"
 
@@ -152,6 +153,14 @@ func TestStandingParams_RefusesAPercentageOutsideTheUnitRange(t *testing.T) {
 		resource.TeamStandingRecord{TeamID: 1, Rank: 1, Outcome: &resource.OutcomeRecord{Wins: 1, Percentage: &tooHigh}})
 
 	require.ErrorContains(t, err, "outside [0, 1]")
+}
+
+func TestStandingParams_RefusesACountAboveInt32(t *testing.T) {
+	t.Parallel()
+	_, err := standingParams(1, pgDate(importStandingsDate), pgtype.Timestamptz{Time: importStandingsCaptured, Valid: true},
+		resource.TeamStandingRecord{TeamID: 1, Rank: 1, Outcome: &resource.OutcomeRecord{Wins: math.MaxInt32 + 1}})
+
+	require.ErrorContains(t, err, "does not fit an integer column")
 }
 
 func TestImportStandings_WritesRowsThenClearsTheOtherTeams(t *testing.T) {

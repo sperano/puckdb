@@ -135,18 +135,25 @@ func (f *standingsPGFixture) latest(t *testing.T, leagueID int) pgtype.Date {
 
 func int4(n int32) pgtype.Int4 { return pgtype.Int4{Int32: n, Valid: true} }
 
-func TestPg_StandingsAndCategoriesForTeamsAndDates(t *testing.T) {
-	f := newStandingsPGFixture(t)
+// importTwoDays imports two days of teams 1-3 of the points league: stats
+// for teams 1 and 2 on both days, a standings snapshot on day 1 only (day 2
+// is a capture gap). It returns day 1's result.
+func (f *standingsPGFixture) importTwoDays(t *testing.T) ImportYahooDataForDateResult {
+	t.Helper()
 	teams := []TeamInfo{pointsTeam(1), pointsTeam(2), pointsTeam(3)}
 	for _, day := range []time.Time{standingsPGDay1, standingsPGDay2} {
 		f.writeSummary(pointsTeam(1), day, [2]string{"1", "2"}, [2]string{"999", "7"}, [2]string{"26", ".915"})
 		f.writeSummary(pointsTeam(2), day, [2]string{"1", "0"}, [2]string{"1234", "-"})
 	}
-	// Day 1 has a standings snapshot; day 2 has none (a capture gap).
 	f.writeStandings(yahoofixtures.PointsLeagueID, standingsPGDay1, yahoofixtures.H2HStandings, standingsPGCaptured)
-
 	day1 := f.importDay(t, standingsPGDay1, teams...)
 	f.importDay(t, standingsPGDay2, teams...)
+	return day1
+}
+
+func TestPg_StandingsRecordsForTeamsAndDates(t *testing.T) {
+	f := newStandingsPGFixture(t)
+	day1 := f.importTwoDays(t)
 
 	assert.Equal(t, 2, day1.SummariesImported)
 	assert.Equal(t, 3, day1.StandingsImported, "team 4 is ranked but not configured")
@@ -177,6 +184,11 @@ func TestPg_StandingsAndCategoriesForTeamsAndDates(t *testing.T) {
 		assert.False(t, row.StandingsCapturedAt.Valid, "no snapshot was captured on day 2")
 		assert.False(t, row.StandingsRank.Valid)
 	}
+}
+
+func TestPg_CategoryValuesForTeamsAndDates(t *testing.T) {
+	f := newStandingsPGFixture(t)
+	f.importTwoDays(t)
 
 	assert.Equal(t, map[int32]string{1: "2", 26: ".915", 999: "7"}, f.statValues(t, pointsTeam(1), standingsPGDay1))
 	assert.Equal(t, map[int32]string{1: "0", 1234: "-"}, f.statValues(t, pointsTeam(2), standingsPGDay2))
