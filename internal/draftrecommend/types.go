@@ -24,7 +24,8 @@ type PickSlot struct {
 // Strategy is the drafter's explicit preferences. CategoryWeights multiply
 // a category's contribution to the selected scenario's adjusted value.
 // RiskTolerance in [0, 1] applies only when RiskToleranceSet: it discounts a
-// candidate's value by uncertainty × (1 − RiskTolerance), so 1 ignores risk.
+// candidate's strategy value by uncertainty × (1 − RiskTolerance) × |value|,
+// so 1 ignores risk and a negative value is pushed further down.
 type Strategy struct {
 	CategoryWeights  map[int]float64 `json:"categoryWeights,omitempty"`
 	RiskTolerance    float64         `json:"riskTolerance,omitempty"`
@@ -77,9 +78,9 @@ type ADPSource struct {
 // StrategyValue minus RiskAdjustment, and NewsDelta the selected scenario's
 // value minus the baseline's. AssignedSlot and AdditionalStarts are where the
 // player fits the roster and how many starting assignments that adds;
-// ScarcityCount counts the available players who fit that slot, and the
-// position rank and tier fields compare the player with the next one who
-// does.
+// ScarcityCount counts the roster-feasible candidates (this one included)
+// who fit that slot, and the position rank and tier fields compare the
+// player with the next one who does.
 type NumericReasons struct {
 	LeagueValue        float64          `json:"leagueValue"`
 	StrategyValue      float64          `json:"strategyValue"`
@@ -121,8 +122,8 @@ type WaitRisk struct {
 
 // Candidate is one available player with both recommendation ranks:
 // ValueRank by marginal value, RosterFitRank by roster fit (starting
-// assignments added, active over reserve placement, slot scarcity, then
-// marginal value).
+// assignments added, then the assigned slot's kind: starting before reserve
+// before bench, then slot scarcity, then marginal value).
 type Candidate struct {
 	PlayerKey     string         `json:"playerKey"`
 	Name          string         `json:"name"`
@@ -176,7 +177,8 @@ type ReplayCase struct {
 
 // ReplayMetrics summarizes EvaluateReplay: how many selections matched the
 // recommendation shown (Correct of Cases, as the Correctness fraction), and
-// the median and 95th-percentile evaluation latency.
+// the 50th and 95th nearest-rank percentiles of evaluation latency (for an
+// even number of cases, P50 is the lower of the two middle values).
 type ReplayMetrics struct {
 	Cases        int     `json:"cases"`
 	Correct      int     `json:"correct"`

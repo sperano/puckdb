@@ -208,8 +208,8 @@ func sameDate(left, right pgtype.Date) bool {
 	return left.Valid == right.Valid && (!left.Valid || left.Time.Equal(right.Time))
 }
 
-// ListShortlist returns the league's shortlisted player keys in the order
-// they were added.
+// ListShortlist returns the league's shortlisted player keys ordered by when
+// they were added (created_at), then by player key for equal timestamps.
 func (s *PGDataSource) ListShortlist(ctx context.Context, leagueKey string) ([]string, error) {
 	const query = `SELECT player_key FROM draft_shortlist WHERE league_key=$1 ORDER BY created_at, player_key`
 	rows, err := s.pool.Query(ctx, query, leagueKey)

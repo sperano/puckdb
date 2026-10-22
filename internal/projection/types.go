@@ -209,11 +209,13 @@ type Override struct {
 
 // PlayerProjection is one player's row of a snapshot: the estimates, where
 // they come from, and the history behind them. HistorySeasons and
-// HistoryGames count the seasons and games read, SampleExposure the TOI
-// seconds (skaters) or shots against (goalies) they add up to, Uncertainty
-// the interval fraction the estimates use, InsufficientHistory a history
-// shorter than Config.MinimumHistoryGames, and MissingStats the statistics
-// the player's kind should have but Values lacks.
+// HistoryGames count the seasons and games read, SampleExposure their TOI
+// seconds (skaters) or shots against (goalies) weighted by
+// Config.SeasonDecay (not a raw sum), Uncertainty the interval fraction the
+// estimates use, InsufficientHistory a history shorter than
+// Config.MinimumHistoryGames, and MissingStats the statistics the snapshot's
+// model version projects for the player's kind but Values lacks (versions
+// without faceoffs never list them).
 type PlayerProjection struct {
 	PlayerKey               string
 	PlayerID                *int64

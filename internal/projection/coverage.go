@@ -18,8 +18,9 @@ const (
 	CoverageMissingPlayerPool   CoverageIssueCode = "missing_player_pool"
 )
 
-// CoverageIssue is one coverage failure for a league category, and for one
-// player when PlayerKey is set.
+// CoverageIssue is one coverage failure. LeagueID, StatID and Category name
+// the league category it concerns and are empty for
+// CoverageMissingPlayerPool; PlayerKey is set when it concerns one player.
 type CoverageIssue struct {
 	LeagueID    int
 	StatID      int

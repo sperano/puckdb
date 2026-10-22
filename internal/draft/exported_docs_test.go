@@ -4,8 +4,10 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"go/types"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -20,10 +22,16 @@ const (
 	projectionPackage = "../projection"
 )
 
-// interfaceMethods implement error, fmt.Stringer or errors.Unwrap, whose
-// contract is their documentation, so they need no comment of their own.
-// They are matched by name only.
-var interfaceMethods = map[string]bool{"Error": true, "String": true, "Unwrap": true}
+// interfaceMethods are the methods of error, fmt.Stringer and the
+// errors.Unwrap protocol, by name, with the result types their signature
+// must have (and no parameters). Their contract is their documentation, so a
+// method with exactly that signature needs no comment of its own; one that
+// only shares the name does.
+var interfaceMethods = map[string][]string{
+	"Error":  {"string"},
+	"String": {"string"},
+	"Unwrap": {"error", "[]error"},
+}
 
 // TestDraftHelperPackagesDocumentExports fails on an exported function,
 // method, type, constant or variable without a doc comment (its own or its
@@ -63,6 +71,12 @@ func (T) Method() {}
 
 func (T) Error() string { return "" }
 
+func (T) String(int) string { return "" }
+
+func (*T) Unwrap() []error { return nil }
+
+func (T) Unwrap() int { return 0 }
+
 type hidden struct{}
 
 func (hidden) Method() {}
@@ -91,7 +105,7 @@ var V = 7
 	for _, missing := range undocumentedExports(fset, file) {
 		names = append(names, missing.name)
 	}
-	require.Equal(t, []string{"Bare", "T", "T.Method", "D", "E", "V"}, names)
+	require.Equal(t, []string{"Bare", "T", "T.Method", "T.String", "T.Unwrap", "D", "E", "V"}, names)
 }
 
 type undocumented struct {
@@ -150,10 +164,22 @@ func funcName(decl *ast.FuncDecl) (string, bool) {
 		return decl.Name.Name, true
 	}
 	receiver := receiverTypeName(decl.Recv.List[0].Type)
-	if !ast.IsExported(receiver) || interfaceMethods[decl.Name.Name] {
+	if !ast.IsExported(receiver) || implementsInterfaceMethod(decl) {
 		return "", false
 	}
 	return receiver + "." + decl.Name.Name, true
+}
+
+// implementsInterfaceMethod reports whether a method has the exact
+// signature of an interfaceMethods entry: no parameters and one result of a
+// listed type.
+func implementsInterfaceMethod(decl *ast.FuncDecl) bool {
+	results, known := interfaceMethods[decl.Name.Name]
+	signature := decl.Type
+	if !known || signature.Params.NumFields() != 0 || signature.Results.NumFields() != 1 {
+		return false
+	}
+	return slices.Contains(results, types.ExprString(signature.Results.List[0].Type))
 }
 
 func receiverTypeName(expr ast.Expr) string {

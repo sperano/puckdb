@@ -29,7 +29,8 @@ type OverrideState string
 const (
 	// OverrideActive is in force: neither reset nor expired.
 	OverrideActive OverrideState = "active"
-	// OverrideExpired passed its ExpiresAt.
+	// OverrideExpired reached its ExpiresAt: an override is expired from
+	// that instant on, not only after it.
 	OverrideExpired OverrideState = "expired"
 	// OverrideReset was ended by a manager (ResetAt); it wins over expiry.
 	OverrideReset OverrideState = "reset"

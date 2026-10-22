@@ -20,8 +20,10 @@ const (
 	IssueUnsupportedScoring IssueCode = "UNSUPPORTED_SCORING"
 	// IssueMissingPool: the league has no draftable player pool.
 	IssueMissingPool IssueCode = "MISSING_POOL"
-	// IssueMissingProjections: the baseline projection does not cover every
-	// enabled league category for the draftable pool.
+	// IssueMissingProjections: the baseline projection failed coverage
+	// validation (projection.CoverageError): an enabled scoring category the
+	// model cannot project or no draftable player of its kind, a draftable
+	// player whose projection lacks a category, or no draftable pool.
 	IssueMissingProjections IssueCode = "MISSING_PROJECTIONS"
 	// IssueRankingFailed: the baseline or a scenario ranking failed.
 	IssueRankingFailed IssueCode = "RANKING_FAILED"
@@ -44,8 +46,8 @@ const (
 	// IssueNewsSourceFailing: a news source was failing when the snapshot
 	// was built.
 	IssueNewsSourceFailing IssueCode = "NEWS_SOURCE_FAILING"
-	// IssueNewsSourceMissing: a news source had never been fetched when the
-	// snapshot was built, so its news adjusted nothing.
+	// IssueNewsSourceMissing: a news source had never been fetched
+	// successfully when the snapshot was built, so its news was unavailable.
 	IssueNewsSourceMissing IssueCode = "NEWS_SOURCE_MISSING"
 	// IssueStaleSnapshot: the snapshot is older than the service's
 	// StaleAfter.

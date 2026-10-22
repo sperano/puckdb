@@ -7,10 +7,10 @@ import (
 	"time"
 )
 
-// Comparison models an Evaluation scores the projection against:
-// PreviousSeasonComparison is each player's previous-season total (Evaluate),
-// LinemateDisabledComparison the same model without its linemate correction
-// (EvaluateLinemateAdjustment).
+// These constants name the comparison model an Evaluation scores the
+// projection against: PreviousSeasonComparison is each player's
+// previous-season total (Evaluate), LinemateDisabledComparison the same
+// model without its linemate correction (EvaluateLinemateAdjustment).
 const (
 	PreviousSeasonComparison   = "previous-season-total"
 	LinemateDisabledComparison = "linemate-adjustment-disabled"

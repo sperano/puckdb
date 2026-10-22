@@ -23,7 +23,9 @@ var (
 )
 
 const (
-	// BoardStatusReady means the board and ranking support advice.
+	// BoardStatusReady means no board or ranking condition blocked
+	// evaluation. Candidates can still be empty: NO_FEASIBLE_PLAYER when no
+	// player fits the roster, NO_REMAINING_PICKS when the order is used up.
 	BoardStatusReady = "ready"
 	// BoardStatusIncomplete means the session is partial, conflicted or
 	// unsafe, the ranking's pool is incomplete, or a pick lies outside the

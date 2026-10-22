@@ -16,7 +16,9 @@ const (
 
 // Generate projects every skater and goalie in the input's history plus
 // every player of the pool (pool players without history get maximum
-// uncertainty and explicit missing stats), applies the overrides, and returns
+// uncertainty and explicit missing stats), applies the overrides (an override
+// replaces the player's whole row, uncertainty and history markers
+// included; MissingStats is then computed from its values), and returns
 // the snapshot sorted by player key. It is deterministic: the same config and
 // input give the same snapshot. Model versions that support an aging curve
 // fit one from the input when cfg carries none.
