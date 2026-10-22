@@ -261,9 +261,8 @@ func FetchAssetsClassWorkflow(ctx workflow.Context, input FetchAssetsClassInput)
 	counts := core.OriginCounts{}
 
 	err = tracker.RunWorkerPool(ctx, shared.PoolOptions{
-		Total:       numBatches,
-		Concurrency: concurrency,
-		Progress:    shared.SingleBar{Bar: shared.BarRef{Group: fetchAssetsProgressGroupIdx, Bar: fetchAssetsProgressBarIdx}},
+		Total: numBatches, Concurrency: concurrency,
+		Progress: shared.SingleBar{Bar: shared.BarRef{Group: fetchAssetsProgressGroupIdx, Bar: fetchAssetsProgressBarIdx}},
 		Start: func(_ workflow.Context, i int) workflow.Future {
 			var act *asset.Activities
 			return workflow.ExecuteActivity(batchCtx, act.FetchAssetBatch, asset.FetchAssetBatchInput{

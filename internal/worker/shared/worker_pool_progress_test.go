@@ -33,20 +33,20 @@ func newPoolValidationTracker() *ReportTracker {
 type poolRun struct {
 	err        error
 	dispatched int
-	saves      int32
+	saves      atomic.Int32
 }
 
 // runPool runs tracker.RunWorkerPool(opts) in a test workflow. Unless
 // nilStart, opts.Start is a starter that counts dispatches and returns
 // already-settled successful futures; every progress Save is counted.
-func runPool(t *testing.T, tracker *ReportTracker, opts PoolOptions, nilStart bool) poolRun {
+func runPool(t *testing.T, tracker *ReportTracker, opts PoolOptions, nilStart bool) *poolRun {
 	t.Helper()
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
-	var run poolRun
+	run := &poolRun{}
 	env.OnActivity(((*ProgressActivities)(nil)).Save, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 		Return(func(context.Context, string, string, []byte) error {
-			atomic.AddInt32(&run.saves, 1)
+			run.saves.Add(1)
 			return nil
 		}).Maybe()
 	if !nilStart {
@@ -131,7 +131,7 @@ func TestRunWorkerPool_Validation(t *testing.T) {
 				require.NoError(t, run.err)
 			}
 			assert.Equal(t, tc.wantDispatched, run.dispatched, "items dispatched")
-			assert.Equal(t, tc.wantSaves, atomic.LoadInt32(&run.saves), "progress saves")
+			assert.Equal(t, tc.wantSaves, run.saves.Load(), "progress saves")
 		})
 	}
 }
@@ -152,7 +152,7 @@ func TestRunWorkerPool_BarPerItemFromFirst(t *testing.T) {
 
 	require.NoError(t, run.err)
 	assert.Equal(t, items, run.dispatched)
-	assert.Equal(t, int32(2*items), atomic.LoadInt32(&run.saves), "StartBar and CompleteBar save once each per item")
+	assert.Equal(t, int32(2*items), run.saves.Load(), "StartBar and CompleteBar save once each per item")
 	for i, bar := range report.Groups[0].Bars {
 		if i >= first && i < first+items {
 			assert.Truef(t, bar.Started, "bar %d started", i)

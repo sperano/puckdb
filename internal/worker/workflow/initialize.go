@@ -178,8 +178,10 @@ func upsertSeasonTeams(ctx workflow.Context, tracker *shared.ReportTracker, logg
 		return nil
 	}
 	opts := shared.PoolOptions{
-		Total: len(seasonIDs), Concurrency: config.DefaultSeasonConcurrency, Start: startActivity, Handle: handler,
+		Total: len(seasonIDs), Concurrency: config.DefaultSeasonConcurrency,
 		Progress: shared.SingleBar{Bar: shared.BarRef{Group: GroupInitializeSeasonTeams}},
+		Start:    startActivity,
+		Handle:   handler,
 	}
 	if err := tracker.RunWorkerPool(ctx, opts); err != nil {
 		return 0, err

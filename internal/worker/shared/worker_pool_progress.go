@@ -7,7 +7,8 @@ import (
 )
 
 // PoolProgress is how a RunWorkerPool call reports its items on the tracker;
-// a nil PoolProgress reports nothing. The modes are SingleBar and BarPerItem.
+// a nil PoolProgress reports nothing. The modes are the values SingleBar and
+// BarPerItem (not pointers to them).
 type PoolProgress interface {
 	// hooks checks the mode against the tracker's report for total items
 	// and returns the scheduler hooks that apply it. Unexported: the set of

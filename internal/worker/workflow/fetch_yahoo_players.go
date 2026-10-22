@@ -183,11 +183,13 @@ func FetchYahooPlayersWorkflow(ctx workflow.Context, input *FetchYahooPlayersInp
 
 	// Run worker pool with activity batch size as increment (each activity handles a batch of players)
 	opts := shared.PoolOptions{
-		Total: numActivityBatches, Concurrency: concurrency, Start: startActivity, Handle: handler,
+		Total: numActivityBatches, Concurrency: concurrency,
 		Progress: shared.SingleBar{
 			Bar:       shared.BarRef{Group: GroupFetchYahooPlayers},
 			Increment: func(_ int) int { return activityBatchSize },
 		},
+		Start:  startActivity,
+		Handle: handler,
 	}
 	if err := tracker.RunWorkerPool(ctx, opts); err != nil {
 		return err

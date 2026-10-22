@@ -181,9 +181,9 @@ func batchesForRows(rowCount, batchSize int) int {
 }
 
 // dispatchClassChildren spawns one child workflow per class via
-// RunWorkerPool, one bar per child, and aggregates their OriginCounts. The pool is bounded
-// by concurrency (the resolved cross-class concurrency); each child runs on
-// the inherited puckdb-asset-tasks queue.
+// RunWorkerPool, one bar per child, and aggregates their OriginCounts. The
+// pool is bounded by concurrency (the resolved cross-class concurrency); each
+// child runs on the inherited puckdb-asset-tasks queue.
 //
 // The parent's input is forwarded wholesale, with one exception: each child's
 // copy gets AssetBatchSize set to the parent's own snapshotted batchSize, so
