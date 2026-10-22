@@ -87,17 +87,13 @@ func processSeasonGroup(ctx workflow.Context, tracker *shared.ReportTracker, sea
 		counts.Add(seasonCounts)
 		return nil
 	}
-	var err error
-	if cfg.CompleteOnlyOnSuccess {
-		err = tracker.RunWorkerPoolMultiBarSuccessful(ctx, cfg.GroupIdx, 0, len(seasons), concurrency, startWork, handle)
-	} else {
-		err = tracker.RunWorkerPool(ctx, shared.PoolOptions{
-			Total: len(seasons), Concurrency: concurrency,
-			Progress: shared.BarPerItem{Group: cfg.GroupIdx},
-			Start:    startWork,
-			Handle:   handle,
-		})
-	}
+	err := tracker.RunWorkerPool(ctx, shared.PoolOptions{
+		Total: len(seasons), Concurrency: concurrency,
+		Progress:      shared.BarPerItem{Group: cfg.GroupIdx},
+		OnlyOnSuccess: cfg.CompleteOnlyOnSuccess,
+		Start:         startWork,
+		Handle:        handle,
+	})
 	if err != nil {
 		return counts, err
 	}

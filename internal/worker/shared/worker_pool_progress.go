@@ -2,13 +2,16 @@ package shared
 
 import (
 	"fmt"
+	"slices"
 
 	"go.temporal.io/sdk/workflow"
 )
 
 // PoolProgress is how a RunWorkerPool call reports its items on the tracker;
-// a nil PoolProgress reports nothing. The modes are the values SingleBar and
-// BarPerItem; RunWorkerPool rejects pointers to them with an error.
+// a nil PoolProgress reports nothing. The modes are the values SingleBar,
+// BarPerItem and BarsPerItem; RunWorkerPool rejects pointers to them with an
+// error. Every mode advances an item whether or not it failed, unless
+// PoolOptions.OnlyOnSuccess is set.
 type PoolProgress interface {
 	// hooks checks the mode against the tracker's report for total items
 	// and returns the scheduler hooks that apply it. Unexported: the set of
@@ -38,7 +41,7 @@ func (p SingleBar) hooks(t *ReportTracker, _ int) (workerPoolHooks, error) {
 }
 
 // BarPerItem gives item i the bar First+i of Group: StartBar when the item is
-// dispatched, CompleteBar when it completes, whether or not it failed.
+// dispatched, CompleteBar when it completes.
 type BarPerItem struct {
 	Group int
 	First int
@@ -57,6 +60,39 @@ func (p BarPerItem) hooks(t *ReportTracker, total int) (workerPoolHooks, error) 
 		},
 		onComplete: func(ctx workflow.Context, index int) {
 			t.CompleteBar(ctx, BarRef{Group: group, Bar: first + index})
+		},
+	}, nil
+}
+
+// BarsPerItem gives item i the bars Ranges[i] of Group: StartBars on
+// dispatch, CompleteBars on completion. Total must equal len(Ranges).
+type BarsPerItem struct {
+	Group  int
+	Ranges []BarRange
+}
+
+func (p BarsPerItem) hooks(t *ReportTracker, total int) (workerPoolHooks, error) {
+	if len(p.Ranges) != total {
+		return workerPoolHooks{}, fmt.Errorf("worker pool: %d bar ranges for %d items", len(p.Ranges), total)
+	}
+	bars, ok := t.poolGroupBars(p.Group)
+	if !ok {
+		return workerPoolHooks{}, fmt.Errorf("worker pool: group %d outside report (%s)", p.Group, t.poolReportShape(p.Group))
+	}
+	for i, r := range p.Ranges {
+		if r.Start < 0 || r.Count < 0 || r.Count > bars-r.Start {
+			return workerPoolHooks{}, fmt.Errorf("worker pool: item %d bars [%d, %d) of group %d outside report (%s)",
+				i, r.Start, r.Start+r.Count, p.Group, t.poolReportShape(p.Group))
+		}
+	}
+	// A copy: the caller may reuse its slice once validation has passed.
+	group, ranges := p.Group, slices.Clone(p.Ranges)
+	return workerPoolHooks{
+		onStart: func(ctx workflow.Context, index int) {
+			t.StartBars(ctx, group, ranges[index])
+		},
+		onComplete: func(ctx workflow.Context, index int) {
+			t.CompleteBars(ctx, group, ranges[index])
 		},
 	}, nil
 }
