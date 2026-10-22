@@ -1,3 +1,10 @@
+// Package player holds ProcessPlayers' per-batch activities: merging NHL
+// boxscore/landing/Yahoo player data (consolidate.go), matching a player
+// to its Yahoo ID (via internal/matching) from a Redis-cached ID pool
+// (yahoo_id_pool.go, yahoo_pool_ensure.go), the durable manifest the
+// ProcessPlayers workflow chain reads its player list from
+// (manifest.go, manifest_activities.go, manifest_store.go), and the
+// unmatched/verification reports (report_unmatched.go, verify_unmatched.go).
 package player
 
 import (

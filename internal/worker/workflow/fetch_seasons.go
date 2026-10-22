@@ -1,3 +1,11 @@
+// Package workflow holds PuckDB's top-level Temporal workflows (see
+// CLAUDE.md's "Active Workflows"): the fetch/import pairs for NHL and
+// Yahoo season data, player logs, landings and Edge tracking,
+// ProcessPlayersWorkflow's ContinueAsNew chain, draft ranking and news
+// refresh, and database initialization. Each workflow delegates its work
+// to activities in the sibling nhl, yahoo, player, admin, asset, newsfeed,
+// draftranking and simulation packages, using shared for progress
+// tracking, config snapshotting and worker pools.
 package workflow
 
 import (

@@ -1,3 +1,10 @@
+// Package cache layers typed NHL/Yahoo resource fetch-or-download helpers
+// (GetSeasons, boxscore players, ...) over internal/store's filesystem
+// cache, and provides the Redis-backed pieces that sit beside it: the
+// Yahoo OAuth2 token store and its refresh lock, a Valkey-backed GobCache
+// for small decoded responses, distributed resource locks, and workflow
+// progress snapshots. All Redis access is instrumented through
+// internal/metrics.
 package cache
 
 import (

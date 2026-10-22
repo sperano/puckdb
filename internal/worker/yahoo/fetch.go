@@ -1,3 +1,9 @@
+// Package yahoo holds the Temporal activities that download Yahoo Fantasy
+// data (leagues, teams, rosters, matchups, draft results, transactions,
+// league rules) into the local cache and import the cached files into
+// PostgreSQL, plus stand_in_league.go's temporary workaround that records
+// a temporary_stand_in league rule snapshot for leagues Yahoo currently
+// refuses to serve (see config.LeagueMetadataSource).
 package yahoo
 
 import (

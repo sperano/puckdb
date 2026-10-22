@@ -1,3 +1,8 @@
+// Package llm is a provider-neutral chat-completion client (Client,
+// Request, Message, Tool): an OpenAI-compatible implementation (OpenAI,
+// Ollama) and an Anthropic one behind the same interface, picked by
+// Provider detection from the configured model/API key. internal/maurice
+// is its only caller.
 package llm
 
 import (

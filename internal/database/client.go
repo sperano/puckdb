@@ -1,3 +1,6 @@
+// Package database opens and configures the pgx connection pool
+// (database.Config, database.PoolOptions) that sqlcdb.Queries runs against,
+// reports pool stats to internal/metrics, and runs schema migrations.
 package database
 
 import (

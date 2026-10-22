@@ -1,3 +1,7 @@
+// Package admin holds the database and Redis administration
+// workflows/activities (DropDatabaseWorkflow, MigrateDatabaseWorkflow,
+// ResetDatabaseWorkflow, FlushRedisWorkflow) that the api and worker
+// commands' admin GraphQL mutations and CLI subcommands trigger.
 package admin
 
 import (

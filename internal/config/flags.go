@@ -1,3 +1,9 @@
+// Package config defines PuckDB's CLI flags (as named FlagGroups with
+// Init/Bind functions, bound into viper) and their defaults, parses
+// seasons.yaml, and holds the small context and constant helpers cmd and
+// the library packages share. Library packages take their settings as
+// values built from these flags (see e.g. database.Config, cache.Options);
+// they do not read viper directly (TestLibraryPackagesDoNotReadViper).
 package config
 
 import (

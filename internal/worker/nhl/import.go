@@ -1,3 +1,8 @@
+// Package nhl holds the Temporal activities that fetch NHL API data into
+// the local cache (daily schedule, boxscores, rosters, play-by-play, shift
+// charts, standings, Edge tracking, club/season stats) and parse the
+// cached files into PostgreSQL. ImportDayIfChanged (import_day.go) is the
+// per-day skip/import gate recorded in nhl_day_imports.
 package nhl
 
 import (
