@@ -62,9 +62,13 @@ type ImportYahooDataForDateInput struct {
 // ImportYahooDataForDateResult contains the results of importing Yahoo team data for a date.
 type ImportYahooDataForDateResult struct {
 	SummariesImported int
+	// StandingsImported counts the team standing rows written from the
+	// leagues' standings snapshots of the date.
+	StandingsImported int
 	RostersImported   int
-	// ReadFailures counts cached summary and roster files that exist but
-	// could not be read; only those files' data is left out of this import.
+	// ReadFailures counts cached summary, standings and roster files that
+	// exist but could not be read; only those files' data is left out of this
+	// import.
 	ReadFailures int
 	Origins      core.OriginCounts
 }

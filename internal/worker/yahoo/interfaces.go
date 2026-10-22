@@ -22,6 +22,9 @@ type YahooTeamUpserter interface {
 // YahooDataUpserter defines the interface for batch Yahoo data upsert operations.
 type YahooDataUpserter interface {
 	UpsertYahooTeamSummaryBatch(ctx context.Context, arg []sqlcdb.UpsertYahooTeamSummaryBatchParams) *sqlcdb.UpsertYahooTeamSummaryBatchBatchResults
+	ReplaceYahooTeamSummaryStatsBatch(ctx context.Context, arg []sqlcdb.ReplaceYahooTeamSummaryStatsBatchParams) *sqlcdb.ReplaceYahooTeamSummaryStatsBatchBatchResults
+	UpsertYahooTeamStandingBatch(ctx context.Context, arg []sqlcdb.UpsertYahooTeamStandingBatchParams) *sqlcdb.UpsertYahooTeamStandingBatchBatchResults
+	ClearYahooTeamStandingsExcept(ctx context.Context, arg sqlcdb.ClearYahooTeamStandingsExceptParams) error
 	UpsertYahooTeamRosterBatch(ctx context.Context, arg []sqlcdb.UpsertYahooTeamRosterBatchParams) *sqlcdb.UpsertYahooTeamRosterBatchBatchResults
 	UpsertYahooTransactionBatch(ctx context.Context, arg []sqlcdb.UpsertYahooTransactionBatchParams) *sqlcdb.UpsertYahooTransactionBatchBatchResults
 	UpsertYahooTransactionPlayerBatch(ctx context.Context, arg []sqlcdb.UpsertYahooTransactionPlayerBatchParams) *sqlcdb.UpsertYahooTransactionPlayerBatchBatchResults

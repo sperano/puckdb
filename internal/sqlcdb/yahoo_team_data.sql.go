@@ -11,6 +11,40 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const clearYahooTeamStandingsExcept = `-- name: ClearYahooTeamStandingsExcept :exec
+UPDATE yahoo_team_summaries SET
+    standings_captured_at = NULL,
+    standings_rank = NULL,
+    standings_playoff_seed = NULL,
+    h2h_wins = NULL,
+    h2h_losses = NULL,
+    h2h_ties = NULL,
+    h2h_percentage = NULL,
+    h2h_division_wins = NULL,
+    h2h_division_losses = NULL,
+    h2h_division_ties = NULL,
+    h2h_division_percentage = NULL,
+    updated_at = NOW()
+WHERE league_id = $1
+  AND date = $2
+  AND standings_captured_at IS NOT NULL
+  AND team_id <> ALL($3::integer[])
+`
+
+type ClearYahooTeamStandingsExceptParams struct {
+	LeagueID int32       `json:"league_id"`
+	Date     pgtype.Date `json:"date"`
+	TeamIds  []int32     `json:"team_ids"`
+}
+
+// Removes the standings snapshot of a league's date from every team but
+// team_ids (the teams the current snapshot file wrote), so a team the file no
+// longer lists keeps no standing from an earlier file.
+func (q *Queries) ClearYahooTeamStandingsExcept(ctx context.Context, arg ClearYahooTeamStandingsExceptParams) error {
+	_, err := q.db.Exec(ctx, clearYahooTeamStandingsExcept, arg.LeagueID, arg.Date, arg.TeamIds)
+	return err
+}
+
 const countYahooTeamRosters = `-- name: CountYahooTeamRosters :one
 SELECT COUNT(*) FROM yahoo_team_rosters
 `
@@ -147,6 +181,22 @@ type DeleteYahooTeamSummaryParams struct {
 func (q *Queries) DeleteYahooTeamSummary(ctx context.Context, arg DeleteYahooTeamSummaryParams) error {
 	_, err := q.db.Exec(ctx, deleteYahooTeamSummary, arg.LeagueID, arg.TeamID, arg.Date)
 	return err
+}
+
+const getLatestYahooStandingsSnapshotDate = `-- name: GetLatestYahooStandingsSnapshotDate :one
+SELECT MAX(date)::date AS date
+FROM yahoo_team_summaries
+WHERE league_id = $1 AND standings_captured_at IS NOT NULL
+`
+
+// The latest date of the league with a standings snapshot; NULL when the
+// league has none. Only this league's rows count, so another league's later
+// capture never moves it.
+func (q *Queries) GetLatestYahooStandingsSnapshotDate(ctx context.Context, leagueID int32) (pgtype.Date, error) {
+	row := q.db.QueryRow(ctx, getLatestYahooStandingsSnapshotDate, leagueID)
+	var date pgtype.Date
+	err := row.Scan(&date)
+	return date, err
 }
 
 const getYahooLeagueRostersWithPlayers = `-- name: GetYahooLeagueRostersWithPlayers :many
@@ -486,7 +536,7 @@ func (q *Queries) GetYahooTeamRostersByTeam(ctx context.Context, arg GetYahooTea
 }
 
 const getYahooTeamSummariesByDate = `-- name: GetYahooTeamSummariesByDate :many
-SELECT league_id, team_id, date, coverage_type, goals, assists, points, plus_minus, pim, ppp, sog, faceoffs_won, faceoffs_lost, wins, goals_against, gaa, shots_against, saves, save_pct, shutouts, shp, gwg, hits, blocks, created_at, updated_at FROM yahoo_team_summaries
+SELECT league_id, team_id, date, coverage_type, goals, assists, points, plus_minus, pim, ppp, sog, faceoffs_won, faceoffs_lost, wins, goals_against, gaa, shots_against, saves, save_pct, shutouts, shp, gwg, hits, blocks, created_at, updated_at, standings_captured_at, standings_rank, standings_playoff_seed, h2h_wins, h2h_losses, h2h_ties, h2h_percentage, h2h_division_wins, h2h_division_losses, h2h_division_ties, h2h_division_percentage FROM yahoo_team_summaries
 WHERE league_id = $1 AND date = $2
 ORDER BY team_id
 `
@@ -532,6 +582,17 @@ func (q *Queries) GetYahooTeamSummariesByDate(ctx context.Context, arg GetYahooT
 			&i.Blocks,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.StandingsCapturedAt,
+			&i.StandingsRank,
+			&i.StandingsPlayoffSeed,
+			&i.H2hWins,
+			&i.H2hLosses,
+			&i.H2hTies,
+			&i.H2hPercentage,
+			&i.H2hDivisionWins,
+			&i.H2hDivisionLosses,
+			&i.H2hDivisionTies,
+			&i.H2hDivisionPercentage,
 		); err != nil {
 			return nil, err
 		}
@@ -544,7 +605,7 @@ func (q *Queries) GetYahooTeamSummariesByDate(ctx context.Context, arg GetYahooT
 }
 
 const getYahooTeamSummariesByLeague = `-- name: GetYahooTeamSummariesByLeague :many
-SELECT league_id, team_id, date, coverage_type, goals, assists, points, plus_minus, pim, ppp, sog, faceoffs_won, faceoffs_lost, wins, goals_against, gaa, shots_against, saves, save_pct, shutouts, shp, gwg, hits, blocks, created_at, updated_at FROM yahoo_team_summaries
+SELECT league_id, team_id, date, coverage_type, goals, assists, points, plus_minus, pim, ppp, sog, faceoffs_won, faceoffs_lost, wins, goals_against, gaa, shots_against, saves, save_pct, shutouts, shp, gwg, hits, blocks, created_at, updated_at, standings_captured_at, standings_rank, standings_playoff_seed, h2h_wins, h2h_losses, h2h_ties, h2h_percentage, h2h_division_wins, h2h_division_losses, h2h_division_ties, h2h_division_percentage FROM yahoo_team_summaries
 WHERE league_id = $1
 ORDER BY team_id, date
 `
@@ -585,6 +646,17 @@ func (q *Queries) GetYahooTeamSummariesByLeague(ctx context.Context, leagueID in
 			&i.Blocks,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.StandingsCapturedAt,
+			&i.StandingsRank,
+			&i.StandingsPlayoffSeed,
+			&i.H2hWins,
+			&i.H2hLosses,
+			&i.H2hTies,
+			&i.H2hPercentage,
+			&i.H2hDivisionWins,
+			&i.H2hDivisionLosses,
+			&i.H2hDivisionTies,
+			&i.H2hDivisionPercentage,
 		); err != nil {
 			return nil, err
 		}
@@ -597,7 +669,7 @@ func (q *Queries) GetYahooTeamSummariesByLeague(ctx context.Context, leagueID in
 }
 
 const getYahooTeamSummariesByTeam = `-- name: GetYahooTeamSummariesByTeam :many
-SELECT league_id, team_id, date, coverage_type, goals, assists, points, plus_minus, pim, ppp, sog, faceoffs_won, faceoffs_lost, wins, goals_against, gaa, shots_against, saves, save_pct, shutouts, shp, gwg, hits, blocks, created_at, updated_at FROM yahoo_team_summaries
+SELECT league_id, team_id, date, coverage_type, goals, assists, points, plus_minus, pim, ppp, sog, faceoffs_won, faceoffs_lost, wins, goals_against, gaa, shots_against, saves, save_pct, shutouts, shp, gwg, hits, blocks, created_at, updated_at, standings_captured_at, standings_rank, standings_playoff_seed, h2h_wins, h2h_losses, h2h_ties, h2h_percentage, h2h_division_wins, h2h_division_losses, h2h_division_ties, h2h_division_percentage FROM yahoo_team_summaries
 WHERE league_id = $1 AND team_id = $2
 ORDER BY date
 `
@@ -643,6 +715,17 @@ func (q *Queries) GetYahooTeamSummariesByTeam(ctx context.Context, arg GetYahooT
 			&i.Blocks,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.StandingsCapturedAt,
+			&i.StandingsRank,
+			&i.StandingsPlayoffSeed,
+			&i.H2hWins,
+			&i.H2hLosses,
+			&i.H2hTies,
+			&i.H2hPercentage,
+			&i.H2hDivisionWins,
+			&i.H2hDivisionLosses,
+			&i.H2hDivisionTies,
+			&i.H2hDivisionPercentage,
 		); err != nil {
 			return nil, err
 		}
@@ -656,7 +739,7 @@ func (q *Queries) GetYahooTeamSummariesByTeam(ctx context.Context, arg GetYahooT
 
 const getYahooTeamSummary = `-- name: GetYahooTeamSummary :one
 
-SELECT league_id, team_id, date, coverage_type, goals, assists, points, plus_minus, pim, ppp, sog, faceoffs_won, faceoffs_lost, wins, goals_against, gaa, shots_against, saves, save_pct, shutouts, shp, gwg, hits, blocks, created_at, updated_at FROM yahoo_team_summaries
+SELECT league_id, team_id, date, coverage_type, goals, assists, points, plus_minus, pim, ppp, sog, faceoffs_won, faceoffs_lost, wins, goals_against, gaa, shots_against, saves, save_pct, shutouts, shp, gwg, hits, blocks, created_at, updated_at, standings_captured_at, standings_rank, standings_playoff_seed, h2h_wins, h2h_losses, h2h_ties, h2h_percentage, h2h_division_wins, h2h_division_losses, h2h_division_ties, h2h_division_percentage FROM yahoo_team_summaries
 WHERE league_id = $1 AND team_id = $2 AND date = $3
 `
 
@@ -699,8 +782,167 @@ func (q *Queries) GetYahooTeamSummary(ctx context.Context, arg GetYahooTeamSumma
 		&i.Blocks,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.StandingsCapturedAt,
+		&i.StandingsRank,
+		&i.StandingsPlayoffSeed,
+		&i.H2hWins,
+		&i.H2hLosses,
+		&i.H2hTies,
+		&i.H2hPercentage,
+		&i.H2hDivisionWins,
+		&i.H2hDivisionLosses,
+		&i.H2hDivisionTies,
+		&i.H2hDivisionPercentage,
 	)
 	return i, err
+}
+
+const getYahooTeamSummarySnapshot = `-- name: GetYahooTeamSummarySnapshot :many
+SELECT league_id, team_id, date, coverage_type, goals, assists, points, plus_minus, pim, ppp, sog, faceoffs_won, faceoffs_lost, wins, goals_against, gaa, shots_against, saves, save_pct, shutouts, shp, gwg, hits, blocks, created_at, updated_at, standings_captured_at, standings_rank, standings_playoff_seed, h2h_wins, h2h_losses, h2h_ties, h2h_percentage, h2h_division_wins, h2h_division_losses, h2h_division_ties, h2h_division_percentage FROM yahoo_team_summaries
+WHERE league_id = $1
+  AND date = $2
+  AND ($3::integer IS NULL OR team_id = $3)
+ORDER BY team_id
+`
+
+type GetYahooTeamSummarySnapshotParams struct {
+	LeagueID int32       `json:"league_id"`
+	Date     pgtype.Date `json:"date"`
+	TeamID   pgtype.Int4 `json:"team_id"`
+}
+
+// A league's summary rows of one date, every team or only team_id: the
+// standings snapshot captured that date (NULL standings columns when none
+// was) and the fixed category columns. Ordered by team.
+func (q *Queries) GetYahooTeamSummarySnapshot(ctx context.Context, arg GetYahooTeamSummarySnapshotParams) ([]YahooTeamSummary, error) {
+	rows, err := q.db.Query(ctx, getYahooTeamSummarySnapshot, arg.LeagueID, arg.Date, arg.TeamID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []YahooTeamSummary{}
+	for rows.Next() {
+		var i YahooTeamSummary
+		if err := rows.Scan(
+			&i.LeagueID,
+			&i.TeamID,
+			&i.Date,
+			&i.CoverageType,
+			&i.Goals,
+			&i.Assists,
+			&i.Points,
+			&i.PlusMinus,
+			&i.PIM,
+			&i.PPP,
+			&i.SOG,
+			&i.FaceoffsWon,
+			&i.FaceoffsLost,
+			&i.Wins,
+			&i.GoalsAgainst,
+			&i.GAA,
+			&i.ShotsAgainst,
+			&i.Saves,
+			&i.SavePct,
+			&i.Shutouts,
+			&i.SHP,
+			&i.GWG,
+			&i.Hits,
+			&i.Blocks,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.StandingsCapturedAt,
+			&i.StandingsRank,
+			&i.StandingsPlayoffSeed,
+			&i.H2hWins,
+			&i.H2hLosses,
+			&i.H2hTies,
+			&i.H2hPercentage,
+			&i.H2hDivisionWins,
+			&i.H2hDivisionLosses,
+			&i.H2hDivisionTies,
+			&i.H2hDivisionPercentage,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getYahooTeamSummaryStatsSnapshot = `-- name: GetYahooTeamSummaryStatsSnapshot :many
+SELECT s.team_id,
+       s.stat_id,
+       s.value,
+       s.raw_value,
+       c.name,
+       c.display_name,
+       c.abbr,
+       c.position_type,
+       c.sort_order,
+       c.is_only_display_stat
+FROM yahoo_team_summary_stats s
+LEFT JOIN yahoo_league_stat_categories c
+    ON c.league_id = s.league_id AND c.stat_id = s.stat_id
+WHERE s.league_id = $1
+  AND s.date = $2
+  AND ($3::integer IS NULL OR s.team_id = $3)
+ORDER BY s.team_id, s.stat_id
+`
+
+type GetYahooTeamSummaryStatsSnapshotParams struct {
+	LeagueID int32       `json:"league_id"`
+	Date     pgtype.Date `json:"date"`
+	TeamID   pgtype.Int4 `json:"team_id"`
+}
+
+type GetYahooTeamSummaryStatsSnapshotRow struct {
+	TeamID            int32         `json:"team_id"`
+	StatID            int32         `json:"stat_id"`
+	Value             pgtype.Float8 `json:"value"`
+	RawValue          string        `json:"raw_value"`
+	Name              pgtype.Text   `json:"name"`
+	DisplayName       pgtype.Text   `json:"display_name"`
+	Abbr              pgtype.Text   `json:"abbr"`
+	PositionType      pgtype.Text   `json:"position_type"`
+	SortOrder         pgtype.Int2   `json:"sort_order"`
+	IsOnlyDisplayStat pgtype.Bool   `json:"is_only_display_stat"`
+}
+
+// A league's category values of one date, every team or only team_id, with
+// the league's category definition when it has one (NULL columns for a stat
+// ID the league settings do not list). Ordered by team, then stat ID.
+func (q *Queries) GetYahooTeamSummaryStatsSnapshot(ctx context.Context, arg GetYahooTeamSummaryStatsSnapshotParams) ([]GetYahooTeamSummaryStatsSnapshotRow, error) {
+	rows, err := q.db.Query(ctx, getYahooTeamSummaryStatsSnapshot, arg.LeagueID, arg.Date, arg.TeamID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetYahooTeamSummaryStatsSnapshotRow{}
+	for rows.Next() {
+		var i GetYahooTeamSummaryStatsSnapshotRow
+		if err := rows.Scan(
+			&i.TeamID,
+			&i.StatID,
+			&i.Value,
+			&i.RawValue,
+			&i.Name,
+			&i.DisplayName,
+			&i.Abbr,
+			&i.PositionType,
+			&i.SortOrder,
+			&i.IsOnlyDisplayStat,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listLatestYahooEligiblePositionsByPlayer = `-- name: ListLatestYahooEligiblePositionsByPlayer :many

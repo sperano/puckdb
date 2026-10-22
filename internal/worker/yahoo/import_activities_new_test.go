@@ -443,6 +443,9 @@ func (s *ImportYahooDataForDateSuite) TestWithSummaryAndRoster() {
 
 	q.On("UpsertYahooTeamSummaryBatch", mock.Anything, mock.Anything).
 		Return(sqlcdb.NewUpsertYahooTeamSummaryBatchBatchResults(&mockBatchResults{}, 1))
+	q.On("ReplaceYahooTeamSummaryStatsBatch", mock.Anything, mock.MatchedBy(func(p []sqlcdb.ReplaceYahooTeamSummaryStatsBatchParams) bool {
+		return len(p) == 1 && p[0].LeagueID == 12345 && p[0].TeamID == 1
+	})).Return(sqlcdb.NewReplaceYahooTeamSummaryStatsBatchBatchResults(&mockBatchResults{}, 1))
 	q.On("UpsertYahooTeamRosterBatch", mock.Anything, mock.Anything).
 		Return(sqlcdb.NewUpsertYahooTeamRosterBatchBatchResults(&mockBatchResults{}, 1))
 
@@ -728,9 +731,11 @@ func TestCollectSummaryParams_InvalidStatID_Skipped(t *testing.T) {
 	res := resource.TeamSummary{LeagueID: 12345, TeamID: 1, Date: date}
 	require.NoError(t, mem.Write(context.Background(), res.Path(), xml))
 
-	summaryParams, _ := a.collectSummaryParams(
+	rows, _, err := a.collectSummaryParams(
 		context.Background(), teams, date, make(core.OriginCounts),
 	)
+	require.NoError(t, err)
+	summaryParams := rows.summaries
 
 	// The summary should have the valid stat (2=assists) populated, invalid stat ID skipped.
 	require.Len(t, summaryParams, 1)

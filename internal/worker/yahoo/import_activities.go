@@ -128,7 +128,9 @@ func (a *ImportActivities) ImportYahooTeams(ctx context.Context, input ImportYah
 	return result, nil
 }
 
-// ImportYahooDataForDate imports Yahoo team summaries and rosters for a single date.
+// ImportYahooDataForDate imports Yahoo team summaries (their fixed category
+// columns and every category as a normalized row), the leagues' standings
+// snapshots and the team rosters for a single date.
 func (a *ImportActivities) ImportYahooDataForDate(ctx context.Context, input ImportYahooDataForDateInput) (ImportYahooDataForDateResult, error) {
 	defer metrics.TrackActivityDuration("ImportYahooDataForDate")()
 
@@ -140,16 +142,28 @@ func (a *ImportActivities) ImportYahooDataForDate(ctx context.Context, input Imp
 	}
 
 	// Collect params for this date across all teams
-	summaryParams, summaryFailures := a.collectSummaryParams(ctx, input.Teams, input.Date, result.Origins)
+	summaries, summaryFailures, err := a.collectSummaryParams(ctx, input.Teams, input.Date, result.Origins)
+	if err != nil {
+		return result, err
+	}
+	standings, standingFailures := a.collectStandingParams(ctx, input, result.Origins)
 	rosterParams, rosterFailures := a.collectRosterParams(ctx, input.Teams, input.Date, result.Origins)
-	result.ReadFailures = summaryFailures + rosterFailures
+	result.ReadFailures = summaryFailures + standingFailures + rosterFailures
 
-	// Batch upsert summaries (includes stats as columns)
-	if len(summaryParams) > 0 {
-		if err := upsertSummaries(ctx, a.Queries, summaryParams); err != nil {
+	// Batch upsert summaries (includes stats as columns), then replace their
+	// category rows, which reference the summary rows.
+	if len(summaries.summaries) > 0 {
+		if err := upsertSummaries(ctx, a.Queries, summaries.summaries); err != nil {
 			return result, err
 		}
-		result.SummariesImported = len(summaryParams)
+		if err := replaceSummaryStats(ctx, a.Queries, summaries.stats); err != nil {
+			return result, err
+		}
+		result.SummariesImported = len(summaries.summaries)
+	}
+
+	if result.StandingsImported, err = importStandings(ctx, a.Queries, input.Date, standings); err != nil {
+		return result, err
 	}
 
 	// Batch upsert rosters
@@ -160,123 +174,15 @@ func (a *ImportActivities) ImportYahooDataForDate(ctx context.Context, input Imp
 		result.RostersImported = len(rosterParams)
 	}
 
-	if result.SummariesImported > 0 || result.RostersImported > 0 {
+	if result.SummariesImported > 0 || result.StandingsImported > 0 || result.RostersImported > 0 {
 		logger.Info("Imported Yahoo data for date",
 			"date", input.Date.Format(config.DateFormat),
 			"summaries", result.SummariesImported,
+			"standings", result.StandingsImported,
 			"rosters", result.RostersImported)
 	}
 
 	return result, nil
-}
-
-// collectSummaryParams reads team summary files and returns params for
-// summaries with stats as columns, and how many existing files could not be
-// read.
-func (a *ImportActivities) collectSummaryParams(ctx context.Context, teams []TeamInfo, date time.Time, origins core.OriginCounts) ([]sqlcdb.UpsertYahooTeamSummaryBatchParams, int) {
-	var summaryParams []sqlcdb.UpsertYahooTeamSummaryBatchParams
-	readFailures := 0
-	pgDate := pgtype.Date{Time: date, Valid: true}
-
-	for _, teamInfo := range teams {
-		summaryRes := resource.TeamSummary{LeagueID: teamInfo.LeagueID, TeamID: teamInfo.TeamID, Date: date}
-		if !resource.Exists(ctx, a.Storage, summaryRes) {
-			continue
-		}
-
-		fantasy, origin, err := a.GobCache.ReadParsedCached(ctx, a.Storage, summaryRes)
-		if err != nil {
-			log.Debug().Err(err).
-				Int("teamID", teamInfo.TeamID).
-				Str("date", date.Format(config.DateFormat)).
-				Msg("Failed to read summary file")
-			readFailures++
-			continue
-		}
-		origins.Record(origin)
-
-		team := fantasy.Team
-		teamStats := team.TeamStats
-
-		p := sqlcdb.UpsertYahooTeamSummaryBatchParams{
-			LeagueID:     int32(teamInfo.LeagueID),
-			TeamID:       int32(teamInfo.TeamID),
-			Date:         pgDate,
-			CoverageType: teamStats.CoverageType,
-		}
-
-		for _, stat := range teamStats.Stats.Slice {
-			statID, err := strconv.Atoi(stat.StatID)
-			if err != nil {
-				continue
-			}
-			val := parseStatValue(stat.Value)
-			assignStatField(&p, statID, val)
-		}
-
-		summaryParams = append(summaryParams, p)
-	}
-
-	return summaryParams, readFailures
-}
-
-// parseStatValue converts a Yahoo stat value string to a nullable float.
-// Yahoo uses "-" for stats with no data (e.g., goalie stats for a skater-only day).
-func parseStatValue(s string) pgtype.Float4 {
-	if s == "-" || s == "" {
-		return pgtype.Float4{}
-	}
-	v, err := strconv.ParseFloat(s, 32)
-	if err != nil {
-		return pgtype.Float4{}
-	}
-	return pgtype.Float4{Float32: float32(v), Valid: true}
-}
-
-// assignStatField maps a Yahoo stat ID to the corresponding struct field.
-func assignStatField(p *sqlcdb.UpsertYahooTeamSummaryBatchParams, statID int, val pgtype.Float4) {
-	switch statID {
-	case 1:
-		p.Goals = val
-	case 2:
-		p.Assists = val
-	case 3:
-		p.Points = val
-	case 4:
-		p.PlusMinus = val
-	case 5:
-		p.PIM = val
-	case 8:
-		p.PPP = val
-	case 14:
-		p.SOG = val
-	case 16:
-		p.FaceoffsWon = val
-	case 17:
-		p.FaceoffsLost = val
-	case 19:
-		p.Wins = val
-	case 22:
-		p.GoalsAgainst = val
-	case 23:
-		p.GAA = val
-	case 24:
-		p.ShotsAgainst = val
-	case 25:
-		p.Saves = val
-	case 26:
-		p.SavePct = val
-	case 27:
-		p.Shutouts = val
-	case 29:
-		p.SHP = val
-	case 30:
-		p.GWG = val
-	case 31:
-		p.Hits = val
-	case 32:
-		p.Blocks = val
-	}
 }
 
 // collectRosterParams reads team roster files and returns params for
@@ -333,14 +239,6 @@ func (a *ImportActivities) collectRosterParams(ctx context.Context, teams []Team
 	}
 
 	return rosterParams, readFailures
-}
-
-// upsertSummaries batch upserts team summary records.
-func upsertSummaries(ctx context.Context, queries YahooDataUpserter, params []sqlcdb.UpsertYahooTeamSummaryBatchParams) error {
-	return shared.ExecBatch(queries.UpsertYahooTeamSummaryBatch(ctx, params), func(i int) string {
-		return fmt.Sprintf("summary league_id=%d team_id=%d date=%s",
-			params[i].LeagueID, params[i].TeamID, params[i].Date.Time.Format(config.DateFormat))
-	})
 }
 
 // upsertRosters batch upserts team roster records.

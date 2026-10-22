@@ -57,6 +57,20 @@ func (m *MockQueries) UpsertYahooTeamSummaryBatch(ctx context.Context, arg []sql
 	return args.Get(0).(*sqlcdb.UpsertYahooTeamSummaryBatchBatchResults)
 }
 
+func (m *MockQueries) ReplaceYahooTeamSummaryStatsBatch(ctx context.Context, arg []sqlcdb.ReplaceYahooTeamSummaryStatsBatchParams) *sqlcdb.ReplaceYahooTeamSummaryStatsBatchBatchResults {
+	args := m.Called(ctx, arg)
+	return args.Get(0).(*sqlcdb.ReplaceYahooTeamSummaryStatsBatchBatchResults)
+}
+
+func (m *MockQueries) UpsertYahooTeamStandingBatch(ctx context.Context, arg []sqlcdb.UpsertYahooTeamStandingBatchParams) *sqlcdb.UpsertYahooTeamStandingBatchBatchResults {
+	args := m.Called(ctx, arg)
+	return args.Get(0).(*sqlcdb.UpsertYahooTeamStandingBatchBatchResults)
+}
+
+func (m *MockQueries) ClearYahooTeamStandingsExcept(ctx context.Context, arg sqlcdb.ClearYahooTeamStandingsExceptParams) error {
+	return m.Called(ctx, arg).Error(0)
+}
+
 func (m *MockQueries) UpsertYahooTeamRosterBatch(ctx context.Context, arg []sqlcdb.UpsertYahooTeamRosterBatchParams) *sqlcdb.UpsertYahooTeamRosterBatchBatchResults {
 	args := m.Called(ctx, arg)
 	return args.Get(0).(*sqlcdb.UpsertYahooTeamRosterBatchBatchResults)

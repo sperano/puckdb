@@ -102,6 +102,88 @@ func (b *EnsurePlayerExistsBatchBatchResults) Close() error {
 	return b.br.Close()
 }
 
+const replaceYahooTeamSummaryStatsBatch = `-- name: ReplaceYahooTeamSummaryStatsBatch :batchexec
+
+WITH incoming AS (
+    SELECT (e ->> 'stat_id')::integer AS stat_id,
+           (e ->> 'value')::double precision AS value,
+           (e ->> 'raw_value')::text AS raw_value
+    FROM jsonb_array_elements($4::jsonb) AS e
+), removed AS (
+    DELETE FROM yahoo_team_summary_stats old
+    WHERE old.league_id = $1::integer
+      AND old.team_id = $2::integer
+      AND old.date = $3::date
+      AND old.stat_id NOT IN (SELECT incoming.stat_id FROM incoming)
+)
+INSERT INTO yahoo_team_summary_stats (league_id, team_id, date, stat_id, value, raw_value)
+SELECT $1::integer, $2::integer, $3::date,
+       incoming.stat_id, incoming.value, incoming.raw_value
+FROM incoming
+ON CONFLICT (league_id, team_id, date, stat_id) DO UPDATE SET
+    value = EXCLUDED.value,
+    raw_value = EXCLUDED.raw_value,
+    updated_at = NOW()
+WHERE (yahoo_team_summary_stats.value, yahoo_team_summary_stats.raw_value)
+      IS DISTINCT FROM (EXCLUDED.value, EXCLUDED.raw_value)
+`
+
+type ReplaceYahooTeamSummaryStatsBatchBatchResults struct {
+	br     pgx.BatchResults
+	tot    int
+	closed bool
+}
+
+type ReplaceYahooTeamSummaryStatsBatchParams struct {
+	LeagueID int32       `json:"league_id"`
+	TeamID   int32       `json:"team_id"`
+	Date     pgtype.Date `json:"date"`
+	Stats    []byte      `json:"stats"`
+}
+
+// =============================================================================
+// Yahoo Team Summary Stats
+// =============================================================================
+// Replaces the category values of one team summary with stats, a JSON array
+// of {"stat_id", "value", "raw_value"} objects with distinct stat IDs: values
+// the array lists are upserted, every other stat of the summary is deleted.
+// One statement, so a reader never sees half of a replacement.
+func (q *Queries) ReplaceYahooTeamSummaryStatsBatch(ctx context.Context, arg []ReplaceYahooTeamSummaryStatsBatchParams) *ReplaceYahooTeamSummaryStatsBatchBatchResults {
+	batch := &pgx.Batch{}
+	for _, a := range arg {
+		vals := []interface{}{
+			a.LeagueID,
+			a.TeamID,
+			a.Date,
+			a.Stats,
+		}
+		batch.Queue(replaceYahooTeamSummaryStatsBatch, vals...)
+	}
+	br := q.db.SendBatch(ctx, batch)
+	return &ReplaceYahooTeamSummaryStatsBatchBatchResults{br, len(arg), false}
+}
+
+func (b *ReplaceYahooTeamSummaryStatsBatchBatchResults) Exec(f func(int, error)) {
+	defer b.br.Close()
+	for t := 0; t < b.tot; t++ {
+		if b.closed {
+			if f != nil {
+				f(t, ErrBatchAlreadyClosed)
+			}
+			continue
+		}
+		_, err := b.br.Exec()
+		if f != nil {
+			f(t, err)
+		}
+	}
+}
+
+func (b *ReplaceYahooTeamSummaryStatsBatchBatchResults) Close() error {
+	b.closed = true
+	return b.br.Close()
+}
+
 const upsertClubGoalieStatsBatch = `-- name: UpsertClubGoalieStatsBatch :batchexec
 INSERT INTO club_goalie_stats (
     season, game_type, team_id, player_id,
@@ -2143,6 +2225,117 @@ func (b *UpsertYahooTeamRosterBatchBatchResults) Exec(f func(int, error)) {
 }
 
 func (b *UpsertYahooTeamRosterBatchBatchResults) Close() error {
+	b.closed = true
+	return b.br.Close()
+}
+
+const upsertYahooTeamStandingBatch = `-- name: UpsertYahooTeamStandingBatch :batchexec
+INSERT INTO yahoo_team_summaries (
+    league_id, team_id, date,
+    standings_captured_at, standings_rank, standings_playoff_seed,
+    h2h_wins, h2h_losses, h2h_ties, h2h_percentage,
+    h2h_division_wins, h2h_division_losses, h2h_division_ties, h2h_division_percentage
+)
+VALUES ($1, $2, $3,
+    $4, $5, $6,
+    $7, $8, $9, $10,
+    $11, $12, $13, $14)
+ON CONFLICT (league_id, team_id, date) DO UPDATE SET
+    standings_captured_at = EXCLUDED.standings_captured_at,
+    standings_rank = EXCLUDED.standings_rank,
+    standings_playoff_seed = EXCLUDED.standings_playoff_seed,
+    h2h_wins = EXCLUDED.h2h_wins,
+    h2h_losses = EXCLUDED.h2h_losses,
+    h2h_ties = EXCLUDED.h2h_ties,
+    h2h_percentage = EXCLUDED.h2h_percentage,
+    h2h_division_wins = EXCLUDED.h2h_division_wins,
+    h2h_division_losses = EXCLUDED.h2h_division_losses,
+    h2h_division_ties = EXCLUDED.h2h_division_ties,
+    h2h_division_percentage = EXCLUDED.h2h_division_percentage,
+    updated_at = NOW()
+WHERE (yahoo_team_summaries.standings_captured_at, yahoo_team_summaries.standings_rank,
+       yahoo_team_summaries.standings_playoff_seed,
+       yahoo_team_summaries.h2h_wins, yahoo_team_summaries.h2h_losses,
+       yahoo_team_summaries.h2h_ties, yahoo_team_summaries.h2h_percentage,
+       yahoo_team_summaries.h2h_division_wins, yahoo_team_summaries.h2h_division_losses,
+       yahoo_team_summaries.h2h_division_ties, yahoo_team_summaries.h2h_division_percentage)
+      IS DISTINCT FROM
+      (EXCLUDED.standings_captured_at, EXCLUDED.standings_rank,
+       EXCLUDED.standings_playoff_seed,
+       EXCLUDED.h2h_wins, EXCLUDED.h2h_losses,
+       EXCLUDED.h2h_ties, EXCLUDED.h2h_percentage,
+       EXCLUDED.h2h_division_wins, EXCLUDED.h2h_division_losses,
+       EXCLUDED.h2h_division_ties, EXCLUDED.h2h_division_percentage)
+`
+
+type UpsertYahooTeamStandingBatchBatchResults struct {
+	br     pgx.BatchResults
+	tot    int
+	closed bool
+}
+
+type UpsertYahooTeamStandingBatchParams struct {
+	LeagueID              int32              `json:"league_id"`
+	TeamID                int32              `json:"team_id"`
+	Date                  pgtype.Date        `json:"date"`
+	StandingsCapturedAt   pgtype.Timestamptz `json:"standings_captured_at"`
+	StandingsRank         pgtype.Int4        `json:"standings_rank"`
+	StandingsPlayoffSeed  pgtype.Int4        `json:"standings_playoff_seed"`
+	H2hWins               pgtype.Int4        `json:"h2h_wins"`
+	H2hLosses             pgtype.Int4        `json:"h2h_losses"`
+	H2hTies               pgtype.Int4        `json:"h2h_ties"`
+	H2hPercentage         pgtype.Float8      `json:"h2h_percentage"`
+	H2hDivisionWins       pgtype.Int4        `json:"h2h_division_wins"`
+	H2hDivisionLosses     pgtype.Int4        `json:"h2h_division_losses"`
+	H2hDivisionTies       pgtype.Int4        `json:"h2h_division_ties"`
+	H2hDivisionPercentage pgtype.Float8      `json:"h2h_division_percentage"`
+}
+
+// Writes the standings snapshot of one team and date, creating the summary
+// row when the team's stats of that date were not imported. Only the
+// standings columns change, so the category columns are left as they are.
+func (q *Queries) UpsertYahooTeamStandingBatch(ctx context.Context, arg []UpsertYahooTeamStandingBatchParams) *UpsertYahooTeamStandingBatchBatchResults {
+	batch := &pgx.Batch{}
+	for _, a := range arg {
+		vals := []interface{}{
+			a.LeagueID,
+			a.TeamID,
+			a.Date,
+			a.StandingsCapturedAt,
+			a.StandingsRank,
+			a.StandingsPlayoffSeed,
+			a.H2hWins,
+			a.H2hLosses,
+			a.H2hTies,
+			a.H2hPercentage,
+			a.H2hDivisionWins,
+			a.H2hDivisionLosses,
+			a.H2hDivisionTies,
+			a.H2hDivisionPercentage,
+		}
+		batch.Queue(upsertYahooTeamStandingBatch, vals...)
+	}
+	br := q.db.SendBatch(ctx, batch)
+	return &UpsertYahooTeamStandingBatchBatchResults{br, len(arg), false}
+}
+
+func (b *UpsertYahooTeamStandingBatchBatchResults) Exec(f func(int, error)) {
+	defer b.br.Close()
+	for t := 0; t < b.tot; t++ {
+		if b.closed {
+			if f != nil {
+				f(t, ErrBatchAlreadyClosed)
+			}
+			continue
+		}
+		_, err := b.br.Exec()
+		if f != nil {
+			f(t, err)
+		}
+	}
+}
+
+func (b *UpsertYahooTeamStandingBatchBatchResults) Close() error {
 	b.closed = true
 	return b.br.Close()
 }
