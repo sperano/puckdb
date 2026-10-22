@@ -188,7 +188,7 @@ func labelTestResources() []core.Resource {
 	const (
 		gameID      = nhl.GameID(2024020123)
 		playerID    = nhl.PlayerID(8478402)
-		gameType    = nhl.GameType(2)
+		gameType    = nhl.GameTypeRegularSeason
 		teamID      = nhl.TeamID(8)
 		startSeason = 2024
 		leagueID    = 12345
