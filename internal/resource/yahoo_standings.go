@@ -16,8 +16,10 @@ import (
 
 // YahooFantasyDayZone is the time zone whose calendar date labels a
 // standings capture. Every NHL game of a day ends before midnight Pacific,
-// so a snapshot dated D never carries results of D+1's games, and a capture
-// after the last game of D reflects all of D.
+// so a snapshot dated D never carries results of D+1's games. It holds the
+// standings at the moment of the day's first capture, which a sync that runs
+// before D's games is the standings entering D (through D-1's games); only
+// the file's modification time records when the capture was made.
 const YahooFantasyDayZone = "America/Los_Angeles"
 
 var yahooFantasyDayLocation = mustLoadLocation(YahooFantasyDayZone)
