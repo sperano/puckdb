@@ -23,10 +23,11 @@ const (
 	ToolsetYahoo Toolset = "yahoo"
 	// ToolsetNews holds the player news tools: news source coverage (which
 	// sources are fresh, failing, stale or missing) and validated news events,
-	// one player's or the whole league's most recent, with short quotes of
-	// the third-party articles behind them. They concern NHL players and are
-	// not league-scoped, but they are kept out of nhl so an instance serves
-	// quoted article text only when asked to.
+	// one player's or the most recent across the NHL; the two event tools
+	// include short quotes of the third-party articles behind them. They
+	// concern NHL players and are not scoped to a Yahoo league, but they are
+	// kept out of nhl so an instance serves quoted article text only when
+	// asked to.
 	ToolsetNews Toolset = "news"
 )
 

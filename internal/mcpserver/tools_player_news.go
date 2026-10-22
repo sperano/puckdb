@@ -46,7 +46,7 @@ const (
 var playerNewsLimitParam = intArg{name: "limit", min: minimumPositiveInteger, max: maxPlayerNewsLimit}
 
 // registerPlayerNewsTools adds the news toolset's player news tools; the
-// league-wide recent events tool is registered by registerRecentNewsTools.
+// NHL-wide recent events tool is registered by registerRecentNewsTools.
 func registerPlayerNewsTools(srv *server.MCPServer, queries *sqlcdb.Queries) {
 	srv.AddTools(playerNewsTool(queries))
 }

@@ -99,8 +99,8 @@ type recentNewsEvidence struct {
 	quote      string
 }
 
-// registerRecentNewsTools adds the news toolset's league-wide recent events
-// tool.
+// registerRecentNewsTools adds the news toolset's recent events tool,
+// which covers every NHL player.
 func registerRecentNewsTools(srv *server.MCPServer, queries recentNewsQueries) {
 	srv.AddTools(recentNewsTool(queries))
 }

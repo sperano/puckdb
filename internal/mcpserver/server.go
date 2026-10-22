@@ -82,7 +82,7 @@ func registerNHLTools(srv *server.MCPServer, queries *sqlcdb.Queries) {
 }
 
 // registerNewsTools adds the player news tools: source coverage, one
-// player's events and league-wide recent events.
+// player's events and recent events across the NHL.
 func registerNewsTools(srv *server.MCPServer, queries *sqlcdb.Queries, sources []news.Source) {
 	registerNewsCoverageTools(srv, queries, sources)
 	registerPlayerNewsTools(srv, queries)

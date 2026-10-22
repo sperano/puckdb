@@ -195,12 +195,12 @@ required for the quick start.
 | --- | --- | --- |
 | `nhl` (default) | Public NHL data: players, games, stats, standings, Edge, playoffs, play-by-play | `puckdb-nhl` |
 | `yahoo` | Yahoo fantasy league data: leagues, teams, rosters, roto standings, season team totals, unrostered players, matchups, draft results | `puckdb-yahoo` |
-| `news` | Player news: source coverage (`get_news_coverage`), one player's validated news events (`get_player_news`) and the league's recent ones (`get_recent_news_events`), with short quotes of the third-party articles behind them | `puckdb-news` |
+| `news` | Player news: source coverage (`get_news_coverage`), one player's validated news events (`get_player_news`) and the recent ones across the NHL (`get_recent_news_events`); the two event tools include short quotes of the third-party articles behind them | `puckdb-news` |
 
 A comma-separated list serves several from one instance: `--mcp-toolsets
 nhl,yahoo` is `puckdb-nhl-yahoo`, `nhl,news` is `puckdb-nhl-news`. The `news`
-toolset is not league-scoped, but it is kept out of `nhl` so an instance
-serves quoted article text only when asked to.
+toolset is not scoped to a Yahoo league, but it is kept out of `nhl` so an
+instance serves quoted article text only when asked to.
 To expose the Yahoo data only to some clients, run one instance per audience
 and point each client at the URL it may use:
 
