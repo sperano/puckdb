@@ -182,10 +182,10 @@ func FetchEdgeWorkflow(ctx workflow.Context, input FetchEdgeWorkflowInput) (core
 - If child has no tracker/query handler registered, query returns empty → bar stays at 0
 - Child's progress report Total must match parent's `Counter` function return value
 - Return `core.OriginCounts` for aggregation in parent (separate from progress tracking)
-- Bar methods (`IncrementBar`, `IncrementBarBy`, `StartBar`, `CompleteBar`, `ResizeBar`, `SetBarTotal`, `SetBarLabel`, `Bar`) take a `shared.BarRef`; a workflow that names the same bar several times declares it once (`var upcomingSeasonBar = shared.BarRef{Group: groupUpcomingSeason}` in `upcoming_season.go`). A reference or group index outside the report panics with a message naming the group, bar and sizes
+- Bar methods (`IncrementBar`, `IncrementBarBy`, `StartBar`, `CompleteBar`, `ResizeBar`, `SetBarTotal`, `SetBarLabel`, `Bar`) take a `shared.BarRef`; a workflow that names the same bar several times declares it once (`var upcomingSeasonBar = shared.BarRef{Group: groupUpcomingSeason}` in `upcoming_season.go`). A `BarRef` outside the report panics naming the reference, the report's group count and, when its group exists, that group's bar count; a bare group index outside the report (`StartGroup`, `CompleteGroup`, ...) panics naming the index and the group count
 
 **Reference implementations:**
-- `FetchNHLSeasonWorkflow` — uses `RunWorkerPool` for automatic tracking: `tracker.RunWorkerPool(ctx, shared.PoolOptions{Total: n, Concurrency: c, Start: start, Handle: handle, Progress: shared.SingleBar{Bar: shared.BarRef{Group: g}}})` advances one bar per completed item (by `SingleBar.Increment(i)` when set); `shared.BarPerItem{Group: g}` gives item i its own bar instead. `RunWorkerPool` validates the options (bar references included) and returns an error before issuing any command
+- `FetchNHLSeasonWorkflow` — uses `RunWorkerPool` for automatic tracking: `tracker.RunWorkerPool(ctx, shared.PoolOptions{Total: n, Concurrency: c, Start: start, Handle: handle, Progress: shared.SingleBar{Bar: shared.BarRef{Group: g}}})` advances one bar per completed item (by `SingleBar.Increment(i)` when set); `shared.BarPerItem{Group: g}` gives item i its own bar instead. `RunWorkerPool` validates the options (bar references included; a pointer progress mode is rejected) and returns an error before issuing any command, except that a zero `Total` returns nil unvalidated (the old variants' behavior, kept for replay)
 - `FetchEdgeWorkflow` — uses manual `IncrementBar` calls
 
 ### Configuration Inside Workflow Code

@@ -51,7 +51,9 @@ type PoolOptions struct {
 // RunWorkerPool runs opts.Total work items with at most opts.Concurrency in
 // flight, reporting them on the tracker as opts.Progress says. It validates
 // opts before issuing any command, so a rejected call records no activity and
-// no Save; the first item error stops dispatching and is returned.
+// no Save; the first item error stops dispatching and is returned. A zero
+// Total returns nil without validating, as the positional variants did, so a
+// replayed zero-item pool still succeeds whatever its other options.
 func (t *ReportTracker) RunWorkerPool(ctx workflow.Context, opts PoolOptions) error {
 	if opts.Total == 0 {
 		return nil
@@ -77,7 +79,14 @@ func (t *ReportTracker) poolHooks(opts PoolOptions) (workerPoolHooks, error) {
 	case t == nil:
 		return workerPoolHooks{}, errors.New("worker pool: progress needs a tracker, got a nil one")
 	}
-	return opts.Progress.hooks(t, opts.Total)
+	switch opts.Progress.(type) {
+	case SingleBar, BarPerItem:
+		return opts.Progress.hooks(t, opts.Total)
+	default:
+		// A pointer mode satisfies PoolProgress too, and a typed nil one would
+		// panic in hooks: reject it as an error like every other bad option.
+		return workerPoolHooks{}, fmt.Errorf("worker pool: progress must be a SingleBar or BarPerItem value, got %T", opts.Progress)
+	}
 }
 
 // RunWorkerPoolMultiBarSuccessful leaves failed bars incomplete while marking
