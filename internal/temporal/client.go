@@ -1,3 +1,7 @@
+// Package temporal builds the Temporal client (NewClient, Options) that
+// cmd's commands and the worker share, names the task queues (QueueTasks,
+// QueueAdmin), and wires the SDK's own metrics (NewMetricsHandler) into a
+// tally/Prometheus scope registered on the worker's metrics registry.
 package temporal
 
 import (

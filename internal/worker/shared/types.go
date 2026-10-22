@@ -1,3 +1,11 @@
+// Package shared holds what every worker workflow/activity package needs
+// in common: progress tracking (ReportTracker, BarRef, ProgressReport) so
+// a parent can query a running child's progress bars, SnapshotConfig/
+// SnapshotConfigInt for reading viper config once through a deterministic
+// SideEffect, RunWorkerPool for bounded-concurrency activity fan-out,
+// shared input/output types (DateSeasonInput, PartialPlayer), task queue
+// and workflow ID constants, and small workflow helpers (rate limiting,
+// heartbeats, batching).
 package shared
 
 import "time"

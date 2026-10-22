@@ -1,3 +1,14 @@
+// Package player holds ProcessPlayers' per-batch activities: deduplicating
+// the consolidated boxscore player list (consolidate.go), importing each
+// player's landing and matching it to a Yahoo ID (via internal/matching)
+// from a Redis-cached ID pool (process_batch.go, yahoo_id_pool.go,
+// yahoo_pool_ensure.go), the durable manifest that manifest-enabled
+// ProcessPlayers chains store their player list in and read it from, but
+// only when the boxscore list is non-empty (manifest.go,
+// manifest_activities.go, manifest_store.go; an empty list ends the chain
+// with nothing to process, and a legacy chain sources players directly
+// instead), and the unmatched/verification reports (report_unmatched.go,
+// verify_unmatched.go).
 package player
 
 import (
