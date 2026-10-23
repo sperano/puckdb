@@ -155,6 +155,75 @@ func TestRunWorkerPool_StopDispatchNeverStopping(t *testing.T) {
 	assert.ElementsMatch(t, indexes(stopTestTotal), result.Processed)
 }
 
+// oneShotStopResult is what oneShotStopWorkflow observed.
+type oneShotStopResult struct {
+	Processed  []int
+	Dispatched int
+	// CallsAfterStop counts StopDispatch calls after the one that reported true.
+	CallsAfterStop int
+	Err            string
+}
+
+// oneShotStopWorkflow runs a package-level pool whose StopDispatch reports
+// true exactly once, on its first call after an item was handled, and false
+// on every later call.
+func oneShotStopWorkflow(ctx workflow.Context) (oneShotStopResult, error) {
+	ctx = workflow.WithLocalActivityOptions(ctx, workflow.LocalActivityOptions{
+		ScheduleToCloseTimeout: activityTestTimeout,
+	})
+	var res oneShotStopResult
+	reported := false
+	err := RunWorkerPool(ctx, PoolOptions{
+		Total: stopTestTotal, Concurrency: stopTestConcurrency,
+		Start: func(c workflow.Context, index int) workflow.Future {
+			res.Dispatched++
+			return workflow.ExecuteLocalActivity(c, workerPoolActivity, index)
+		},
+		Handle: func(c workflow.Context, _ int, f workflow.Future) error {
+			var index int
+			if err := f.Get(c, &index); err != nil {
+				return err
+			}
+			res.Processed = append(res.Processed, index)
+			return nil
+		},
+		StopDispatch: func() bool {
+			switch {
+			case reported:
+				res.CallsAfterStop++
+				return false
+			case len(res.Processed) > 0:
+				reported = true
+				return true
+			}
+			return false
+		},
+	})
+	res.Err = errString(err)
+	return res, nil
+}
+
+// The first true from StopDispatch is final: draining the in-flight items
+// neither calls it again nor dispatches anything, though it would now say
+// false.
+func TestRunWorkerPool_StopDispatchLatches(t *testing.T) {
+	var suite testsuite.WorkflowTestSuite
+	env := suite.NewTestWorkflowEnvironment()
+	env.RegisterWorkflow(oneShotStopWorkflow)
+	env.RegisterActivity(workerPoolActivity)
+	env.ExecuteWorkflow(oneShotStopWorkflow)
+	require.True(t, env.IsWorkflowCompleted())
+	require.NoError(t, env.GetWorkflowError())
+	var result oneShotStopResult
+	require.NoError(t, env.GetWorkflowResult(&result))
+	require.Empty(t, result.Err)
+
+	// The first handled item's slot is the first refill, which stops.
+	assert.Equal(t, stopTestConcurrency, result.Dispatched)
+	assert.ElementsMatch(t, indexes(stopTestConcurrency), result.Processed, "no dispatched item is abandoned")
+	assert.Zero(t, result.CallsAfterStop, "StopDispatch calls after it reported true")
+}
+
 // indexes returns 0..n-1, the items a pool dispatches first.
 func indexes(n int) []int {
 	out := make([]int, n)
