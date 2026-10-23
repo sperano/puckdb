@@ -145,7 +145,11 @@ func (w *yahooPoolWalk) concurrent(ctx workflow.Context, from, to int) (yahooPoo
 		return nil
 	}
 	stop := func() bool { return firstEnd >= 0 }
-	if err := shared.RunActivitiesUntil(ctx, len(outcomes), yahooPoolPageConcurrency, start, handle, stop); err != nil {
+	err := shared.RunWorkerPool(ctx, shared.PoolOptions{
+		Total: len(outcomes), Concurrency: yahooPoolPageConcurrency,
+		Start: start, Handle: handle, StopDispatch: stop,
+	})
+	if err != nil {
 		return yahooPoolContinue, err
 	}
 	for i, outcome := range outcomes {

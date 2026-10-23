@@ -11,6 +11,8 @@ type Adder[T any] interface {
 
 // AggregateInto returns a ResultHandler that decodes each activity result
 // and adds it to the accumulator. The accumulator must implement Add(T).
+// Like every handler here, it serves as PoolOptions.Handle for both pool
+// entry points: tracker.RunWorkerPool with progress, RunWorkerPool without.
 //
 // Example:
 //

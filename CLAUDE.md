@@ -186,6 +186,7 @@ func FetchEdgeWorkflow(ctx workflow.Context, input FetchEdgeWorkflowInput) (core
 
 **Reference implementations:**
 - `FetchNHLSeasonWorkflow` — uses `RunWorkerPool` for automatic tracking: `tracker.RunWorkerPool(ctx, shared.PoolOptions{Total: n, Concurrency: c, Start: start, Handle: handle, Progress: shared.SingleBar{Bar: shared.BarRef{Group: g}}})` advances one bar per completed item (by `SingleBar.Increment(i)` when set); `shared.BarPerItem{Group: g}` gives item i its own bar instead, `shared.BarsPerItem{Group: g, Ranges: r}` the bars `r[i]` (StartBars on dispatch, CompleteBars after the handler, which may resize them). Every mode advances a failed item too unless `OnlyOnSuccess: true`, which advances progress only after `Handle` (or `future.Get`) succeeded. `RunWorkerPool` validates the options (bar references included; a pointer progress mode is rejected) and returns an error before issuing any command, except that a zero `Total` returns nil unvalidated
+- Tracker-less pools — the package-level `shared.RunWorkerPool(ctx, shared.PoolOptions{...})` runs the same scheduler with no progress and rejects a non-nil `Progress`; `PoolOptions.StopDispatch` (both entry points) ends dispatching once it returns true while in-flight items still reach `Handle` (`yahoo_pool_pages.go`)
 - `FetchEdgeWorkflow` — uses manual `IncrementBar` calls
 
 ### Configuration Inside Workflow Code
