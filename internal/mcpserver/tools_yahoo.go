@@ -18,6 +18,9 @@ type yahooQueries interface {
 	GetAllYahooLeagues(ctx context.Context) ([]sqlcdb.YahooLeague, error)
 	GetYahooTeamsByLeague(ctx context.Context, leagueID int32) ([]sqlcdb.YahooTeam, error)
 	GetYahooTeamManagersByLeague(ctx context.Context, leagueID int32) ([]sqlcdb.GetYahooTeamManagersByLeagueRow, error)
+	GetLatestYahooStandingsSnapshotDate(ctx context.Context, leagueID int32) (pgtype.Date, error)
+	GetYahooTeamSummarySnapshot(ctx context.Context, arg sqlcdb.GetYahooTeamSummarySnapshotParams) ([]sqlcdb.YahooTeamSummary, error)
+	GetYahooTeamSummaryStatsSnapshot(ctx context.Context, arg sqlcdb.GetYahooTeamSummaryStatsSnapshotParams) ([]sqlcdb.GetYahooTeamSummaryStatsSnapshotRow, error)
 	GetYahooRosterWithPlayers(ctx context.Context, arg sqlcdb.GetYahooRosterWithPlayersParams) ([]sqlcdb.YahooRosterPlayer, error)
 	GetYahooLeagueRostersWithPlayers(ctx context.Context, arg sqlcdb.GetYahooLeagueRostersWithPlayersParams) ([]sqlcdb.GetYahooLeagueRostersWithPlayersRow, error)
 	GetYahooTeamRostersByPlayer(ctx context.Context, arg sqlcdb.GetYahooTeamRostersByPlayerParams) ([]sqlcdb.YahooTeamRoster, error)
@@ -65,6 +68,7 @@ func yahooTools(q yahooQueries, guard leagueGuard, draft draftToolSource) []serv
 		yahooLeagueRostersTool(q, guard),
 		yahooPlayerOwnershipTool(q, guard),
 		yahooRotoStandingsTool(q, guard),
+		yahooTeamStandingsTool(q, guard),
 		yahooSeasonTeamTotalsTool(q, guard),
 		unrosteredSkatersTool(q, guard),
 		unrosteredGoaliesTool(q, guard),
