@@ -191,15 +191,15 @@ func runWorkerPool(ctx workflow.Context, total, concurrency int, startActivity A
 	// synchronization: workflow.Selector invokes its callbacks cooperatively
 	// (one at a time on the workflow goroutine), so reads/writes never race.
 	var firstErr error
-	// stopped latches the first true stopDispatch: once it is set, stopDispatch
+	// dispatchStopped latches the first true stopDispatch: once it is set, stopDispatch
 	// is not called again and nothing more is dispatched, even if it would
 	// later report false.
-	var stopped bool
+	var dispatchStopped bool
 
 	dispatch := func() {
-		for !stopped && len(activeIndexes) < concurrency && nextIndex < total {
+		for !dispatchStopped && len(activeIndexes) < concurrency && nextIndex < total {
 			if hooks.stopped() {
-				stopped = true
+				dispatchStopped = true
 				return
 			}
 			idx := nextIndex
