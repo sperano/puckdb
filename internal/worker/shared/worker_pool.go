@@ -17,7 +17,7 @@ type ActivityStarter func(ctx workflow.Context, index int) workflow.Future
 // The handler receives the future to extract the result.
 type ResultHandler func(ctx workflow.Context, index int, future workflow.Future) error
 
-// workerPoolHooks are the progress-tracking callbacks the scheduler invokes.
+// workerPoolHooks are the callbacks the scheduler invokes.
 // onStart runs immediately before an item is dispatched; onComplete runs after
 // the item's result handler. stopDispatch, checked before each dispatch, ends
 // dispatching once it reports true; items already in flight still complete.
@@ -34,7 +34,8 @@ func (h workerPoolHooks) stopped() bool {
 	return h.stopDispatch != nil && h.stopDispatch()
 }
 
-// PoolOptions configures one RunWorkerPool call.
+// PoolOptions configures one pool, run by RunWorkerPool or, with progress,
+// by (*ReportTracker).RunWorkerPool.
 type PoolOptions struct {
 	// Total is the number of work items, run as indexes [0, Total).
 	Total int
@@ -44,32 +45,74 @@ type PoolOptions struct {
 	Start ActivityStarter
 	// Handle receives each completed item's future; nil means future.Get(ctx, nil).
 	Handle ResultHandler
-	// Progress is how the items advance the tracker's report; nil means no progress.
+	// Progress is how the items advance the tracker's report; nil means no
+	// progress. Only (*ReportTracker).RunWorkerPool accepts a non-nil one.
 	Progress PoolProgress
 	// OnlyOnSuccess advances Progress only after Handle (or future.Get) succeeded;
 	// a failed item's bar stays as it was. Default false: advance regardless.
 	// With a nil Progress it is accepted and does nothing.
 	OnlyOnSuccess bool
+	// StopDispatch, checked before every dispatch, ends dispatching once it
+	// returns true; in-flight items still complete and reach Handle.
+	StopDispatch func() bool
+}
+
+// RunWorkerPool runs a pool that reports no progress. opts.Progress must be
+// nil; a pool with progress runs on its tracker through
+// (*ReportTracker).RunWorkerPool. The Progress check comes first, so even a
+// zero Total with a Progress is an error. Otherwise it behaves like the
+// method: opts is validated before any command, the first item error stops
+// dispatching and is returned, and a zero Total returns nil.
+func RunWorkerPool(ctx workflow.Context, opts PoolOptions) error {
+	if opts.Progress != nil {
+		return fmt.Errorf("worker pool: progress %T without a tracker; use (*ReportTracker).RunWorkerPool for progress", opts.Progress)
+	}
+	return runPoolOn(ctx, nil, opts)
 }
 
 // RunWorkerPool runs opts.Total work items with at most opts.Concurrency in
 // flight, reporting them on the tracker as opts.Progress says. It validates
 // opts before issuing any command, so a rejected call records no activity and
 // no Save; the first item error stops dispatching and is returned. A zero
-// Total returns nil without validating its other options.
+// Total returns nil without validating its other options. A pool without
+// progress needs no tracker: use the package-level RunWorkerPool.
 func (t *ReportTracker) RunWorkerPool(ctx workflow.Context, opts PoolOptions) error {
+	return runPoolOn(ctx, t, opts)
+}
+
+// runPoolOn validates opts, resolves opts.Progress against t (which may be nil
+// when Progress is) and runs the items on the scheduler. Every entry point
+// goes through it, so the validation order is the same for all of them.
+func runPoolOn(ctx workflow.Context, t *ReportTracker, opts PoolOptions) error {
 	if opts.Total == 0 {
 		return nil
 	}
-	hooks, err := t.poolHooks(opts)
+	if err := validatePoolOptions(opts); err != nil {
+		return err
+	}
+	hooks, err := t.progressHooks(opts.Progress, opts.Total)
 	if err != nil {
 		return err
 	}
+	hooks.stopDispatch = opts.StopDispatch
 	handle := opts.Handle
 	if opts.OnlyOnSuccess {
 		handle, hooks = completeOnlyOnSuccess(handle, hooks)
 	}
 	return runWorkerPool(ctx, opts.Total, opts.Concurrency, opts.Start, handle, hooks)
+}
+
+// validatePoolOptions checks the fields of opts other than Progress.
+func validatePoolOptions(opts PoolOptions) error {
+	switch {
+	case opts.Total < 0:
+		return errors.New("worker pool: total must not be negative")
+	case opts.Concurrency <= 0:
+		return concurrencyError(opts.Total, opts.Concurrency)
+	case opts.Start == nil:
+		return errors.New("worker pool: Start must not be nil")
+	}
+	return nil
 }
 
 // completeOnlyOnSuccess moves hooks.onComplete into the result handler: it
@@ -96,33 +139,28 @@ func completeOnlyOnSuccess(handle ResultHandler, hooks workerPoolHooks) (ResultH
 	}, hooks
 }
 
-// poolHooks validates opts and returns the hooks of its progress mode.
-func (t *ReportTracker) poolHooks(opts PoolOptions) (workerPoolHooks, error) {
+// progressHooks validates progress against the tracker's report for total
+// items and returns the hooks of its mode; a nil progress needs no tracker
+// and has no hooks.
+func (t *ReportTracker) progressHooks(progress PoolProgress, total int) (workerPoolHooks, error) {
 	switch {
-	case opts.Total < 0:
-		return workerPoolHooks{}, errors.New("worker pool: total must not be negative")
-	case opts.Concurrency <= 0:
-		return workerPoolHooks{}, concurrencyError(opts.Total, opts.Concurrency)
-	case opts.Start == nil:
-		return workerPoolHooks{}, errors.New("worker pool: Start must not be nil")
-	case opts.Progress == nil:
+	case progress == nil:
 		return workerPoolHooks{}, nil
 	case t == nil:
 		return workerPoolHooks{}, errors.New("worker pool: progress needs a tracker, got a nil one")
 	}
-	switch opts.Progress.(type) {
+	switch progress.(type) {
 	case SingleBar, BarPerItem, BarsPerItem:
-		return opts.Progress.hooks(t, opts.Total)
+		return progress.hooks(t, total)
 	default:
 		// A pointer mode satisfies PoolProgress too, and a typed nil one would
 		// panic in hooks: reject it as an error like every other bad option.
-		return workerPoolHooks{}, fmt.Errorf("worker pool: progress must be a SingleBar, BarPerItem or BarsPerItem value, got %T", opts.Progress)
+		return workerPoolHooks{}, fmt.Errorf("worker pool: progress must be a SingleBar, BarPerItem or BarsPerItem value, got %T", progress)
 	}
 }
 
-// runWorkerPool is the single scheduler behind RunWorkerPool and
-// RunActivitiesUntil.
-// It dispatches work items [0, total) through startActivity with at most
+// runWorkerPool is the single scheduler behind both RunWorkerPool entry
+// points. It dispatches work items [0, total) through startActivity with at most
 // concurrency futures in flight, invoking hooks around each item's lifecycle.
 //
 // The first error observed (from handler, or from the future itself when

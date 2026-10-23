@@ -36,10 +36,16 @@ type poolRun struct {
 	saves      atomic.Int32
 }
 
-// runPool runs tracker.RunWorkerPool(opts) in a test workflow. Unless
-// nilStart, opts.Start is a starter that counts dispatches and returns
-// already-settled successful futures; every progress Save is counted.
+// runPool runs tracker.RunWorkerPool(opts) in a test workflow, as runPoolWith.
 func runPool(t *testing.T, tracker *ReportTracker, opts PoolOptions, nilStart bool) *poolRun {
+	t.Helper()
+	return runPoolWith(t, opts, nilStart, tracker.RunWorkerPool)
+}
+
+// runPoolWith runs pool(ctx, opts) in a test workflow. Unless nilStart,
+// opts.Start is a starter that counts dispatches and returns already-settled
+// successful futures; every progress Save is counted.
+func runPoolWith(t *testing.T, opts PoolOptions, nilStart bool, pool func(workflow.Context, PoolOptions) error) *poolRun {
 	t.Helper()
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
@@ -59,7 +65,7 @@ func runPool(t *testing.T, tracker *ReportTracker, opts PoolOptions, nilStart bo
 	}
 
 	env.ExecuteWorkflow(func(ctx workflow.Context) error {
-		run.err = tracker.RunWorkerPool(ctx, opts)
+		run.err = pool(ctx, opts)
 		return nil
 	})
 	require.NoError(t, env.GetWorkflowError())
@@ -82,8 +88,6 @@ func TestRunWorkerPool_Validation(t *testing.T) {
 	}{
 		{name: "valid single bar", opts: PoolOptions{Total: poolValidationItems, Concurrency: 2, Progress: SingleBar{}},
 			wantDispatched: poolValidationItems, wantSaves: poolValidationItems},
-		{name: "nil tracker without progress", nilTracker: true,
-			opts: PoolOptions{Total: poolValidationItems, Concurrency: 2}, wantDispatched: poolValidationItems},
 		{name: "zero total", opts: PoolOptions{Total: 0, Concurrency: 2, Progress: SingleBar{}}},
 		{name: "negative total", opts: PoolOptions{Total: -1, Concurrency: 2, Progress: SingleBar{}},
 			wantErr: "worker pool: total must not be negative"},
