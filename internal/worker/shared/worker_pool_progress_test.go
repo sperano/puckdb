@@ -88,6 +88,9 @@ func TestRunWorkerPool_Validation(t *testing.T) {
 	}{
 		{name: "valid single bar", opts: PoolOptions{Total: poolValidationItems, Concurrency: 2, Progress: SingleBar{}},
 			wantDispatched: poolValidationItems, wantSaves: poolValidationItems},
+		// The package-level RunWorkerPool's path: no progress needs no tracker.
+		{name: "nil tracker without progress", nilTracker: true,
+			opts: PoolOptions{Total: poolValidationItems, Concurrency: 2}, wantDispatched: poolValidationItems},
 		{name: "zero total", opts: PoolOptions{Total: 0, Concurrency: 2, Progress: SingleBar{}}},
 		{name: "negative total", opts: PoolOptions{Total: -1, Concurrency: 2, Progress: SingleBar{}},
 			wantErr: "worker pool: total must not be negative"},
@@ -187,6 +190,61 @@ func TestRunWorkerPool_Validation(t *testing.T) {
 			}
 			assert.Equal(t, tc.wantDispatched, run.dispatched, "items dispatched")
 			assert.Equal(t, tc.wantSaves, run.saves.Load(), "progress saves")
+		})
+	}
+}
+
+// runUntrackedPool runs the package-level RunWorkerPool(opts) in a test
+// workflow with runPool's counting starter (unless nilStart) and Save mock.
+func runUntrackedPool(t *testing.T, opts PoolOptions, nilStart bool) *poolRun {
+	t.Helper()
+	return runPoolWith(t, opts, nilStart, func(ctx workflow.Context, opts PoolOptions) error {
+		return RunWorkerPool(ctx, opts)
+	})
+}
+
+// TestRunWorkerPool_PackageLevelValidation checks the package-level pool
+// rejects every bad option before issuing any command, a Progress among them
+// (even with a zero Total), and runs the valid rows.
+func TestRunWorkerPool_PackageLevelValidation(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name           string
+		opts           PoolOptions
+		nilStart       bool
+		wantErr        string
+		wantDispatched int
+	}{
+		{name: "valid", opts: PoolOptions{Total: poolValidationItems, Concurrency: 2}, wantDispatched: poolValidationItems},
+		{name: "OnlyOnSuccess without progress",
+			opts: PoolOptions{Total: poolValidationItems, Concurrency: 2, OnlyOnSuccess: true}, wantDispatched: poolValidationItems},
+		{name: "zero total", opts: PoolOptions{Total: 0, Concurrency: 2}},
+		{name: "negative total", opts: PoolOptions{Total: -1, Concurrency: 2},
+			wantErr: "worker pool: total must not be negative"},
+		{name: "zero concurrency", opts: PoolOptions{Total: poolValidationItems, Concurrency: 0},
+			wantErr: "worker pool: concurrency must be positive, got 0 (total 3)"},
+		{name: "negative concurrency", opts: PoolOptions{Total: poolValidationItems, Concurrency: -1},
+			wantErr: "worker pool: concurrency must be positive, got -1 (total 3)"},
+		{name: "nil start", nilStart: true, opts: PoolOptions{Total: poolValidationItems, Concurrency: 2},
+			wantErr: "worker pool: Start must not be nil"},
+		{name: "single bar", opts: PoolOptions{Total: poolValidationItems, Concurrency: 2, Progress: SingleBar{}},
+			wantErr: "worker pool: progress shared.SingleBar without a tracker; use (*ReportTracker).RunWorkerPool for progress"},
+		{name: "bar per item with a zero total", opts: PoolOptions{Total: 0, Concurrency: 2, Progress: BarPerItem{}},
+			wantErr: "worker pool: progress shared.BarPerItem without a tracker; use (*ReportTracker).RunWorkerPool for progress"},
+		{name: "typed nil bars per item pointer",
+			opts:    PoolOptions{Total: poolValidationItems, Concurrency: 2, Progress: (*BarsPerItem)(nil)},
+			wantErr: "worker pool: progress *shared.BarsPerItem without a tracker; use (*ReportTracker).RunWorkerPool for progress"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			run := runUntrackedPool(t, tc.opts, tc.nilStart)
+			if tc.wantErr != "" {
+				require.EqualError(t, run.err, tc.wantErr)
+			} else {
+				require.NoError(t, run.err)
+			}
+			assert.Equal(t, tc.wantDispatched, run.dispatched, "items dispatched")
+			assert.Zero(t, run.saves.Load(), "progress saves")
 		})
 	}
 }

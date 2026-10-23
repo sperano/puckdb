@@ -24,6 +24,18 @@ const (
 	dispatchedAtStopUnset = -1
 )
 
+// stopTestMode is how stopDispatchWorkflow runs its pool.
+type stopTestMode int
+
+const (
+	// stopTestUntracked runs the package-level RunWorkerPool.
+	stopTestUntracked stopTestMode = iota
+	// stopTestSingleBar runs the tracker method with a SingleBar.
+	stopTestSingleBar
+	// stopTestOnlyOnSuccess adds OnlyOnSuccess to stopTestSingleBar.
+	stopTestOnlyOnSuccess
+)
+
 // stopResult is what stopDispatchWorkflow observed.
 type stopResult struct {
 	Processed  []int
@@ -38,11 +50,10 @@ type stopResult struct {
 }
 
 // stopDispatchWorkflow runs a pool whose StopDispatch reports true once
-// stopAfter items have been handled: through the package-level RunWorkerPool,
-// or with tracked through the tracker method with a SingleBar. Counting
+// stopAfter items have been handled, the way mode says. Counting
 // handled items rather than waiting for a given index keeps the bounds
 // independent of the order in which the local activities complete.
-func stopDispatchWorkflow(ctx workflow.Context, stopAfter int, tracked bool) (stopResult, error) {
+func stopDispatchWorkflow(ctx workflow.Context, stopAfter int, mode stopTestMode) (stopResult, error) {
 	ctx = workflow.WithLocalActivityOptions(ctx, workflow.LocalActivityOptions{
 		ScheduleToCloseTimeout: activityTestTimeout,
 	})
@@ -68,11 +79,12 @@ func stopDispatchWorkflow(ctx workflow.Context, stopAfter int, tracked bool) (st
 		StopDispatch: func() bool { return len(res.Processed) >= stopAfter },
 	}
 	var err error
-	if tracked {
+	if mode != stopTestUntracked {
 		tracker := &ReportTracker{report: &ProgressReport{Groups: []ProgressGroup{
 			{Bars: []ProgressBar{{Total: stopTestTotal}}},
 		}}}
 		opts.Progress = SingleBar{}
+		opts.OnlyOnSuccess = mode == stopTestOnlyOnSuccess
 		err = tracker.RunWorkerPool(ctx, opts)
 		res.BarCurrent = tracker.Bar(BarRef{}).Current
 	} else {
@@ -82,7 +94,7 @@ func stopDispatchWorkflow(ctx workflow.Context, stopAfter int, tracked bool) (st
 	return res, nil
 }
 
-func executeStopDispatch(t *testing.T, stopAfter int, tracked bool) stopResult {
+func executeStopDispatch(t *testing.T, stopAfter int, mode stopTestMode) stopResult {
 	t.Helper()
 	var suite testsuite.WorkflowTestSuite
 	env := suite.NewTestWorkflowEnvironment()
@@ -90,7 +102,7 @@ func executeStopDispatch(t *testing.T, stopAfter int, tracked bool) stopResult {
 	env.RegisterActivity(workerPoolActivity)
 	env.OnActivity(((*ProgressActivities)(nil)).Save, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 		Return(nil).Maybe()
-	env.ExecuteWorkflow(stopDispatchWorkflow, stopAfter, tracked)
+	env.ExecuteWorkflow(stopDispatchWorkflow, stopAfter, mode)
 	require.True(t, env.IsWorkflowCompleted())
 	require.NoError(t, env.GetWorkflowError())
 	var result stopResult
@@ -104,11 +116,15 @@ func executeStopDispatch(t *testing.T, stopAfter int, tracked bool) stopResult {
 // its bar.
 func TestRunWorkerPool_StopDispatchDrainsInFlight(t *testing.T) {
 	for _, tc := range []struct {
-		name    string
-		tracked bool
-	}{{"untracked", false}, {"single bar", true}} {
+		name string
+		mode stopTestMode
+	}{
+		{"untracked", stopTestUntracked},
+		{"single bar", stopTestSingleBar},
+		{"single bar only on success", stopTestOnlyOnSuccess},
+	} {
 		t.Run(tc.name, func(t *testing.T) {
-			result := executeStopDispatch(t, stopTestStopAfter, tc.tracked)
+			result := executeStopDispatch(t, stopTestStopAfter, tc.mode)
 
 			require.NotEqual(t, dispatchedAtStopUnset, result.DispatchedAtStop, "the stopping handler ran")
 			assert.Equal(t, result.DispatchedAtStop, result.Dispatched, "nothing is dispatched after stop")
@@ -118,7 +134,7 @@ func TestRunWorkerPool_StopDispatchDrainsInFlight(t *testing.T) {
 			assert.Equal(t, stopTestStopAfter-1+stopTestConcurrency, result.Dispatched)
 			assert.Less(t, result.Dispatched, stopTestTotal)
 			assert.ElementsMatch(t, indexes(result.Dispatched), result.Processed, "no dispatched item is abandoned")
-			if tc.tracked {
+			if tc.mode != stopTestUntracked {
 				assert.Equal(t, result.Dispatched, result.BarCurrent, "every dispatched item advanced the bar")
 			}
 		})
@@ -126,14 +142,14 @@ func TestRunWorkerPool_StopDispatchDrainsInFlight(t *testing.T) {
 }
 
 func TestRunWorkerPool_StopDispatchBeforeFirstDispatch(t *testing.T) {
-	result := executeStopDispatch(t, stopTestStopAtOnce, false)
+	result := executeStopDispatch(t, stopTestStopAtOnce, stopTestUntracked)
 
 	assert.Zero(t, result.Dispatched)
 	assert.Empty(t, result.Processed)
 }
 
 func TestRunWorkerPool_StopDispatchNeverStopping(t *testing.T) {
-	result := executeStopDispatch(t, stopTestNeverStop, false)
+	result := executeStopDispatch(t, stopTestNeverStop, stopTestUntracked)
 
 	assert.Equal(t, stopTestTotal, result.Dispatched)
 	assert.ElementsMatch(t, indexes(stopTestTotal), result.Processed)
@@ -146,59 +162,4 @@ func indexes(n int) []int {
 		out[i] = i
 	}
 	return out
-}
-
-// runUntrackedPool runs the package-level RunWorkerPool(opts) in a test
-// workflow with runPool's counting starter (unless nilStart) and Save mock.
-func runUntrackedPool(t *testing.T, opts PoolOptions, nilStart bool) *poolRun {
-	t.Helper()
-	return runPoolWith(t, opts, nilStart, func(ctx workflow.Context, opts PoolOptions) error {
-		return RunWorkerPool(ctx, opts)
-	})
-}
-
-// TestRunWorkerPool_PackageLevelValidation checks the package-level pool
-// rejects every bad option before issuing any command, a Progress among them
-// (even with a zero Total), and runs the valid rows.
-func TestRunWorkerPool_PackageLevelValidation(t *testing.T) {
-	t.Parallel()
-	for _, tc := range []struct {
-		name           string
-		opts           PoolOptions
-		nilStart       bool
-		wantErr        string
-		wantDispatched int
-	}{
-		{name: "valid", opts: PoolOptions{Total: poolValidationItems, Concurrency: 2}, wantDispatched: poolValidationItems},
-		{name: "OnlyOnSuccess without progress",
-			opts: PoolOptions{Total: poolValidationItems, Concurrency: 2, OnlyOnSuccess: true}, wantDispatched: poolValidationItems},
-		{name: "zero total", opts: PoolOptions{Total: 0, Concurrency: 2}},
-		{name: "negative total", opts: PoolOptions{Total: -1, Concurrency: 2},
-			wantErr: "worker pool: total must not be negative"},
-		{name: "zero concurrency", opts: PoolOptions{Total: poolValidationItems, Concurrency: 0},
-			wantErr: "worker pool: concurrency must be positive, got 0 (total 3)"},
-		{name: "negative concurrency", opts: PoolOptions{Total: poolValidationItems, Concurrency: -1},
-			wantErr: "worker pool: concurrency must be positive, got -1 (total 3)"},
-		{name: "nil start", nilStart: true, opts: PoolOptions{Total: poolValidationItems, Concurrency: 2},
-			wantErr: "worker pool: Start must not be nil"},
-		{name: "single bar", opts: PoolOptions{Total: poolValidationItems, Concurrency: 2, Progress: SingleBar{}},
-			wantErr: "worker pool: progress shared.SingleBar without a tracker; use (*ReportTracker).RunWorkerPool for progress"},
-		{name: "bar per item with a zero total", opts: PoolOptions{Total: 0, Concurrency: 2, Progress: BarPerItem{}},
-			wantErr: "worker pool: progress shared.BarPerItem without a tracker; use (*ReportTracker).RunWorkerPool for progress"},
-		{name: "typed nil bars per item pointer",
-			opts:    PoolOptions{Total: poolValidationItems, Concurrency: 2, Progress: (*BarsPerItem)(nil)},
-			wantErr: "worker pool: progress *shared.BarsPerItem without a tracker; use (*ReportTracker).RunWorkerPool for progress"},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			run := runUntrackedPool(t, tc.opts, tc.nilStart)
-			if tc.wantErr != "" {
-				require.EqualError(t, run.err, tc.wantErr)
-			} else {
-				require.NoError(t, run.err)
-			}
-			assert.Equal(t, tc.wantDispatched, run.dispatched, "items dispatched")
-			assert.Zero(t, run.saves.Load(), "progress saves")
-		})
-	}
 }
