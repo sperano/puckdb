@@ -100,6 +100,7 @@ var expectedYahooTools = []string{
 	"get_yahoo_league_rosters",
 	"get_yahoo_player_ownership",
 	"get_yahoo_roto_standings",
+	yahooTeamStandingsToolName,
 	"get_yahoo_season_team_totals",
 	"get_unrostered_skaters",
 	"get_unrostered_goalies",
