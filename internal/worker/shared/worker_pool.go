@@ -97,11 +97,11 @@ func (t *ReportTracker) RunWorkerPool(ctx workflow.Context, opts PoolOptions) er
 // when Progress is) and runs the items on the scheduler. Every entry point
 // goes through it, so the validation order is the same for all of them.
 func runPoolOn(ctx workflow.Context, t *ReportTracker, opts PoolOptions) error {
-	if opts.SaveEvery < 0 {
-		return errors.New("worker pool: SaveEvery must not be negative")
-	}
 	if opts.Total == 0 {
 		return nil
+	}
+	if opts.SaveEvery < 0 {
+		return errors.New("worker pool: SaveEvery must not be negative")
 	}
 	if err := validatePoolOptions(opts); err != nil {
 		return err

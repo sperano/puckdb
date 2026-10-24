@@ -227,6 +227,8 @@ const (
 const (
 	// DefaultDayLoopProgressSaveEvery keeps every day visible to Temporal
 	// queries while publishing the Redis report every tenth completion.
+	// Changing it changes workflow command order and requires a new
+	// GetVersion version before deployment.
 	DefaultDayLoopProgressSaveEvery = 10
 	// DefaultProgressLocalActivityTimeout bounds each local activity that
 	// reads, writes or deletes a workflow's ProgressReport in Redis

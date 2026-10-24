@@ -19,12 +19,10 @@ import (
 
 const importNHLSeasonReplayName = "ImportNHLSeasonWorkflow"
 
-// TestImportNHLSeasonWorkflowReplaysLegacyHistory records the activity path
-// from before days could be skipped (one argument, ImportDay for every day)
-// and replays it with the current code: the missing options argument must
-// decode to its zero value and the version gate must keep scheduling
-// ImportDay. It uses the current progress-save batching policy; SaveEvery
-// intentionally has no replay-compatibility gate.
+// TestImportNHLSeasonWorkflowReplaysLegacyHistory records the workflow from
+// before days could be skipped or progress saves were batched (one argument,
+// ImportDay and one progress save for every day). The current version gates
+// must preserve both command sequences when replaying it.
 func TestImportNHLSeasonWorkflowReplaysLegacyHistory(t *testing.T) {
 	previousLoader := loadYahooSeasons
 	defer func() { loadYahooSeasons = previousLoader }()
@@ -76,8 +74,9 @@ func registerImportNHLSeasonReplayActivities(w worker.Worker) {
 	}
 }
 
-// replayLegacyImportNHLSeasonWorkflow keeps the pre-ImportDayIfChanged
-// activity path while using the current progress persistence policy.
+// replayLegacyImportNHLSeasonWorkflow is ImportNHLSeasonWorkflow as it was
+// before ImportDayIfChanged and batched progress saves, kept verbatim to
+// record legacy histories.
 func replayLegacyImportNHLSeasonWorkflow(ctx workflow.Context, season nhl.SeasonInfo) (core.OriginCounts, error) {
 	logger := workflow.GetLogger(ctx)
 
@@ -129,7 +128,7 @@ func replayLegacyImportNHLSeasonWorkflow(ctx workflow.Context, season nhl.Season
 
 	counts := core.OriginCounts{}
 	err = tracker.RunWorkerPool(ctx, shared.PoolOptions{
-		Total: numDays, Concurrency: dayConcurrency, SaveEvery: config.DefaultDayLoopProgressSaveEvery,
+		Total: numDays, Concurrency: dayConcurrency,
 		Progress: shared.SingleBar{Bar: shared.BarRef{Group: GroupImportDays}},
 		Start: func(_ workflow.Context, i int) workflow.Future {
 			day := startDate.AddDate(0, 0, i)

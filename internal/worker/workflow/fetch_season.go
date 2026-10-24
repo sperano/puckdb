@@ -99,7 +99,7 @@ func FetchNHLSeasonWorkflow(ctx workflow.Context, season nhl.SeasonInfo) (core.O
 	startSeason := season.ID.StartYear()
 	counts := core.OriginCounts{}
 	err = tracker.RunWorkerPool(ctx, shared.PoolOptions{
-		Total: numDays, Concurrency: concurrency, SaveEvery: config.DefaultDayLoopProgressSaveEvery,
+		Total: numDays, Concurrency: concurrency, SaveEvery: dayLoopProgressSaveEvery(ctx),
 		Progress: shared.SingleBar{Bar: shared.BarRef{Group: GroupFetchSeasonData}},
 		Start: func(_ workflow.Context, i int) workflow.Future {
 			day := startDate.AddDate(0, 0, i)
