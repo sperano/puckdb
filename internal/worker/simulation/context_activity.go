@@ -41,14 +41,13 @@ import (
 //     from the standings + roster blocks.
 // ============================================================================
 
-// BuildManageRosterContextInput is the workflow's request.
+// BuildManageRosterContextInput is the workflow's request; its
+// TurnScope (flattened on the wire) passes through to the
+// ManageRosterInput it builds.
 type BuildManageRosterContextInput struct {
-	PoolID      int32       `json:"pool_id"`
-	AgentID     int32       `json:"agent_id"`
-	SimDate     pgtype.Date `json:"sim_date"`
-	PoolConfig  PoolConfig  `json:"pool_config"`
-	AgentConfig AgentConfig `json:"agent_config"`
-	FreeAgents  []int64     `json:"free_agents"`
+	TurnScope
+
+	FreeAgents []int64 `json:"free_agents"`
 }
 
 // BuildManageRosterContext returns a fully-populated
@@ -158,11 +157,7 @@ func (b rosterContextActivity) BuildManageRosterContext(ctx context.Context, in 
 	}
 
 	return ManageRosterInput{
-		PoolID:        in.PoolID,
-		AgentID:       in.AgentID,
-		SimDate:       in.SimDate,
-		PoolConfig:    in.PoolConfig,
-		AgentConfig:   in.AgentConfig,
+		TurnScope:     in.TurnScope,
 		DailyPrompt:   prompt,
 		Roster:        roster,
 		FreeAgents:    in.FreeAgents,
