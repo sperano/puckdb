@@ -176,7 +176,7 @@ type dailyMarkerQueries interface {
 type manageActivity struct {
 	q      manageRosterQueries
 	tx     Transactor[manageRosterQueries]
-	agents agentSource
+	agents pausingAgentSource
 }
 
 // ManageRoster is (*Activities).ManageRoster's body.

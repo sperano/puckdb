@@ -156,7 +156,7 @@ type draftPickQueries interface {
 type draftActivity struct {
 	q      draftPickQueries
 	tx     Transactor[draftPickQueries]
-	agents agentSource
+	agents pausingAgentSource
 }
 
 // DraftPick is (*Activities).DraftPick's body.

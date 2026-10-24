@@ -113,17 +113,24 @@ func (a *Activities) getOrCreateAgent(poolID, agentID int32, cfg AgentConfig, nu
 }
 
 // agentSource is the per-worker agent cache the LLM-driven activities
-// share; *Activities implements it, so tests pass an Activities with
-// only an AgentFactory set.
+// build their agents from; *Activities implements it, so tests pass an
+// Activities with only an AgentFactory set.
 type agentSource interface {
 	getOrCreateAgent(poolID, agentID int32, cfg AgentConfig, numTeams int) (*Agent, error)
-	agentEvictor
 }
 
 // agentEvictor is the part of the agent cache that SetPoolStatus and
 // the cost-cap pause use: dropping a pool's agents once it stops.
 type agentEvictor interface {
 	evictPoolAgents(poolID int32) int
+}
+
+// pausingAgentSource is the agent cache of the activities that can
+// trip the cost cap (DraftPick, ManageRoster): they build agents and,
+// when pauseForCostCap pauses the pool, evict its agents.
+type pausingAgentSource interface {
+	agentSource
+	agentEvictor
 }
 
 // evictPoolAgents drops this worker's cached agents of a pool that
