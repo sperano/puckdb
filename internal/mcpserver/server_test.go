@@ -112,6 +112,7 @@ var expectedYahooTools = []string{
 	"get_draft_leagues",
 	draftRankingsToolName,
 	draftPlayerDetailToolName,
+	draftOverridesToolName,
 	draftPoolToolName,
 	draftRulesReportToolName,
 }

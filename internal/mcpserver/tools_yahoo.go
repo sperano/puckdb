@@ -55,6 +55,7 @@ type draftToolSource interface {
 	draftPoolSource
 	draftPlayerDetailSource
 	draftRankingsSource
+	draftOverrideSource
 }
 
 func registerYahooTools(srv *server.MCPServer, q yahooQueries, guard leagueGuard, draft draftToolSource) {
@@ -81,6 +82,7 @@ func yahooTools(q yahooQueries, guard leagueGuard, draft draftToolSource) []serv
 		draftLeaguesTool(draft, guard),
 		draftRankingsTool(draft, guard),
 		draftPlayerDetailTool(draft, guard),
+		draftOverridesTool(draft, guard),
 		draftPoolCoverageTool(q, guard, draft),
 		draftRulesReportTool(q, guard, draft),
 	}
