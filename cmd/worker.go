@@ -402,18 +402,12 @@ func registerNHLActivities(w worker.Worker, d taskActivityDeps, importYahooActiv
 	w.RegisterActivity(franchiseActivities.FetchFranchises)
 	w.RegisterActivity(franchiseActivities.UpsertFranchises)
 
-	seasonsActivities := &worknhl.SeasonsActivities{
-		Storage:             d.storage,
-		GobCache:            d.gobCache,
-		NHLClient:           d.nhlClient,
-		SeasonsUpserter:     d.queries,
-		SeasonTeamsUpserter: d.queries,
-		RosterQueries:       d.queries,
-		UpcomingQueries:     d.queries,
-		ClubStatsQueries:    d.queries,
-		EdgeQueries:         d.queries,
-		RedisClient:         d.redisClient,
-	}
+	seasonsActivities := worknhl.NewSeasonsActivities(d.queries, worknhl.SeasonsActivities{
+		Storage:     d.storage,
+		GobCache:    d.gobCache,
+		NHLClient:   d.nhlClient,
+		RedisClient: d.redisClient,
+	})
 	w.RegisterActivity(seasonsActivities.FetchSeasonsManifest)
 	w.RegisterActivity(seasonsActivities.UpsertSeasons)
 	w.RegisterActivity(seasonsActivities.InitializeSeasonTeamsActivity)
@@ -436,14 +430,12 @@ func registerNHLActivities(w worker.Worker, d taskActivityDeps, importYahooActiv
 	w.RegisterActivity(seasonsActivities.ImportEdgeTeamSkaters)
 	w.RegisterActivity(seasonsActivities.ImportEdgeTeamGoalies)
 
-	importActivities := &worknhl.ImportActivities{
-		Storage:    d.storage,
-		GobCache:   d.gobCache,
-		Queries:    d.queries,
-		Tx:         worknhl.NewPgxTransactor(d.pool),
-		DayImports: d.queries,
-		Yahoo:      importYahooActivities,
-	}
+	importActivities := worknhl.NewImportActivities(d.queries, worknhl.ImportActivities{
+		Storage:  d.storage,
+		GobCache: d.gobCache,
+		Tx:       worknhl.NewPgxTransactor(d.pool),
+		Yahoo:    importYahooActivities,
+	})
 	w.RegisterActivity(importActivities.ImportDay)
 	w.RegisterActivity(importActivities.ImportDayIfChanged)
 	w.RegisterActivity(importActivities.ImportBoxscoresForDate)
@@ -464,13 +456,11 @@ func registerNHLActivities(w worker.Worker, d taskActivityDeps, importYahooActiv
 	w.RegisterActivity(dailyScheduleActivities.FetchDailySchedule)
 	w.RegisterActivity(dailyScheduleActivities.FetchDay)
 
-	playoffActivities := &worknhl.PlayoffActivities{
+	playoffActivities := worknhl.NewPlayoffActivities(d.queries, worknhl.PlayoffActivities{
 		Storage:   d.storage,
 		GobCache:  d.gobCache,
 		NHLClient: d.nhlClient,
-		Teams:     d.queries,
-		Queries:   d.queries,
-	}
+	})
 	w.RegisterActivity(playoffActivities.ListSeasonTeams)
 	w.RegisterActivity(playoffActivities.FetchTeamPlayoffGames)
 	w.RegisterActivity(playoffActivities.ImportTeamPlayoffGames)
@@ -489,16 +479,14 @@ func registerNHLActivities(w worker.Worker, d taskActivityDeps, importYahooActiv
 // fetch, game log download/import, boxscore-player consolidation, and
 // Yahoo/NHL player matching.
 func registerPlayerActivities(w worker.Worker, d taskActivityDeps) {
-	playerActivities := &workplayer.Activities{
+	playerActivities := workplayer.NewActivities(d.queries, workplayer.Activities{
 		Storage:                d.storage,
 		NHLClient:              d.nhlClient,
 		RedisClient:            d.redisClient,
 		GobCache:               d.gobCache,
-		Queries:                d.queries,
-		CareerQueries:          d.queries,
 		BoxscorePlayerCacheTTL: d.boxscorePlayerCacheTTL,
 		Manifests:              workplayer.NewPgProcessPlayersStore(d.pool),
-	}
+	})
 	w.RegisterActivity(playerActivities.FetchPlayerLandingsBatch)
 	w.RegisterActivity(playerActivities.DownloadPlayerGameLogsBatch)
 	w.RegisterActivity(playerActivities.LoadSeasonBoxscorePlayers)

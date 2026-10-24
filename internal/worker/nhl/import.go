@@ -72,11 +72,12 @@ type SeasonSeriesUpserter interface {
 // StandingsUpserter is the interface for standings database operations.
 type StandingsUpserter interface {
 	UpsertStandingsSnapshotBatch(ctx context.Context, arg []sqlcdb.UpsertStandingsSnapshotBatchParams) *sqlcdb.UpsertStandingsSnapshotBatchBatchResults
-	GetSeasonTeamAbbrevs(ctx context.Context, season int32) ([]sqlcdb.GetSeasonTeamAbbrevsRow, error)
+	SeasonTeamAbbrevsLister
 }
 
-// Queries is a composite interface for all NHL import activity database operations.
-type Queries interface {
+// ImportQueries is the composite of the NHL import activities' per-file
+// database operations.
+type ImportQueries interface {
 	BoxscoreUpserter
 	PlayerGameLogUpdater
 	GameStoryUpdater
@@ -90,12 +91,33 @@ type Queries interface {
 // These activities read cached data from the filesystem and upsert into the database.
 // Tx runs the multi-statement writes that must be atomic, such as the
 // per-game even-strength segment rebuild after a shift chart import.
-// DayImports records the days ImportDayIfChanged imported.
+// DayImports records the days ImportDayIfChanged imported. The worker builds
+// the struct with NewImportActivities.
 type ImportActivities struct {
 	Storage    store.Storage
 	GobCache   *cache.GobCache
-	Queries    Queries
+	Queries    ImportQueries
 	Tx         Transactor
 	DayImports DayImportStore
 	Yahoo      *yahoo.ImportActivities
+}
+
+// ImportActivityQueries is every pool-scoped query the NHL import activities
+// run, the single dependency NewImportActivities spreads over Queries and
+// DayImports.
+type ImportActivityQueries interface {
+	ImportQueries
+	DayImportStore
+}
+
+var _ ImportActivityQueries = (*sqlcdb.Queries)(nil)
+
+// NewImportActivities returns a copy of deps with Queries and DayImports set
+// to queries, so the worker cannot leave one nil; values already set in deps
+// are replaced. Tx stays the caller's: it is a transaction runner, not a
+// pool-scoped query.
+func NewImportActivities(queries ImportActivityQueries, deps ImportActivities) *ImportActivities {
+	deps.Queries = queries
+	deps.DayImports = queries
+	return &deps
 }

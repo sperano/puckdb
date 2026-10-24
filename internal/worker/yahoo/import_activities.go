@@ -26,7 +26,7 @@ import (
 type ImportActivities struct {
 	Storage  store.Storage
 	GobCache *cache.GobCache
-	Queries  Queries
+	Queries  YahooImportQueries
 	Tx       Transactor
 }
 

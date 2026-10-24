@@ -19,18 +19,33 @@ import (
 	"go.temporal.io/sdk/activity"
 )
 
-// PlayoffTeamQuerier provides access to season team abbreviations for playoff fetching.
-type PlayoffTeamQuerier interface {
-	GetSeasonTeamAbbrevs(ctx context.Context, seasonID int32) ([]sqlcdb.GetSeasonTeamAbbrevsRow, error)
+// PlayoffQueries is every query the playoff activities run, the single
+// dependency NewPlayoffActivities spreads over their narrow query fields.
+type PlayoffQueries interface {
+	SeasonTeamAbbrevsLister
+	BoxscoreUpserter
 }
 
+var _ PlayoffQueries = (*sqlcdb.Queries)(nil)
+
 // PlayoffActivities holds dependencies for fetching and importing playoff game data.
+// Teams and Queries stay separate narrow seams for tests; the worker builds
+// the struct with NewPlayoffActivities.
 type PlayoffActivities struct {
 	Storage   store.Storage
 	GobCache  *cache.GobCache
 	NHLClient shared.NHLClient
-	Teams     PlayoffTeamQuerier
+	Teams     SeasonTeamAbbrevsLister
 	Queries   BoxscoreUpserter
+}
+
+// NewPlayoffActivities returns a copy of deps with every query field set to
+// queries, so the worker cannot leave one nil; query fields already set in
+// deps are replaced.
+func NewPlayoffActivities(queries PlayoffQueries, deps PlayoffActivities) *PlayoffActivities {
+	deps.Teams = queries
+	deps.Queries = queries
+	return &deps
 }
 
 // --- Season teams ---
