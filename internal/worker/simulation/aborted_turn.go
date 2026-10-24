@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/sperano/puckdb/internal/pgconv"
 	"github.com/sperano/puckdb/internal/sqlcdb"
 	"go.temporal.io/sdk/activity"
@@ -18,17 +19,33 @@ import (
 // and one turn row with its children take far less.
 const abortedTurnWriteTimeout = 30 * time.Second
 
+// abortedTurnQueries is the aborted-turn write: the pool spend increment
+// and a turn row that never replaces one a newer attempt committed.
+type abortedTurnQueries interface {
+	IncrementSimPoolLLMCost(ctx context.Context, arg sqlcdb.IncrementSimPoolLLMCostParams) (pgtype.Numeric, error)
+	InsertSimAgentTurnIfAbsent(ctx context.Context, arg sqlcdb.InsertSimAgentTurnIfAbsentParams) (int32, error)
+	turnChildQueries
+}
+
+// abortedTurnTx narrows an LLM-driven activity's transactor to the
+// aborted-turn write, so the abandoned turn's spend lands through the
+// same Transactor as the activity's commit.
+func abortedTurnTx[Q abortedTurnQueries](tx Transactor[Q]) Transactor[abortedTurnQueries] {
+	return narrowTx(tx, func(q Q) abortedTurnQueries { return q })
+}
+
 // abortIfDone is the check an activity runs between its model turn and
 // its commit: while ctx is live it returns nil and the commit goes
 // ahead; once ctx has ended (StartToClose deadline, worker shutdown,
 // cancellation) it records t as an aborted turn and returns the error
-// the activity fails with. turn names the turn in that error.
-func (a *Activities) abortIfDone(ctx context.Context, t TurnTelemetry, turn string) error {
+// the activity fails with. turn names the turn in that error; tx is the
+// activity's own transactor, narrowed to the aborted-turn write.
+func abortIfDone(ctx context.Context, tx Transactor[abortedTurnQueries], t TurnTelemetry, turn string) error {
 	ctxErr := ctx.Err()
 	if ctxErr == nil {
 		return nil
 	}
-	return a.recordAbortedTurn(ctx, t, fmt.Errorf("simulation: %s aborted: %w", turn, ctxErr))
+	return recordAbortedTurn(ctx, tx, t, fmt.Errorf("simulation: %s aborted: %w", turn, ctxErr))
 }
 
 // recordAbortedTurn persists what an abandoned turn already cost: the
@@ -60,7 +77,7 @@ func (a *Activities) abortIfDone(ctx context.Context, t TurnTelemetry, turn stri
 // cause, joined with the write's error when the write fails, so callers
 // return its result directly. Temporal drops that error after a
 // deadline, so a failed write is also logged.
-func (a *Activities) recordAbortedTurn(ctx context.Context, t TurnTelemetry, cause error) error {
+func recordAbortedTurn(ctx context.Context, tx Transactor[abortedTurnQueries], t TurnTelemetry, cause error) error {
 	if len(t.Captures) == 0 {
 		return cause
 	}
@@ -69,7 +86,7 @@ func (a *Activities) recordAbortedTurn(ctx context.Context, t TurnTelemetry, cau
 		t.Header.ErrorKind = ErrorKindLLMError
 		t.Header.ErrorDetail = cause.Error()
 	}
-	err := a.writeAbortedTurn(ctx, t)
+	err := writeAbortedTurn(ctx, tx, t)
 	if err == nil {
 		return cause
 	}
@@ -83,14 +100,14 @@ func (a *Activities) recordAbortedTurn(ctx context.Context, t TurnTelemetry, cau
 }
 
 // writeAbortedTurn is recordAbortedTurn's transaction.
-func (a *Activities) writeAbortedTurn(ctx context.Context, t TurnTelemetry) error {
+func writeAbortedTurn(ctx context.Context, tx Transactor[abortedTurnQueries], t TurnTelemetry) error {
 	costNum, err := pgconv.NumericFromFloat(t.Header.Spend.CostUsd)
 	if err != nil {
 		return fmt.Errorf("encode cost: %w", err)
 	}
 	writeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), abortedTurnWriteTimeout)
 	defer cancel()
-	return a.Tx.InTx(writeCtx, func(q SimQueries) error {
+	return tx.InTx(writeCtx, func(q abortedTurnQueries) error {
 		if _, err := q.IncrementSimPoolLLMCost(writeCtx, sqlcdb.IncrementSimPoolLLMCostParams{
 			ID:              t.Header.PoolID,
 			TotalLLMCostUSD: costNum,
@@ -106,7 +123,7 @@ func (a *Activities) writeAbortedTurn(ctx context.Context, t TurnTelemetry) erro
 
 // recordTurnTelemetryIfAbsent writes t like RecordTurnTelemetry, but
 // only when no turn holds its coordinate: it never deletes a row.
-func recordTurnTelemetryIfAbsent(ctx context.Context, q SimQueries, t TurnTelemetry) error {
+func recordTurnTelemetryIfAbsent(ctx context.Context, q abortedTurnQueries, t TurnTelemetry) error {
 	parent, err := turnHeaderParams(t)
 	if err != nil {
 		return err

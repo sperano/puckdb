@@ -14,6 +14,17 @@ import (
 // a duplicated or missing priority number makes the winner arbitrary.
 var errWaiverPriorityIncomplete = errors.New("waiver priority incomplete")
 
+// waiverPriorityQueries initializes and reads a pool's waiver priority
+// and the agent list it must cover.
+type waiverPriorityQueries interface {
+	// InitSimWaiverPriority inserts the pool's reverse-draft-order
+	// priority rows when it has none yet; returns the number of rows
+	// inserted.
+	InitSimWaiverPriority(ctx context.Context, poolID int32) (int64, error)
+	ListSimWaiverPriorityByPool(ctx context.Context, poolID int32) ([]sqlcdb.SimWaiverPriority, error)
+	ListSimAgentsByPool(ctx context.Context, poolID int32) ([]sqlcdb.SimAgent, error)
+}
+
 // loadWaiverPriority returns the pool's waiver priority rows, locked FOR
 // UPDATE, after initializing them on the pool's first resolution and checking
 // that they are complete. initialized reports whether this call created them.
@@ -25,7 +36,7 @@ var errWaiverPriorityIncomplete = errors.New("waiver priority incomplete")
 // order that winners have since rotated. The caller must hold LockSimPool:
 // that makes the empty-table check and the insert atomic against another
 // resolution of the same pool.
-func loadWaiverPriority(ctx context.Context, q SimQueries, poolID int32) (priorities []sqlcdb.SimWaiverPriority, initialized bool, err error) {
+func loadWaiverPriority(ctx context.Context, q waiverPriorityQueries, poolID int32) (priorities []sqlcdb.SimWaiverPriority, initialized bool, err error) {
 	inserted, err := q.InitSimWaiverPriority(ctx, poolID)
 	if err != nil {
 		return nil, false, fmt.Errorf("simulation: initialize waiver priority (pool %d): %w", poolID, err)

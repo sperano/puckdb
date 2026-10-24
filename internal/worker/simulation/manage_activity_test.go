@@ -93,27 +93,28 @@ type ManageRosterTestSuite struct {
 	suite.Suite
 	testsuite.WorkflowTestSuite
 	env     *testsuite.TestActivityEnvironment
-	queries *stubSimQueries
-	tx      *stubTransactor
+	queries *manageQueriesFake
+	tx      *stubTransactor[manageRosterQueries]
 	llm     *scriptedLLMClient
-	acts    *Activities
+	agents  *Activities
+	acts    manageActivity
 }
 
 func (s *ManageRosterTestSuite) SetupTest() {
 	s.env = s.NewTestActivityEnvironment()
 	// Every drop removes the one row the turn validated, as in
 	// PostgreSQL; removeAndLogDrop fails the commit on 0 rows.
-	s.queries = &stubSimQueries{deleteRosterRowsDefault: 1}
-	s.tx = &stubTransactor{queries: s.queries}
+	s.queries = newManageQueriesFake()
+	s.queries.deleteRosterRowsDefault = 1
+	s.tx = &stubTransactor[manageRosterQueries]{queries: s.queries}
 	s.llm = &scriptedLLMClient{t: s.T()}
 
-	s.acts = &Activities{
-		Queries: s.queries,
-		Tx:      s.tx,
+	s.agents = &Activities{
 		AgentFactory: func(_ int32, cfg AgentConfig, _ map[llm.Provider]llm.ProviderConfig, _ int) (*Agent, error) {
 			return fakeAgent(s.llm, cfg), nil
 		},
 	}
+	s.acts = manageActivity{q: s.queries, tx: s.tx, agents: s.agents}
 	s.env.RegisterActivity(s.acts.ManageRoster)
 }
 

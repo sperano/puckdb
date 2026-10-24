@@ -100,6 +100,38 @@ type ProcessWaiversResult struct {
 // Returns nil error on the no-op path (no due claims). DB failures and
 // an incomplete or stale priority/claim state abort, rolling back.
 func (a *Activities) ProcessWaivers(ctx context.Context, in ProcessWaiversInput) (ProcessWaiversResult, error) {
+	return waiversActivity{
+		tx: narrowTx(a.Tx, func(q SimQueries) waiverQueries { return q }),
+	}.ProcessWaivers(ctx, in)
+}
+
+// waiverQueries is ProcessWaivers' query group, all of it run in one
+// transaction: the pool lock, the due claims grouped per player, the
+// priority order and its rotation, and each winner's roster add (plus
+// the plan's re-validation, claim status writes and drop).
+type waiverQueries interface {
+	// LockSimPool serializes waiver resolution per pool (row lock on the
+	// always-present sim_pools row); taken before any other read.
+	LockSimPool(ctx context.Context, id int32) (int32, error)
+	// ListSimWaiverClaimsForDuePlayers groups all pending claims per
+	// player (across due dates) so the contested resolution honors
+	// waiver priority.
+	ListSimWaiverClaimsForDuePlayers(ctx context.Context, arg sqlcdb.ListSimWaiverClaimsForDuePlayersParams) ([]sqlcdb.SimWaiverClaim, error)
+	GetSimPool(ctx context.Context, id int32) (sqlcdb.SimPool, error)
+	UpdateSimWaiverPriority(ctx context.Context, arg sqlcdb.UpdateSimWaiverPriorityParams) error
+	InsertSimRoster(ctx context.Context, arg sqlcdb.InsertSimRosterParams) error
+	InsertSimTransactionAdd(ctx context.Context, arg sqlcdb.InsertSimTransactionAddParams) (sqlcdb.SimTransaction, error)
+	waiverPriorityQueries
+	waiverPlanQueries
+}
+
+// waiversActivity runs ProcessWaivers over its own query group.
+type waiversActivity struct {
+	tx Transactor[waiverQueries]
+}
+
+// ProcessWaivers is (*Activities).ProcessWaivers' body.
+func (w waiversActivity) ProcessWaivers(ctx context.Context, in ProcessWaiversInput) (ProcessWaiversResult, error) {
 	logger := activity.GetLogger(ctx)
 	logger.Debug("ProcessWaivers start",
 		"pool_id", in.PoolID,
@@ -107,7 +139,7 @@ func (a *Activities) ProcessWaivers(ctx context.Context, in ProcessWaiversInput)
 	)
 
 	var result ProcessWaiversResult
-	err := a.Tx.InTx(ctx, func(q SimQueries) error {
+	err := w.tx.InTx(ctx, func(q waiverQueries) error {
 		var err error
 		result, err = processDueWaivers(ctx, q, in)
 		return err
@@ -136,7 +168,7 @@ func (a *Activities) ProcessWaivers(ctx context.Context, in ProcessWaiversInput)
 // to the open transaction. Every read happens after LockSimPool, so the
 // claims and priorities it resolves are the ones any earlier attempt for
 // this pool committed, never a snapshot taken before that commit.
-func processDueWaivers(ctx context.Context, q SimQueries, in ProcessWaiversInput) (ProcessWaiversResult, error) {
+func processDueWaivers(ctx context.Context, q waiverQueries, in ProcessWaiversInput) (ProcessWaiversResult, error) {
 	if _, err := q.LockSimPool(ctx, in.PoolID); err != nil {
 		return ProcessWaiversResult{}, fmt.Errorf("simulation: lock pool %d: %w", in.PoolID, err)
 	}
@@ -194,7 +226,7 @@ func processDueWaivers(ctx context.Context, q SimQueries, in ProcessWaiversInput
 // convention cited in the migration notes.
 func resolveClaimGroups(
 	ctx context.Context,
-	q SimQueries,
+	q waiverQueries,
 	in ProcessWaiversInput,
 	limits map[RosterSlot]int,
 	groups [][]sqlcdb.SimWaiverClaim,
@@ -338,7 +370,7 @@ func resolveClaims(claims []sqlcdb.SimWaiverClaim, priorities []sqlcdb.SimWaiver
 // On a win, all other still-pending claims on the player (the losers in
 // this group plus any cross-day claim not in the due window) are voided
 // so they can't later resolve as phantom uncontested wins.
-func applyWaiverResolution(ctx context.Context, q SimQueries, in ProcessWaiversInput, limits map[RosterSlot]int, r claimResolution) (bool, error) {
+func applyWaiverResolution(ctx context.Context, q waiverQueries, in ProcessWaiversInput, limits map[RosterSlot]int, r claimResolution) (bool, error) {
 	w := r.winner
 
 	plan, err := planWaiverResolution(ctx, q, in, limits, w)

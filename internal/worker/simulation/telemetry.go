@@ -280,6 +280,12 @@ type TurnTelemetry struct {
 	RecordMessages bool
 }
 
+// recordMessagesQueries reads the pool's record_full_messages flag, the
+// pre-flight every LLM-driven activity runs (fetchRecordMessagesFlag).
+type recordMessagesQueries interface {
+	GetSimPoolRecordFullMessages(ctx context.Context, id int32) (bool, error)
+}
+
 // fetchRecordMessagesFlag reads sim_pools.record_full_messages for the
 // pool. Every LLM-driven activity (PickTeamName, DraftPick, ManageRoster)
 // calls this as a PRE-flight — after the idempotency and cost-cap probes
@@ -288,8 +294,8 @@ type TurnTelemetry struct {
 // instead would discard a completed, billed turn and force a Temporal
 // retry that re-bills the model (the idempotency marker isn't written
 // until the commit).
-func (a *Activities) fetchRecordMessagesFlag(ctx context.Context, poolID int32) (bool, error) {
-	recordMessages, err := a.Queries.GetSimPoolRecordFullMessages(ctx, poolID)
+func fetchRecordMessagesFlag(ctx context.Context, q recordMessagesQueries, poolID int32) (bool, error) {
+	recordMessages, err := q.GetSimPoolRecordFullMessages(ctx, poolID)
 	if err != nil {
 		return false, fmt.Errorf("simulation: fetch record_full_messages flag: %w", err)
 	}
@@ -306,6 +312,15 @@ func transcriptForRecording(recordMessages bool, res *agentloop.Result) []llm.Me
 		return nil
 	}
 	return res.Messages
+}
+
+// turnTelemetryQueries is RecordTurnTelemetry's write set: the
+// retry-safe delete of a prior turn at the same coordinate, the header
+// insert and the child rows.
+type turnTelemetryQueries interface {
+	DeleteSimAgentTurnIdempotent(ctx context.Context, arg sqlcdb.DeleteSimAgentTurnIdempotentParams) error
+	InsertSimAgentTurn(ctx context.Context, arg sqlcdb.InsertSimAgentTurnParams) (int32, error)
+	turnChildQueries
 }
 
 // RecordTurnTelemetry writes the turn header, per-round usage rows,
@@ -327,7 +342,7 @@ func transcriptForRecording(recordMessages bool, res *agentloop.Result) []llm.Me
 //   - nil response inside a capture (provider error mid-call)
 //   - len(t.Captures) != len(audit) that produced t.ToolCalls (see AssignRoundsFromAudit)
 //   - empty ToolCalls / Messages slices (no-op for that child write)
-func RecordTurnTelemetry(ctx context.Context, q SimQueries, t TurnTelemetry) (int32, error) {
+func RecordTurnTelemetry(ctx context.Context, q turnTelemetryQueries, t TurnTelemetry) (int32, error) {
 	parent, err := turnHeaderParams(t)
 	if err != nil {
 		return 0, err

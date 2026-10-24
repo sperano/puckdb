@@ -129,6 +129,38 @@ const (
 // The last two still add the rounds the model billed to the pool
 // total, without a pick (see recordAbortedTurn).
 func (a *Activities) DraftPick(ctx context.Context, in DraftPickInput) (DraftPickResult, error) {
+	return draftActivity{
+		q:      a.Queries,
+		tx:     narrowTx(a.Tx, func(q SimQueries) draftPickQueries { return q }),
+		agents: a,
+	}.DraftPick(ctx, in)
+}
+
+// draftPickQueries is DraftPick's query group: the idempotency probe and
+// the pre-flights (cost cap, record_full_messages) before the model
+// runs, then the commit — roster row, draft_pick transaction, pool
+// spend, notes and turn telemetry — or the aborted-turn write.
+type draftPickQueries interface {
+	GetSimTransactionDraftPick(ctx context.Context, arg sqlcdb.GetSimTransactionDraftPickParams) (sqlcdb.SimTransaction, error)
+	InsertSimRoster(ctx context.Context, arg sqlcdb.InsertSimRosterParams) error
+	InsertSimTransactionDraftPick(ctx context.Context, arg sqlcdb.InsertSimTransactionDraftPickParams) (sqlcdb.SimTransaction, error)
+	UpdateSimAgentNotes(ctx context.Context, arg sqlcdb.UpdateSimAgentNotesParams) error
+	costCapQueries
+	recordMessagesQueries
+	turnTelemetryQueries
+	abortedTurnQueries
+}
+
+// draftActivity runs DraftPick over its own query group and the
+// worker's agent cache.
+type draftActivity struct {
+	q      draftPickQueries
+	tx     Transactor[draftPickQueries]
+	agents agentSource
+}
+
+// DraftPick is (*Activities).DraftPick's body.
+func (d draftActivity) DraftPick(ctx context.Context, in DraftPickInput) (DraftPickResult, error) {
 	logger := activity.GetLogger(ctx)
 	logger.Debug("DraftPick start",
 		"pool_id", in.PoolID,
@@ -137,7 +169,7 @@ func (a *Activities) DraftPick(ctx context.Context, in DraftPickInput) (DraftPic
 		"pick", in.Pick,
 	)
 
-	if hit, prev, err := a.idempotencyHit(ctx, in); err != nil {
+	if hit, prev, err := d.idempotencyHit(ctx, in); err != nil {
 		return DraftPickResult{}, err
 	} else if hit {
 		logger.Debug("DraftPick idempotency hit — skipping LLM",
@@ -150,12 +182,12 @@ func (a *Activities) DraftPick(ctx context.Context, in DraftPickInput) (DraftPic
 		}, nil
 	}
 
-	tripped, currentCostUsd, capUsd, err := a.checkCostCap(ctx, in.PoolID, in.PoolConfig.MaxLLMCostUsdPerPool)
+	tripped, currentCostUsd, capUsd, err := checkCostCap(ctx, d.q, in.PoolID, in.PoolConfig.MaxLLMCostUsdPerPool)
 	if err != nil {
 		return DraftPickResult{}, err
 	}
 	if tripped {
-		if err := a.pauseForCostCap(ctx, in.PoolID, in.AgentID, in.SimDate, currentCostUsd, capUsd); err != nil {
+		if err := pauseForCostCap(ctx, d.q, d.agents, in.PoolID, in.AgentID, in.SimDate, currentCostUsd, capUsd); err != nil {
 			return DraftPickResult{}, err
 		}
 		return DraftPickResult{Skipped: true, SkipReason: SkipReasonCostCapReached}, nil
@@ -163,18 +195,18 @@ func (a *Activities) DraftPick(ctx context.Context, in DraftPickInput) (DraftPic
 
 	// Pre-flight the only read the commit path needs, so a DB hiccup
 	// can't fail this activity after the model has been paid.
-	recordMessages, err := a.fetchRecordMessagesFlag(ctx, in.PoolID)
+	recordMessages, err := fetchRecordMessagesFlag(ctx, d.q, in.PoolID)
 	if err != nil {
 		return DraftPickResult{}, err
 	}
 
-	pick, err := a.chooseDraftPlayer(ctx, in)
+	pick, err := d.chooseDraftPlayer(ctx, in)
 	if err != nil {
 		// No pick to commit, but the rounds that ran were billed.
-		return DraftPickResult{}, a.recordAbortedTurn(ctx, draftTurnTelemetry(in, pick, recordMessages), err)
+		return DraftPickResult{}, recordAbortedTurn(ctx, abortedTurnTx(d.tx), draftTurnTelemetry(in, pick, recordMessages), err)
 	}
 
-	if err := a.commitDraftPick(ctx, in, pick, recordMessages); err != nil {
+	if err := d.commitDraftPick(ctx, in, pick, recordMessages); err != nil {
 		return DraftPickResult{}, err
 	}
 
@@ -200,8 +232,8 @@ func (a *Activities) DraftPick(ctx context.Context, in DraftPickInput) (DraftPic
 // pgx.ErrNoRows is the expected "no prior pick" path and returns
 // (false, _, nil); any other error aborts the activity so the caller
 // can retry rather than silently re-invoking the model.
-func (a *Activities) idempotencyHit(ctx context.Context, in DraftPickInput) (bool, sqlcdb.SimTransaction, error) {
-	prev, err := a.Queries.GetSimTransactionDraftPick(ctx, sqlcdb.GetSimTransactionDraftPickParams{
+func (d draftActivity) idempotencyHit(ctx context.Context, in DraftPickInput) (bool, sqlcdb.SimTransaction, error) {
+	prev, err := d.q.GetSimTransactionDraftPick(ctx, sqlcdb.GetSimTransactionDraftPickParams{
 		PoolID:  in.PoolID,
 		AgentID: in.AgentID,
 		Round:   pgtype.Int4{Int32: in.Round, Valid: true},
@@ -274,8 +306,8 @@ const MaxDraftToolRounds = 4
 //
 // Falls back to the workflow-supplied ranked candidates when no
 // successful draft_player landed within MaxDraftToolRounds rounds.
-func (a *Activities) chooseDraftPlayer(ctx context.Context, in DraftPickInput) (chooseResult, error) {
-	agent, err := a.getOrCreateAgent(in.PoolID, in.AgentID, in.AgentConfig, in.PoolConfig.NumTeams)
+func (d draftActivity) chooseDraftPlayer(ctx context.Context, in DraftPickInput) (chooseResult, error) {
+	agent, err := d.agents.getOrCreateAgent(in.PoolID, in.AgentID, in.AgentConfig, in.PoolConfig.NumTeams)
 	if err != nil {
 		return chooseResult{}, fmt.Errorf("simulation: build agent: %w", err)
 	}
@@ -431,13 +463,13 @@ func (a *Activities) chooseDraftPlayer(ctx context.Context, in DraftPickInput) (
 //
 // recordMessages is a parameter rather than a read here: DraftPick
 // fetches it before the LLM runs (see fetchRecordMessagesFlag).
-func (a *Activities) commitDraftPick(ctx context.Context, in DraftPickInput, pick chooseResult, recordMessages bool) error {
+func (d draftActivity) commitDraftPick(ctx context.Context, in DraftPickInput, pick chooseResult, recordMessages bool) error {
 	costNum, err := pgconv.NumericFromFloat(pick.spend.CostUsd)
 	if err != nil {
 		return fmt.Errorf("simulation: encode pick cost: %w", err)
 	}
 
-	return a.Tx.InTx(ctx, func(q SimQueries) error {
+	return d.tx.InTx(ctx, func(q draftPickQueries) error {
 		if err := q.InsertSimRoster(ctx, sqlcdb.InsertSimRosterParams{
 			PoolID:      in.PoolID,
 			AgentID:     in.AgentID,

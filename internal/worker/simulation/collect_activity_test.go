@@ -1,6 +1,7 @@
 package simulation
 
 import (
+	"context"
 	"errors"
 	"testing"
 
@@ -13,6 +14,87 @@ import (
 	"go.temporal.io/sdk/testsuite"
 )
 
+// collectQueriesFake is CollectDayStats' query group.
+type collectQueriesFake struct {
+	listDayGamesArgs   []sqlcdb.ListSimDayGamesParams
+	listDayGamesReturn []sqlcdb.ListSimDayGamesRow
+	listDayGamesErr    error
+
+	// gameSkaterRows / gameGoalieRows are keyed by game_id so a single
+	// fake can serve different responses for different games called in
+	// the same activity invocation.
+	gameSkaterRows map[int64][]sqlcdb.GetGameSkaterStatsByGameRow
+	gameSkaterErr  error
+	gameGoalieRows map[int64][]sqlcdb.GetGameGoalieStatsByGameRow
+	gameGoalieErr  error
+
+	listActiveRosterArgs []sqlcdb.ListSimActiveRosterByAgentParams
+	// listActiveRosterRows: agent_id → roster rows.
+	listActiveRosterRows map[int32][]sqlcdb.SimRoster
+	listActiveRosterErr  error
+
+	upsertDailyPlayerCalls   []sqlcdb.UpsertSimAgentDailyPlayerStatParams
+	upsertDailyPlayerErr     error
+	aggregateDailyStatsCalls []sqlcdb.AggregateSimAgentDailyStatsParams
+	aggregateDailyStatsErr   error
+	recomputeCountingCalls   []int32
+	recomputeCountingErr     error
+	recomputeGAACalls        []int32
+	recomputeGAAErr          error
+}
+
+var _ collectQueries = (*collectQueriesFake)(nil)
+
+func (s *collectQueriesFake) ListSimDayGames(_ context.Context, arg sqlcdb.ListSimDayGamesParams) ([]sqlcdb.ListSimDayGamesRow, error) {
+	s.listDayGamesArgs = append(s.listDayGamesArgs, arg)
+	if s.listDayGamesErr != nil {
+		return nil, s.listDayGamesErr
+	}
+	return s.listDayGamesReturn, nil
+}
+
+func (s *collectQueriesFake) GetGameSkaterStatsByGame(_ context.Context, gameID int64) ([]sqlcdb.GetGameSkaterStatsByGameRow, error) {
+	if s.gameSkaterErr != nil {
+		return nil, s.gameSkaterErr
+	}
+	return s.gameSkaterRows[gameID], nil
+}
+
+func (s *collectQueriesFake) GetGameGoalieStatsByGame(_ context.Context, gameID int64) ([]sqlcdb.GetGameGoalieStatsByGameRow, error) {
+	if s.gameGoalieErr != nil {
+		return nil, s.gameGoalieErr
+	}
+	return s.gameGoalieRows[gameID], nil
+}
+
+func (s *collectQueriesFake) ListSimActiveRosterByAgent(_ context.Context, arg sqlcdb.ListSimActiveRosterByAgentParams) ([]sqlcdb.SimRoster, error) {
+	s.listActiveRosterArgs = append(s.listActiveRosterArgs, arg)
+	if s.listActiveRosterErr != nil {
+		return nil, s.listActiveRosterErr
+	}
+	return s.listActiveRosterRows[arg.AgentID], nil
+}
+
+func (s *collectQueriesFake) UpsertSimAgentDailyPlayerStat(_ context.Context, arg sqlcdb.UpsertSimAgentDailyPlayerStatParams) error {
+	s.upsertDailyPlayerCalls = append(s.upsertDailyPlayerCalls, arg)
+	return s.upsertDailyPlayerErr
+}
+
+func (s *collectQueriesFake) AggregateSimAgentDailyStats(_ context.Context, arg sqlcdb.AggregateSimAgentDailyStatsParams) error {
+	s.aggregateDailyStatsCalls = append(s.aggregateDailyStatsCalls, arg)
+	return s.aggregateDailyStatsErr
+}
+
+func (s *collectQueriesFake) RecomputeSimAgentTotalsCounting(_ context.Context, poolID int32) error {
+	s.recomputeCountingCalls = append(s.recomputeCountingCalls, poolID)
+	return s.recomputeCountingErr
+}
+
+func (s *collectQueriesFake) RecomputeSimAgentTotalsGAA(_ context.Context, poolID int32) error {
+	s.recomputeGAACalls = append(s.recomputeGAACalls, poolID)
+	return s.recomputeGAAErr
+}
+
 // ============================================================================
 // CollectDayStatsTestSuite — covers no-games skip, single-skater
 // happy path, single-goalie + decision semantics, multi-agent batch,
@@ -23,20 +105,20 @@ type CollectDayStatsTestSuite struct {
 	suite.Suite
 	testsuite.WorkflowTestSuite
 	env     *testsuite.TestActivityEnvironment
-	queries *stubSimQueries
-	tx      *stubTransactor
-	acts    *Activities
+	queries *collectQueriesFake
+	tx      *stubTransactor[collectQueries]
+	acts    collectActivity
 }
 
 func (s *CollectDayStatsTestSuite) SetupTest() {
 	s.env = s.NewTestActivityEnvironment()
-	s.queries = &stubSimQueries{
+	s.queries = &collectQueriesFake{
 		gameSkaterRows:       map[int64][]sqlcdb.GetGameSkaterStatsByGameRow{},
 		gameGoalieRows:       map[int64][]sqlcdb.GetGameGoalieStatsByGameRow{},
 		listActiveRosterRows: map[int32][]sqlcdb.SimRoster{},
 	}
-	s.tx = &stubTransactor{queries: s.queries}
-	s.acts = &Activities{Queries: s.queries, Tx: s.tx}
+	s.tx = &stubTransactor[collectQueries]{queries: s.queries}
+	s.acts = collectActivity{q: s.queries, tx: s.tx}
 	s.env.RegisterActivity(s.acts.CollectDayStats)
 }
 

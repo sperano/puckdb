@@ -88,11 +88,10 @@ func TestCheckWaiverPriorityComplete(t *testing.T) {
 }
 
 func TestLoadWaiverPriority_ReportsInitialization(t *testing.T) {
-	q := &stubSimQueries{
-		initPriorityInserted:   2,
-		listPriorityRows:       []sqlcdb.SimWaiverPriority{priority(1, 1), priority(2, 2)},
-		listAgentsByPoolReturn: agentsWithIDs(1, 2),
-	}
+	q := newWaiverQueriesFake()
+	q.initPriorityInserted = 2
+	q.listPriorityRows = []sqlcdb.SimWaiverPriority{priority(1, 1), priority(2, 2)}
+	q.listAgentsByPoolReturn = agentsWithIDs(1, 2)
 	got, initialized, err := loadWaiverPriority(context.Background(), q, 1)
 	require.NoError(t, err)
 	assert.True(t, initialized)
@@ -109,7 +108,7 @@ func TestLoadWaiverPriority_ReportsInitialization(t *testing.T) {
 // resolve claims (a claimant without a row would silently lose).
 func (s *ProcessWaiversTestSuite) TestIncompletePriority_AbortsBeforeResolving() {
 	t := s.T()
-	s.queries.listClaimsDueRows = []sqlcdb.SimWaiverClaim{claim(100, 1, 8478402, 0), claim(101, 2, 8478402, 0)}
+	s.queries.listClaimsForDuePlayersRows = []sqlcdb.SimWaiverClaim{claim(100, 1, 8478402, 0), claim(101, 2, 8478402, 0)}
 	s.setPriorities(priority(1, 1), priority(2, 2))
 	s.queries.listPriorityRows = []sqlcdb.SimWaiverPriority{priority(1, 1)} // agent 2 unranked
 

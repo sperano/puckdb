@@ -20,47 +20,15 @@ import (
 
 // ============================================================================
 // Test stubs for the new infrastructure DraftPickActivity needs:
-//   - stubTransactor: bypasses real DB by calling fn with the same
-//     stubSimQueries used for read-only calls. To exercise the "commit
-//     fails" path, set commitErr — InTx returns it after fn runs (and
-//     the stub does NOT roll back fn's side effects, since they were
-//     applied to a stub anyway; tests assert by counting calls + the
-//     surfaced error).
+//   - stubTransactor (query_fakes_test.go): bypasses real DB by calling
+//     fn with the same draftQueriesFake used for read-only calls. To
+//     exercise the "commit fails" path, set commitErr.
 //   - stubLLMClient: scripts queued responses and errors per call.
 //
 // These stubs deliberately don't enforce ordering or build a fake DB
 // — they just record so each test can assert on the behavior it
 // cares about.
 // ============================================================================
-
-// stubTransactor is the test Transactor. Calls fn with the supplied
-// SimQueries and returns the result, or — if commitErr is set —
-// returns commitErr after fn runs (simulating a Postgres commit
-// failure on a successful query batch).
-type stubTransactor struct {
-	queries    SimQueries
-	inTxCalled int
-	fnErr      error   // captured fn return value
-	commitErr  error   // injected post-fn error, simulating commit failure
-	beforeFn   func()  // optional hook to mutate queries between InTx invocations
-	ctxErrs    []error // ctx.Err() at each InTx call: a done context fails Begin in PgxTransactor
-	deadlines  []bool  // whether each InTx call's context carries a deadline
-}
-
-func (t *stubTransactor) InTx(ctx context.Context, fn func(SimQueries) error) error {
-	t.inTxCalled++
-	t.ctxErrs = append(t.ctxErrs, ctx.Err())
-	_, hasDeadline := ctx.Deadline()
-	t.deadlines = append(t.deadlines, hasDeadline)
-	if t.beforeFn != nil {
-		t.beforeFn()
-	}
-	t.fnErr = fn(t.queries)
-	if t.fnErr != nil {
-		return t.fnErr
-	}
-	return t.commitErr
-}
 
 // scriptedLLMClient implements llm.Client. Each Complete call pops
 // the next entry from responses (or errors). Running off the end of
@@ -144,25 +112,26 @@ type DraftPickTestSuite struct {
 	suite.Suite
 	testsuite.WorkflowTestSuite
 	env     *testsuite.TestActivityEnvironment
-	queries *stubSimQueries
-	tx      *stubTransactor
+	queries *draftQueriesFake
+	tx      *stubTransactor[draftPickQueries]
 	llm     *scriptedLLMClient
-	acts    *Activities
+	agents  *Activities
+	acts    draftActivity
 }
 
 func (s *DraftPickTestSuite) SetupTest() {
 	s.env = s.NewTestActivityEnvironment()
-	s.queries = &stubSimQueries{getDraftPickErr: pgx.ErrNoRows}
-	s.tx = &stubTransactor{queries: s.queries}
+	s.queries = newDraftQueriesFake()
+	s.queries.getDraftPickErr = pgx.ErrNoRows
+	s.tx = &stubTransactor[draftPickQueries]{queries: s.queries}
 	s.llm = &scriptedLLMClient{t: s.T()}
 
-	s.acts = &Activities{
-		Queries: s.queries,
-		Tx:      s.tx,
+	s.agents = &Activities{
 		AgentFactory: func(_ int32, cfg AgentConfig, _ map[llm.Provider]llm.ProviderConfig, _ int) (*Agent, error) {
 			return fakeAgent(s.llm, cfg), nil
 		},
 	}
+	s.acts = draftActivity{q: s.queries, tx: s.tx, agents: s.agents}
 	s.env.RegisterActivity(s.acts.DraftPick)
 }
 
@@ -259,9 +228,9 @@ func (s *DraftPickTestSuite) TestCostCap_TripsBeforeLLM() {
 	assert.Zero(t, s.llm.calls.Load(), "cost-cap branch must not invoke LLM")
 
 	// The cost-cap branch is one statement (status=paused + the
-	// cost_cap_reached row), not a Tx block plus a separate status write.
+	// cost_cap_reached row), not a Tx block plus a separate status write
+	// (draftPickQueries has no status write to make).
 	assert.Zero(t, s.tx.inTxCalled)
-	assert.Empty(t, s.queries.updatePoolStatusCalls)
 	require.Len(t, s.queries.pauseCostCapCalls, 1)
 	pause := s.queries.pauseCostCapCalls[0]
 	assert.Equal(t, int32(1), pause.PoolID)
@@ -300,9 +269,9 @@ func (s *DraftPickTestSuite) TestCostCap_AlreadyPausedStillReportsCap() {
 func (s *DraftPickTestSuite) TestCostCap_EvictsPoolAgents() {
 	t := s.T()
 	in := s.validInput()
-	_, err := s.acts.getOrCreateAgent(in.PoolID, in.AgentID, in.AgentConfig, in.PoolConfig.NumTeams)
+	_, err := s.agents.getOrCreateAgent(in.PoolID, in.AgentID, in.AgentConfig, in.PoolConfig.NumTeams)
 	require.NoError(t, err)
-	_, err = s.acts.getOrCreateAgent(in.PoolID+1, in.AgentID, in.AgentConfig, in.PoolConfig.NumTeams)
+	_, err = s.agents.getOrCreateAgent(in.PoolID+1, in.AgentID, in.AgentConfig, in.PoolConfig.NumTeams)
 	require.NoError(t, err)
 	tooMuch, err := pgconv.NumericFromFloat(200.01)
 	require.NoError(t, err)
@@ -314,7 +283,7 @@ func (s *DraftPickTestSuite) TestCostCap_EvictsPoolAgents() {
 	require.NoError(t, future.Get(&got))
 	require.Equal(t, SkipReasonCostCapReached, got.SkipReason)
 
-	assert.Equal(t, 1, s.acts.agents.len(), "only the other pool's agent remains")
+	assert.Equal(t, 1, s.agents.agents.len(), "only the other pool's agent remains")
 }
 
 // cap=0 (or unset) is treated as "no cap" rather than "every call
@@ -620,7 +589,7 @@ func (s *DraftPickTestSuite) TestAgentCache_ReusesAgentAcrossPicks() {
 	t := s.T()
 	// Spy on the factory: count how many times it's called.
 	var factoryCalls atomic.Int32
-	s.acts.AgentFactory = func(_ int32, cfg AgentConfig, _ map[llm.Provider]llm.ProviderConfig, _ int) (*Agent, error) {
+	s.agents.AgentFactory = func(_ int32, cfg AgentConfig, _ map[llm.Provider]llm.ProviderConfig, _ int) (*Agent, error) {
 		factoryCalls.Add(1)
 		return fakeAgent(s.llm, cfg), nil
 	}

@@ -73,6 +73,35 @@ const SkipReasonNoGames = "no_games"
 // Returns an error only on DB failure; "no games today" is a clean
 // success with Skipped=true.
 func (a *Activities) CollectDayStats(ctx context.Context, in CollectDayStatsInput) (CollectDayStatsResult, error) {
+	return collectActivity{
+		q:  a.Queries,
+		tx: narrowTx(a.Tx, func(q SimQueries) collectQueries { return q }),
+	}.CollectDayStats(ctx, in)
+}
+
+// collectQueries is CollectDayStats' query group: the day's games and
+// their stat rows, read outside the transaction, then inside it each
+// agent's active roster, the daily stat writes and the pool totals
+// recompute.
+type collectQueries interface {
+	ListSimDayGames(ctx context.Context, arg sqlcdb.ListSimDayGamesParams) ([]sqlcdb.ListSimDayGamesRow, error)
+	GetGameSkaterStatsByGame(ctx context.Context, gameID int64) ([]sqlcdb.GetGameSkaterStatsByGameRow, error)
+	GetGameGoalieStatsByGame(ctx context.Context, gameID int64) ([]sqlcdb.GetGameGoalieStatsByGameRow, error)
+	ListSimActiveRosterByAgent(ctx context.Context, arg sqlcdb.ListSimActiveRosterByAgentParams) ([]sqlcdb.SimRoster, error)
+	UpsertSimAgentDailyPlayerStat(ctx context.Context, arg sqlcdb.UpsertSimAgentDailyPlayerStatParams) error
+	AggregateSimAgentDailyStats(ctx context.Context, arg sqlcdb.AggregateSimAgentDailyStatsParams) error
+	RecomputeSimAgentTotalsCounting(ctx context.Context, poolID int32) error
+	RecomputeSimAgentTotalsGAA(ctx context.Context, poolID int32) error
+}
+
+// collectActivity runs CollectDayStats over its own query group.
+type collectActivity struct {
+	q  collectQueries
+	tx Transactor[collectQueries]
+}
+
+// CollectDayStats is (*Activities).CollectDayStats' body.
+func (c collectActivity) CollectDayStats(ctx context.Context, in CollectDayStatsInput) (CollectDayStatsResult, error) {
 	logger := activity.GetLogger(ctx)
 	logger.Debug("CollectDayStats start",
 		"pool_id", in.PoolID,
@@ -81,7 +110,7 @@ func (a *Activities) CollectDayStats(ctx context.Context, in CollectDayStatsInpu
 		"agent_count", len(in.AgentIDs),
 	)
 
-	games, err := a.Queries.ListSimDayGames(ctx, sqlcdb.ListSimDayGamesParams{
+	games, err := c.q.ListSimDayGames(ctx, sqlcdb.ListSimDayGamesParams{
 		Season:   in.Season,
 		GameDate: in.SimDate,
 	})
@@ -93,13 +122,13 @@ func (a *Activities) CollectDayStats(ctx context.Context, in CollectDayStatsInpu
 		return CollectDayStatsResult{Skipped: true, SkipReason: SkipReasonNoGames}, nil
 	}
 
-	skaterByPlayer, goalieByPlayer, err := a.fetchDayStats(ctx, games)
+	skaterByPlayer, goalieByPlayer, err := c.fetchDayStats(ctx, games)
 	if err != nil {
 		return CollectDayStatsResult{}, err
 	}
 
 	playerRowsWritten := 0
-	err = a.Tx.InTx(ctx, func(q SimQueries) error {
+	err = c.tx.InTx(ctx, func(q collectQueries) error {
 		for _, agentID := range in.AgentIDs {
 			n, err := writeAgentDayStats(ctx, q, in, agentID, skaterByPlayer, goalieByPlayer)
 			if err != nil {
@@ -142,7 +171,7 @@ func (a *Activities) CollectDayStats(ctx context.Context, in CollectDayStatsInpu
 // Multi-game days for one player (theoretical — NHL doesn't schedule
 // these) get accumulated at write time; the per-player map keys
 // remain unique while the slice values capture each game's row.
-func (a *Activities) fetchDayStats(ctx context.Context, games []sqlcdb.ListSimDayGamesRow) (
+func (c collectActivity) fetchDayStats(ctx context.Context, games []sqlcdb.ListSimDayGamesRow) (
 	skaters map[int64][]sqlcdb.GetGameSkaterStatsByGameRow,
 	goalies map[int64][]sqlcdb.GetGameGoalieStatsByGameRow,
 	err error,
@@ -151,14 +180,14 @@ func (a *Activities) fetchDayStats(ctx context.Context, games []sqlcdb.ListSimDa
 	goalies = make(map[int64][]sqlcdb.GetGameGoalieStatsByGameRow, len(games)*4)
 
 	for _, g := range games {
-		srows, err := a.Queries.GetGameSkaterStatsByGame(ctx, g.ID)
+		srows, err := c.q.GetGameSkaterStatsByGame(ctx, g.ID)
 		if err != nil {
 			return nil, nil, fmt.Errorf("get skater stats for game %d: %w", g.ID, err)
 		}
 		for _, r := range srows {
 			skaters[r.PlayerID] = append(skaters[r.PlayerID], r)
 		}
-		grows, err := a.Queries.GetGameGoalieStatsByGame(ctx, g.ID)
+		grows, err := c.q.GetGameGoalieStatsByGame(ctx, g.ID)
 		if err != nil {
 			return nil, nil, fmt.Errorf("get goalie stats for game %d: %w", g.ID, err)
 		}
@@ -177,7 +206,7 @@ func (a *Activities) fetchDayStats(ctx context.Context, games []sqlcdb.ListSimDa
 // rules" — bench / IR players don't score even if they played).
 func writeAgentDayStats(
 	ctx context.Context,
-	q SimQueries,
+	q collectQueries,
 	in CollectDayStatsInput,
 	agentID int32,
 	skaterByPlayer map[int64][]sqlcdb.GetGameSkaterStatsByGameRow,
@@ -294,7 +323,7 @@ func summarizeGoalie(rows []sqlcdb.GetGameGoalieStatsByGameRow) []categoryContri
 // overwrite cleanly (PLAN.md > "Idempotency > Stat activities").
 func writePlayerCategoryRow(
 	ctx context.Context,
-	q SimQueries,
+	q collectQueries,
 	in CollectDayStatsInput,
 	agentID int32,
 	playerID int64,

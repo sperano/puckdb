@@ -178,9 +178,9 @@ This is the meat of the runtime layer. Read in order:
 
 **File:** [`worker/simulation/activities.go`](https://github.com/sperano/puckdb/blob/feature/simulation/worker/simulation/activities.go)
 
-The `Activities` struct grows with each new activity. Initial shape: just `Queries SimQueries`. By the end of Phase 3.1 it has `Queries`, `Tx Transactor`, `Signaler WorkflowSignaler`, `ProviderConfigs`, `AgentFactory`, a bounded agent cache. The `SimQueries` interface is narrowed (not `*sqlcdb.Queries`) so tests can inject a mock that implements only the methods their activity touches.
+The `Activities` struct grows with each new activity. Initial shape: just `Queries SimQueries`. By the end of Phase 3.1 it has `Queries`, `Tx Transactor`, `Signaler WorkflowSignaler`, `ProviderConfigs`, `AgentFactory`, a bounded agent cache. `SimQueries` is the union of per-activity query groups (`freeAgentQueries`, `collectQueries`, ...); each activity method hands it to an activity type that takes only its own group, so tests inject a fake of that group alone.
 
-`BuildFreeAgentPool` and `UpdateStandings` are the simple read-only activities. Read these two first; they set the testing pattern (`testsuite.TestActivityEnvironment` + `stubSimQueries`).
+`BuildFreeAgentPool` and `UpdateStandings` are the simple read-only activities. Read these two first; they set the testing pattern (`testsuite.TestActivityEnvironment` + a fake of the activity's own query group, `freeAgentQueriesFake` / `standingsQueriesFake`).
 
 ### DraftPickActivity **(focus)**
 

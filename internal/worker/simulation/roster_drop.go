@@ -16,6 +16,16 @@ import (
 // fails the transaction rather than a tolerated case.
 var errDropVanished = errors.New("drop player vanished from roster mid-transaction")
 
+// rosterDropQueries is removeAndLogDrop's write pair. DeleteSimRosterRows
+// is the rows-affected delete: the caller already validated the player as
+// rostered, so 0 rows is an invariant violation that fails the
+// transaction, not a tolerated "vanished drop" (waiver resolution's plan
+// handles that case).
+type rosterDropQueries interface {
+	DeleteSimRosterRows(ctx context.Context, arg sqlcdb.DeleteSimRosterRowsParams) (int64, error)
+	InsertSimTransactionDrop(ctx context.Context, arg sqlcdb.InsertSimTransactionDropParams) (sqlcdb.SimTransaction, error)
+}
+
 // rosterDrop names one player leaving one agent's roster.
 type rosterDrop struct {
 	PoolID    int32
@@ -39,7 +49,7 @@ type rosterDrop struct {
 //
 // A delete that affects no row fails with errDropVanished instead of
 // logging a drop (and a waiver window) for a player nobody removed.
-func removeAndLogDrop(ctx context.Context, q SimQueries, d rosterDrop) (int32, error) {
+func removeAndLogDrop(ctx context.Context, q rosterDropQueries, d rosterDrop) (int32, error) {
 	affected, err := q.DeleteSimRosterRows(ctx, sqlcdb.DeleteSimRosterRowsParams{
 		PoolID: d.PoolID, AgentID: d.AgentID, PlayerID: d.PlayerID,
 	})

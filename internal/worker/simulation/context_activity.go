@@ -54,17 +54,48 @@ type BuildManageRosterContextInput struct {
 // ManageRosterInput the workflow can hand directly to
 // ManageRosterActivity.
 func (a *Activities) BuildManageRosterContext(ctx context.Context, in BuildManageRosterContextInput) (ManageRosterInput, error) {
+	return rosterContextActivity{q: a.Queries}.BuildManageRosterContext(ctx, in)
+}
+
+// rosterContextQueries is BuildManageRosterContext's query group: the
+// agent row (notes), its roster and the players behind it, the latest
+// standings with the pool's agent names, the waiver pool and the
+// agent's own pending claims.
+type rosterContextQueries interface {
+	GetSimAgent(ctx context.Context, id int32) (sqlcdb.SimAgent, error)
+	ListSimAgentsByPool(ctx context.Context, poolID int32) ([]sqlcdb.SimAgent, error)
+	ListSimRosterByAgent(ctx context.Context, arg sqlcdb.ListSimRosterByAgentParams) ([]sqlcdb.SimRoster, error)
+	GetSimStandingsLatestDate(ctx context.Context, poolID int32) (pgtype.Date, error)
+	ListSimStandingsByDate(ctx context.Context, arg sqlcdb.ListSimStandingsByDateParams) ([]sqlcdb.SimStanding, error)
+	ListSimPlayersOnWaivers(ctx context.Context, arg sqlcdb.ListSimPlayersOnWaiversParams) ([]sqlcdb.ListSimPlayersOnWaiversRow, error)
+	// ListSimWaiverClaimsPendingByAgent feeds the daily working state so
+	// a duplicate pending claim by the same agent is rejected as a clean
+	// action error instead of violating the pending-one-per-agent-player
+	// unique index.
+	ListSimWaiverClaimsPendingByAgent(ctx context.Context, arg sqlcdb.ListSimWaiverClaimsPendingByAgentParams) ([]sqlcdb.SimWaiverClaim, error)
+	playerLookupQueries
+}
+
+// rosterContextActivity runs BuildManageRosterContext over its own
+// query group.
+type rosterContextActivity struct {
+	q rosterContextQueries
+}
+
+// BuildManageRosterContext is (*Activities).BuildManageRosterContext's
+// body.
+func (b rosterContextActivity) BuildManageRosterContext(ctx context.Context, in BuildManageRosterContextInput) (ManageRosterInput, error) {
 	logger := activity.GetLogger(ctx)
 	logger.Debug("BuildManageRosterContext",
 		"pool_id", in.PoolID, "agent_id", in.AgentID, "sim_date", in.SimDate.Time,
 	)
 
-	notes, err := a.loadAgentNotes(ctx, in.AgentID)
+	notes, err := b.loadAgentNotes(ctx, in.AgentID)
 	if err != nil {
 		return ManageRosterInput{}, err
 	}
 
-	roster, positions, rosterRows, err := a.loadRosterAndPositions(ctx, in.PoolID, in.AgentID, in.PoolConfig)
+	roster, positions, rosterRows, err := b.loadRosterAndPositions(ctx, in.PoolID, in.AgentID, in.PoolConfig)
 	if err != nil {
 		return ManageRosterInput{}, err
 	}
@@ -73,14 +104,14 @@ func (a *Activities) BuildManageRosterContext(ctx context.Context, in BuildManag
 	// An agent may add one of these players in round 1 and then try to slot
 	// them in round 2 of the same turn; without their position in the working
 	// state the set_lineup validator would error with "player not in catalog".
-	if err := a.loadCandidatePositions(ctx, in.FreeAgents, positions); err != nil {
+	if err := b.loadCandidatePositions(ctx, in.FreeAgents, positions); err != nil {
 		return ManageRosterInput{}, err
 	}
-	if err := a.loadCandidatePositions(ctx, in.OnWaivers, positions); err != nil {
+	if err := b.loadCandidatePositions(ctx, in.OnWaivers, positions); err != nil {
 		return ManageRosterInput{}, err
 	}
 
-	standingsRows, err := a.loadStandingsRows(ctx, in.PoolID, in.AgentID)
+	standingsRows, err := b.loadStandingsRows(ctx, in.PoolID, in.AgentID)
 	if err != nil {
 		return ManageRosterInput{}, err
 	}
@@ -90,7 +121,7 @@ func (a *Activities) BuildManageRosterContext(ctx context.Context, in BuildManag
 	// claim_player tool calls validate against a real waiver pool.
 	// Without this, ValidateClaimPlayer rejects every claim with
 	// "player not on waivers" regardless of state.
-	onWaivers, err := a.loadOnWaivers(ctx, in.PoolID, in.SimDate, in.PoolConfig.WaiverDays)
+	onWaivers, err := b.loadOnWaivers(ctx, in.PoolID, in.SimDate, in.PoolConfig.WaiverDays)
 	if err != nil {
 		return ManageRosterInput{}, fmt.Errorf("simulation: load on-waivers: %w", err)
 	}
@@ -100,7 +131,7 @@ func (a *Activities) BuildManageRosterContext(ctx context.Context, in BuildManag
 	// action error rather than rolling back the whole turn on the unique
 	// index) and the daily prompt (so the agent doesn't attempt the
 	// duplicate in the first place).
-	pendingClaims, pendingClaimRows, err := a.loadAgentPendingClaims(ctx, in.PoolID, in.AgentID)
+	pendingClaims, pendingClaimRows, err := b.loadAgentPendingClaims(ctx, in.PoolID, in.AgentID)
 	if err != nil {
 		return ManageRosterInput{}, fmt.Errorf("simulation: load pending claims: %w", err)
 	}
@@ -137,8 +168,8 @@ func (a *Activities) BuildManageRosterContext(ctx context.Context, in BuildManag
 //
 // Claimed + drop player names are resolved with one batched
 // GetPlayersByIDs call (was up to 2 GetPlayer calls per row).
-func (a *Activities) loadAgentPendingClaims(ctx context.Context, poolID, agentID int32) ([]int64, []PendingClaimRow, error) {
-	rows, err := a.Queries.ListSimWaiverClaimsPendingByAgent(ctx, sqlcdb.ListSimWaiverClaimsPendingByAgentParams{
+func (b rosterContextActivity) loadAgentPendingClaims(ctx context.Context, poolID, agentID int32) ([]int64, []PendingClaimRow, error) {
+	rows, err := b.q.ListSimWaiverClaimsPendingByAgent(ctx, sqlcdb.ListSimWaiverClaimsPendingByAgentParams{
 		PoolID:  poolID,
 		AgentID: agentID,
 	})
@@ -153,7 +184,7 @@ func (a *Activities) loadAgentPendingClaims(ctx context.Context, poolID, agentID
 			playerIDs = append(playerIDs, r.DropPlayerID.Int64)
 		}
 	}
-	players, err := loadPlayersByIDs(ctx, a.Queries, playerIDs)
+	players, err := loadPlayersByIDs(ctx, b.q, playerIDs)
 	if err != nil {
 		return nil, nil, fmt.Errorf("simulation: batch load pending-claim players: %w", err)
 	}
@@ -192,8 +223,8 @@ func (a *Activities) loadAgentPendingClaims(ctx context.Context, poolID, agentID
 // Empty list (no recent drops) is the common path — early-season
 // pools have nothing on waivers. Errors propagate; an empty result
 // is not an error.
-func (a *Activities) loadOnWaivers(ctx context.Context, poolID int32, simDate pgtype.Date, waiverDays int) ([]int64, error) {
-	rows, err := a.Queries.ListSimPlayersOnWaivers(ctx, sqlcdb.ListSimPlayersOnWaiversParams{
+func (b rosterContextActivity) loadOnWaivers(ctx context.Context, poolID int32, simDate pgtype.Date, waiverDays int) ([]int64, error) {
+	rows, err := b.q.ListSimPlayersOnWaivers(ctx, sqlcdb.ListSimPlayersOnWaiversParams{
 		PoolID:     poolID,
 		SimDate:    simDate,
 		WaiverDays: int32(waiverDays),
@@ -211,8 +242,8 @@ func (a *Activities) loadOnWaivers(ctx context.Context, poolID int32, simDate pg
 }
 
 // loadAgentNotes returns sim_agents.notes for the agent.
-func (a *Activities) loadAgentNotes(ctx context.Context, agentID int32) (string, error) {
-	agent, err := a.Queries.GetSimAgent(ctx, agentID)
+func (b rosterContextActivity) loadAgentNotes(ctx context.Context, agentID int32) (string, error) {
+	agent, err := b.q.GetSimAgent(ctx, agentID)
 	if err != nil {
 		return "", fmt.Errorf("simulation: get sim agent %d: %w", agentID, err)
 	}
@@ -230,13 +261,13 @@ func (a *Activities) loadAgentNotes(ctx context.Context, agentID int32) (string,
 // Players with a NULL players.position are omitted from the position map
 // with a warning; they will appear on the roster but cannot be slotted into
 // any active slot (set_lineup will return a clear "position lookup" error).
-func (a *Activities) loadRosterAndPositions(
+func (b rosterContextActivity) loadRosterAndPositions(
 	ctx context.Context,
 	poolID, agentID int32,
 	cfg PoolConfig,
 ) (RosterState, map[int64]sqlcdb.PlayerPosition, []RosterRow, error) {
 	logger := activity.GetLogger(ctx)
-	rows, err := a.Queries.ListSimRosterByAgent(ctx, sqlcdb.ListSimRosterByAgentParams{
+	rows, err := b.q.ListSimRosterByAgent(ctx, sqlcdb.ListSimRosterByAgentParams{
 		PoolID: poolID, AgentID: agentID,
 	})
 	if err != nil {
@@ -247,7 +278,7 @@ func (a *Activities) loadRosterAndPositions(
 	for _, r := range rows {
 		ids = append(ids, r.PlayerID)
 	}
-	players, err := loadPlayersByIDs(ctx, a.Queries, ids)
+	players, err := loadPlayersByIDs(ctx, b.q, ids)
 	if err != nil {
 		return RosterState{}, nil, nil, fmt.Errorf("simulation: batch load roster (agent %d): %w", agentID, err)
 	}
@@ -304,7 +335,7 @@ func (a *Activities) loadRosterAndPositions(
 // in round 1 can immediately slot them in round 2 of the same turn. Position
 // lookups are batched with one GetPlayersByIDs call (was one GetPlayer per
 // candidate not already on the roster).
-func (a *Activities) loadCandidatePositions(
+func (b rosterContextActivity) loadCandidatePositions(
 	ctx context.Context,
 	playerIDs []int64,
 	positions map[int64]sqlcdb.PlayerPosition,
@@ -316,7 +347,7 @@ func (a *Activities) loadCandidatePositions(
 		}
 		need = append(need, id)
 	}
-	players, err := loadPlayersByIDs(ctx, a.Queries, need)
+	players, err := loadPlayersByIDs(ctx, b.q, need)
 	if err != nil {
 		return fmt.Errorf("simulation: batch load candidate positions: %w", err)
 	}
@@ -341,8 +372,8 @@ func (a *Activities) loadCandidatePositions(
 // Empty standings (day 1, before any games) → empty slice; valid
 // state, no error. A transient DB error is propagated as an error so
 // Temporal retries rather than presenting stale/empty standings.
-func (a *Activities) loadStandingsRows(ctx context.Context, poolID, agentID int32) ([]StandingRow, error) {
-	latest, err := a.Queries.GetSimStandingsLatestDate(ctx, poolID)
+func (b rosterContextActivity) loadStandingsRows(ctx context.Context, poolID, agentID int32) ([]StandingRow, error) {
+	latest, err := b.q.GetSimStandingsLatestDate(ctx, poolID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			// Pre-first-game: no standings rows exist yet.
@@ -353,7 +384,7 @@ func (a *Activities) loadStandingsRows(ctx context.Context, poolID, agentID int3
 	if !latest.Valid {
 		return nil, nil
 	}
-	rows, err := a.Queries.ListSimStandingsByDate(ctx, sqlcdb.ListSimStandingsByDateParams{
+	rows, err := b.q.ListSimStandingsByDate(ctx, sqlcdb.ListSimStandingsByDateParams{
 		PoolID: poolID, Date: latest,
 	})
 	if err != nil {
@@ -433,7 +464,7 @@ func (a *Activities) loadStandingsRows(ctx context.Context, poolID, agentID int3
 	}
 
 	// Pre-load agent names so the table prints "Sonnet" not "agent 7".
-	agents, err := a.Queries.ListSimAgentsByPool(ctx, poolID)
+	agents, err := b.q.ListSimAgentsByPool(ctx, poolID)
 	if err != nil {
 		return nil, fmt.Errorf("simulation: list agents for standings: %w", err)
 	}

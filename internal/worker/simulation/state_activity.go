@@ -140,10 +140,39 @@ type LoadPoolStateResult struct {
 // reasonable default for a missing pool config or season range, and
 // retrying buys nothing if those rows have actually been deleted.
 func (a *Activities) LoadPoolState(ctx context.Context, in LoadPoolStateInput) (LoadPoolStateResult, error) {
+	return a.poolState().LoadPoolState(ctx, in)
+}
+
+// poolStateQueries is the query group of the pool lifecycle activities
+// (LoadPoolState, RecordDraftOrder, SetPoolStatus): the pool, agent and
+// season rows the workflow boots from, the draft order and the pool
+// status.
+type poolStateQueries interface {
+	GetSimPool(ctx context.Context, id int32) (sqlcdb.SimPool, error)
+	ListSimAgentsByPool(ctx context.Context, poolID int32) ([]sqlcdb.SimAgent, error)
+	GetSeason(ctx context.Context, id int32) (sqlcdb.Season, error)
+	SetSimAgentDraftPosition(ctx context.Context, arg sqlcdb.SetSimAgentDraftPositionParams) error
+	UpdateSimPoolStatus(ctx context.Context, arg sqlcdb.UpdateSimPoolStatusParams) error
+}
+
+// poolStateActivity runs the pool lifecycle activities over their own
+// query group; agents is the cache SetPoolStatus evicts.
+type poolStateActivity struct {
+	q      poolStateQueries
+	agents agentSource
+}
+
+// poolState binds the pool lifecycle activities to the worker's handles.
+func (a *Activities) poolState() poolStateActivity {
+	return poolStateActivity{q: a.Queries, agents: a}
+}
+
+// LoadPoolState is (*Activities).LoadPoolState's body.
+func (p poolStateActivity) LoadPoolState(ctx context.Context, in LoadPoolStateInput) (LoadPoolStateResult, error) {
 	logger := activity.GetLogger(ctx)
 	logger.Debug("LoadPoolState start", "pool_id", in.PoolID)
 
-	pool, err := a.Queries.GetSimPool(ctx, in.PoolID)
+	pool, err := p.q.GetSimPool(ctx, in.PoolID)
 	if err != nil {
 		return LoadPoolStateResult{}, fmt.Errorf("simulation: get sim pool %d: %w", in.PoolID, err)
 	}
@@ -152,7 +181,7 @@ func (a *Activities) LoadPoolState(ctx context.Context, in LoadPoolStateInput) (
 		return LoadPoolStateResult{}, fmt.Errorf("simulation: decode pool config: %w", err)
 	}
 
-	agents, err := a.Queries.ListSimAgentsByPool(ctx, in.PoolID)
+	agents, err := p.q.ListSimAgentsByPool(ctx, in.PoolID)
 	if err != nil {
 		return LoadPoolStateResult{}, fmt.Errorf("simulation: list agents (pool %d): %w", in.PoolID, err)
 	}
@@ -171,7 +200,7 @@ func (a *Activities) LoadPoolState(ctx context.Context, in LoadPoolStateInput) (
 
 	// PoolConfig.Season is `int` (matches Go convention); the seasons
 	// table key is INT in Postgres → int32 on the Go side.
-	season, err := a.Queries.GetSeason(ctx, int32(cfg.Season))
+	season, err := p.q.GetSeason(ctx, int32(cfg.Season))
 	if err != nil {
 		return LoadPoolStateResult{}, fmt.Errorf("simulation: get season %d: %w", cfg.Season, err)
 	}
@@ -259,6 +288,25 @@ type LoadDraftCandidatesResult struct {
 // multiple team rows), looks up each player's position, and returns
 // the ranked candidate lists.
 func (a *Activities) LoadDraftCandidates(ctx context.Context, in LoadDraftCandidatesInput) (LoadDraftCandidatesResult, error) {
+	return draftCandidatesActivity{q: a.Queries}.LoadDraftCandidates(ctx, in)
+}
+
+// draftCandidateQueries is LoadDraftCandidates' query group: the prior
+// season's club stats and one batched position lookup per list.
+type draftCandidateQueries interface {
+	GetClubSkaterStatsBySeason(ctx context.Context, arg sqlcdb.GetClubSkaterStatsBySeasonParams) ([]sqlcdb.GetClubSkaterStatsBySeasonRow, error)
+	GetClubGoalieStatsBySeason(ctx context.Context, arg sqlcdb.GetClubGoalieStatsBySeasonParams) ([]sqlcdb.GetClubGoalieStatsBySeasonRow, error)
+	playerLookupQueries
+}
+
+// draftCandidatesActivity runs LoadDraftCandidates over its own query
+// group.
+type draftCandidatesActivity struct {
+	q draftCandidateQueries
+}
+
+// LoadDraftCandidates is (*Activities).LoadDraftCandidates' body.
+func (d draftCandidatesActivity) LoadDraftCandidates(ctx context.Context, in LoadDraftCandidatesInput) (LoadDraftCandidatesResult, error) {
 	logger := activity.GetLogger(ctx)
 	prior, err := priorSeasonID(in.Season)
 	if err != nil {
@@ -266,11 +314,11 @@ func (a *Activities) LoadDraftCandidates(ctx context.Context, in LoadDraftCandid
 	}
 	logger.Debug("LoadDraftCandidates", "for_season", in.Season, "prior_season", prior)
 
-	skaters, err := a.loadSkaterCandidates(ctx, prior)
+	skaters, err := d.loadSkaterCandidates(ctx, prior)
 	if err != nil {
 		return LoadDraftCandidatesResult{}, err
 	}
-	goalies, err := a.loadGoalieCandidates(ctx, prior)
+	goalies, err := d.loadGoalieCandidates(ctx, prior)
 	if err != nil {
 		return LoadDraftCandidatesResult{}, err
 	}
@@ -307,8 +355,8 @@ func priorSeasonID(season int32) (int32, error) {
 // Position lookups are batched with one GetPlayersByIDs call over
 // every surviving (nonzero-score) candidate — previously one GetPlayer
 // per candidate, ~400-600 calls for a full season's worth of skaters.
-func (a *Activities) loadSkaterCandidates(ctx context.Context, season int32) ([]SkaterDraftCandidate, error) {
-	rows, err := a.Queries.GetClubSkaterStatsBySeason(ctx, sqlcdb.GetClubSkaterStatsBySeasonParams{
+func (d draftCandidatesActivity) loadSkaterCandidates(ctx context.Context, season int32) ([]SkaterDraftCandidate, error) {
+	rows, err := d.q.GetClubSkaterStatsBySeason(ctx, sqlcdb.GetClubSkaterStatsBySeasonParams{
 		Season:   season,
 		GameType: sqlcdb.GameTypeRegularSeason,
 	})
@@ -342,7 +390,7 @@ func (a *Activities) loadSkaterCandidates(ctx context.Context, season int32) ([]
 		}
 		ids = append(ids, id)
 	}
-	players, err := loadPlayersByIDs(ctx, a.Queries, ids)
+	players, err := loadPlayersByIDs(ctx, d.q, ids)
 	if err != nil {
 		return nil, fmt.Errorf("simulation: batch load skater candidate players: %w", err)
 	}
@@ -372,8 +420,8 @@ func (a *Activities) loadSkaterCandidates(ctx context.Context, season int32) ([]
 // loadGoalieCandidates is the goalie-side of the candidate dance.
 // Sums Wins + GoalsAgainst across team rows; filters position to G.
 // Position lookups batch the same way loadSkaterCandidates does.
-func (a *Activities) loadGoalieCandidates(ctx context.Context, season int32) ([]GoalieDraftCandidate, error) {
-	rows, err := a.Queries.GetClubGoalieStatsBySeason(ctx, sqlcdb.GetClubGoalieStatsBySeasonParams{
+func (d draftCandidatesActivity) loadGoalieCandidates(ctx context.Context, season int32) ([]GoalieDraftCandidate, error) {
+	rows, err := d.q.GetClubGoalieStatsBySeason(ctx, sqlcdb.GetClubGoalieStatsBySeasonParams{
 		Season:   season,
 		GameType: sqlcdb.GameTypeRegularSeason,
 	})
@@ -404,7 +452,7 @@ func (a *Activities) loadGoalieCandidates(ctx context.Context, season int32) ([]
 		}
 		ids = append(ids, id)
 	}
-	players, err := loadPlayersByIDs(ctx, a.Queries, ids)
+	players, err := loadPlayersByIDs(ctx, d.q, ids)
 	if err != nil {
 		return nil, fmt.Errorf("simulation: batch load goalie candidate players: %w", err)
 	}
@@ -490,8 +538,13 @@ type RecordDraftOrderInput struct {
 // same values when called with the same input (which is what
 // SideEffect determinism guarantees within one execution).
 func (a *Activities) RecordDraftOrder(ctx context.Context, in RecordDraftOrderInput) error {
+	return a.poolState().RecordDraftOrder(ctx, in)
+}
+
+// RecordDraftOrder is (*Activities).RecordDraftOrder's body.
+func (p poolStateActivity) RecordDraftOrder(ctx context.Context, in RecordDraftOrderInput) error {
 	for i, agentID := range in.AgentIDs {
-		if err := a.Queries.SetSimAgentDraftPosition(ctx, sqlcdb.SetSimAgentDraftPositionParams{
+		if err := p.q.SetSimAgentDraftPosition(ctx, sqlcdb.SetSimAgentDraftPositionParams{
 			ID:            agentID,
 			DraftPosition: pgtype.Int4{Int32: int32(i + 1), Valid: true},
 		}); err != nil {
@@ -506,15 +559,20 @@ func (a *Activities) RecordDraftOrder(ctx context.Context, in RecordDraftOrderIn
 // connection lets Temporal retry. Once a status that ends the pool is
 // written, this worker drops the pool's cached agents.
 func (a *Activities) SetPoolStatus(ctx context.Context, in SetPoolStatusInput) error {
+	return a.poolState().SetPoolStatus(ctx, in)
+}
+
+// SetPoolStatus is (*Activities).SetPoolStatus' body.
+func (p poolStateActivity) SetPoolStatus(ctx context.Context, in SetPoolStatusInput) error {
 	activity.GetLogger(ctx).Debug("SetPoolStatus", "pool_id", in.PoolID, "status", in.Status)
-	if err := a.Queries.UpdateSimPoolStatus(ctx, sqlcdb.UpdateSimPoolStatusParams{
+	if err := p.q.UpdateSimPoolStatus(ctx, sqlcdb.UpdateSimPoolStatusParams{
 		ID:     in.PoolID,
 		Status: string(in.Status),
 	}); err != nil {
 		return fmt.Errorf("simulation: update pool status to %s: %w", in.Status, err)
 	}
 	if in.Status.ended() {
-		evicted := a.evictPoolAgents(in.PoolID)
+		evicted := p.agents.evictPoolAgents(in.PoolID)
 		activity.GetLogger(ctx).Debug("SetPoolStatus evicted cached agents", "pool_id", in.PoolID, "evicted", evicted)
 	}
 	return nil

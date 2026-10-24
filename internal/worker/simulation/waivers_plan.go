@@ -15,6 +15,24 @@ import (
 // committed.
 var errWaiverClaimNotPending = errors.New("waiver claim is no longer pending")
 
+// waiverPlanQueries is the commit-time re-validation of one claim group
+// and the claim status writes that follow it.
+type waiverPlanQueries interface {
+	// ExistsSimRosterPlayer is the claimability probe that converts a
+	// UNIQUE(pool_id, player_id) conflict into a lost group instead of
+	// a tx-aborting violation.
+	ExistsSimRosterPlayer(ctx context.Context, arg sqlcdb.ExistsSimRosterPlayerParams) (bool, error)
+	ListSimRosterByAgent(ctx context.Context, arg sqlcdb.ListSimRosterByAgentParams) ([]sqlcdb.SimRoster, error)
+	// ResolveSimWaiverClaim moves a claim out of 'pending'; 0 rows means
+	// the claim was no longer pending and nothing changed.
+	ResolveSimWaiverClaim(ctx context.Context, arg sqlcdb.ResolveSimWaiverClaimParams) (int64, error)
+	// CancelSimWaiverClaimsForPlayer voids the loser/cross-day pending
+	// claims once a player is won, so they can't resolve as phantom
+	// uncontested wins.
+	CancelSimWaiverClaimsForPlayer(ctx context.Context, arg sqlcdb.CancelSimWaiverClaimsForPlayerParams) error
+	rosterDropQueries
+}
+
 // waiverPlan is the read-only commit-time verdict for one resolution,
 // computed before any roster write so a rejected claim never leaves a
 // partial mutation behind.
@@ -39,7 +57,7 @@ type waiverPlan struct {
 //     present) plus the claimed player in BN must pass
 //     checkAcquisitionCapacity against the pool's per-slot limits — the
 //     same policy add_player and claim_player apply at turn time.
-func planWaiverResolution(ctx context.Context, q SimQueries, in ProcessWaiversInput, limits map[RosterSlot]int, w sqlcdb.SimWaiverClaim) (waiverPlan, error) {
+func planWaiverResolution(ctx context.Context, q waiverPlanQueries, in ProcessWaiversInput, limits map[RosterSlot]int, w sqlcdb.SimWaiverClaim) (waiverPlan, error) {
 	rostered, err := q.ExistsSimRosterPlayer(ctx, sqlcdb.ExistsSimRosterPlayerParams{
 		PoolID: in.PoolID, PlayerID: w.PlayerID,
 	})
@@ -79,7 +97,7 @@ func planWaiverResolution(ctx context.Context, q SimQueries, in ProcessWaiversIn
 // transaction, so a delete that affects no rows means the roster changed
 // underneath us and the capacity verdict is void — removeAndLogDrop
 // fails the transaction rather than commit an add the roster may not fit.
-func applyWaiverDrop(ctx context.Context, q SimQueries, in ProcessWaiversInput, w sqlcdb.SimWaiverClaim, reasoning string) error {
+func applyWaiverDrop(ctx context.Context, q waiverPlanQueries, in ProcessWaiversInput, w sqlcdb.SimWaiverClaim, reasoning string) error {
 	if _, err := removeAndLogDrop(ctx, q, rosterDrop{
 		PoolID: in.PoolID, AgentID: w.AgentID, Date: in.SimDate,
 		PlayerID: w.DropPlayerID.Int64, Reasoning: reasoning,
@@ -93,7 +111,7 @@ func applyWaiverDrop(ctx context.Context, q SimQueries, in ProcessWaiversInput, 
 // 'lost', and voids any OTHER still-pending claim on the player (e.g. a
 // cross-day claim whose process_date hasn't arrived) so it can't later
 // resolve as a phantom uncontested win against the now-rostered player.
-func markGroupWon(ctx context.Context, q SimQueries, in ProcessWaiversInput, r claimResolution) error {
+func markGroupWon(ctx context.Context, q waiverPlanQueries, in ProcessWaiversInput, r claimResolution) error {
 	w := r.winner
 	if err := resolveClaim(ctx, q, in, w.ID, WaiverClaimStatusWon); err != nil {
 		return err
@@ -114,7 +132,7 @@ func markGroupWon(ctx context.Context, q SimQueries, in ProcessWaiversInput, r c
 // markGroupLost resolves every claim in the group — the would-be winner
 // and the in-group losers — as 'lost'. Used when the plan rejects the
 // group; it performs no roster write.
-func markGroupLost(ctx context.Context, q SimQueries, in ProcessWaiversInput, r claimResolution) error {
+func markGroupLost(ctx context.Context, q waiverPlanQueries, in ProcessWaiversInput, r claimResolution) error {
 	if err := resolveClaim(ctx, q, in, r.winner.ID, WaiverClaimStatusLost); err != nil {
 		return err
 	}
@@ -129,7 +147,7 @@ func markGroupLost(ctx context.Context, q SimQueries, in ProcessWaiversInput, r 
 // resolveClaim moves a single pending claim to status at the resolution
 // date. A claim that is no longer pending is not touched and fails the
 // transaction with errWaiverClaimNotPending.
-func resolveClaim(ctx context.Context, q SimQueries, in ProcessWaiversInput, claimID int32, status WaiverClaimStatus) error {
+func resolveClaim(ctx context.Context, q waiverPlanQueries, in ProcessWaiversInput, claimID int32, status WaiverClaimStatus) error {
 	affected, err := q.ResolveSimWaiverClaim(ctx, sqlcdb.ResolveSimWaiverClaimParams{
 		ID: claimID, Status: string(status), ResolvedAt: in.SimDate,
 	})

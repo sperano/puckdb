@@ -17,7 +17,7 @@ func testRosterDrop(t *testing.T) rosterDrop {
 
 func TestRemoveAndLogDrop_DeletesAndLogsDropRow(t *testing.T) {
 	const dropTxID int32 = 42
-	q := &stubSimQueries{
+	q := &rosterFake{
 		deleteRosterRowsDefault: 1,
 		insertDropReturn:        sqlcdb.SimTransaction{ID: dropTxID},
 	}
@@ -38,7 +38,7 @@ func TestRemoveAndLogDrop_DeletesAndLogsDropRow(t *testing.T) {
 // No roster row removed means no waiver window either: the drop row is
 // what puts a player on waivers.
 func TestRemoveAndLogDrop_VanishedPlayerLogsNothing(t *testing.T) {
-	q := &stubSimQueries{}
+	q := &rosterFake{}
 
 	_, err := removeAndLogDrop(context.Background(), q, testRosterDrop(t))
 	require.ErrorIs(t, err, errDropVanished)
@@ -46,7 +46,7 @@ func TestRemoveAndLogDrop_VanishedPlayerLogsNothing(t *testing.T) {
 }
 
 func TestRemoveAndLogDrop_DeleteErrorLogsNothing(t *testing.T) {
-	q := &stubSimQueries{deleteRosterRowsErr: errors.New("connection lost")}
+	q := &rosterFake{deleteRosterRowsErr: errors.New("connection lost")}
 
 	_, err := removeAndLogDrop(context.Background(), q, testRosterDrop(t))
 	require.Error(t, err)
