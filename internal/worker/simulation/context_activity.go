@@ -478,7 +478,7 @@ func (s standingsSnapshot) categoryRanks() map[Category]map[int32]int {
 		cat := Category(name)
 		stats := make([]AgentCategoryStat, len(s.agentIDs))
 		for i, aid := range s.agentIDs {
-			stats[i] = AgentCategoryStat{AgentID: int64(aid), Value: s.byAgent[aid][cat].rotoPoints}
+			stats[i] = AgentCategoryStat{AgentID: aid, Value: s.byAgent[aid][cat].rotoPoints}
 		}
 		ranks := make(map[int32]int, len(stats))
 		// RankCategory returns its rankings in input order.

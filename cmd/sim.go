@@ -290,7 +290,7 @@ func renderSimPoolStatus(w io.Writer, r *SimPoolStatusResult) {
 		}
 	}
 
-	if hint := nextStepHint(int(pool.ID), string(pool.Status)); hint != "" {
+	if hint := nextStepHint(int(pool.ID), simulation.PoolStatus(pool.Status)); hint != "" {
 		fmt.Fprintln(w)
 		fmt.Fprintln(w, hint)
 	}
@@ -300,15 +300,15 @@ func renderSimPoolStatus(w io.Writer, r *SimPoolStatusResult) {
 
 // nextStepHint returns a single line telling the user what to do next
 // based on the pool's current status, or empty string if no hint applies.
-func nextStepHint(poolID int, status string) string {
+func nextStepHint(poolID int, status simulation.PoolStatus) string {
 	switch status {
-	case "draft", "running":
+	case simulation.PoolStatusDraft, simulation.PoolStatusRunning:
 		return fmt.Sprintf("Next: ./puckdb sim tail --pool %d   (watch live) or ./puckdb sim status %d   (snapshot)", poolID, poolID)
-	case "paused":
+	case simulation.PoolStatusPaused:
 		return "Simulation paused (cost cap reached). Inspect via sim tail; create a new pool to continue."
-	case "complete":
+	case simulation.PoolStatusComplete:
 		return "Simulation complete."
-	case "cancelled":
+	case simulation.PoolStatusCancelled:
 		return "Simulation was cancelled."
 	default:
 		return ""

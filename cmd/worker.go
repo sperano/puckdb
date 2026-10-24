@@ -264,7 +264,7 @@ func registerTasksWorkflows(w worker.Worker) {
 	w.RegisterWorkflow(workflow.ExtractBoxscorePlayersWorkflow)
 
 	// Simulation workflow
-	w.RegisterWorkflow(simulation.SimPoolWorkflow)
+	simulation.RegisterSimPoolWorkflow(w)
 
 	// Player news and rankings (draft helper)
 	w.RegisterWorkflow(workflow.RefreshNewsWorkflow)
@@ -334,19 +334,7 @@ func registerSimulationActivities(w worker.Worker, pool *pgxpool.Pool, queries *
 		Tx:              simulation.NewPgxTransactor(pool),
 		ProviderConfigs: configuredLLMProviders(),
 	}
-	w.RegisterActivity(simActs.LoadPoolState)
-	w.RegisterActivity(simActs.LoadDraftCandidates)
-	w.RegisterActivity(simActs.DraftPick)
-	w.RegisterActivity(simActs.ProcessWaivers)
-	w.RegisterActivity(simActs.BuildFreeAgentPool)
-	w.RegisterActivity(simActs.BuildManageRosterContext)
-	w.RegisterActivity(simActs.ManageRoster)
-	w.RegisterActivity(simActs.CollectDayStats)
-	w.RegisterActivity(simActs.UpdateStandings)
-	w.RegisterActivity(simActs.SetPoolStatus)
-	w.RegisterActivity(simActs.RecordDraftOrder)
-	w.RegisterActivity(simActs.PickTeamName)
-	w.RegisterActivity(simActs.RecordDayDuration)
+	simulation.RegisterActivities(w, simActs)
 }
 
 // registerYahooFetchActivities registers the Yahoo Fantasy API download activities.

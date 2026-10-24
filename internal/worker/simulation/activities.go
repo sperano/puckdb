@@ -10,17 +10,16 @@ import (
 // ============================================================================
 // Activities — Temporal activity layer for the simulation package.
 //
-// One Activities instance is constructed at worker startup and
-// registered via `worker.RegisterActivity(activities)`. Methods on
-// this struct become Temporal activities; their inputs MUST be
-// JSON-marshalable since Temporal serializes them across the worker
-// boundary.
+// One Activities instance is constructed at worker startup and registered via
+// RegisterActivities, which pins the names already serialized in Temporal
+// history. Activity inputs MUST be JSON-marshalable since Temporal serializes
+// them across the worker boundary.
 //
 // The struct is stateless across calls — each method receives the
 // per-call payload through its second parameter and consults the
 // shared dependencies (Queries, ProviderConfigs) on the receiver.
-// Adding a method here exposes a new Temporal activity; removing one
-// requires a worker restart and is NOT a backwards-compatible change.
+// Adding a method here does not expose it until RegisterActivities includes
+// it. Removing or changing a registered name is NOT backwards-compatible.
 // ============================================================================
 
 // Activities holds the shared dependencies every sim activity uses.

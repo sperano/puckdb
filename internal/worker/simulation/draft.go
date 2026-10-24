@@ -1,8 +1,6 @@
 package simulation
 
-import (
-	"slices"
-)
+import "slices"
 
 // ============================================================================
 // Snake-draft order generation
@@ -31,11 +29,11 @@ const (
 //	[a, b, c, d, e,  e, d, c, b, a,  a, b, c, d, e]
 //
 // Empty agentOrder or rounds <= 0 returns nil.
-func SnakeDraftOrder(agentOrder []int64, rounds int) []int64 {
+func SnakeDraftOrder(agentOrder []int32, rounds int) []int32 {
 	if len(agentOrder) == 0 || rounds <= 0 {
 		return nil
 	}
-	out := make([]int64, 0, len(agentOrder)*rounds)
+	out := make([]int32, 0, len(agentOrder)*rounds)
 	for r := range rounds {
 		if r%2 == 0 {
 			out = append(out, agentOrder...)
@@ -69,11 +67,11 @@ func SnakeDirection(round int) string {
 // future information into the draft and invalidate the simulation as a
 // model-vs-model comparison. PLAN.md > "Draft Fallback".
 type SkaterDraftCandidate struct {
-	PlayerID int64
-	Name     string
-	Position string // one of "C", "LW", "RW", "D" — the 5-position table excludes F
-	PriorG   int
-	PriorA   int
+	PlayerID int64  `json:"PlayerID"`
+	Name     string `json:"Name"`
+	Position string `json:"Position"` // one of "C", "LW", "RW", "D" — the 5-position table excludes F
+	PriorG   int    `json:"PriorG"`
+	PriorA   int    `json:"PriorA"`
 }
 
 // Score returns the skater's ranking value: prior-season G + A.
@@ -97,11 +95,11 @@ func (s SkaterDraftCandidate) draftable() DraftablePlayer {
 // Tie-breaks: lower GA wins (a stingy goalie outranks a wins-equal but
 // leakier one).
 type GoalieDraftCandidate struct {
-	PlayerID int64
-	Name     string
-	Position string // always "G"
-	PriorW   int
-	PriorGA  int
+	PlayerID int64  `json:"PlayerID"`
+	Name     string `json:"Name"`
+	Position string `json:"Position"` // always "G"
+	PriorW   int    `json:"PriorW"`
+	PriorGA  int    `json:"PriorGA"`
 }
 
 // draftable is the goalie as the draft prompt and the workflow's

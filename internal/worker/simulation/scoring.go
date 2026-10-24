@@ -39,7 +39,7 @@ func (c Category) IsLowerBetter() bool {
 // an agent with GoalieTOISeconds == 0 receives the worst rank in that category
 // per PLAN.md "Rate stats" (no goalie minutes ever accrued, so GAA is undefined).
 type AgentCategoryStat struct {
-	AgentID          int64
+	AgentID          int32
 	Value            float64
 	GoalieGA         int
 	GoalieTOISeconds int
@@ -52,7 +52,7 @@ type AgentCategoryStat struct {
 // RotoPoints is fractional under ties (e.g. 2.5 for a 2-way tie at 3rd
 // in a 5-team pool).
 type CategoryRanking struct {
-	AgentID    int64
+	AgentID    int32
 	Value      float64
 	Rank       int
 	RotoPoints float64
@@ -60,7 +60,7 @@ type CategoryRanking struct {
 
 // AgentRotoTotal is one agent's roto total summed across every category.
 type AgentRotoTotal struct {
-	AgentID         int64
+	AgentID         int32
 	TotalRotoPoints float64
 }
 
@@ -181,7 +181,7 @@ func RankAllCategories(cats []CategoryStats) map[Category][]CategoryRanking {
 // AgentRotoTotals sums each agent's roto points across all category rankings,
 // returning rows sorted by total descending (AgentID ascending breaks ties).
 func AgentRotoTotals(rankings map[Category][]CategoryRanking) []AgentRotoTotal {
-	totals := make(map[int64]float64)
+	totals := make(map[int32]float64)
 	for _, rows := range rankings {
 		for _, r := range rows {
 			totals[r.AgentID] += r.RotoPoints
