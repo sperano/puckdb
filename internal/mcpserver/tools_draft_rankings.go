@@ -37,8 +37,12 @@ const (
 	// get_draft_player_detail has the exact values.
 	draftRankingsSignificantDigits = 2
 	draftRankingsFractionDigits    = 3
-	// draftRankingsMaxDecimals caps the decimals of a value close to zero.
+	// draftRankingsMaxDecimals caps the decimals of a value close to zero;
+	// a nonzero value that would round to 0 at that cap is printed with
+	// draftRankingsTinyDigits significant digits in exponent form (1e-05),
+	// so it never reads as an exact zero.
 	draftRankingsMaxDecimals = 4
+	draftRankingsTinyDigits  = 1
 
 	draftCategoriesSection  = "categories"
 	draftRosterSlotsSection = "roster_slots"
@@ -64,9 +68,9 @@ var (
 	}
 )
 
-// draftRankingsSource is the read path get_draft_rankings shares with the
-// GraphQL draftRankings query and `puckdb draft rankings`;
-// *draftrank.Service satisfies it.
+// draftRankingsSource is the read path get_draft_rankings and
+// get_draft_player_detail share with the GraphQL draftRankings query and
+// `puckdb draft rankings`; *draftrank.Service satisfies it.
 type draftRankingsSource interface {
 	leagueKeyResolver
 	Rankings(context.Context, draftrank.LeagueRef, uuid.UUID, draftrank.Query) (draftrank.Page, error)
@@ -83,7 +87,7 @@ func draftRankingsTool(source draftRankingsSource, guard leagueGuard) server.Ser
 				"overall rank, player key, name, team, positions, best position rank among the filtered (else eligible) positions, tier, "+
 				"value (the adjusted value the ranking is ordered by, sort=adjusted_value), uncertainty, rank change vs. the baseline (positive: news moved the player up), "+
 				"Yahoo status and injury note, and the projected season total per category (blank when the category does not apply). "+
-				"Numbers are rounded to %d significant digits (%d below 1) with every integer digit kept; get_draft_player_detail gives a few players' exact values, contributions "+
+				"Player numbers are rounded to %d significant digits (%d below 1) with every integer digit kept, a nonzero value too small for that in exponent form (1e-05); category weights are exact. get_draft_player_detail gives a few players' exact values, contributions "+
 				"and explanations. Ranks always come from the whole pool: filters never renumber them. "+
 				"To page, pass the snapshot_id of the first call so a refresh in between cannot mix two snapshots.",
 				maxDraftRankingsLimit, draftRankingsSignificantDigits, draftRankingsFractionDigits)),
@@ -185,6 +189,9 @@ func optionalStrings(req mcp.CallToolRequest, name string) ([]string, *mcp.CallT
 	return values, nil
 }
 
+// draftRankingsResult renders the whole page before checking its size: the
+// rows are already capped at maxDraftRankingsLimit, which bounds that work.
+// Raising the limit would call for an estimate before rendering.
 func draftRankingsResult(page draftrank.Page) (*mcp.CallToolResult, error) {
 	text, err := draftRankingsText(page)
 	if err != nil {
@@ -224,7 +231,8 @@ func draftRankingsText(page draftrank.Page) (string, error) {
 	for i, c := range page.League.Categories {
 		categories[i] = draftCategoryRow{
 			Column: labels[i], StatID: c.StatID, Abbr: c.Abbr, Name: c.Name, PositionTypes: joinCell(c.PositionTypes),
-			Direction: c.Direction, Weight: compactFloat(c.Weight),
+			// A weight is a league rule, not a projection: printed exactly.
+			Direction: c.Direction, Weight: draftDetailFloat(c.Weight),
 		}
 	}
 	slots := make([]draftRosterSlotRow, len(page.League.RosterSlots))
@@ -341,9 +349,12 @@ func positiveInt(value int) string {
 
 // compactFloat rounds value to draftRankingsSignificantDigits significant
 // digits (draftRankingsFractionDigits below 1), keeping every integer
-// digit, and drops trailing zeros.
+// digit, and drops trailing zeros. Zero, negative zero included, is "0".
 func compactFloat(value float64) string {
-	if value == 0 || math.IsNaN(value) || math.IsInf(value, 0) {
+	if value == 0 {
+		return "0"
+	}
+	if math.IsNaN(value) || math.IsInf(value, 0) {
 		return strconv.FormatFloat(value, 'f', -1, draftDetailFloatBitSize)
 	}
 	magnitude := int(math.Floor(math.Log10(math.Abs(value))))
@@ -351,13 +362,15 @@ func compactFloat(value float64) string {
 	if magnitude < 0 {
 		digits = draftRankingsFractionDigits
 	}
+	// No decimals once the integer digits reach the significant digits
+	// (1234.6 is 1235, not 1200).
 	decimals := min(max(digits-1-magnitude, 0), draftRankingsMaxDecimals)
 	text := strconv.FormatFloat(value, 'f', decimals, draftDetailFloatBitSize)
 	if strings.Contains(text, ".") {
 		text = strings.TrimRight(strings.TrimRight(text, "0"), ".")
 	}
-	if text == "-0" {
-		return "0"
+	if text == "0" || text == "-0" {
+		return strconv.FormatFloat(value, 'g', draftRankingsTinyDigits, draftDetailFloatBitSize)
 	}
 	return text
 }

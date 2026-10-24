@@ -27,12 +27,7 @@ const (
 	maxDraftDetailOutputBytes   = 256 * 1024
 )
 
-type draftPlayerDetailSource interface {
-	leagueKeyResolver
-	Rankings(context.Context, draftrank.LeagueRef, uuid.UUID, draftrank.Query) (draftrank.Page, error)
-}
-
-func draftPlayerDetailTool(source draftPlayerDetailSource, guard leagueGuard) server.ServerTool {
+func draftPlayerDetailTool(source draftRankingsSource, guard leagueGuard) server.ServerTool {
 	return server.ServerTool{
 		Tool: mcp.NewTool(draftPlayerDetailToolName,
 			mcp.WithDescription(fmt.Sprintf("Get the full stored draft-ranking detail for up to %d players: every scenario placement, category contribution, ranking explanation, and news adjustment. Output is one metadata header followed by bounded CSV sections; no stored JSON is returned.", maxDraftPlayerDetailPlayers)),

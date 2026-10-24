@@ -272,12 +272,29 @@ func TestDraftRankingsSortFieldsAreAllValid(t *testing.T) {
 func TestCompactFloat(t *testing.T) {
 	cases := map[float64]string{
 		0: "0", 245.3: "245", 1234.6: "1235", 31.24: "31", 30.0: "30", 7.11: "7.1", 2.714: "2.7", 2.0: "2",
-		0.9123: "0.912", 0.1: "0.1", 0.0123456: "0.0123", 0.000012: "0", -0.000012: "0", -4.567: "-4.6",
+		0.9123: "0.912", 0.1: "0.1", 0.0123456: "0.0123", 0.000012: "1e-05", -0.000012: "-1e-05", 0.00004: "4e-05", -4.567: "-4.6",
 		-12.5: "-12", math.Inf(1): "+Inf",
 	}
 	for value, want := range cases {
 		assert.Equal(t, want, compactFloat(value), "%v", value)
 	}
+	assert.Equal(t, "0", compactFloat(math.Copysign(0, -1)), "negative zero")
+}
+
+// TestDraftRankingsPrintsCategoryWeightsExactly checks a scoring weight is
+// not rounded like the players section: it is a league rule.
+func TestDraftRankingsPrintsCategoryWeightsExactly(t *testing.T) {
+	page := draftrank.Page{League: draftrank.League{Categories: []draftrank.Category{
+		{StatID: 1, Abbr: "G", Name: "Goals", Weight: 1.25},
+		{StatID: 2, Abbr: "A", Name: "Assists", Weight: 12.5},
+	}}}
+	text, err := draftRankingsText(page)
+	require.NoError(t, err)
+	categories := parseSettingsOutput(t, text).sections[draftCategoriesSection]
+	require.Len(t, categories, 3)
+	weight := slices.Index(categories[0], "weight")
+	assert.Equal(t, "1.25", categories[1][weight])
+	assert.Equal(t, "12.5", categories[2][weight])
 }
 
 func TestDraftRankingsRejectsOversizedOutput(t *testing.T) {

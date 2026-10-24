@@ -53,7 +53,6 @@ var leagueIndependentYahooTools = map[string]struct{}{
 type draftToolSource interface {
 	draftLeagueSource
 	draftPoolSource
-	draftPlayerDetailSource
 	draftRankingsSource
 	draftOverrideSource
 }
