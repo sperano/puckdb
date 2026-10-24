@@ -111,22 +111,20 @@ var pricingTable = map[pricingKey]Pricing{
 	{PricingProviderGoogle, "gemini-1.5-flash"}: {Input: 0.075, Output: 0.30},
 }
 
-// pricingProviderAliases maps a free-form provider spelling to the
-// canonical provider half of a pricingKey. "gemini" is the model
-// family name Google documents; resolveProvider (agent.go) already
-// treats "google" and "gemini" as the same LLM transport, so pricing
-// must resolve them to the same table rows instead of only recognizing
-// "google".
-var pricingProviderAliases = map[string]string{
+// providerAliases maps a free-form provider spelling to its canonical
+// name. "gemini" is the model family name Google documents; pricing
+// resolves it to the "google" table rows and resolveProvider (agent.go)
+// to the same LLM transport as "google".
+var providerAliases = map[string]string{
 	"gemini": PricingProviderGoogle,
 }
 
-// canonicalPricingProvider lowercases provider and resolves it through
-// pricingProviderAliases, so both halves of pricingKey construction
-// agree on one spelling per provider family.
-func canonicalPricingProvider(provider string) string {
+// canonicalProviderName lowercases and trims provider and resolves it
+// through providerAliases, so pricingKey construction and transport
+// resolution agree on one spelling per provider family.
+func canonicalProviderName(provider string) string {
 	p := strings.ToLower(strings.TrimSpace(provider))
-	if canon, ok := pricingProviderAliases[p]; ok {
+	if canon, ok := providerAliases[p]; ok {
 		return canon
 	}
 	return p
@@ -148,13 +146,13 @@ func stripDateSuffix(model string) string {
 
 // pricingLookupKey builds the pricingTable key shared by LookupPricing and
 // ValidateModelPricing: provider is lowercased and resolved through
-// pricingProviderAliases (so "gemini" hits the "google" rows); model is
+// providerAliases (so "gemini" hits the "google" rows); model is
 // trimmed, lowercased, and has a trailing "-YYYYMMDD" date suffix stripped
 // so that dated variants such as "claude-haiku-4-5-20251001" resolve to
 // the correct row.
 func pricingLookupKey(provider, model string) pricingKey {
 	return pricingKey{
-		provider: canonicalPricingProvider(provider),
+		provider: canonicalProviderName(provider),
 		model:    stripDateSuffix(strings.ToLower(strings.TrimSpace(model))),
 	}
 }

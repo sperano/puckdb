@@ -407,3 +407,45 @@ func TestFallbackDraftPick_NoCandidatesReturnsZero(t *testing.T) {
 	got := FallbackDraftPick(v1Need(), nil, nil, nil)
 	assert.Equal(t, int64(0), got, "no candidates anywhere → 0 (caller treats as draft-cannot-proceed)")
 }
+
+// ============================================================================
+// Candidate → DraftablePlayer
+// ============================================================================
+
+func TestSkaterDraftable_KeepsOwnPositionAndPriorGA(t *testing.T) {
+	got := SkaterDraftCandidate{PlayerID: 8478402, Name: "Connor McDavid", Position: "C", PriorG: 32, PriorA: 100}.draftable()
+	assert.Equal(t, DraftablePlayer{
+		Player: "Connor McDavid", ID: 8478402, Position: "C",
+		LastSeason: SkaterStats{G: 32, A: 100},
+	}, got)
+}
+
+// A goalie is always shown at G, even when the candidate's Position is
+// unset, which is what both the prompt lists and the workflow's lookup
+// did before sharing the conversion.
+func TestGoalieDraftable_AlwaysAtG(t *testing.T) {
+	for _, pos := range []string{"G", ""} {
+		got := GoalieDraftCandidate{PlayerID: 8476945, Name: "Connor Hellebuyck", Position: pos, PriorW: 47, PriorGA: 157}.draftable()
+		assert.Equal(t, DraftablePlayer{
+			Player: "Connor Hellebuyck", ID: 8476945, Position: "G",
+			LastSeason: GoalieStats{W: 47, GA: 157},
+		}, got)
+	}
+}
+
+// The workflow's candidate lookup (roster rows, positional need) and the
+// prompt's available lists must describe a candidate the same way.
+func TestBuildCandidateLookup_MatchesPromptLists(t *testing.T) {
+	skaters := []SkaterDraftCandidate{{PlayerID: 1, Name: "S", Position: "LW", PriorG: 10, PriorA: 5}}
+	goalies := []GoalieDraftCandidate{{PlayerID: 2, Name: "G", PriorW: 30, PriorGA: 90}}
+
+	lookup := buildCandidateLookup(LoadDraftCandidatesResult{Skaters: skaters, Goalies: goalies})
+	byPosition, best := SelectAvailableByPosition(skaters, goalies, nil)
+
+	require.Len(t, byPosition["LW"], 1)
+	require.Len(t, byPosition["G"], 1)
+	require.Len(t, best, 1)
+	assert.Equal(t, byPosition["LW"][0], lookup[1])
+	assert.Equal(t, best[0], lookup[1])
+	assert.Equal(t, byPosition["G"][0], lookup[2])
+}

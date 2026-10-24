@@ -80,6 +80,17 @@ type SkaterDraftCandidate struct {
 // PLAN.md > "Draft Fallback" calls for.
 func (s SkaterDraftCandidate) Score() int { return s.PriorG + s.PriorA }
 
+// draftable is the candidate as the draft prompt and the workflow's
+// candidate lookup show it: its own position and prior-season G + A.
+func (s SkaterDraftCandidate) draftable() DraftablePlayer {
+	return DraftablePlayer{
+		Player:     s.Name,
+		ID:         s.PlayerID,
+		Position:   s.Position,
+		LastSeason: SkaterStats{G: s.PriorG, A: s.PriorA},
+	}
+}
+
 // GoalieDraftCandidate is one rankable goalie. Stats from prior season.
 // Tie-breaks: lower GA wins (a stingy goalie outranks a wins-equal but
 // leakier one).
@@ -89,6 +100,18 @@ type GoalieDraftCandidate struct {
 	Position string `json:"Position"` // always "G"
 	PriorW   int    `json:"PriorW"`
 	PriorGA  int    `json:"PriorGA"`
+}
+
+// draftable is the goalie as the draft prompt and the workflow's
+// candidate lookup show it: always at G, whatever Position holds, with
+// prior-season W and GA.
+func (g GoalieDraftCandidate) draftable() DraftablePlayer {
+	return DraftablePlayer{
+		Player:     g.Name,
+		ID:         g.PlayerID,
+		Position:   string(SlotG),
+		LastSeason: GoalieStats{W: g.PriorW, GA: g.PriorGA},
+	}
 }
 
 // ============================================================================
@@ -188,12 +211,7 @@ func SelectAvailableByPosition(
 		if len(bucket) >= MaxAvailablePerPosition {
 			continue
 		}
-		byPosition[s.Position] = append(bucket, DraftablePlayer{
-			Player:     s.Name,
-			ID:         s.PlayerID,
-			Position:   s.Position,
-			LastSeason: SkaterStats{G: s.PriorG, A: s.PriorA},
-		})
+		byPosition[s.Position] = append(bucket, s.draftable())
 	}
 
 	for _, g := range rankedGoalies {
@@ -203,12 +221,7 @@ func SelectAvailableByPosition(
 		if len(byPosition[string(SlotG)]) >= MaxAvailablePerPosition {
 			continue
 		}
-		byPosition[string(SlotG)] = append(byPosition[string(SlotG)], DraftablePlayer{
-			Player:     g.Name,
-			ID:         g.PlayerID,
-			Position:   string(SlotG),
-			LastSeason: GoalieStats{W: g.PriorW, GA: g.PriorGA},
-		})
+		byPosition[string(SlotG)] = append(byPosition[string(SlotG)], g.draftable())
 	}
 
 	for _, s := range rankedSkaters {
@@ -218,12 +231,7 @@ func SelectAvailableByPosition(
 		if len(bestAvailable) >= MaxBestAvailableOverall {
 			break
 		}
-		bestAvailable = append(bestAvailable, DraftablePlayer{
-			Player:     s.Name,
-			ID:         s.PlayerID,
-			Position:   s.Position,
-			LastSeason: SkaterStats{G: s.PriorG, A: s.PriorA},
-		})
+		bestAvailable = append(bestAvailable, s.draftable())
 	}
 
 	return byPosition, bestAvailable
