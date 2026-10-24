@@ -197,6 +197,12 @@ func TestService_ResolveLeagueRejectsNumericLeagueWithoutRules(t *testing.T) {
 	assert.ErrorIs(t, err, draftrank.ErrUnknownLeague)
 }
 
+func TestService_ResolveLeagueRejectsMissingLeagueKey(t *testing.T) {
+	svc := newService(draftfixtures.NewStore(), serviceNow)
+	_, err := svc.ResolveLeague(context.Background(), draftrank.LeagueRef{LeagueKey: "465.l.1002"})
+	assert.ErrorIs(t, err, draftrank.ErrUnknownLeague)
+}
+
 func TestService_CachesDecodedSnapshots(t *testing.T) {
 	store := draftfixtures.NewStore()
 	store.Add(fixtureSnapshot(t))

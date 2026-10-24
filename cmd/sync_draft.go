@@ -32,7 +32,9 @@ func cmdSyncDraft() *cobra.Command {
 replace their filesystem and Redis cache entries, and transactionally reconcile
 the full-key draft session. With --watch, poll until canceled or postdraft; only
 one draft synchronization per league key can run at a time. This never submits
-a Yahoo pick.`,
+a Yahoo pick.
+
+` + draftSessionLeagueHelp,
 		Args:    cobra.NoArgs,
 		PreRunE: bindFlagsPreRunE(draftSyncFlagGroups...),
 		RunE:    runSyncDraft,
@@ -62,7 +64,7 @@ func runSyncDraft(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		return fmt.Errorf("create Yahoo rate limiter: %w", err)
 	}
-	id, err := draftwatch.ResolveIdentity(ctx, pool, viper.GetString(config.FlagDraftSessionLeague), viper.GetInt(config.FlagDraftSeason))
+	id, err := resolveDraftSessionIdentity(ctx, cmd, pool)
 	if err != nil {
 		return err
 	}
@@ -116,8 +118,8 @@ func writeDraftSyncOutcome(out io.Writer, outcome draftwatch.Outcome) error {
 		label = "final reconciliation"
 	}
 	if _, err := fmt.Fprintf(out,
-		"%s: league=%s version=%d picks=%d manual=%d conflicts=%d authoritative=%t safe=%t status=%s changed=%t skipped=%d\n",
-		label, outcome.Session.Identity.LeagueKey, outcome.Session.State.Version,
+		"%s: league=%s season=%d version=%d picks=%d manual=%d conflicts=%d authoritative=%t safe=%t status=%s changed=%t skipped=%d\n",
+		label, outcome.Session.Identity.LeagueKey, outcome.Session.Identity.Season, outcome.Session.State.Version,
 		len(draftsession.EffectiveBoard(outcome.Session.State)), manual, conflicts,
 		outcome.Report.Complete, outcome.Session.SafeToRecommend(),
 		outcome.Session.DraftStatus, outcome.Report.Changed, len(outcome.Report.Skipped)); err != nil {

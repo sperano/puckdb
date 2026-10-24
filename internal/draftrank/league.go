@@ -3,16 +3,14 @@ package draftrank
 import (
 	"errors"
 	"fmt"
-	"strconv"
+	"math"
 	"strings"
+
+	"github.com/sperano/puckdb/internal/draft"
 )
 
 // ErrUnknownLeague means a league reference cannot be resolved.
 var ErrUnknownLeague = errors.New("unknown league")
-
-// leagueKeyMarker separates the game key and league ID of a Yahoo league
-// key ("465.l.1001").
-const leagueKeyMarker = ".l."
 
 // LeagueRef names a league either by key or by season and numeric ID.
 type LeagueRef struct {
@@ -21,27 +19,35 @@ type LeagueRef struct {
 	LeagueKey string
 }
 
-// ParseLeague reads a league key ("465.l.1001") or a numeric league ID. A
-// numeric ID needs the season, since Yahoo league IDs are only unique within
-// one season; a key carries its own.
+// ParseLeague reads a full league key ("465.l.1001") or a numeric league ID.
+// A key names its league and season by itself: season does not restrict it,
+// the key's imported rules give its season. A numeric ID needs the season, since
+// Yahoo league IDs are only unique within one season: callers pass the one
+// they default to (the CLI and GraphQL use the current season). Unlike
+// draftwatch.ResolveIdentity, a numeric ID never falls back to the newest
+// imported season. Keys and IDs are parsed by draft.ParseLeagueKey and
+// draft.ParseLeagueID, as in draftwatch.
 func ParseLeague(value string, season int) (LeagueRef, error) {
 	value = strings.TrimSpace(value)
 	if value == "" {
 		return LeagueRef{}, fmt.Errorf("%w: a league key or ID is required", ErrUnknownLeague)
 	}
-	if strings.Contains(value, leagueKeyMarker) {
-		_, id, _ := strings.Cut(value, leagueKeyMarker)
-		if n, err := strconv.Atoi(id); err != nil || n <= 0 {
+	if draft.IsLeagueKey(value) {
+		if _, _, err := draft.ParseLeagueKey(value); err != nil {
 			return LeagueRef{}, fmt.Errorf("%w: malformed league key %q", ErrUnknownLeague, value)
 		}
 		return LeagueRef{LeagueKey: value, Season: season}, nil
 	}
-	id, err := strconv.Atoi(value)
-	if err != nil || id <= 0 {
+	id, err := draft.ParseLeagueID(value)
+	if err != nil {
 		return LeagueRef{}, fmt.Errorf("%w: %q is neither a league key nor a league ID", ErrUnknownLeague, value)
 	}
 	if season <= 0 {
 		return LeagueRef{}, fmt.Errorf("%w: league ID %d needs a season", ErrUnknownLeague, id)
+	}
+	if season > math.MaxInt32 {
+		return LeagueRef{}, fmt.Errorf("%w: season %d is above %d, the largest season the database stores (PostgreSQL integer)",
+			ErrUnknownLeague, season, math.MaxInt32)
 	}
 	return LeagueRef{Season: season, LeagueID: id}, nil
 }

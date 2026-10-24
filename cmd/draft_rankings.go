@@ -39,6 +39,11 @@ snapshots through the same service as the GraphQL API, so the same league,
 filters and snapshot give the same values and ranks; it never recomputes a
 ranking. Refresh snapshots with "puckdb sync refresh-draft-rankings".
 
+--draft-league takes a full league key, which names its season, or a numeric
+league ID, which is looked up in --draft-season (default: the current
+season). "sync draft" and "draft session" instead default a numeric ID to its
+newest imported season.
+
 Positions filter with OR semantics (--draft-positions C,LW lists a C/LW
 player once) and never renumber overall or position ranks.
 

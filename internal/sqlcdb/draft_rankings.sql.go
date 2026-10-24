@@ -117,21 +117,53 @@ func (q *Queries) CreateDraftRankingSnapshot(ctx context.Context, arg CreateDraf
 	return id, err
 }
 
-const findYahooLeagueRuleSnapshotByKey = `-- name: FindYahooLeagueRuleSnapshotByKey :one
-SELECT season, league_id FROM yahoo_league_rule_snapshots
-WHERE league_key = $1
+const findYahooLeagueRuleSnapshotByID = `-- name: FindYahooLeagueRuleSnapshotByID :one
+SELECT league_key, season FROM yahoo_league_rule_snapshots
+WHERE league_id = $1 AND ($2::integer = 0 OR season = $2)
 ORDER BY last_seen_at DESC, id DESC
 LIMIT 1
 `
+
+type FindYahooLeagueRuleSnapshotByIDParams struct {
+	LeagueID int32 `json:"league_id"`
+	Season   int32 `json:"season"`
+}
+
+type FindYahooLeagueRuleSnapshotByIDRow struct {
+	LeagueKey string `json:"league_key"`
+	Season    int32  `json:"season"`
+}
+
+// Resolves a numeric league ID to its league key and season, from the latest
+// rules of the ID in @season (0: the most recently seen season).
+func (q *Queries) FindYahooLeagueRuleSnapshotByID(ctx context.Context, arg FindYahooLeagueRuleSnapshotByIDParams) (FindYahooLeagueRuleSnapshotByIDRow, error) {
+	row := q.db.QueryRow(ctx, findYahooLeagueRuleSnapshotByID, arg.LeagueID, arg.Season)
+	var i FindYahooLeagueRuleSnapshotByIDRow
+	err := row.Scan(&i.LeagueKey, &i.Season)
+	return i, err
+}
+
+const findYahooLeagueRuleSnapshotByKey = `-- name: FindYahooLeagueRuleSnapshotByKey :one
+SELECT season, league_id FROM yahoo_league_rule_snapshots
+WHERE league_key = $1 AND ($2::integer = 0 OR season = $2)
+ORDER BY last_seen_at DESC, id DESC
+LIMIT 1
+`
+
+type FindYahooLeagueRuleSnapshotByKeyParams struct {
+	LeagueKey string `json:"league_key"`
+	Season    int32  `json:"season"`
+}
 
 type FindYahooLeagueRuleSnapshotByKeyRow struct {
 	Season   int32 `json:"season"`
 	LeagueID int32 `json:"league_id"`
 }
 
-// Resolves a league key to its season and numeric league ID.
-func (q *Queries) FindYahooLeagueRuleSnapshotByKey(ctx context.Context, leagueKey string) (FindYahooLeagueRuleSnapshotByKeyRow, error) {
-	row := q.db.QueryRow(ctx, findYahooLeagueRuleSnapshotByKey, leagueKey)
+// Resolves a league key to its season and numeric league ID, from the latest
+// rules of the key in @season (0: in any season).
+func (q *Queries) FindYahooLeagueRuleSnapshotByKey(ctx context.Context, arg FindYahooLeagueRuleSnapshotByKeyParams) (FindYahooLeagueRuleSnapshotByKeyRow, error) {
+	row := q.db.QueryRow(ctx, findYahooLeagueRuleSnapshotByKey, arg.LeagueKey, arg.Season)
 	var i FindYahooLeagueRuleSnapshotByKeyRow
 	err := row.Scan(&i.Season, &i.LeagueID)
 	return i, err

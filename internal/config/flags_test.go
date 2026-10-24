@@ -35,6 +35,59 @@ func TestFlagGroupInit_String(t *testing.T) {
 	assert.Equal(t, "s", f.Shorthand)
 }
 
+func TestFlagGroupInit_Deprecated(t *testing.T) {
+	t.Parallel()
+	fg := FlagGroup{
+		Flags: []FlagDef{
+			{Name: "new-name", Default: "", Usage: "Current name"},
+			{Name: "old-name", Default: "", Usage: "Deprecated alias"},
+		},
+		Deprecated: map[string]string{"old-name": "use --new-name"},
+	}
+	flags := flag.NewFlagSet("test", flag.ContinueOnError)
+	var warnings bytes.Buffer
+	flags.SetOutput(&warnings)
+	fg.Init(flags)
+
+	old := flags.Lookup("old-name")
+	require.NotNil(t, old)
+	assert.Equal(t, "use --new-name", old.Deprecated)
+	assert.True(t, old.Hidden)
+	assert.Empty(t, flags.Lookup("new-name").Deprecated)
+
+	require.NoError(t, flags.Parse([]string{"--old-name", "x"}))
+	assert.Equal(t, "x", old.Value.String(), "a deprecated flag keeps working")
+	assert.Contains(t, warnings.String(), "use --new-name")
+}
+
+func TestFlagGroupInit_DeprecatedUnknownFlagPanics(t *testing.T) {
+	t.Parallel()
+	fg := FlagGroup{
+		Flags:      []FlagDef{{Name: "new-name", Default: "", Usage: "Current name"}},
+		Deprecated: map[string]string{"old-nmae": "use --new-name"},
+	}
+	assert.PanicsWithValue(t, "deprecate flag old-nmae: not a flag of the group", func() {
+		fg.Init(flag.NewFlagSet("test", flag.ContinueOnError))
+	})
+}
+
+func TestEnvVarName(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, "PUCKDB_DRAFT_LEAGUE", EnvVarName(FlagDraftLeague))
+	assert.Equal(t, "PUCKDB_LEAGUE", EnvVarName(FlagDraftLegacyLeague))
+}
+
+func TestDraftSessionFlagsDeprecateOnlyTheLegacyLeagueAlias(t *testing.T) {
+	t.Parallel()
+	flags := flag.NewFlagSet("test", flag.ContinueOnError)
+	DraftSessionFlags.Init(flags)
+	assert.Empty(t, flags.Lookup(FlagDraftLeague).Deprecated)
+	assert.Contains(t, flags.Lookup(FlagDraftLegacyLeague).Deprecated, "--"+FlagDraftLeague)
+	for name := range DraftSessionFlags.Deprecated {
+		assert.NotNil(t, flags.Lookup(name), "deprecated flag %s must be a flag of the group", name)
+	}
+}
+
 func TestFlagGroupInit_Int(t *testing.T) {
 	t.Parallel()
 	fg := FlagGroup{
