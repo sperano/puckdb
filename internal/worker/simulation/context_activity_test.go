@@ -581,3 +581,108 @@ func numericFromIntForTest(t require.TestingT, v int) pgtype.Numeric {
 	require.NoError(t, err)
 	return n
 }
+
+// standingsTestCategories are the nine roto categories a stored standings
+// snapshot carries, in StandingRow field order.
+var standingsTestCategories = []Category{
+	CategoryG, CategoryA, CategoryPM, CategoryPIM, CategoryPPP,
+	CategorySOG, CategoryW, CategoryGA, CategoryGAA,
+}
+
+// standingsLoadRepeats is how many loads must agree before the order counts
+// as stable; map iteration order would differ within a handful.
+const standingsLoadRepeats = 50
+
+// standingsTestRotoPoints gives each of four agents its roto points per
+// category, in standingsTestCategories order, as UpdateStandings splits
+// them under ties. Totals: agent 4 = 31.5, agents 2 and 9 tie at 22.5,
+// agent 7 = 13.5, so the total tie breaks on agent ID.
+var standingsTestRotoPoints = map[int32][]float64{
+	2: {3, 3, 2, 1.5, 3, 1.5, 4, 1.5, 3},
+	4: {4, 4, 4, 3.5, 4, 3.5, 2, 3.5, 3},
+	7: {1, 1, 1, 1.5, 1, 1.5, 2, 1.5, 3},
+	9: {2, 2, 3, 3.5, 2, 3.5, 2, 3.5, 1},
+}
+
+// standingsTestRows builds the snapshot rows for standingsTestRotoPoints,
+// each row's value being its roto points times ten so values and points
+// stay distinguishable.
+func standingsTestRows(t *testing.T) []sqlcdb.SimStanding {
+	t.Helper()
+	var rows []sqlcdb.SimStanding
+	for _, aid := range []int32{9, 7, 4, 2} {
+		for i, cat := range standingsTestCategories {
+			pts := standingsTestRotoPoints[aid][i]
+			r, err := seedStandingRow(aid, string(cat), pts*10, pts)
+			require.NoError(t, err)
+			rows = append(rows, r)
+		}
+	}
+	return rows
+}
+
+func standingsTestActivities(t *testing.T) rosterContextActivity {
+	t.Helper()
+	q := newRosterContextQueriesFake()
+	q.getSimStandingsLatestDateReturn = pgDate(t, "2025-01-10")
+	q.listSimStandingsByDateRows = standingsTestRows(t)
+	q.listAgentsByPoolReturn = []sqlcdb.SimAgent{
+		{ID: 2, TeamName: "Two"}, {ID: 4, TeamName: "Four"},
+		{ID: 7, TeamName: "Seven"}, {ID: 9, TeamName: "Nine"},
+	}
+	return rosterContextActivity{q: q}
+}
+
+// TestLoadStandingsRowsOrdersByTotalThenAgent pins the prompt's team order:
+// total roto points descending, agent ID ascending on a tie, identical on
+// every load.
+func TestLoadStandingsRowsOrdersByTotalThenAgent(t *testing.T) {
+	t.Parallel()
+	acts := standingsTestActivities(t)
+
+	first, err := acts.loadStandingsRows(context.Background(), 1, contextTestAgentID)
+	require.NoError(t, err)
+	names := make([]string, len(first))
+	for i, r := range first {
+		names[i] = r.Agent
+	}
+	assert.Equal(t, []string{"Four", "Two", "Nine", "Seven"}, names)
+	assert.Equal(t, []float64{31.5, 22.5, 22.5, 13.5},
+		[]float64{first[0].TotalRotoPts, first[1].TotalRotoPts, first[2].TotalRotoPts, first[3].TotalRotoPts})
+	assert.True(t, first[3].IsYou, "agent 7 is the caller")
+
+	for range standingsLoadRepeats {
+		again, err := acts.loadStandingsRows(context.Background(), 1, contextTestAgentID)
+		require.NoError(t, err)
+		require.Equal(t, first, again, "repeated loads must emit identical standings")
+	}
+}
+
+// TestLoadStandingsRowsRanksEveryCategory pins competition ranks per
+// category from the stored roto points (ties share the run's first
+// position) and the raw values next to them.
+func TestLoadStandingsRowsRanksEveryCategory(t *testing.T) {
+	t.Parallel()
+	rows, err := standingsTestActivities(t).loadStandingsRows(context.Background(), 1, contextTestAgentID)
+	require.NoError(t, err)
+	byName := make(map[string]StandingRow, len(rows))
+	for _, r := range rows {
+		byName[r.Agent] = r
+	}
+
+	// Ranks per agent in standingsTestCategories order.
+	want := map[string][]float64{
+		"Two":   {2, 2, 3, 3, 2, 3, 1, 3, 1},
+		"Four":  {1, 1, 1, 1, 1, 1, 2, 1, 1},
+		"Seven": {4, 4, 4, 3, 4, 3, 2, 3, 1},
+		"Nine":  {3, 3, 2, 1, 3, 1, 2, 1, 4},
+	}
+	for name, ranks := range want {
+		r := byName[name]
+		got := []CategoryStanding{r.G, r.A, r.PlusMinus, r.PIM, r.PPP, r.SOG, r.W, r.GA, r.GAA}
+		for i, cat := range standingsTestCategories {
+			assert.Equal(t, ranks[i], got[i].Rank, "%s rank in %s", name, cat)
+		}
+	}
+	assert.Equal(t, float64(40), byName["Four"].G.Value, "value is the stored stat, not roto points")
+}

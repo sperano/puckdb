@@ -43,7 +43,7 @@ func newDraftPlayerDetailSource(t *testing.T) (*recordingDraftPlayerDetailSource
 	return &recordingDraftPlayerDetailSource{Service: draftLeaguesService(store)}, snapshotID
 }
 
-func callDraftPlayerDetail(t *testing.T, source draftPlayerDetailSource, args map[string]any) *mcp.CallToolResult {
+func callDraftPlayerDetail(t *testing.T, source draftRankingsSource, args map[string]any) *mcp.CallToolResult {
 	t.Helper()
 	tool := draftPlayerDetailTool(source, newLeagueGuard(newFakeYahooQueries(), nil))
 	return callTool(t, tool.Handler, args)
@@ -99,21 +99,13 @@ func TestDraftPlayerDetailReturnsEveryScenarioAndExplanation(t *testing.T) {
 				scenarios = append(scenarios, row[1])
 			}
 		}
-		assert.Equal(t, stringSlice(draftrank.Scenarios), scenarios)
+		assert.Equal(t, stringValues(draftrank.Scenarios), scenarios)
 	}
 	assert.Greater(t, len(out.sections["contributions"]), 1)
 	assert.Greater(t, len(out.sections["explanations"]), 1)
 	assert.Equal(t, []draftrank.LeagueRef{{Season: draftfixtures.Season, LeagueID: draftfixtures.LeagueID, LeagueKey: draftfixtures.LeagueKey}}, source.refs)
 	assert.Equal(t, []uuid.UUID{snapshotID}, source.snapshotIDs)
 	assert.Equal(t, []string{draftfixtures.SuspendedKey, draftfixtures.CenterWing}, source.queries[0].PlayerKeys)
-}
-
-func stringSlice[T ~string](values []T) []string {
-	out := make([]string, len(values))
-	for i, value := range values {
-		out[i] = string(value)
-	}
-	return out
 }
 
 func TestDraftPlayerDetailFlattensNewsAdjustment(t *testing.T) {

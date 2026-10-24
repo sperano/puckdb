@@ -1,9 +1,11 @@
 package simulation
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -367,7 +369,9 @@ func (b rosterContextActivity) loadCandidatePositions(
 // projects it into the StandingRow shape the daily prompt uses.
 //
 // is_you is set to true on the row whose agent_id matches in.AgentID
-// — that's how the LLM identifies its own line in the table.
+// — that's how the LLM identifies its own line in the table. Rows are
+// ordered by total roto points descending, agent ID ascending on a tie,
+// so the same snapshot always renders the same prompt.
 //
 // Empty standings (day 1, before any games) → empty slice; valid
 // state, no error. A transient DB error is propagated as an error so
@@ -390,77 +394,9 @@ func (b rosterContextActivity) loadStandingsRows(ctx context.Context, poolID, ag
 	if err != nil {
 		return nil, fmt.Errorf("simulation: list standings for date: %w", err)
 	}
-
-	// Group standings rows by agent_id and category.
-	// Each row carries both the category stat value and the roto_points
-	// (written by UpdateStandings via UpsertSimStanding). We need both:
-	// roto_points to derive rank (higher = better position), and value
-	// for the Value field the LLM uses to see raw stat totals.
-	type catEntry struct {
-		value      float64 // raw category stat total
-		rotoPoints float64 // fractional points earned in this category
-	}
-	byAgent := map[int32]map[string]catEntry{} // agent_id → category → entry
-	totalRotoPts := map[int32]float64{}
-	for _, r := range rows {
-		pts, err := pgconv.NumericToFloat(r.RotoPoints)
-		if err != nil {
-			return nil, fmt.Errorf("simulation: decode roto_points (agent %d, category %q): %w", r.AgentID, r.Category, err)
-		}
-		val, err := pgconv.NumericToFloat(r.Value)
-		if err != nil {
-			return nil, fmt.Errorf("simulation: decode value (agent %d, category %q): %w", r.AgentID, r.Category, err)
-		}
-		if _, ok := byAgent[r.AgentID]; !ok {
-			byAgent[r.AgentID] = map[string]catEntry{}
-		}
-		byAgent[r.AgentID][r.Category] = catEntry{value: val, rotoPoints: pts}
-		totalRotoPts[r.AgentID] += pts
-	}
-
-	// Derive true rank for each category from roto_points. Under standard
-	// roto scoring, the team with the most roto_points in a category ranks
-	// 1st. Tied agents receive the same rank (the 1-indexed position of the
-	// first agent in their tie group). This is more robust than N - pts + 1
-	// arithmetic because roto_points under ties are non-integer (e.g. 2.5 for
-	// a 2-way tie at 3rd in a 5-team pool), and arithmetic rank derivation
-	// would produce non-integer display ranks.
-	categoryRank := func(cat string) map[int32]int {
-		type entry struct {
-			agentID    int32
-			rotoPoints float64
-		}
-		entries := make([]entry, 0, len(byAgent))
-		for aid, cats := range byAgent {
-			entries = append(entries, entry{agentID: aid, rotoPoints: cats[cat].rotoPoints})
-		}
-		// Sort descending by roto_points; break ties by agent_id ascending
-		// for determinism.
-		for i := 1; i < len(entries); i++ {
-			for j := i; j > 0; j-- {
-				prev, cur := entries[j-1], entries[j]
-				if prev.rotoPoints < cur.rotoPoints ||
-					(prev.rotoPoints == cur.rotoPoints && prev.agentID > cur.agentID) {
-					entries[j-1], entries[j] = entries[j], entries[j-1]
-				}
-			}
-		}
-		// Walk sorted runs: all agents in a run of equal roto_points get the
-		// rank equal to the 1-indexed position of the first agent in that run.
-		rank := make(map[int32]int, len(entries))
-		p := 0
-		for p < len(entries) {
-			q := p
-			for q < len(entries) && entries[q].rotoPoints == entries[p].rotoPoints {
-				q++
-			}
-			firstRank := p + 1 // 1-indexed position of first agent in run
-			for r := p; r < q; r++ {
-				rank[entries[r].agentID] = firstRank
-			}
-			p = q
-		}
-		return rank
+	snap, err := decodeStandings(rows)
+	if err != nil {
+		return nil, err
 	}
 
 	// Pre-load agent names so the table prints "Sonnet" not "agent 7".
@@ -473,40 +409,110 @@ func (b rosterContextActivity) loadStandingsRows(ctx context.Context, poolID, ag
 		nameByID[ag.ID] = displayName(ag)
 	}
 
-	catStanding := func(cat string, ranks map[string]map[int32]int, aid int32) CategoryStanding {
-		e := byAgent[aid][cat]
+	ranks := snap.categoryRanks()
+	out := make([]StandingRow, 0, len(snap.agentIDs))
+	for _, aid := range snap.agentIDs {
+		row := snap.row(aid, ranks)
+		row.Agent = nameByID[aid]
+		row.IsYou = aid == agentID
+		out = append(out, row)
+	}
+	return out, nil
+}
+
+// standingEntry is one agent's stored result in one category: the raw
+// stat total the LLM reads as Value, and the roto points UpdateStandings
+// awarded for it.
+type standingEntry struct {
+	value      float64
+	rotoPoints float64
+}
+
+// standingsSnapshot is one sim_standings date decoded per agent.
+type standingsSnapshot struct {
+	agentIDs []int32 // total roto points descending, agent ID ascending
+	byAgent  map[int32]map[Category]standingEntry
+	totals   map[int32]float64
+}
+
+// decodeStandings groups the snapshot rows by agent and category and
+// orders the agents for the prompt table.
+func decodeStandings(rows []sqlcdb.SimStanding) (standingsSnapshot, error) {
+	snap := standingsSnapshot{
+		byAgent: map[int32]map[Category]standingEntry{},
+		totals:  map[int32]float64{},
+	}
+	for _, r := range rows {
+		pts, err := pgconv.NumericToFloat(r.RotoPoints)
+		if err != nil {
+			return standingsSnapshot{}, fmt.Errorf("simulation: decode roto_points (agent %d, category %q): %w", r.AgentID, r.Category, err)
+		}
+		val, err := pgconv.NumericToFloat(r.Value)
+		if err != nil {
+			return standingsSnapshot{}, fmt.Errorf("simulation: decode value (agent %d, category %q): %w", r.AgentID, r.Category, err)
+		}
+		if _, ok := snap.byAgent[r.AgentID]; !ok {
+			snap.byAgent[r.AgentID] = map[Category]standingEntry{}
+			snap.agentIDs = append(snap.agentIDs, r.AgentID)
+		}
+		snap.byAgent[r.AgentID][Category(r.Category)] = standingEntry{value: val, rotoPoints: pts}
+		snap.totals[r.AgentID] += pts
+	}
+	slices.SortFunc(snap.agentIDs, func(x, y int32) int {
+		if c := cmp.Compare(snap.totals[y], snap.totals[x]); c != 0 {
+			return c
+		}
+		return cmp.Compare(x, y)
+	})
+	return snap, nil
+}
+
+// categoryRanks ranks the agents in every prompt category, in
+// v1FixedCategories order.
+//
+// The rank comes from the stored roto points, not the value: the points
+// already encode the category's direction and GAA's zero-TOI worst-rank
+// rule (a zero-TOI agent's stored GAA value is 0, which would sort best).
+// Equal values earned equal points, so RankCategory over the points
+// (higher is better) reproduces UpdateStandings' competition ranking:
+// tied agents share the run's first position ("1, 2, 2, 4"). An agent
+// with no row in a category ranks with 0 points.
+func (s standingsSnapshot) categoryRanks() map[Category]map[int32]int {
+	out := make(map[Category]map[int32]int, len(v1FixedCategories))
+	for _, name := range v1FixedCategories {
+		cat := Category(name)
+		stats := make([]AgentCategoryStat, len(s.agentIDs))
+		for i, aid := range s.agentIDs {
+			stats[i] = AgentCategoryStat{AgentID: int64(aid), Value: s.byAgent[aid][cat].rotoPoints}
+		}
+		ranks := make(map[int32]int, len(stats))
+		// RankCategory returns its rankings in input order.
+		for i, r := range RankCategory(stats, false) {
+			ranks[s.agentIDs[i]] = r.Rank
+		}
+		out[cat] = ranks
+	}
+	return out
+}
+
+// row builds agent aid's prompt row, without its name and is_you flag.
+func (s standingsSnapshot) row(aid int32, ranks map[Category]map[int32]int) StandingRow {
+	standing := func(cat Category) CategoryStanding {
 		return CategoryStanding{
-			Value: e.value,
+			Value: s.byAgent[aid][cat].value,
 			Rank:  float64(ranks[cat][aid]),
 		}
 	}
-
-	// Build category rank maps once per category.
-	ranksByCat := make(map[string]map[int32]int, len(byAgent))
-	for cat := range map[string]struct{}{
-		string(CategoryG): {}, string(CategoryA): {}, string(CategoryPM): {},
-		string(CategoryPIM): {}, string(CategoryPPP): {}, string(CategorySOG): {},
-		string(CategoryW): {}, string(CategoryGA): {}, string(CategoryGAA): {},
-	} {
-		ranksByCat[cat] = categoryRank(cat)
+	return StandingRow{
+		G:            standing(CategoryG),
+		A:            standing(CategoryA),
+		PlusMinus:    standing(CategoryPM),
+		PIM:          standing(CategoryPIM),
+		PPP:          standing(CategoryPPP),
+		SOG:          standing(CategorySOG),
+		W:            standing(CategoryW),
+		GA:           standing(CategoryGA),
+		GAA:          standing(CategoryGAA),
+		TotalRotoPts: s.totals[aid],
 	}
-
-	out := make([]StandingRow, 0, len(byAgent))
-	for aid := range byAgent {
-		out = append(out, StandingRow{
-			Agent:        nameByID[aid],
-			IsYou:        aid == agentID,
-			G:            catStanding(string(CategoryG), ranksByCat, aid),
-			A:            catStanding(string(CategoryA), ranksByCat, aid),
-			PlusMinus:    catStanding(string(CategoryPM), ranksByCat, aid),
-			PIM:          catStanding(string(CategoryPIM), ranksByCat, aid),
-			PPP:          catStanding(string(CategoryPPP), ranksByCat, aid),
-			SOG:          catStanding(string(CategorySOG), ranksByCat, aid),
-			W:            catStanding(string(CategoryW), ranksByCat, aid),
-			GA:           catStanding(string(CategoryGA), ranksByCat, aid),
-			GAA:          catStanding(string(CategoryGAA), ranksByCat, aid),
-			TotalRotoPts: totalRotoPts[aid],
-		})
-	}
-	return out, nil
 }
