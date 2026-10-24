@@ -2,7 +2,6 @@ package simulation
 
 import (
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/sperano/puckdb/internal/llm"
@@ -231,25 +230,24 @@ func agentTimeout(agent AgentConfig) time.Duration {
 // resolveProvider turns AgentConfig.Provider (a free-form string from
 // YAML config) into the llm.Provider enum.
 //
-// "google" / "gemini" route to ProviderOpenAI because Google's Gemini
-// is reachable via an OpenAI-compatible endpoint (PLAN.md > Multi-Provider
-// Support). The caller MUST set agent.APIBase to the Gemini URL — there
-// is no global Gemini base in llm.NewProviderConfigs.
+// The simulation accepts llm.ParseProvider's names plus Google's:
+// "google" (and its "gemini" alias, the same canonicalization pricing
+// uses) routes to ProviderOpenAI because Gemini is reachable through an
+// OpenAI-compatible endpoint (PLAN.md > Multi-Provider Support). The
+// caller MUST set agent.APIBase to the Gemini URL — there is no global
+// Gemini base in llm.NewProviderConfigs. The alias stays here, not in
+// llm.ParseProvider: the other ParseProvider callers (news extraction)
+// have no per-agent base URL to point a Gemini request at.
 func resolveProvider(s string) (llm.Provider, error) {
-	switch strings.ToLower(strings.TrimSpace(s)) {
-	case "anthropic":
-		return llm.ProviderAnthropic, nil
-	case "openai":
-		return llm.ProviderOpenAI, nil
-	case "ollama":
-		return llm.ProviderOllama, nil
-	case "google", "gemini":
-		// Gemini speaks OpenAI-compatible; the per-agent APIBase override
-		// in NewAgent points the request at Google's endpoint.
-		return llm.ProviderOpenAI, nil
+	switch canonicalProviderName(s) {
 	case "":
 		return 0, fmt.Errorf("simulation: agent provider is required")
-	default:
+	case PricingProviderGoogle:
+		return llm.ProviderOpenAI, nil
+	}
+	provider, err := llm.ParseProvider(s)
+	if err != nil {
 		return 0, fmt.Errorf("simulation: unknown provider %q (expected anthropic, openai, ollama, google)", s)
 	}
+	return provider, nil
 }

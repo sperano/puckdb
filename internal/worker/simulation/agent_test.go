@@ -23,6 +23,8 @@ func TestResolveProvider_RecognizedNames(t *testing.T) {
 		"ollama":     llm.ProviderOllama,
 		"google":     llm.ProviderOpenAI, // Gemini speaks OpenAI-compatible
 		"gemini":     llm.ProviderOpenAI,
+		"Gemini":     llm.ProviderOpenAI,
+		" GOOGLE ":   llm.ProviderOpenAI,
 		"  openai  ": llm.ProviderOpenAI, // whitespace tolerated
 	}
 	for in, want := range cases {
@@ -40,10 +42,30 @@ func TestResolveProvider_RejectsEmpty(t *testing.T) {
 	assert.Contains(t, err.Error(), "required")
 }
 
+func TestResolveProvider_RejectsBlank(t *testing.T) {
+	_, err := resolveProvider("   ")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "required")
+}
+
+// The unknown-provider error lists the simulation's accepted names
+// (Google included), not llm.ParseProvider's narrower set.
 func TestResolveProvider_RejectsUnknown(t *testing.T) {
 	_, err := resolveProvider("cohere")
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "cohere")
+	assert.EqualError(t, err, `simulation: unknown provider "cohere" (expected anthropic, openai, ollama, google)`)
+}
+
+// Every name the shared parser accepts resolves to the same provider
+// here: resolveProvider only adds the Google aliases on top.
+func TestResolveProvider_AgreesWithParseProvider(t *testing.T) {
+	for _, name := range []string{"anthropic", "OpenAI", " ollama "} {
+		want, err := llm.ParseProvider(name)
+		require.NoError(t, err)
+		got, err := resolveProvider(name)
+		require.NoError(t, err)
+		assert.Equal(t, want, got, name)
+	}
 }
 
 // ============================================================================
