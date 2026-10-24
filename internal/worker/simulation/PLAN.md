@@ -694,7 +694,7 @@ ContinueAsNew (CAN) is a workflow-completion variant: the current workflow ends,
 for selector.HasPending() {
     selector.Select(ctx)        // pull and dispatch one queued signal
 }
-return workflow.NewContinueAsNewError(ctx, SimPoolWorkflow, nextInput)
+return workflow.NewContinueAsNewError(ctx, SimPoolWorkflowName, nextInput)
 ```
 
 The drain is cheap: signal handlers in this workflow are non-blocking (they just mutate flags like `autoAdvance`, `paused`). They never call activities or wait. So draining is bounded by the number of queued signals, not by activity latency.

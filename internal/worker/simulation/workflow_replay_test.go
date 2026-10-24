@@ -28,11 +28,12 @@ const (
 	simReplayProgressSave    = "Save"
 	simReplaySideEffect      = "SideEffect"
 	simReplayPoolID          = int32(41)
+	simReplayMainCommit      = "de79859"
+	simReplayMainHistoryFile = "testdata/sim_pool_main_history.json"
 )
 
-// These types reproduce the nested candidate payload written before explicit
-// snake_case tags were added. The replay test records that legacy result and
-// then runs the current workflow decoder over it.
+// These types reproduce the nested candidate payload from main before its
+// historical field names were made explicit with JSON tags.
 type legacySkaterDraftCandidate struct {
 	PlayerID int64
 	Name     string
@@ -52,6 +53,13 @@ type legacyGoalieDraftCandidate struct {
 type legacyDraftCandidatesResult struct {
 	Skaters []legacySkaterDraftCandidate `json:"skaters"`
 	Goalies []legacyGoalieDraftCandidate `json:"goalies"`
+}
+
+func TestSimPoolWorkflowReplaysMainHistory(t *testing.T) {
+	replayer := worker.NewWorkflowReplayer()
+	replayer.RegisterWorkflowWithOptions(SimPoolWorkflow, workflow.RegisterOptions{Name: SimPoolWorkflowName})
+	require.NoError(t, replayer.ReplayWorkflowHistoryFromJSONFile(nil, simReplayMainHistoryFile),
+		"history recorded from main at %s", simReplayMainCommit)
 }
 
 func TestSimPoolWorkflowReplaysDeterministicDraftPayloads(t *testing.T) {

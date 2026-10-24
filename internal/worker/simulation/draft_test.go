@@ -8,23 +8,44 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestDraftCandidatesUseStableJSONNamesAndReadLegacyHistory(t *testing.T) {
+func TestDraftCandidatesPreserveHistoricalJSONNames(t *testing.T) {
 	skater := SkaterDraftCandidate{PlayerID: 11, Name: "Skater", Position: "C", PriorG: 20, PriorA: 30}
 	goalie := GoalieDraftCandidate{PlayerID: 22, Name: "Goalie", Position: "G", PriorW: 31, PriorGA: 99}
 
 	skaterJSON, err := json.Marshal(skater)
 	require.NoError(t, err)
-	assert.JSONEq(t, `{"player_id":11,"name":"Skater","position":"C","prior_g":20,"prior_a":30}`, string(skaterJSON))
+	assert.JSONEq(t, `{"PlayerID":11,"Name":"Skater","Position":"C","PriorG":20,"PriorA":30}`, string(skaterJSON))
 	goalieJSON, err := json.Marshal(goalie)
 	require.NoError(t, err)
-	assert.JSONEq(t, `{"player_id":22,"name":"Goalie","position":"G","prior_w":31,"prior_ga":99}`, string(goalieJSON))
+	assert.JSONEq(t, `{"PlayerID":22,"Name":"Goalie","Position":"G","PriorW":31,"PriorGA":99}`, string(goalieJSON))
 
-	var legacySkater SkaterDraftCandidate
-	require.NoError(t, json.Unmarshal([]byte(`{"PlayerID":11,"Name":"Skater","Position":"C","PriorG":20,"PriorA":30}`), &legacySkater))
-	assert.Equal(t, skater, legacySkater)
-	var legacyGoalie GoalieDraftCandidate
-	require.NoError(t, json.Unmarshal([]byte(`{"PlayerID":22,"Name":"Goalie","Position":"G","PriorW":31,"PriorGA":99}`), &legacyGoalie))
-	assert.Equal(t, goalie, legacyGoalie)
+	var oldSkater struct {
+		PlayerID int64
+		Name     string
+		Position string
+		PriorG   int
+		PriorA   int
+	}
+	require.NoError(t, json.Unmarshal(skaterJSON, &oldSkater))
+	assert.Equal(t, skater.PlayerID, oldSkater.PlayerID)
+	assert.Equal(t, skater.Name, oldSkater.Name)
+	assert.Equal(t, skater.Position, oldSkater.Position)
+	assert.Equal(t, skater.PriorG, oldSkater.PriorG)
+	assert.Equal(t, skater.PriorA, oldSkater.PriorA)
+
+	var oldGoalie struct {
+		PlayerID int64
+		Name     string
+		Position string
+		PriorW   int
+		PriorGA  int
+	}
+	require.NoError(t, json.Unmarshal(goalieJSON, &oldGoalie))
+	assert.Equal(t, goalie.PlayerID, oldGoalie.PlayerID)
+	assert.Equal(t, goalie.Name, oldGoalie.Name)
+	assert.Equal(t, goalie.Position, oldGoalie.Position)
+	assert.Equal(t, goalie.PriorW, oldGoalie.PriorW)
+	assert.Equal(t, goalie.PriorGA, oldGoalie.PriorGA)
 }
 
 // ============================================================================
