@@ -50,6 +50,12 @@ type rosterContextQueriesFake struct {
 	listPendingByAgentArgs []sqlcdb.ListSimWaiverClaimsPendingByAgentParams
 	listPendingByAgentRows map[int32][]sqlcdb.SimWaiverClaim
 	listPendingByAgentErr  error
+
+	// ListSimRosterByPool — pool-wide roster used to drop free agents
+	// another agent rostered after BuildFreeAgentPool snapshotted the pool.
+	listRosterByPoolArgs   []int32
+	listRosterByPoolReturn []sqlcdb.SimRoster
+	listRosterByPoolErr    error
 }
 
 var _ rosterContextQueries = (*rosterContextQueriesFake)(nil)
@@ -102,6 +108,14 @@ func (s *rosterContextQueriesFake) ListSimWaiverClaimsPendingByAgent(_ context.C
 		return nil, s.listPendingByAgentErr
 	}
 	return s.listPendingByAgentRows[arg.AgentID], nil
+}
+
+func (s *rosterContextQueriesFake) ListSimRosterByPool(_ context.Context, poolID int32) ([]sqlcdb.SimRoster, error) {
+	s.listRosterByPoolArgs = append(s.listRosterByPoolArgs, poolID)
+	if s.listRosterByPoolErr != nil {
+		return nil, s.listRosterByPoolErr
+	}
+	return s.listRosterByPoolReturn, nil
 }
 
 // TestLoadRosterAndPositionsRendersPlayerColumns pins the prompt's roster

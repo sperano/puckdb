@@ -181,3 +181,43 @@ func (s *BuildContextTestSuite) TestContext_TopFreeAgentsExcludesZeroGamePlayers
 	assert.Equal(t, int64(100), got.DailyPrompt.TopFreeAgents.Skaters[0].ID)
 	assert.Empty(t, got.DailyPrompt.TopFreeAgents.Goalies)
 }
+
+// Finding SIM-U3 follow-up — BuildFreeAgentPool snapshots the pool once a
+// day before any agent's turn, so a later agent may be handed an id an
+// earlier agent already rostered. BuildManageRosterContext must drop such
+// players from both the ranking input and the working-state FreeAgents, so
+// a same-day add is a clean in-turn validation error rather than a silent
+// commit_rejected conflict the agent never sees.
+func (s *BuildContextTestSuite) TestContext_FreeAgentsDropPlayersRosteredAfterPool() {
+	t := s.T()
+	in := s.minimalInput()
+	in.FreeAgents = []int64{100, 200}
+	// Player 100 was added by another agent after the pool snapshot.
+	s.queries.listRosterByPoolReturn = []sqlcdb.SimRoster{
+		{PoolID: 1, AgentID: 2, PlayerID: 100, Slot: "LW"},
+	}
+	s.queries.getPlayerByID = map[int64]sqlcdb.Player{
+		100: {ID: 100, FirstName: "Taken", LastName: "Skater", Position: sqlcdb.NullPlayerPosition{PlayerPosition: sqlcdb.PlayerPositionLW, Valid: true}},
+		200: {ID: 200, FirstName: "Still", LastName: "Free", Position: sqlcdb.NullPlayerPosition{PlayerPosition: sqlcdb.PlayerPositionC, Valid: true}},
+	}
+	s.queries.listFreeAgentSkaterStatsReturn = []sqlcdb.ListSimFreeAgentSkaterStatsRow{
+		{PlayerID: 100, RecentGoals: 5},
+		{PlayerID: 200, RecentGoals: 2},
+	}
+
+	future, err := s.env.ExecuteActivity(s.acts.BuildManageRosterContext, in)
+	require.NoError(t, err)
+	var got ManageRosterInput
+	require.NoError(t, future.Get(&got))
+
+	// Working state drops the rostered player so ValidateAddPlayer rejects it.
+	assert.Equal(t, []int64{200}, got.FreeAgents)
+	// The ranking input was filtered too: the stats query only saw 200.
+	require.Len(t, s.queries.listFreeAgentSkaterStatsArgs, 1)
+	assert.ElementsMatch(t, []int64{200}, s.queries.listFreeAgentSkaterStatsArgs[0].PlayerIds)
+	require.Len(t, got.DailyPrompt.TopFreeAgents.Skaters, 1)
+	assert.Equal(t, int64(200), got.DailyPrompt.TopFreeAgents.Skaters[0].ID)
+	// The pool-wide roster probe ran against this pool.
+	require.Len(t, s.queries.listRosterByPoolArgs, 1)
+	assert.Equal(t, int32(1), s.queries.listRosterByPoolArgs[0])
+}

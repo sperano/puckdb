@@ -65,6 +65,7 @@ type rosterContextQueries interface {
 	GetSimAgent(ctx context.Context, id int32) (sqlcdb.SimAgent, error)
 	ListSimAgentsByPool(ctx context.Context, poolID int32) ([]sqlcdb.SimAgent, error)
 	ListSimRosterByAgent(ctx context.Context, arg sqlcdb.ListSimRosterByAgentParams) ([]sqlcdb.SimRoster, error)
+	ListSimRosterByPool(ctx context.Context, poolID int32) ([]sqlcdb.SimRoster, error)
 	GetSimStandingsLatestDate(ctx context.Context, poolID int32) (pgtype.Date, error)
 	ListSimStandingsByDate(ctx context.Context, arg sqlcdb.ListSimStandingsByDateParams) ([]sqlcdb.SimStanding, error)
 	ListSimPlayersOnWaivers(ctx context.Context, arg sqlcdb.ListSimPlayersOnWaiversParams) ([]sqlcdb.ListSimPlayersOnWaiversRow, error)
@@ -101,6 +102,14 @@ func (b rosterContextActivity) BuildManageRosterContext(ctx context.Context, in 
 	if err != nil {
 		return ManageRosterInput{}, err
 	}
+
+	// Drop free agents an earlier agent rostered since BuildFreeAgentPool
+	// snapshotted the pool (see dropRosteredFreeAgents).
+	freeAgents, err := b.dropRosteredFreeAgents(ctx, in.PoolID, in.FreeAgents)
+	if err != nil {
+		return ManageRosterInput{}, err
+	}
+	in.FreeAgents = freeAgents
 
 	// Players currently in their waiver-clearing window — populated from
 	// ListSimPlayersOnWaivers so the agent's claim_player tool calls

@@ -68,6 +68,38 @@ func (b rosterContextActivity) loadOnWaivers(ctx context.Context, poolID int32, 
 	return ids, promptRows, nil
 }
 
+// dropRosteredFreeAgents removes players already on any pool roster from
+// the free-agent pool. BuildFreeAgentPool snapshots the pool once a day,
+// before any agent's turn runs; an earlier agent's add saves a roster row
+// before a later agent's BuildManageRosterContext queries the roster. A
+// player rostered since the snapshot must be dropped so the later agent
+// neither sees it in top_free_agents nor passes add_player validation
+// against a stale id.
+func (b rosterContextActivity) dropRosteredFreeAgents(ctx context.Context, poolID int32, freeAgents []int64) ([]int64, error) {
+	if len(freeAgents) == 0 {
+		return freeAgents, nil
+	}
+	rows, err := b.q.ListSimRosterByPool(ctx, poolID)
+	if err != nil {
+		return nil, fmt.Errorf("simulation: list roster by pool: %w", err)
+	}
+	if len(rows) == 0 {
+		return freeAgents, nil
+	}
+	rostered := make(map[int64]struct{}, len(rows))
+	for _, r := range rows {
+		rostered[r.PlayerID] = struct{}{}
+	}
+	out := make([]int64, 0, len(freeAgents))
+	for _, id := range freeAgents {
+		if _, taken := rostered[id]; taken {
+			continue
+		}
+		out = append(out, id)
+	}
+	return out, nil
+}
+
 // loadTopFreeAgents builds the daily prompt's top_free_agents block:
 // the free-agent pool split into skaters and goalies, each with their
 // last-7-day and season-to-date stats, ranked through the pure
