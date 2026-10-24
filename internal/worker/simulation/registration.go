@@ -33,14 +33,22 @@ func RegisterSimPoolWorkflow(w worker.Worker) {
 	w.RegisterWorkflowWithOptions(SimPoolWorkflow, workflow.RegisterOptions{Name: SimPoolWorkflowName})
 }
 
+type activityRegistration struct {
+	name string
+	fn   any
+}
+
 // RegisterActivities pins every simulation activity name already present in
 // stored histories. The method list is intentionally explicit: it is the
 // workflow/activity compatibility boundary.
 func RegisterActivities(w worker.Worker, acts *Activities) {
-	registrations := []struct {
-		name string
-		fn   any
-	}{
+	for _, registration := range activityRegistrations(acts) {
+		w.RegisterActivityWithOptions(registration.fn, activity.RegisterOptions{Name: registration.name})
+	}
+}
+
+func activityRegistrations(acts *Activities) []activityRegistration {
+	return []activityRegistration{
 		{activityNameLoadPoolState, acts.LoadPoolState},
 		{activityNameLoadDraftCandidates, acts.LoadDraftCandidates},
 		{activityNameDraftPick, acts.DraftPick},
@@ -54,8 +62,5 @@ func RegisterActivities(w worker.Worker, acts *Activities) {
 		{activityNameRecordDraftOrder, acts.RecordDraftOrder},
 		{activityNamePickTeamName, acts.PickTeamName},
 		{activityNameRecordDayDuration, acts.RecordDayDuration},
-	}
-	for _, registration := range registrations {
-		w.RegisterActivityWithOptions(registration.fn, activity.RegisterOptions{Name: registration.name})
 	}
 }
