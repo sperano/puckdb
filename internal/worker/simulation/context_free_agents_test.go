@@ -150,3 +150,34 @@ func (s *BuildContextTestSuite) TestContext_TopFreeAgentsSkipsUnslottablePositio
 	require.Len(t, got.DailyPrompt.TopFreeAgents.Skaters, 1)
 	assert.Equal(t, int64(100), got.DailyPrompt.TopFreeAgents.Skaters[0].ID)
 }
+
+// Finding SIM-U3 follow-up — a free agent with zero regular-season games
+// before sim_date has no stats row, and by PLAN.md "Free-agent ranking"
+// (top N by recent composite) is intentionally excluded from top_free_agents
+// rather than ranked last with zero stats. This test pins that exclusion so
+// a future "show the pool's depth" change to the loaders is a conscious
+// decision, not an accident.
+func (s *BuildContextTestSuite) TestContext_TopFreeAgentsExcludesZeroGamePlayers() {
+	t := s.T()
+	in := s.minimalInput()
+	in.FreeAgents = []int64{100, 200, 300}
+	s.queries.getPlayerByID = map[int64]sqlcdb.Player{
+		100: {FirstName: "Played", LastName: "Skater", Position: sqlcdb.NullPlayerPosition{PlayerPosition: sqlcdb.PlayerPositionC, Valid: true}},
+		200: {FirstName: "Zero", LastName: "Skater", Position: sqlcdb.NullPlayerPosition{PlayerPosition: sqlcdb.PlayerPositionD, Valid: true}},
+		300: {FirstName: "Zero", LastName: "Goalie", Position: sqlcdb.NullPlayerPosition{PlayerPosition: sqlcdb.PlayerPositionG, Valid: true}},
+	}
+	// Only the played skater has a stats row; the zero-game skater (200)
+	// and goalie (300) are absent from their stats queries entirely.
+	s.queries.listFreeAgentSkaterStatsReturn = []sqlcdb.ListSimFreeAgentSkaterStatsRow{
+		{PlayerID: 100, RecentGoals: 1},
+	}
+
+	future, err := s.env.ExecuteActivity(s.acts.BuildManageRosterContext, in)
+	require.NoError(t, err)
+	var got ManageRosterInput
+	require.NoError(t, future.Get(&got))
+
+	require.Len(t, got.DailyPrompt.TopFreeAgents.Skaters, 1)
+	assert.Equal(t, int64(100), got.DailyPrompt.TopFreeAgents.Skaters[0].ID)
+	assert.Empty(t, got.DailyPrompt.TopFreeAgents.Goalies)
+}

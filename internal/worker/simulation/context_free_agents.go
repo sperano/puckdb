@@ -19,6 +19,15 @@ import (
 // Empty list (no recent drops) is the common path — early-season
 // pools have nothing on waivers. Errors propagate; an empty result
 // is not an error.
+//
+// A waivers row with no matching players row is a hard error, not the
+// silent skip the free-agent loaders use: on-waivers is a working-state
+// list (ManageRosterInput.OnWaivers feeds ValidateClaimPlayer), and a
+// dropped player must exist in players because it was drafted or added
+// from there. The free-agent pool, by contrast, is a large best-effort
+// recommendation list where a missing players row is an expected
+// cross-table gap. This matches the file's other working-state loaders
+// (loadRosterAndPositions, loadAgentPendingClaims, loadCandidatePositions).
 func (b rosterContextActivity) loadOnWaivers(ctx context.Context, poolID int32, simDate pgtype.Date, waiverDays int) ([]int64, []WaiverPlayerRow, error) {
 	rows, err := b.q.ListSimPlayersOnWaivers(ctx, sqlcdb.ListSimPlayersOnWaiversParams{
 		PoolID:     poolID,
@@ -116,9 +125,14 @@ func partitionFreeAgentIDs(ids []int64, players map[int64]sqlcdb.Player) (skater
 }
 
 // loadFreeAgentSkaters builds one FreeAgentSkaterCandidate per FA
-// skater with a stats row. Iteration order of the stats rows doesn't
-// matter: RankFreeAgentSkaters re-sorts by composite then id, so the
-// final output is deterministic regardless of the query's return order.
+// skater with a stats row. A skater with zero regular-season games
+// before sim_date has no stats row and is intentionally excluded:
+// PLAN.md "Free-agent ranking" shows the top N by recent composite,
+// and a zero-production skater has no composite to rank (it would only
+// add noise below the top-20 cutoff). Iteration order of the stats
+// rows doesn't matter: RankFreeAgentSkaters re-sorts by composite then
+// id, so the final output is deterministic regardless of the query's
+// return order.
 func (b rosterContextActivity) loadFreeAgentSkaters(
 	ctx context.Context,
 	in BuildManageRosterContextInput,
@@ -170,7 +184,11 @@ func (b rosterContextActivity) loadFreeAgentSkaters(
 // loadFreeAgentGoalies builds one FreeAgentGoalieCandidate per FA
 // goalie with a stats row, deriving GAA from the stored GA/TOI
 // components and carrying the recent TOI so RankFreeAgentGoalies can
-// rank idle goalies below those who played.
+// rank idle goalies below those who played. A goalie with zero
+// regular-season games before sim_date has no stats row and is
+// intentionally excluded (same top-N-by-recent-production rationale as
+// loadFreeAgentSkaters); "idle" here means played earlier in the
+// season but not recently, distinct from never having played.
 func (b rosterContextActivity) loadFreeAgentGoalies(
 	ctx context.Context,
 	in BuildManageRosterContextInput,
