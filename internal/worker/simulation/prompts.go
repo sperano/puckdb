@@ -220,6 +220,10 @@ type FreeAgentGoalieCandidate struct {
 	Last7          GoalieStats `json:"last_7"`
 	Season         GoalieStats `json:"season"`
 	RecentScore    int         `json:"recent_score"`
+	// RecentTOI is the goalie's last-7-day ice time in seconds, used
+	// only to rank idle goalies (no recent games) below goalies who
+	// played; it is not rendered into the prompt.
+	RecentTOI int `json:"-"`
 }
 
 // TopFreeAgents holds the two pre-ranked sub-arrays the LLM sees.
@@ -419,11 +423,13 @@ func RankFreeAgentSkaters(candidates []FreeAgentSkaterCandidate, topN int) []Fre
 	return scored[:topN]
 }
 
-// RankFreeAgentGoalies returns the top-N goalie FAs by W desc, with a
-// tie-break of lower GA (so a 3W/8GA goalie ranks above 3W/12GA). PLAN
-// keeps the goalie composite simple because the FA goalie pool is
-// typically thin and recent-W is the primary signal. RecentScore is
-// set to W on the output rows.
+// RankFreeAgentGoalies returns the top-N goalie FAs. A goalie with no
+// recent ice time ranks below every goalie who played: a 0-W/0-GA idle
+// goalie must not outrank a goalie who started and lost (0 W, positive
+// GA) just because his GA is lower. Within each group the order is W
+// desc, then lower GA, then season W desc (so two idle goalies break
+// by their season track record, not by player id), then ID asc for
+// determinism. RecentScore is set to W on the output rows.
 func RankFreeAgentGoalies(candidates []FreeAgentGoalieCandidate, topN int) []FreeAgentGoalieCandidate {
 	if topN <= 0 || len(candidates) == 0 {
 		return nil
@@ -434,6 +440,10 @@ func RankFreeAgentGoalies(candidates []FreeAgentGoalieCandidate, topN int) []Fre
 		scored[i].RecentScore = scored[i].Last7.W
 	}
 	sort.SliceStable(scored, func(i, j int) bool {
+		iPlayed, jPlayed := scored[i].RecentTOI > 0, scored[j].RecentTOI > 0
+		if iPlayed != jPlayed {
+			return iPlayed
+		}
 		if scored[i].Last7.W != scored[j].Last7.W {
 			return scored[i].Last7.W > scored[j].Last7.W
 		}
@@ -441,7 +451,10 @@ func RankFreeAgentGoalies(candidates []FreeAgentGoalieCandidate, topN int) []Fre
 		if scored[i].Last7.GA != scored[j].Last7.GA {
 			return scored[i].Last7.GA < scored[j].Last7.GA
 		}
-		// Both tied on W and GA → stable ID order for determinism
+		// W and GA tie → season W desc, then stable ID order
+		if scored[i].Season.W != scored[j].Season.W {
+			return scored[i].Season.W > scored[j].Season.W
+		}
 		return scored[i].ID < scored[j].ID
 	})
 	if topN > len(scored) {

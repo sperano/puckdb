@@ -328,6 +328,34 @@ func TestRankFreeAgentGoalies_TieOnWandGA_BreaksByID(t *testing.T) {
 	assert.Equal(t, int64(3), got[2].ID)
 }
 
+// An idle goalie (0 W, 0 GA, no recent TOI) must not outrank a goalie
+// who started and lost (0 W, positive GA). Before the recent-TOI
+// tie-break, the idle goalie's 0 GA beat the loser's positive GA, so the
+// idle goalie filled the top of the list.
+func TestRankFreeAgentGoalies_IdleRanksBelowStartedAndLost(t *testing.T) {
+	input := []FreeAgentGoalieCandidate{
+		{Player: "idle", ID: 1, RecentTOI: 0, Last7: GoalieStats{W: 0, GA: 0}},
+		{Player: "loser", ID: 2, RecentTOI: 3600, Last7: GoalieStats{W: 0, GA: 5}},
+	}
+	got := RankFreeAgentGoalies(input, 2)
+	require.Len(t, got, 2)
+	assert.Equal(t, "loser", got[0].Player, "a goalie who played (and lost) ranks above an idle goalie")
+	assert.Equal(t, "idle", got[1].Player)
+}
+
+// Two idle goalies (0 W, 0 GA, no recent TOI) break by season wins, not
+// by player id, so a goalie with a track record ranks above one without.
+func TestRankFreeAgentGoalies_IdleTieBreaksBySeasonWins(t *testing.T) {
+	input := []FreeAgentGoalieCandidate{
+		{Player: "no-track", ID: 1, Last7: GoalieStats{W: 0, GA: 0}, Season: GoalieStats{W: 0}},
+		{Player: "track-record", ID: 2, Last7: GoalieStats{W: 0, GA: 0}, Season: GoalieStats{W: 12}},
+	}
+	got := RankFreeAgentGoalies(input, 2)
+	require.Len(t, got, 2)
+	assert.Equal(t, "track-record", got[0].Player, "idle goalies break ties by season wins")
+	assert.Equal(t, "no-track", got[1].Player)
+}
+
 // Spec sizes: PLAN.md mandates 20 skaters / 5 goalies in the daily
 // prompt. Pin these so a future tuning change is explicit.
 func TestMaxFreeAgentSizes(t *testing.T) {
