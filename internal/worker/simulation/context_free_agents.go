@@ -216,11 +216,13 @@ func (b rosterContextActivity) loadFreeAgentSkaters(
 // loadFreeAgentGoalies builds one FreeAgentGoalieCandidate per FA
 // goalie with a stats row, deriving GAA from the stored GA/TOI
 // components and carrying the recent TOI so RankFreeAgentGoalies can
-// rank idle goalies below those who played. A goalie with zero
-// regular-season games before sim_date has no stats row and is
-// intentionally excluded (same top-N-by-recent-production rationale as
-// loadFreeAgentSkaters); "idle" here means played earlier in the
-// season but not recently, distinct from never having played.
+// rank idle goalies below those who played and so the prompt can show
+// an idle goalie's zero ice time (its 0.00 recent GAA would otherwise
+// look like a shutout). A goalie with zero regular-season games before
+// sim_date has no stats row and is intentionally excluded (same
+// top-N-by-recent-production rationale as loadFreeAgentSkaters); "idle"
+// here means played earlier in the season but not recently, distinct
+// from never having played.
 func (b rosterContextActivity) loadFreeAgentGoalies(
 	ctx context.Context,
 	in BuildManageRosterContextInput,

@@ -220,10 +220,12 @@ type FreeAgentGoalieCandidate struct {
 	Last7          GoalieStats `json:"last_7"`
 	Season         GoalieStats `json:"season"`
 	RecentScore    int         `json:"recent_score"`
-	// RecentTOI is the goalie's last-7-day ice time in seconds, used
-	// only to rank idle goalies (no recent games) below goalies who
-	// played; it is not rendered into the prompt.
-	RecentTOI int `json:"-"`
+	// RecentTOI is the goalie's last-7-day ice time in seconds. It is
+	// rendered into the prompt so the model can tell an idle goalie
+	// (0 seconds, hence the 0.00 recent GAA) from one who actually
+	// played; RankFreeAgentGoalies uses the same signal to rank idle
+	// goalies below those who played.
+	RecentTOI int `json:"recent_toi"`
 }
 
 // TopFreeAgents holds the two pre-ranked sub-arrays the LLM sees.
@@ -396,8 +398,11 @@ func skaterCompositeScore(s SkaterStats) int {
 }
 
 // RankFreeAgentSkaters returns the top-N skater FAs by composite,
-// descending. Ties are broken by ID ascending — deterministic and
-// independent of input order. RecentScore is set on the returned
+// descending. Ties on recent composite break by season composite
+// descending — an empty recent window (first week of the season, a
+// league break) scores everyone 0, so this surfaces skaters by their
+// season track record instead of the lowest NHL ids — then by ID
+// ascending for determinism. RecentScore is set on the returned
 // elements; the input slice is not mutated.
 //
 // topN <= 0 returns an empty slice. topN > len(input) is clamped to
@@ -414,6 +419,9 @@ func RankFreeAgentSkaters(candidates []FreeAgentSkaterCandidate, topN int) []Fre
 	sort.SliceStable(scored, func(i, j int) bool {
 		if scored[i].RecentScore != scored[j].RecentScore {
 			return scored[i].RecentScore > scored[j].RecentScore
+		}
+		if si, sj := skaterCompositeScore(scored[i].Season), skaterCompositeScore(scored[j].Season); si != sj {
+			return si > sj
 		}
 		return scored[i].ID < scored[j].ID
 	})

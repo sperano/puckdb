@@ -236,6 +236,22 @@ func TestRankFreeAgentSkaters_TieBreaksByID(t *testing.T) {
 	assert.Equal(t, int64(3), got[2].ID)
 }
 
+// Skaters tied on recent composite break by season composite desc before
+// falling back to id, so an empty recent window (first week of the
+// season, a league break) surfaces skaters by their season track record
+// rather than the lowest NHL ids. Mirrors TestRankFreeAgentGoalies_
+// IdleTieBreaksBySeasonWins for goalies.
+func TestRankFreeAgentSkaters_TieBreaksBySeasonComposite(t *testing.T) {
+	input := []FreeAgentSkaterCandidate{
+		{Player: "no-track", ID: 1, Last7: SkaterStats{}, Season: SkaterStats{}},
+		{Player: "track-record", ID: 2, Last7: SkaterStats{}, Season: SkaterStats{G: 10, A: 5, PPP: 3}},
+	}
+	got := RankFreeAgentSkaters(input, 2)
+	require.Len(t, got, 2)
+	assert.Equal(t, "track-record", got[0].Player, "skater ties break by season composite")
+	assert.Equal(t, "no-track", got[1].Player)
+}
+
 // Skater composite is G + A + PPP only — neither +/-, PIM, nor SOG.
 // This is a HARD spec invariant: the FA ranking must not weigh
 // secondary categories the same as the headline ones. If a future edit
@@ -354,6 +370,22 @@ func TestRankFreeAgentGoalies_IdleTieBreaksBySeasonWins(t *testing.T) {
 	require.Len(t, got, 2)
 	assert.Equal(t, "track-record", got[0].Player, "idle goalies break ties by season wins")
 	assert.Equal(t, "no-track", got[1].Player)
+}
+
+// An idle goalie (no recent ice time) renders a 0.00 recent GAA in
+// last_7, which is indistinguishable from a shutout. The recent_toi
+// field must be rendered so the model can tell idle (0 seconds) from
+// played (>0) and not chase an idle goalie for the "best" GAA.
+func TestFreeAgentGoalieCandidate_ExposesRecentTOI(t *testing.T) {
+	idle := FreeAgentGoalieCandidate{Player: "idle", ID: 1, Last7: GoalieStats{W: 0, GA: 0, GAA: 0}}
+	played := FreeAgentGoalieCandidate{Player: "played", ID: 2, RecentTOI: 3600, Last7: GoalieStats{W: 0, GA: 5, GAA: 5}}
+
+	got, err := BuildDailyPrompt(DailyPromptInput{
+		TopFreeAgents: TopFreeAgents{Goalies: []FreeAgentGoalieCandidate{idle, played}},
+	})
+	require.NoError(t, err)
+	assert.Contains(t, got, `"recent_toi":0`, "idle goalie must expose zero recent ice time")
+	assert.Contains(t, got, `"recent_toi":3600`, "played goalie must expose its recent ice time")
 }
 
 // Spec sizes: PLAN.md mandates 20 skaters / 5 goalies in the daily

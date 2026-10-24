@@ -905,10 +905,10 @@ The activity **always returns success** (nil error to Temporal). LLM failures, i
 
 **Free-agent ranking (in `top_free_agents`):** the FA pool is large (~700+ skaters + goalies once mid-season), so the agent context shows the top **20 skaters + 5 goalies** by recent composite, sorted descending. Composite is computed over the **last 7 calendar days** of regular-season game stats — same window as the rostered-player `last_7` block, so the same query path and Go struct can be reused. Formulas:
 
-- **Skater composite:** `G + A + PPP` (sum of recent goals + assists + power-play points). Mirrors the draft fallback metric (skaters by G+A) and adds PPP since it's a roto category in this pool.
-- **Goalie composite:** `W` (recent wins). Tie-break by lower `GA`.
+- **Skater composite:** `G + A + PPP` (sum of recent goals + assists + power-play points). Mirrors the draft fallback metric (skaters by G+A) and adds PPP since it's a roto category in this pool. Ties on recent composite break by season composite (same `G + A + PPP` formula) descending, then by NHL id ascending.
+- **Goalie composite:** `W` (recent wins). Tie-break by lower `GA`. A goalie with no recent ice time ranks below every goalie who played; idle goalies break by season wins.
 
-Each row includes the composite score (`recent_score` field) so the agent can calibrate gap sizes — "DeBrusk: 6 over 14 days; the next-best LW: 5" is more actionable than rank order alone. Skaters and goalies are presented as separate sub-arrays in `top_free_agents` to make positional needs easy to scan.
+Each row includes the composite score (`recent_score` field) so the agent can calibrate gap sizes — "DeBrusk: 6 over 14 days; the next-best LW: 5" is more actionable than rank order alone. Skaters and goalies are presented as separate sub-arrays in `top_free_agents` to make positional needs easy to scan. Goalie rows also carry `recent_toi` (last-7-day ice time in seconds) so the model can tell an idle goalie (0 seconds, hence a 0.00 recent GAA) from one who actually played.
 
 - `games_next_7_days`: Count regular-season (`game_type = 2`) games from the `games` table where `game_date` between sim_date and sim_date+7, for the player's current team. Works because we're replaying a past season (all games already exist with final states).
 - `home_goals_per_game` / `away_goals_per_game`: Aggregated from `games` table (home/away team scores) for all regular-season (`game_type = 2`) FINAL games up to sim_date for the respective teams.
