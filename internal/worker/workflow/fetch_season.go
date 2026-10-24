@@ -38,11 +38,11 @@ func NewFetchSeasonProgressReport(ctx workflow.Context, season nhl.SeasonInfo) *
 // FetchYahooSeasonWorkflow, which the parent season-sync workflow runs at the
 // same time (see seasonSyncGroups).
 // Each season runs in its own child workflow to isolate history: a typical
-// season (~270 days, 32 clubs) records roughly 1,500-2,200 history events,
-// well under the 50K limit. Every activity costs 3 events, every progress
-// save (one per bar increment, group start and group completion) 1
-// MarkerRecorded event, and every workflow task up to 3 events (measured on
-// the dev server; see https://wiki.spe.quebec/en/puckdb/plans/typed-worker-pool-api).
+// season (~270 days, 32 clubs) records roughly 1,250-1,950 history events,
+// well under the 50K limit. Every activity costs 3 events; the day pool's
+// batched progress costs about 27 MarkerRecorded events instead of about 270,
+// while every other progress save costs one. Every workflow task costs up to
+// 3 events (measured on the dev server; see the typed-worker-pool API plan).
 func FetchNHLSeasonWorkflow(ctx workflow.Context, season nhl.SeasonInfo) (core.OriginCounts, error) {
 	logger := workflow.GetLogger(ctx)
 
@@ -99,7 +99,7 @@ func FetchNHLSeasonWorkflow(ctx workflow.Context, season nhl.SeasonInfo) (core.O
 	startSeason := season.ID.StartYear()
 	counts := core.OriginCounts{}
 	err = tracker.RunWorkerPool(ctx, shared.PoolOptions{
-		Total: numDays, Concurrency: concurrency,
+		Total: numDays, Concurrency: concurrency, SaveEvery: dayLoopProgressSaveEvery(ctx),
 		Progress: shared.SingleBar{Bar: shared.BarRef{Group: GroupFetchSeasonData}},
 		Start: func(_ workflow.Context, i int) workflow.Future {
 			day := startDate.AddDate(0, 0, i)

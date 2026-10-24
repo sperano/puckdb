@@ -216,24 +216,32 @@ func LoadReportTracker(ctx workflow.Context) (*ReportTracker, error) {
 
 // IncrementBar increments the current count of a specific bar and saves to Redis.
 func (t *ReportTracker) IncrementBar(ctx workflow.Context, ref BarRef) {
-	t.bar(ref).Current++
+	t.incrementBarByNoSave(ref, 1)
 	t.Save(ctx)
 }
 
 // IncrementBarBy increments the current count of a specific bar by the given amount and saves to Redis.
 func (t *ReportTracker) IncrementBarBy(ctx workflow.Context, ref BarRef, amount int) {
-	t.bar(ref).Current += amount
+	t.incrementBarByNoSave(ref, amount)
 	t.Save(ctx)
+}
+
+func (t *ReportTracker) incrementBarByNoSave(ref BarRef, amount int) {
+	t.bar(ref).Current += amount
 }
 
 // IncrementBars increments several bars of a group by one each and saves to
 // Redis once. Use it when one unit of work counts toward several bars.
 func (t *ReportTracker) IncrementBars(ctx workflow.Context, groupIdx int, barIdxs []int) {
+	t.incrementBarsNoSave(groupIdx, barIdxs)
+	t.Save(ctx)
+}
+
+func (t *ReportTracker) incrementBarsNoSave(groupIdx int, barIdxs []int) {
 	t.group(groupIdx) // panics on a bad group even when no bar is named
 	for _, barIdx := range barIdxs {
 		t.bar(BarRef{Group: groupIdx, Bar: barIdx}).Current++
 	}
-	t.Save(ctx)
 }
 
 // Bar returns a copy of a specific bar.
@@ -282,15 +290,23 @@ func (t *ReportTracker) SetBarLabel(ref BarRef, label string) {
 
 // StartBar marks a bar as started and saves to Redis.
 func (t *ReportTracker) StartBar(ctx workflow.Context, ref BarRef) {
-	t.bar(ref).Started = true
+	t.startBarNoSave(ref)
 	t.Save(ctx)
+}
+
+func (t *ReportTracker) startBarNoSave(ref BarRef) {
+	t.bar(ref).Started = true
 }
 
 // CompleteBar marks a specific bar as complete (sets Current = Total) and saves to Redis.
 func (t *ReportTracker) CompleteBar(ctx workflow.Context, ref BarRef) {
+	t.completeBarNoSave(ref)
+	t.Save(ctx)
+}
+
+func (t *ReportTracker) completeBarNoSave(ref BarRef) {
 	bar := t.bar(ref)
 	bar.Current = bar.Total
-	t.Save(ctx)
 }
 
 // BarRange is a contiguous run of Count bars of one group, from Start.
@@ -301,22 +317,30 @@ type BarRange struct {
 
 // StartBars marks every bar of a range as started and saves to Redis once.
 func (t *ReportTracker) StartBars(ctx workflow.Context, groupIdx int, bars BarRange) {
+	t.startBarsNoSave(groupIdx, bars)
+	t.Save(ctx)
+}
+
+func (t *ReportTracker) startBarsNoSave(groupIdx int, bars BarRange) {
 	t.group(groupIdx) // panics on a bad group even when no bar is named
 	for i := bars.Start; i < bars.Start+bars.Count; i++ {
 		t.bar(BarRef{Group: groupIdx, Bar: i}).Started = true
 	}
-	t.Save(ctx)
 }
 
 // CompleteBars sets Current = Total on every bar of a range and saves to
 // Redis once.
 func (t *ReportTracker) CompleteBars(ctx workflow.Context, groupIdx int, bars BarRange) {
+	t.completeBarsNoSave(groupIdx, bars)
+	t.Save(ctx)
+}
+
+func (t *ReportTracker) completeBarsNoSave(groupIdx int, bars BarRange) {
 	t.group(groupIdx) // panics on a bad group even when no bar is named
 	for i := bars.Start; i < bars.Start+bars.Count; i++ {
 		bar := t.bar(BarRef{Group: groupIdx, Bar: i})
 		bar.Current = bar.Total
 	}
-	t.Save(ctx)
 }
 
 // ProgressSourceKeyFunc maps a season to the Redis key under which its live

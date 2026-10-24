@@ -185,14 +185,26 @@ func TestRunWorkerPool_OnlyOnSuccessCommandOrder(t *testing.T) {
 	} {
 		t.Run(fmt.Sprintf("OnlyOnSuccess=%t", tc.onlyOnSuccess), func(t *testing.T) {
 			t.Parallel()
-			assert.Equal(t, tc.want, failingPoolTrace(t, tc.onlyOnSuccess))
+			assert.Equal(t, tc.want, failingPoolTrace(t, tc.onlyOnSuccess, 0))
 		})
+	}
+}
+
+// TestRunWorkerPool_SaveEveryOneKeepsCommandOrder checks that the explicit
+// non-batched value issues the same handler and Save sequence as the zero
+// default, including on the failure path.
+func TestRunWorkerPool_SaveEveryOneKeepsCommandOrder(t *testing.T) {
+	t.Parallel()
+	for _, onlyOnSuccess := range []bool{false, true} {
+		zero := failingPoolTrace(t, onlyOnSuccess, 0)
+		one := failingPoolTrace(t, onlyOnSuccess, 1)
+		assert.Equal(t, zero, one, "OnlyOnSuccess=%t", onlyOnSuccess)
 	}
 }
 
 // failingPoolTrace runs a BarPerItem pool whose last item fails and returns
 // its handler calls and progress Saves in the order they ran.
-func failingPoolTrace(t *testing.T, onlyOnSuccess bool) []string {
+func failingPoolTrace(t *testing.T, onlyOnSuccess bool, saveEvery int) []string {
 	t.Helper()
 	var (
 		mu     sync.Mutex
@@ -216,6 +228,7 @@ func failingPoolTrace(t *testing.T, onlyOnSuccess bool) []string {
 			Total: successRunItems, Concurrency: 1,
 			Progress:      BarPerItem{Group: 1},
 			OnlyOnSuccess: onlyOnSuccess,
+			SaveEvery:     saveEvery,
 			Start:         settledStarter(failsLast),
 			Handle: func(ctx workflow.Context, index int, future workflow.Future) error {
 				record(fmt.Sprintf("handle:%d", index))

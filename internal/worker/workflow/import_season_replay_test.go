@@ -17,13 +17,16 @@ import (
 	"go.temporal.io/sdk/workflow"
 )
 
-const importNHLSeasonReplayName = "ImportNHLSeasonWorkflow"
+const (
+	importNHLSeasonReplayName       = "ImportNHLSeasonWorkflow"
+	importSeasonDaysReplayName      = "ImportSeasonDaysWorkflow"
+	importSeasonDaysReplayTaskQueue = "import-season-days-replay"
+)
 
-// TestImportNHLSeasonWorkflowReplaysLegacyHistory records a history with the
-// workflow as it was before days could be skipped (one argument, ImportDay
-// for every day) and replays it with the current code: the missing options
-// argument must decode to its zero value and the version gate must keep
-// scheduling ImportDay.
+// TestImportNHLSeasonWorkflowReplaysLegacyHistory records the workflow from
+// before days could be skipped or progress saves were batched (one argument,
+// ImportDay and one progress save for every day). The current version gates
+// must preserve both command sequences when replaying it.
 func TestImportNHLSeasonWorkflowReplaysLegacyHistory(t *testing.T) {
 	previousLoader := loadYahooSeasons
 	defer func() { loadYahooSeasons = previousLoader }()
@@ -54,6 +57,40 @@ func TestImportNHLSeasonWorkflowReplaysLegacyHistory(t *testing.T) {
 	require.NoError(t, replayer.ReplayWorkflowHistory(nil, history))
 }
 
+// TestImportSeasonDaysReplaysPreBatchHistory records the day loop from after
+// ImportDayIfChanged shipped but before progress-save batching. This is the
+// exact upgrade path whose history has the first version marker but not the
+// batching marker.
+func TestImportSeasonDaysReplaysPreBatchHistory(t *testing.T) {
+	previousLoader := loadYahooSeasons
+	defer func() { loadYahooSeasons = previousLoader }()
+	loadYahooSeasons = func() shared.YahooSeasonsSnapshot { return shared.YahooSeasonsSnapshot{} }
+
+	temporalClient, stopServer := startSeasonReplayServer(t)
+	defer stopServer()
+	taskQueue := seasonReplayName(importSeasonDaysReplayTaskQueue)
+	w := worker.New(temporalClient, taskQueue, worker.Options{})
+	w.RegisterWorkflowWithOptions(replayUnbatchedImportSeasonDaysWorkflow,
+		workflow.RegisterOptions{Name: importSeasonDaysReplayName})
+	registerImportNHLSeasonReplayActivities(w)
+	require.NoError(t, w.Start())
+	defer w.Stop()
+
+	ctx, cancel := context.WithTimeout(context.Background(), seasonReplayRunTimeout)
+	defer cancel()
+	run, err := temporalClient.ExecuteWorkflow(ctx, client.StartWorkflowOptions{
+		ID: seasonReplayName(importSeasonDaysReplayName), TaskQueue: taskQueue,
+	}, importSeasonDaysReplayName, testSeasonW(2023, daysTestStart, daysTestEnd))
+	require.NoError(t, err)
+	require.NoError(t, run.Get(ctx, nil))
+	history := readSeasonReplayHistory(t, temporalClient, run.GetID(), run.GetRunID())
+
+	replayer := worker.NewWorkflowReplayer()
+	replayer.RegisterWorkflowWithOptions(replayCurrentImportSeasonDaysWorkflow,
+		workflow.RegisterOptions{Name: importSeasonDaysReplayName})
+	require.NoError(t, replayer.ReplayWorkflowHistory(nil, history))
+}
+
 func registerImportNHLSeasonReplayActivities(w worker.Worker) {
 	activities := []struct {
 		name string
@@ -65,6 +102,9 @@ func registerImportNHLSeasonReplayActivities(w worker.Worker) {
 		{"ImportDay", func(context.Context, worknhl.ImportDayInput) (core.OriginCounts, error) {
 			return core.OriginCounts{core.OriginFileSystem: 1}, nil
 		}},
+		{"ImportDayIfChanged", func(context.Context, worknhl.ImportDayIfChangedInput) (worknhl.ImportDayIfChangedResult, error) {
+			return worknhl.ImportDayIfChangedResult{Origins: core.OriginCounts{core.OriginFileSystem: 1}}, nil
+		}},
 		{"ListSeasonTeams", func(context.Context, int) ([]string, error) { return []string{"TOR"}, nil }},
 		{"ImportTeamPlayoffGames", func(context.Context, worknhl.ImportTeamPlayoffGamesInput) (worknhl.ImportTeamPlayoffGamesResult, error) {
 			return worknhl.ImportTeamPlayoffGamesResult{Origins: core.OriginCounts{}}, nil
@@ -75,8 +115,74 @@ func registerImportNHLSeasonReplayActivities(w worker.Worker) {
 	}
 }
 
+func replayCurrentImportSeasonDaysWorkflow(ctx workflow.Context, season nhl.SeasonInfo) error {
+	ctx, tracker, cfg, err := setupImportSeasonDaysReplay(ctx, season)
+	if err != nil {
+		return err
+	}
+	_, err = importSeasonDays(ctx, tracker, season, cfg, ImportNHLSeasonOptions{})
+	return err
+}
+
+// replayUnbatchedImportSeasonDaysWorkflow records the day loop immediately
+// before SaveEvery was adopted: ImportDayIfChanged is versioned in, but each
+// completion still saves progress.
+func replayUnbatchedImportSeasonDaysWorkflow(ctx workflow.Context, season nhl.SeasonInfo) error {
+	ctx, tracker, cfg, err := setupImportSeasonDaysReplay(ctx, season)
+	if err != nil {
+		return err
+	}
+
+	tracker.StartGroup(ctx, GroupImportDays)
+	yahooCfg, _ := cfg.Yahoo.Season(season.ID.StartYear())
+	teamIDs := yahooTeamIDsForSeason(yahooCfg)
+	startDate := season.StandingsStart.Time
+	numDays := core.CountDays(startDate, shared.EffectiveEndDate(ctx, season.StandingsEnd.Time))
+	workflow.GetVersion(ctx, importDaySkipChangeID, workflow.DefaultVersion, importDaySkipVersion)
+
+	var ia *worknhl.ImportActivities
+	result := seasonDaysResult{origins: core.OriginCounts{}}
+	err = tracker.RunWorkerPool(ctx, shared.PoolOptions{
+		Total: numDays, Concurrency: cfg.DayConcurrency,
+		Progress: shared.SingleBar{Bar: shared.BarRef{Group: GroupImportDays}},
+		Start: func(_ workflow.Context, i int) workflow.Future {
+			input := worknhl.ImportDayIfChangedInput{ImportDayInput: worknhl.ImportDayInput{
+				Date:      startDate.AddDate(0, 0, i),
+				Season:    season.ID.StartYear(),
+				SeasonID:  season.ID.ID(),
+				TeamIDs:   teamIDs,
+				TotalDays: numDays,
+			}}
+			return workflow.ExecuteActivity(ctx, ia.ImportDayIfChanged, input)
+		},
+		Handle: result.collect,
+	})
+	if err != nil {
+		return err
+	}
+
+	tracker.CompleteGroup(ctx, GroupImportDays,
+		daysCompletionMessage(numDays, result, season, tracker.GetElapsed(ctx, GroupImportDays)))
+	return nil
+}
+
+func setupImportSeasonDaysReplay(ctx workflow.Context, season nhl.SeasonInfo) (
+	workflow.Context, *shared.ReportTracker, seasonConfig, error,
+) {
+	cfg, err := snapshotSeasonConfig(ctx)
+	if err != nil {
+		return ctx, nil, cfg, err
+	}
+	tracker, err := shared.InitTracker(ctx, NewImportSeasonProgressReport(ctx, season))
+	if err != nil {
+		return ctx, nil, cfg, err
+	}
+	return workflow.WithActivityOptions(ctx, shared.DefaultActivityOptions()), tracker, cfg, nil
+}
+
 // replayLegacyImportNHLSeasonWorkflow is ImportNHLSeasonWorkflow as it was
-// before ImportDayIfChanged, kept verbatim to record legacy histories.
+// before ImportDayIfChanged and batched progress saves, kept verbatim to
+// record legacy histories.
 func replayLegacyImportNHLSeasonWorkflow(ctx workflow.Context, season nhl.SeasonInfo) (core.OriginCounts, error) {
 	logger := workflow.GetLogger(ctx)
 
