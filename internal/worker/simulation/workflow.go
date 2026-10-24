@@ -3,6 +3,7 @@ package simulation
 import (
 	"fmt"
 	"math/rand"
+	"slices"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
@@ -475,14 +476,10 @@ func runDraftPhase(
 	pickNumber := 0
 
 	// Snake order built from round1 ordering.
-	round1Int64 := make([]int64, len(round1))
-	for i, id := range round1 {
-		round1Int64[i] = int64(id)
-	}
-	pickOrder := SnakeDraftOrder(round1Int64, rounds)
+	pickOrder := SnakeDraftOrder(round1, rounds)
 
 	var acts *Activities
-	for _, agentID64 := range pickOrder {
+	for _, agentID := range pickOrder {
 		if err := ctx.Err(); err != nil {
 			return false, err
 		}
@@ -490,13 +487,11 @@ func runDraftPhase(
 		pickNumber++
 		round := ((pickNumber - 1) / state.PoolConfig.NumTeams) + 1
 		pick := ((pickNumber - 1) % state.PoolConfig.NumTeams) + 1
-		agentID := int32(agentID64)
-
 		input := assembleDraftPickInput(*state, agentID, int32(round), int32(pick), candidates, taken, picksByAgent[agentID], notesByAgent[agentID], candidateByID)
 		ctx2 := workflow.WithActivityOptions(ctx, llmActivityOptions())
 		var res DraftPickResult
 		if err := workflow.ExecuteActivity(ctx2, acts.DraftPick, input).Get(ctx, &res); err != nil {
-			return false, fmt.Errorf("draft pick %d (agent %d): %w", pickNumber, agentID64, err)
+			return false, fmt.Errorf("draft pick %d (agent %d): %w", pickNumber, agentID, err)
 		}
 		if res.PlayerID > 0 {
 			taken[res.PlayerID] = struct{}{}
@@ -593,6 +588,7 @@ func assembleDraftPickInput(
 	for id := range taken {
 		takenSlice = append(takenSlice, id)
 	}
+	slices.Sort(takenSlice)
 
 	// Locate AgentConfig for this agent_id via the precomputed lookup
 	// (built once in loadSimState) rather than scanning AgentIDs.

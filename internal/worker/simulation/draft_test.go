@@ -1,20 +1,40 @@
 package simulation
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
+func TestDraftCandidatesUseStableJSONNamesAndReadLegacyHistory(t *testing.T) {
+	skater := SkaterDraftCandidate{PlayerID: 11, Name: "Skater", Position: "C", PriorG: 20, PriorA: 30}
+	goalie := GoalieDraftCandidate{PlayerID: 22, Name: "Goalie", Position: "G", PriorW: 31, PriorGA: 99}
+
+	skaterJSON, err := json.Marshal(skater)
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"player_id":11,"name":"Skater","position":"C","prior_g":20,"prior_a":30}`, string(skaterJSON))
+	goalieJSON, err := json.Marshal(goalie)
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"player_id":22,"name":"Goalie","position":"G","prior_w":31,"prior_ga":99}`, string(goalieJSON))
+
+	var legacySkater SkaterDraftCandidate
+	require.NoError(t, json.Unmarshal([]byte(`{"PlayerID":11,"Name":"Skater","Position":"C","PriorG":20,"PriorA":30}`), &legacySkater))
+	assert.Equal(t, skater, legacySkater)
+	var legacyGoalie GoalieDraftCandidate
+	require.NoError(t, json.Unmarshal([]byte(`{"PlayerID":22,"Name":"Goalie","Position":"G","PriorW":31,"PriorGA":99}`), &legacyGoalie))
+	assert.Equal(t, goalie, legacyGoalie)
+}
+
 // ============================================================================
 // SnakeDraftOrder / SnakeDirection
 // ============================================================================
 
 func TestSnakeDraftOrder_FiveTeamsThreeRounds(t *testing.T) {
-	order := []int64{1, 2, 3, 4, 5}
+	order := []int32{1, 2, 3, 4, 5}
 	got := SnakeDraftOrder(order, 3)
-	want := []int64{
+	want := []int32{
 		1, 2, 3, 4, 5, // round 1: ascending
 		5, 4, 3, 2, 1, // round 2: descending
 		1, 2, 3, 4, 5, // round 3: ascending again
@@ -23,7 +43,7 @@ func TestSnakeDraftOrder_FiveTeamsThreeRounds(t *testing.T) {
 }
 
 func TestSnakeDraftOrder_DoesNotMutateInput(t *testing.T) {
-	order := []int64{10, 20, 30}
+	order := []int32{10, 20, 30}
 	original := slicesClone(order)
 	_ = SnakeDraftOrder(order, 4)
 	assert.Equal(t, original, order, "agentOrder must not be mutated")
@@ -31,22 +51,22 @@ func TestSnakeDraftOrder_DoesNotMutateInput(t *testing.T) {
 
 func TestSnakeDraftOrder_EdgeCases(t *testing.T) {
 	assert.Nil(t, SnakeDraftOrder(nil, 5))
-	assert.Nil(t, SnakeDraftOrder([]int64{1, 2}, 0))
-	assert.Nil(t, SnakeDraftOrder([]int64{1, 2}, -1))
-	assert.Nil(t, SnakeDraftOrder([]int64{}, 5),
+	assert.Nil(t, SnakeDraftOrder([]int32{1, 2}, 0))
+	assert.Nil(t, SnakeDraftOrder([]int32{1, 2}, -1))
+	assert.Nil(t, SnakeDraftOrder([]int32{}, 5),
 		"both empty inputs (zero-length agentOrder OR nonpositive rounds) → nil; consistent shape simplifies caller checks")
 }
 
 func TestSnakeDraftOrder_SinglePick(t *testing.T) {
-	assert.Equal(t, []int64{42}, SnakeDraftOrder([]int64{42}, 1))
+	assert.Equal(t, []int32{42}, SnakeDraftOrder([]int32{42}, 1))
 }
 
 // 18 rounds × 5 teams = 90 picks. The last round (18, even) descends.
 func TestSnakeDraftOrder_LastRoundIsDescendingOnEvenRoundCount(t *testing.T) {
-	got := SnakeDraftOrder([]int64{1, 2, 3, 4, 5}, 18)
+	got := SnakeDraftOrder([]int32{1, 2, 3, 4, 5}, 18)
 	assert.Len(t, got, 90)
 	// Round 18 starts at index 85 (5 * 17).
-	assert.Equal(t, []int64{5, 4, 3, 2, 1}, got[85:])
+	assert.Equal(t, []int32{5, 4, 3, 2, 1}, got[85:])
 }
 
 func TestSnakeDirection(t *testing.T) {

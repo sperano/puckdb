@@ -1,6 +1,7 @@
 package simulation
 
 import (
+	"encoding/json"
 	"slices"
 )
 
@@ -31,11 +32,11 @@ const (
 //	[a, b, c, d, e,  e, d, c, b, a,  a, b, c, d, e]
 //
 // Empty agentOrder or rounds <= 0 returns nil.
-func SnakeDraftOrder(agentOrder []int64, rounds int) []int64 {
+func SnakeDraftOrder(agentOrder []int32, rounds int) []int32 {
 	if len(agentOrder) == 0 || rounds <= 0 {
 		return nil
 	}
-	out := make([]int64, 0, len(agentOrder)*rounds)
+	out := make([]int32, 0, len(agentOrder)*rounds)
 	for r := range rounds {
 		if r%2 == 0 {
 			out = append(out, agentOrder...)
@@ -69,11 +70,37 @@ func SnakeDirection(round int) string {
 // future information into the draft and invalidate the simulation as a
 // model-vs-model comparison. PLAN.md > "Draft Fallback".
 type SkaterDraftCandidate struct {
-	PlayerID int64
-	Name     string
-	Position string // one of "C", "LW", "RW", "D" — the 5-position table excludes F
-	PriorG   int
-	PriorA   int
+	PlayerID int64  `json:"player_id"`
+	Name     string `json:"name"`
+	Position string `json:"position"` // one of "C", "LW", "RW", "D" — the 5-position table excludes F
+	PriorG   int    `json:"prior_g"`
+	PriorA   int    `json:"prior_a"`
+}
+
+// UnmarshalJSON accepts the explicit snake_case contract and the implicit
+// Go field names emitted before that contract was added. Temporal may decode
+// either form while replaying a workflow whose activity result is in history.
+func (s *SkaterDraftCandidate) UnmarshalJSON(data []byte) error {
+	type current SkaterDraftCandidate
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(data, &fields); err != nil {
+		return err
+	}
+	if _, ok := fields["player_id"]; ok {
+		return json.Unmarshal(data, (*current)(s))
+	}
+	var legacy struct {
+		PlayerID int64
+		Name     string
+		Position string
+		PriorG   int
+		PriorA   int
+	}
+	if err := json.Unmarshal(data, &legacy); err != nil {
+		return err
+	}
+	*s = SkaterDraftCandidate(legacy)
+	return nil
 }
 
 // Score returns the skater's ranking value: prior-season G + A.
@@ -86,11 +113,36 @@ func (s SkaterDraftCandidate) Score() int { return s.PriorG + s.PriorA }
 // Tie-breaks: lower GA wins (a stingy goalie outranks a wins-equal but
 // leakier one).
 type GoalieDraftCandidate struct {
-	PlayerID int64
-	Name     string
-	Position string // always "G"
-	PriorW   int
-	PriorGA  int
+	PlayerID int64  `json:"player_id"`
+	Name     string `json:"name"`
+	Position string `json:"position"` // always "G"
+	PriorW   int    `json:"prior_w"`
+	PriorGA  int    `json:"prior_ga"`
+}
+
+// UnmarshalJSON preserves replay compatibility with candidate payloads written
+// before the snake_case field names became explicit.
+func (g *GoalieDraftCandidate) UnmarshalJSON(data []byte) error {
+	type current GoalieDraftCandidate
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(data, &fields); err != nil {
+		return err
+	}
+	if _, ok := fields["player_id"]; ok {
+		return json.Unmarshal(data, (*current)(g))
+	}
+	var legacy struct {
+		PlayerID int64
+		Name     string
+		Position string
+		PriorW   int
+		PriorGA  int
+	}
+	if err := json.Unmarshal(data, &legacy); err != nil {
+		return err
+	}
+	*g = GoalieDraftCandidate(legacy)
+	return nil
 }
 
 // ============================================================================
