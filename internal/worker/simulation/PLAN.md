@@ -883,6 +883,12 @@ The activity **always returns success** (nil error to Temporal). LLM failures, i
       // ... up to 5 goalies, descending W (tie-break: lower GA)
     ]
   },
+  "on_waivers": [
+    {"player": "Elias Lindholm", "id": 8477496, "nhl_position": "C", "clears_on": "2025-11-17"}
+  ],
+  "your_pending_claims": [
+    {"player": "Bo Horvat", "id": 8477463, "resolves_on": "2025-11-16", "drop_player": "Bench Player"}
+  ],
   "your_notes": "Punting GA/GAA — going all-in on offense. Stop picking up goalies unless elite. Focus on PPP and SOG where I'm climbing. Watch for Draisaitl if he gets dropped.",
   "your_analysis": {
     "strong_categories": ["G (rank 1)", "SOG (rank 2)"],
