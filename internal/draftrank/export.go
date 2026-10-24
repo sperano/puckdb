@@ -80,22 +80,34 @@ type csvCategory struct {
 	label  string
 }
 
-// csvCategories names a column pair per scoring stat: the abbreviation, or
-// stat<ID> when it is empty or shared by another stat.
+// csvCategories names a column pair per scoring stat (CategoryLabels).
 func csvCategories(categories []Category) []csvCategory {
+	labels := CategoryLabels(categories)
+	out := make([]csvCategory, 0, len(categories))
+	for i, c := range categories {
+		out = append(out, csvCategory{statID: c.StatID, label: labels[i]})
+	}
+	return out
+}
+
+// CategoryLabels names each scoring stat's column in tabular exports (the
+// CSV export, the MCP rankings tool): the lower-cased abbreviation, or
+// stat<ID> when it is empty or shared by another stat (skater and goalie
+// GP, say).
+func CategoryLabels(categories []Category) []string {
 	counts := make(map[string]int, len(categories))
 	for _, c := range categories {
 		counts[strings.ToLower(c.Abbr)]++
 	}
-	out := make([]csvCategory, 0, len(categories))
-	for _, c := range categories {
+	labels := make([]string, len(categories))
+	for i, c := range categories {
 		label := strings.ToLower(c.Abbr)
 		if label == "" || counts[label] > 1 {
 			label = csvStatPrefix + strconv.Itoa(c.StatID)
 		}
-		out = append(out, csvCategory{statID: c.StatID, label: label})
+		labels[i] = label
 	}
-	return out
+	return labels
 }
 
 func csvHeader(categories []csvCategory) []string {

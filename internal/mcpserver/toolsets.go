@@ -19,7 +19,8 @@ const (
 	// ToolsetNHL holds the public NHL data tools.
 	ToolsetNHL Toolset = "nhl"
 	// ToolsetYahoo holds the Yahoo fantasy league tools: league names,
-	// managers, rosters, matchups, draft results and draft ranking state.
+	// managers, rosters, matchups, draft results, draft ranking state and
+	// the draft rankings themselves.
 	ToolsetYahoo Toolset = "yahoo"
 	// ToolsetNews holds the player news tools: news source coverage (which
 	// sources are fresh, failing, stale or missing) and validated news events,
