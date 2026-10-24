@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"slices"
 	"sort"
 	"strings"
 
@@ -32,12 +33,17 @@ type FlagDef struct {
 type FlagGroup struct {
 	Flags []FlagDef
 	// Deprecated maps a flag of the group to the message printed when it is
-	// used; the flag keeps working but is hidden from the help.
+	// used; the flag keeps working but is hidden from the help. Every key
+	// must name a flag in Flags and every message must be non-empty: Init
+	// panics otherwise, so a mistyped alias fails at startup instead of
+	// silently staying undeprecated.
 	Deprecated map[string]string
 }
 
-// Init registers all flags in the group with the given FlagSet.
+// Init registers all flags in the group with the given FlagSet. It panics
+// when Deprecated breaks its invariant.
 func (g *FlagGroup) Init(flags *flag.FlagSet) {
+	g.checkDeprecated()
 	for _, f := range g.Flags {
 		switch v := f.Default.(type) {
 		case string:
@@ -69,6 +75,16 @@ func (g *FlagGroup) Init(flags *flag.FlagSet) {
 			if err := flags.MarkDeprecated(f.Name, message); err != nil {
 				panic(fmt.Sprintf("deprecate flag %s: %v", f.Name, err))
 			}
+		}
+	}
+}
+
+// checkDeprecated panics when a Deprecated key names no flag of the group.
+// pflag's MarkDeprecated rejects an empty message itself.
+func (g *FlagGroup) checkDeprecated() {
+	for name := range g.Deprecated {
+		if !slices.ContainsFunc(g.Flags, func(f FlagDef) bool { return f.Name == name }) {
+			panic(fmt.Sprintf("deprecate flag %s: not a flag of the group", name))
 		}
 	}
 }
@@ -701,6 +717,12 @@ const EnvFileName = ".env"
 // EnvVarPrefix is the prefix viper expects on real environment variables,
 // matching SetEnvPrefix below.
 const EnvVarPrefix = "PUCKDB_"
+
+// EnvVarName returns the environment variable viper reads for flag when it
+// is not typed on the command line (the -/_ replacer of SetupViper).
+func EnvVarName(flag string) string {
+	return EnvVarPrefix + strings.ToUpper(strings.ReplaceAll(flag, "-", "_"))
+}
 
 // SetupViper configures viper for environment variable and .env file support.
 //

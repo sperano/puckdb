@@ -64,7 +64,7 @@ func runSyncDraft(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		return fmt.Errorf("create Yahoo rate limiter: %w", err)
 	}
-	id, err := resolveDraftSessionIdentity(ctx, cmd.Flags(), pool)
+	id, err := resolveDraftSessionIdentity(ctx, cmd, pool)
 	if err != nil {
 		return err
 	}

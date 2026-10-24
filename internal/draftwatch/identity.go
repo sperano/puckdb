@@ -51,8 +51,12 @@ func ResolveIdentity(ctx context.Context, pool *pgxpool.Pool, ref string, season
 	if ref == "" {
 		return Identity{}, errors.New("league is required")
 	}
-	if season < NewestSeason || season > math.MaxInt32 {
+	if season < NewestSeason {
 		return Identity{}, fmt.Errorf("season %d is not a season start year", season)
+	}
+	if season > math.MaxInt32 {
+		return Identity{}, fmt.Errorf("season %d is above %d, the largest season the database stores (PostgreSQL integer)",
+			season, math.MaxInt32)
 	}
 	queries := sqlcdb.New(pool)
 	if draft.IsLeagueKey(ref) {

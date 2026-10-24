@@ -16,7 +16,6 @@ import (
 	"github.com/sperano/puckdb/internal/draftwatch"
 	"github.com/sperano/puckdb/internal/sqlcdb"
 	"github.com/spf13/cobra"
-	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 )
 
@@ -87,7 +86,7 @@ func loadDraftSessionContext(cmd *cobra.Command) (draftSessionContext, error) {
 	if err != nil {
 		return draftSessionContext{}, fmt.Errorf("open database pool: %w", err)
 	}
-	id, err := resolveDraftSessionIdentity(ctx, cmd.Flags(), pool)
+	id, err := resolveDraftSessionIdentity(ctx, cmd, pool)
 	if err != nil {
 		pool.Close()
 		return draftSessionContext{}, err
@@ -100,8 +99,8 @@ func loadDraftSessionContext(cmd *cobra.Command) (draftSessionContext, error) {
 // --draft-season, which defaults to the season whose rules for a numeric ID
 // were imported last. ResolveIdentity's errors name the league or season
 // themselves, so they are returned as they are.
-func resolveDraftSessionIdentity(ctx context.Context, flags *pflag.FlagSet, pool *pgxpool.Pool) (draftwatch.Identity, error) {
-	league, err := draftSessionLeagueFromFlags(flags)
+func resolveDraftSessionIdentity(ctx context.Context, cmd *cobra.Command, pool *pgxpool.Pool) (draftwatch.Identity, error) {
+	league, err := draftSessionLeagueFromFlags(cmd)
 	if err != nil {
 		return draftwatch.Identity{}, err
 	}
@@ -113,9 +112,12 @@ func resolveDraftSessionIdentity(ctx context.Context, flags *pflag.FlagSet, pool
 
 // draftSessionLeagueFromFlags reads --draft-league, or the deprecated
 // --league alias. A flag typed on the command line wins over the other one's
-// environment or config value; two typed flags, or two configured values,
-// naming different leagues are an error rather than a silent choice.
-func draftSessionLeagueFromFlags(flags *pflag.FlagSet) (string, error) {
+// environment value; two typed flags, or two environment values, naming
+// different leagues are an error rather than a silent choice. Cobra prints
+// pflag's warning about a typed --league; the alias read from its
+// environment variable is warned about here, on the same output.
+func draftSessionLeagueFromFlags(cmd *cobra.Command) (string, error) {
+	flags := cmd.Flags()
 	league := strings.TrimSpace(viper.GetString(config.FlagDraftLeague))
 	legacy := strings.TrimSpace(viper.GetString(config.FlagDraftLegacyLeague))
 	leagueTyped := flags.Changed(config.FlagDraftLeague)
@@ -128,13 +130,29 @@ func draftSessionLeagueFromFlags(flags *pflag.FlagSet) (string, error) {
 	case legacy == "":
 		return league, nil
 	case league == "":
+		if !legacyTyped {
+			fmt.Fprintf(cmd.OutOrStderr(), "Environment variable %s has been deprecated, use %s\n",
+				config.EnvVarName(config.FlagDraftLegacyLeague), config.EnvVarName(config.FlagDraftLeague))
+		}
 		return legacy, nil
 	case league != legacy:
-		return "", fmt.Errorf("--%s %q and the deprecated --%s %q name different leagues; use --%s only",
-			config.FlagDraftLeague, league, config.FlagDraftLegacyLeague, legacy, config.FlagDraftLeague)
+		return "", draftSessionLeagueConflict(league, legacy, leagueTyped)
 	default:
 		return league, nil
 	}
+}
+
+// draftSessionLeagueConflict reports two different leagues, naming the flags
+// when both were typed and the environment variables when neither was.
+func draftSessionLeagueConflict(league, legacy string, typed bool) error {
+	name, legacyName := "--"+config.FlagDraftLeague, "--"+config.FlagDraftLegacyLeague
+	verb := "use"
+	if !typed {
+		name, legacyName = config.EnvVarName(config.FlagDraftLeague), config.EnvVarName(config.FlagDraftLegacyLeague)
+		verb = "set"
+	}
+	return fmt.Errorf("%s %q and the deprecated %s %q name different leagues; %s %s only",
+		name, league, legacyName, legacy, verb, name)
 }
 
 func runDraftSessionStatus(cmd *cobra.Command, loaded draftSessionContext) error {

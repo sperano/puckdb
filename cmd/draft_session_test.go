@@ -82,9 +82,10 @@ func TestSessionCommandsTakeDraftLeagueAndHideTheLegacyAlias(t *testing.T) {
 }
 
 // draftSessionLeagueFor parses args as `sync draft` does, with env (name to
-// value) in the environment, and returns the session league it reads. Tests
-// calling it must not use t.Parallel: viper is process-global.
-func draftSessionLeagueFor(t *testing.T, env map[string]string, args ...string) (string, error) {
+// value) in the environment, and returns the session league it reads and the
+// warnings it and pflag print. Tests calling it must not use
+// t.Parallel: viper is process-global.
+func draftSessionLeagueFor(t *testing.T, env map[string]string, args ...string) (string, string, error) {
 	t.Helper()
 	for name, value := range env {
 		t.Setenv(name, value)
@@ -94,10 +95,12 @@ func draftSessionLeagueFor(t *testing.T, env map[string]string, args ...string) 
 	config.SetupViper()
 	command, _, err := Root().Find([]string{"sync", "draft"})
 	require.NoError(t, err)
-	command.Flags().SetOutput(&bytes.Buffer{})
+	var warnings bytes.Buffer
+	command.SetOut(&warnings)
 	require.NoError(t, command.ParseFlags(args))
 	require.NoError(t, command.PreRunE(command, nil))
-	return draftSessionLeagueFromFlags(command.Flags())
+	league, err := draftSessionLeagueFromFlags(command)
+	return league, warnings.String(), err
 }
 
 func TestDraftSessionLeagueFromParsedFlags(t *testing.T) {
@@ -116,9 +119,36 @@ func TestDraftSessionLeagueFromParsedFlags(t *testing.T) {
 		"environment alias alone": {map[string]string{"PUCKDB_LEAGUE": "500.l.5621"}, nil, "500.l.5621"},
 	} {
 		t.Run(name, func(t *testing.T) {
-			got, err := draftSessionLeagueFor(t, tc.env, tc.args...)
+			got, _, err := draftSessionLeagueFor(t, tc.env, tc.args...)
 			require.NoError(t, err)
 			assert.Equal(t, tc.want, got)
+		})
+	}
+}
+
+func TestDraftSessionLeagueFromFlagsWarnsAboutTheLegacyEnvironmentVariable(t *testing.T) {
+	const envWarning = "Environment variable PUCKDB_LEAGUE has been deprecated, use PUCKDB_DRAFT_LEAGUE"
+	for name, tc := range map[string]struct {
+		env  map[string]string
+		args []string
+		want string
+	}{
+		"environment alias alone": {map[string]string{"PUCKDB_LEAGUE": "500.l.5621"}, nil, envWarning},
+		"typed alias":             {nil, []string{"--league", "5621"}, "Flag --league has been deprecated"},
+		"typed league over environment alias": {map[string]string{"PUCKDB_LEAGUE": "500.l.29249"},
+			[]string{"--draft-league", "500.l.5621"}, ""},
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, warnings, err := draftSessionLeagueFor(t, tc.env, tc.args...)
+			require.NoError(t, err)
+			if tc.want == "" {
+				assert.Empty(t, warnings)
+				return
+			}
+			assert.Contains(t, warnings, tc.want)
+			if tc.want != envWarning {
+				assert.NotContains(t, warnings, envWarning, "a typed alias is warned about once, by pflag")
+			}
 		})
 	}
 }
@@ -127,15 +157,17 @@ func TestDraftSessionLeagueFromFlagsRejectsTwoDifferentLeagues(t *testing.T) {
 	for name, tc := range map[string]struct {
 		env  map[string]string
 		args []string
+		want string
 	}{
-		"both typed": {nil, []string{"--draft-league", "500.l.5621", "--league", "500.l.29249"}},
+		"both typed": {nil, []string{"--draft-league", "500.l.5621", "--league", "500.l.29249"},
+			`--draft-league "500.l.5621" and the deprecated --league "500.l.29249" name different leagues; use --draft-league only`},
 		"both in the environment": {map[string]string{
-			"PUCKDB_DRAFT_LEAGUE": "500.l.5621", "PUCKDB_LEAGUE": "500.l.29249"}, nil},
+			"PUCKDB_DRAFT_LEAGUE": "500.l.5621", "PUCKDB_LEAGUE": "500.l.29249"}, nil,
+			`PUCKDB_DRAFT_LEAGUE "500.l.5621" and the deprecated PUCKDB_LEAGUE "500.l.29249" name different leagues; set PUCKDB_DRAFT_LEAGUE only`},
 	} {
 		t.Run(name, func(t *testing.T) {
-			_, err := draftSessionLeagueFor(t, tc.env, tc.args...)
-			require.Error(t, err)
-			assert.Contains(t, err.Error(), "name different leagues")
+			_, _, err := draftSessionLeagueFor(t, tc.env, tc.args...)
+			require.EqualError(t, err, tc.want)
 		})
 	}
 }

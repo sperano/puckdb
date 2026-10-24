@@ -46,7 +46,8 @@ func ParseLeague(value string, season int) (LeagueRef, error) {
 		return LeagueRef{}, fmt.Errorf("%w: league ID %d needs a season", ErrUnknownLeague, id)
 	}
 	if season > math.MaxInt32 {
-		return LeagueRef{}, fmt.Errorf("%w: season %d is not a season start year", ErrUnknownLeague, season)
+		return LeagueRef{}, fmt.Errorf("%w: season %d is above %d, the largest season the database stores (PostgreSQL integer)",
+			ErrUnknownLeague, season, math.MaxInt32)
 	}
 	return LeagueRef{Season: season, LeagueID: id}, nil
 }

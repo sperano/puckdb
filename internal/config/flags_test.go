@@ -60,6 +60,23 @@ func TestFlagGroupInit_Deprecated(t *testing.T) {
 	assert.Contains(t, warnings.String(), "use --new-name")
 }
 
+func TestFlagGroupInit_DeprecatedUnknownFlagPanics(t *testing.T) {
+	t.Parallel()
+	fg := FlagGroup{
+		Flags:      []FlagDef{{Name: "new-name", Default: "", Usage: "Current name"}},
+		Deprecated: map[string]string{"old-nmae": "use --new-name"},
+	}
+	assert.PanicsWithValue(t, "deprecate flag old-nmae: not a flag of the group", func() {
+		fg.Init(flag.NewFlagSet("test", flag.ContinueOnError))
+	})
+}
+
+func TestEnvVarName(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, "PUCKDB_DRAFT_LEAGUE", EnvVarName(FlagDraftLeague))
+	assert.Equal(t, "PUCKDB_LEAGUE", EnvVarName(FlagDraftLegacyLeague))
+}
+
 func TestDraftSessionFlagsDeprecateOnlyTheLegacyLeagueAlias(t *testing.T) {
 	t.Parallel()
 	flags := flag.NewFlagSet("test", flag.ContinueOnError)
