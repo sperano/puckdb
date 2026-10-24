@@ -78,7 +78,7 @@ func TestIntegrationLateAbortedTurnKeepsRetryTurn(t *testing.T) {
 		}},
 	}, false)
 	cause := errors.New("daily turn aborted")
-	require.Same(t, cause, f.acts.recordAbortedTurn(ctx, late, cause), "the late write succeeds")
+	require.Same(t, cause, recordAbortedTurn(ctx, abortedTurnTx(f.acts.Tx), late, cause), "the late write succeeds")
 
 	assert.InDelta(t, managed.CostUsd+late.Header.Spend.CostUsd, poolSpend(t, ctx, pgPool, f.poolID), costDelta,
 		"the stale attempt's spend still counts")

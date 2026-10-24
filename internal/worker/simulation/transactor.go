@@ -18,17 +18,42 @@ import (
 // or the empty set — partial state would corrupt the idempotency
 // pre-flight check on the next attempt.
 //
-// The InTx callback receives a SimQueries handle scoped to the open
-// pgx.Tx. Returning an error rolls back; returning nil commits. The
-// callback MUST NOT close over the outer (pool-scoped) Queries handle
-// — using it would write outside the transaction and break atomicity.
+// The InTx callback receives a Q handle scoped to the open pgx.Tx.
+// Returning an error rolls back; returning nil commits. The callback
+// MUST NOT close over the outer (pool-scoped) Queries handle — using it
+// would write outside the transaction and break atomicity.
 //
-// Tests inject a stub Transactor that just calls fn with the same
-// stub SimQueries it uses for read-only calls, so the unit-test layer
-// never sees a real DB.
-type Transactor interface {
-	InTx(ctx context.Context, fn func(SimQueries) error) error
+// Q is the query group of the activity that opens the transaction:
+// production wiring holds a Transactor[SimQueries] and narrows it per
+// activity (narrowTx), and tests inject a stub Transactor that calls fn
+// with the same focused fake the activity reads through, so the
+// unit-test layer never sees a real DB.
+type Transactor[Q any] interface {
+	InTx(ctx context.Context, fn func(Q) error) error
 }
+
+// narrowTx exposes the transactions of tx as the query group Q. Go has
+// no implicit conversion from Transactor[S] to Transactor[Q], even when
+// S implements Q, so the caller passes the per-handle conversion as:
+// normally the identity, func(q SimQueries) collectQueries { return q }.
+// Writing it out also makes the compiler check that S provides every
+// method of Q.
+func narrowTx[S, Q any](tx Transactor[S], as func(S) Q) Transactor[Q] {
+	return narrowedTx[S, Q]{tx: tx, as: as}
+}
+
+type narrowedTx[S, Q any] struct {
+	tx Transactor[S]
+	as func(S) Q
+}
+
+func (t narrowedTx[S, Q]) InTx(ctx context.Context, fn func(Q) error) error {
+	return t.tx.InTx(ctx, func(q S) error { return fn(t.as(q)) })
+}
+
+// *sqlcdb.Queries must keep satisfying every query group: the worker
+// wires one as Activities.Queries and PgxTransactor hands one to InTx.
+var _ SimQueries = (*sqlcdb.Queries)(nil)
 
 // PgxTransactor is the production Transactor backed by a *pgxpool.Pool.
 // Constructed at worker startup in cmd/worker.go and injected into
@@ -43,9 +68,9 @@ func NewPgxTransactor(pool *pgxpool.Pool) *PgxTransactor {
 }
 
 // InTx opens a pgx transaction, calls fn with sqlcdb.New(tx) — which
-// structurally satisfies SimQueries because the interface was assembled
-// from sqlc's generated method signatures — then commits, or rolls
-// back if fn returns an error.
+// structurally satisfies SimQueries because every query group was
+// assembled from sqlc's generated method signatures — then commits, or
+// rolls back if fn returns an error.
 //
 // pgx's Rollback is a safe no-op when the transaction has already
 // committed (documented in pgx; we rely on it to keep the deferred

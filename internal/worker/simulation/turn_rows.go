@@ -10,6 +10,15 @@ import (
 	"github.com/sperano/puckdb/internal/sqlcdb"
 )
 
+// turnChildQueries writes the child rows of one sim_agent_turns row:
+// rounds, tool calls and the transcript. Every turn write (the commit's
+// RecordTurnTelemetry and the aborted-turn write) needs it.
+type turnChildQueries interface {
+	InsertSimAgentTurnRound(ctx context.Context, arg []sqlcdb.InsertSimAgentTurnRoundParams) (int64, error)
+	InsertSimAgentToolCall(ctx context.Context, arg []sqlcdb.InsertSimAgentToolCallParams) (int64, error)
+	InsertSimAgentTurnMessage(ctx context.Context, arg []sqlcdb.InsertSimAgentTurnMessageParams) (int64, error)
+}
+
 // turnHeaderParams is the sim_agent_turns row of t. Totals and cost come
 // from t.Header.Spend; rounds and latency from t.Captures.
 func turnHeaderParams(t TurnTelemetry) (sqlcdb.InsertSimAgentTurnParams, error) {
@@ -48,7 +57,7 @@ func turnHeaderParams(t TurnTelemetry) (sqlcdb.InsertSimAgentTurnParams, error) 
 
 // recordTurnChildren writes the rounds, tool calls and (when
 // t.RecordMessages is true) the transcript of turn turnID.
-func recordTurnChildren(ctx context.Context, q SimQueries, turnID int32, t TurnTelemetry) error {
+func recordTurnChildren(ctx context.Context, q turnChildQueries, turnID int32, t TurnTelemetry) error {
 	if err := recordTurnRounds(ctx, q, turnID, t.Captures); err != nil {
 		return err
 	}
@@ -61,7 +70,7 @@ func recordTurnChildren(ctx context.Context, q SimQueries, turnID int32, t TurnT
 	return nil
 }
 
-func recordTurnRounds(ctx context.Context, q SimQueries, turnID int32, captures []roundCapture) error {
+func recordTurnRounds(ctx context.Context, q turnChildQueries, turnID int32, captures []roundCapture) error {
 	if len(captures) == 0 {
 		return nil
 	}
@@ -92,7 +101,7 @@ func recordTurnRounds(ctx context.Context, q SimQueries, turnID int32, captures 
 	return nil
 }
 
-func recordTurnToolCalls(ctx context.Context, q SimQueries, turnID int32, toolCalls []ToolCallCapture) error {
+func recordTurnToolCalls(ctx context.Context, q turnChildQueries, turnID int32, toolCalls []ToolCallCapture) error {
 	if len(toolCalls) == 0 {
 		return nil
 	}
@@ -119,7 +128,7 @@ func recordTurnToolCalls(ctx context.Context, q SimQueries, turnID int32, toolCa
 	return nil
 }
 
-func recordTurnMessages(ctx context.Context, q SimQueries, turnID int32, messages []llm.Message) error {
+func recordTurnMessages(ctx context.Context, q turnChildQueries, turnID int32, messages []llm.Message) error {
 	if len(messages) == 0 {
 		return nil
 	}

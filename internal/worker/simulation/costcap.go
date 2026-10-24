@@ -18,12 +18,20 @@ import (
 // for an LLM call (PLAN.md > "Cost cap > Enforcement"). The check
 // (cap reached?) and the tripped-branch action (the durable pause
 // transition) are identical across activities, so they live here as
-// receiver methods on *Activities rather than duplicated per-activity
+// functions over costCapQueries rather than duplicated per-activity
 // helpers.
 //
 // The workflow learns about a tripped cap from the activity result
 // alone (SkipReasonCostCapReached) and stops there; no signal is sent.
 // ============================================================================
+
+// costCapQueries is the cost-cap pre-flight: the pool's running LLM
+// spend and the durable pause transition (status paused + one
+// cost_cap_reached row per pool).
+type costCapQueries interface {
+	GetSimPool(ctx context.Context, id int32) (sqlcdb.SimPool, error)
+	PauseSimPoolForCostCap(ctx context.Context, arg sqlcdb.PauseSimPoolForCostCapParams) (int64, error)
+}
 
 // checkCostCap reads sim_pools.total_llm_cost_usd and compares it to
 // capUsd. Returns whether the cap has been reached, the current
@@ -43,11 +51,11 @@ import (
 //
 // Any DB error aborts the activity so Temporal retries; we'd rather
 // retry than silently re-bill the operator on a flaky read.
-func (a *Activities) checkCostCap(ctx context.Context, poolID int32, capUsd float64) (tripped bool, currentCost, cap float64, err error) {
+func checkCostCap(ctx context.Context, q costCapQueries, poolID int32, capUsd float64) (tripped bool, currentCost, cap float64, err error) {
 	if capUsd <= 0 {
 		return false, 0, 0, nil
 	}
-	pool, err := a.Queries.GetSimPool(ctx, poolID)
+	pool, err := q.GetSimPool(ctx, poolID)
 	if err != nil {
 		return false, 0, 0, fmt.Errorf("simulation: cost-cap probe (get pool): %w", err)
 	}
@@ -71,8 +79,12 @@ func (a *Activities) checkCostCap(ctx context.Context, poolID int32, capUsd floa
 // lock) both write nothing and still return the cost-cap result. One
 // pause, one audit row, however many attempts reach this branch; a late
 // attempt never turns a completed or cancelled pool into a paused one.
-func (a *Activities) pauseForCostCap(
+//
+// agents is this worker's agent cache, which drops the pool's agents.
+func pauseForCostCap(
 	ctx context.Context,
+	q costCapQueries,
+	agents agentEvictor,
 	poolID, agentID int32,
 	simDate pgtype.Date,
 	currentCostUsd, capUsd float64,
@@ -85,7 +97,7 @@ func (a *Activities) pauseForCostCap(
 	if err != nil {
 		return fmt.Errorf("simulation: encode cap: %w", err)
 	}
-	written, err := a.Queries.PauseSimPoolForCostCap(ctx, sqlcdb.PauseSimPoolForCostCapParams{
+	written, err := q.PauseSimPoolForCostCap(ctx, sqlcdb.PauseSimPoolForCostCapParams{
 		PoolID:  poolID,
 		AgentID: agentID,
 		Date:    simDate,
@@ -101,6 +113,6 @@ func (a *Activities) pauseForCostCap(
 	}
 	// Paused is an ended status; drop the pool's cached agents. Also on
 	// a retry that wrote nothing: this worker may still hold them.
-	a.evictPoolAgents(poolID)
+	agents.evictPoolAgents(poolID)
 	return nil
 }

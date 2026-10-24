@@ -16,10 +16,9 @@ func TestApplyWaiverResolution_StaleClaimIsNotRewritten(t *testing.T) {
 	ctx := context.Background()
 	in := ProcessWaiversInput{PoolID: 1, SimDate: pgDate(t, "2024-11-15")}
 	r := claimResolution{playerID: 8478402, winner: claim(100, 1, 8478402, 0)}
-	q := &stubSimQueries{
-		existsRosterPlayerByPlayer: map[int64]bool{8478402: true},
-		resolveClaimNotPending:     map[int32]bool{100: true},
-	}
+	q := newWaiverQueriesFake()
+	q.existsRosterPlayerByPlayer = map[int64]bool{8478402: true}
+	q.resolveClaimNotPending = map[int32]bool{100: true}
 
 	won, err := applyWaiverResolution(ctx, q, in, map[RosterSlot]int{SlotBN: testWaiverBenchLimit}, r)
 	require.ErrorIs(t, err, errWaiverClaimNotPending)
@@ -36,7 +35,8 @@ func TestMarkGroupWon_LoserNoLongerPendingFails(t *testing.T) {
 		winner:   claim(100, 1, 8478402, 0),
 		losers:   []sqlcdb.SimWaiverClaim{claim(101, 2, 8478402, 0)},
 	}
-	q := &stubSimQueries{resolveClaimNotPending: map[int32]bool{101: true}}
+	q := newWaiverQueriesFake()
+	q.resolveClaimNotPending = map[int32]bool{101: true}
 
 	err := markGroupWon(ctx, q, in, r)
 	require.ErrorIs(t, err, errWaiverClaimNotPending)
@@ -49,7 +49,7 @@ func TestMarkGroupWon_LoserNoLongerPendingFails(t *testing.T) {
 // rotation) commits.
 func (s *ProcessWaiversTestSuite) TestStaleWinningClaim_FailsAttempt() {
 	t := s.T()
-	s.queries.listClaimsDueRows = []sqlcdb.SimWaiverClaim{claim(100, 1, 8478402, 0)}
+	s.queries.listClaimsForDuePlayersRows = []sqlcdb.SimWaiverClaim{claim(100, 1, 8478402, 0)}
 	s.setPriorities(priority(1, 1), priority(2, 2))
 	s.queries.resolveClaimNotPending = map[int32]bool{100: true}
 
@@ -73,7 +73,8 @@ func TestPlanWaiverResolution_ReplacementCapacity(t *testing.T) {
 			for id, slot := range tc.placements {
 				rows = append(rows, sqlcdb.SimRoster{PoolID: 1, AgentID: winner, PlayerID: id, Slot: string(slot)})
 			}
-			q := &stubSimQueries{listFullRosterByAgent: map[int32][]sqlcdb.SimRoster{winner: rows}}
+			q := newWaiverQueriesFake()
+			q.listFullRosterByAgent = map[int32][]sqlcdb.SimRoster{winner: rows}
 			var dropID int64
 			if tc.drop != nil {
 				dropID = *tc.drop

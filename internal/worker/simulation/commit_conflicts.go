@@ -7,6 +7,14 @@ import (
 	"github.com/sperano/puckdb/internal/sqlcdb"
 )
 
+// rosterProbeQueries is the commit-time claimability probe (a turn's
+// add_player in ManageRoster, a claim group in ProcessWaivers) that
+// converts a UNIQUE(pool_id, player_id) conflict into a clean rejection
+// instead of a tx-aborting violation.
+type rosterProbeQueries interface {
+	ExistsSimRosterPlayer(ctx context.Context, arg sqlcdb.ExistsSimRosterPlayerParams) (bool, error)
+}
+
 // reviseActionsForCommitConflicts re-validates the turn's accepted
 // adds against live roster state inside the commit tx and returns the
 // actions that should actually be applied.
@@ -24,7 +32,7 @@ import (
 // with no moves is itself dropped (and marked commit_rejected).
 func reviseActionsForCommitConflicts(
 	ctx context.Context,
-	q SimQueries,
+	q rosterProbeQueries,
 	in ManageRosterInput,
 	actions []recordedAction,
 	captures []ToolCallCapture,
@@ -95,7 +103,7 @@ func reviseActionsForCommitConflicts(
 //     nothing to remove, and removeAndLogDrop would fail the whole turn.
 //     Rejecting the dependent add is the conservative choice: its
 //     capacity check counted the drop.
-func commitConflict(ctx context.Context, q SimQueries, in ManageRosterInput, args Action, rejected map[int64]struct{}) (string, error) {
+func commitConflict(ctx context.Context, q rosterProbeQueries, in ManageRosterInput, args Action, rejected map[int64]struct{}) (string, error) {
 	switch a := args.(type) {
 	case AddPlayerArgs:
 		if a.DropPlayerID != nil {

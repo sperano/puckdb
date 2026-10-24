@@ -1,12 +1,11 @@
 package simulation
 
 import (
+	"context"
 	"errors"
 	"testing"
 
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/sperano/puckdb/internal/llm"
-	"github.com/sperano/puckdb/internal/pgconv"
 	"github.com/sperano/puckdb/internal/sqlcdb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -24,24 +23,110 @@ import (
 //   skaterDraftPosition / isGoalieByLookup — position filters
 // ============================================================================
 
-type StateActivityTestSuite struct {
+// poolStateQueriesFake is the pool lifecycle activities' query group:
+// the season and status writes over the shared pool and agent fakes.
+type poolStateQueriesFake struct {
+	*poolFake
+	*agentFake
+
+	getSeasonArgs   []int32
+	getSeasonReturn sqlcdb.Season
+	getSeasonErr    error
+
+	updatePoolStatusCalls []sqlcdb.UpdateSimPoolStatusParams
+	updatePoolStatusErr   error
+}
+
+var _ poolStateQueries = (*poolStateQueriesFake)(nil)
+
+func newPoolStateQueriesFake() *poolStateQueriesFake {
+	return &poolStateQueriesFake{poolFake: &poolFake{}, agentFake: &agentFake{}}
+}
+
+func (s *poolStateQueriesFake) GetSeason(_ context.Context, id int32) (sqlcdb.Season, error) {
+	s.getSeasonArgs = append(s.getSeasonArgs, id)
+	if s.getSeasonErr != nil {
+		return sqlcdb.Season{}, s.getSeasonErr
+	}
+	return s.getSeasonReturn, nil
+}
+
+func (s *poolStateQueriesFake) SetSimAgentDraftPosition(_ context.Context, _ sqlcdb.SetSimAgentDraftPositionParams) error {
+	return nil
+}
+
+func (s *poolStateQueriesFake) UpdateSimPoolStatus(_ context.Context, arg sqlcdb.UpdateSimPoolStatusParams) error {
+	s.updatePoolStatusCalls = append(s.updatePoolStatusCalls, arg)
+	return s.updatePoolStatusErr
+}
+
+// PoolStateTestSuite drives the pool lifecycle activities; agents is the
+// worker agent cache SetPoolStatus evicts from.
+type PoolStateTestSuite struct {
 	suite.Suite
 	testsuite.WorkflowTestSuite
 	env     *testsuite.TestActivityEnvironment
-	queries *stubSimQueries
-	acts    *Activities
+	queries *poolStateQueriesFake
+	agents  *Activities
+	acts    poolStateActivity
 }
 
-func (s *StateActivityTestSuite) SetupTest() {
+func (s *PoolStateTestSuite) SetupTest() {
 	s.env = s.NewTestActivityEnvironment()
-	s.queries = &stubSimQueries{}
-	s.acts = &Activities{Queries: s.queries}
+	s.queries = newPoolStateQueriesFake()
+	s.agents = &Activities{}
+	s.acts = poolStateActivity{q: s.queries, agents: s.agents}
 	s.env.RegisterActivity(s.acts.SetPoolStatus)
+}
+
+func TestPoolStateTestSuite(t *testing.T) {
+	suite.Run(t, new(PoolStateTestSuite))
+}
+
+// draftCandidateQueriesFake is LoadDraftCandidates' query group: the
+// prior season's club stats over the shared player fake.
+type draftCandidateQueriesFake struct {
+	*playerFake
+
+	clubSkaterRows []sqlcdb.GetClubSkaterStatsBySeasonRow
+	clubSkaterErr  error
+	clubGoalieRows []sqlcdb.GetClubGoalieStatsBySeasonRow
+	clubGoalieErr  error
+}
+
+var _ draftCandidateQueries = (*draftCandidateQueriesFake)(nil)
+
+func (s *draftCandidateQueriesFake) GetClubSkaterStatsBySeason(_ context.Context, _ sqlcdb.GetClubSkaterStatsBySeasonParams) ([]sqlcdb.GetClubSkaterStatsBySeasonRow, error) {
+	if s.clubSkaterErr != nil {
+		return nil, s.clubSkaterErr
+	}
+	return s.clubSkaterRows, nil
+}
+
+func (s *draftCandidateQueriesFake) GetClubGoalieStatsBySeason(_ context.Context, _ sqlcdb.GetClubGoalieStatsBySeasonParams) ([]sqlcdb.GetClubGoalieStatsBySeasonRow, error) {
+	if s.clubGoalieErr != nil {
+		return nil, s.clubGoalieErr
+	}
+	return s.clubGoalieRows, nil
+}
+
+type DraftCandidatesTestSuite struct {
+	suite.Suite
+	testsuite.WorkflowTestSuite
+	env     *testsuite.TestActivityEnvironment
+	queries *draftCandidateQueriesFake
+	acts    draftCandidatesActivity
+}
+
+func (s *DraftCandidatesTestSuite) SetupTest() {
+	s.env = s.NewTestActivityEnvironment()
+	s.queries = &draftCandidateQueriesFake{playerFake: &playerFake{}}
+	s.acts = draftCandidatesActivity{q: s.queries}
 	s.env.RegisterActivity(s.acts.LoadDraftCandidates)
 }
 
-func TestStateActivityTestSuite(t *testing.T) {
-	suite.Run(t, new(StateActivityTestSuite))
+func TestDraftCandidatesTestSuite(t *testing.T) {
+	suite.Run(t, new(DraftCandidatesTestSuite))
 }
 
 // ----------------------------------------------------------------------------
@@ -77,7 +162,7 @@ func TestPriorSeasonID(t *testing.T) {
 // SetPoolStatusActivity
 // ----------------------------------------------------------------------------
 
-func (s *StateActivityTestSuite) TestSetPoolStatus_HappyPath() {
+func (s *PoolStateTestSuite) TestSetPoolStatus_HappyPath() {
 	t := s.T()
 	// Activity returns only error → don't call future.Get, just
 	// check the immediate error from ExecuteActivity.
@@ -90,7 +175,7 @@ func (s *StateActivityTestSuite) TestSetPoolStatus_HappyPath() {
 	assert.Equal(t, "complete", s.queries.updatePoolStatusCalls[0].Status)
 }
 
-func (s *StateActivityTestSuite) TestSetPoolStatus_EachStatusValueRoundtrips() {
+func (s *PoolStateTestSuite) TestSetPoolStatus_EachStatusValueRoundtrips() {
 	t := s.T()
 	statuses := []PoolStatus{
 		PoolStatusDraft, PoolStatusRunning, PoolStatusPaused,
@@ -108,9 +193,9 @@ func (s *StateActivityTestSuite) TestSetPoolStatus_EachStatusValueRoundtrips() {
 
 // A status that ends the pool drops its cached agents on this worker;
 // a status the pool keeps running in leaves them for reuse.
-func (s *StateActivityTestSuite) TestSetPoolStatus_EvictsAgentsOnlyWhenPoolEnds() {
+func (s *PoolStateTestSuite) TestSetPoolStatus_EvictsAgentsOnlyWhenPoolEnds() {
 	t := s.T()
-	s.acts.AgentFactory = func(int32, AgentConfig, map[llm.Provider]llm.ProviderConfig, int) (*Agent, error) {
+	s.agents.AgentFactory = func(int32, AgentConfig, map[llm.Provider]llm.ProviderConfig, int) (*Agent, error) {
 		return &Agent{}, nil
 	}
 	statuses := []PoolStatus{
@@ -118,9 +203,9 @@ func (s *StateActivityTestSuite) TestSetPoolStatus_EvictsAgentsOnlyWhenPoolEnds(
 		PoolStatusComplete, PoolStatusCancelled,
 	}
 	for _, st := range statuses {
-		_, err := s.acts.getOrCreateAgent(1, 7, AgentConfig{Provider: "anthropic"}, 10)
+		_, err := s.agents.getOrCreateAgent(1, 7, AgentConfig{Provider: "anthropic"}, 10)
 		require.NoError(t, err)
-		_, err = s.acts.getOrCreateAgent(2, 8, AgentConfig{Provider: "anthropic"}, 10)
+		_, err = s.agents.getOrCreateAgent(2, 8, AgentConfig{Provider: "anthropic"}, 10)
 		require.NoError(t, err)
 
 		_, err = s.env.ExecuteActivity(s.acts.SetPoolStatus, SetPoolStatusInput{PoolID: 1, Status: st})
@@ -130,26 +215,26 @@ func (s *StateActivityTestSuite) TestSetPoolStatus_EvictsAgentsOnlyWhenPoolEnds(
 		if st.ended() {
 			want = 1
 		}
-		assert.Equal(t, want, s.acts.agents.len(), "status=%s", st)
+		assert.Equal(t, want, s.agents.agents.len(), "status=%s", st)
 	}
 }
 
 // A failed status write keeps the agents: the pool has not ended.
-func (s *StateActivityTestSuite) TestSetPoolStatus_FailedWriteKeepsAgents() {
+func (s *PoolStateTestSuite) TestSetPoolStatus_FailedWriteKeepsAgents() {
 	t := s.T()
-	s.acts.AgentFactory = func(int32, AgentConfig, map[llm.Provider]llm.ProviderConfig, int) (*Agent, error) {
+	s.agents.AgentFactory = func(int32, AgentConfig, map[llm.Provider]llm.ProviderConfig, int) (*Agent, error) {
 		return &Agent{}, nil
 	}
-	_, err := s.acts.getOrCreateAgent(1, 7, AgentConfig{Provider: "anthropic"}, 10)
+	_, err := s.agents.getOrCreateAgent(1, 7, AgentConfig{Provider: "anthropic"}, 10)
 	require.NoError(t, err)
 	s.queries.updatePoolStatusErr = errors.New("constraint violation")
 
 	_, err = s.env.ExecuteActivity(s.acts.SetPoolStatus, SetPoolStatusInput{PoolID: 1, Status: PoolStatusComplete})
 	require.Error(t, err)
-	assert.Equal(t, 1, s.acts.agents.len())
+	assert.Equal(t, 1, s.agents.agents.len())
 }
 
-func (s *StateActivityTestSuite) TestSetPoolStatus_PropagatesError() {
+func (s *PoolStateTestSuite) TestSetPoolStatus_PropagatesError() {
 	t := s.T()
 	s.queries.updatePoolStatusErr = errors.New("constraint violation")
 	_, err := s.env.ExecuteActivity(s.acts.SetPoolStatus, SetPoolStatusInput{PoolID: 1, Status: PoolStatusComplete})
@@ -161,7 +246,7 @@ func (s *StateActivityTestSuite) TestSetPoolStatus_PropagatesError() {
 // LoadDraftCandidatesActivity — happy path + edge cases
 // ----------------------------------------------------------------------------
 
-func (s *StateActivityTestSuite) TestLoadDraftCandidates_AggregatesTradedSkater() {
+func (s *DraftCandidatesTestSuite) TestLoadDraftCandidates_AggregatesTradedSkater() {
 	t := s.T()
 	// Player 100 traded mid-season: two team rows. SUM should be (1+2)+(3+4)=10.
 	s.queries.clubSkaterRows = []sqlcdb.GetClubSkaterStatsBySeasonRow{
@@ -188,7 +273,7 @@ func (s *StateActivityTestSuite) TestLoadDraftCandidates_AggregatesTradedSkater(
 	assert.Equal(t, "C", got.Skaters[0].Position)
 }
 
-func (s *StateActivityTestSuite) TestLoadDraftCandidates_FiltersZeroScoreSkaters() {
+func (s *DraftCandidatesTestSuite) TestLoadDraftCandidates_FiltersZeroScoreSkaters() {
 	t := s.T()
 	s.queries.clubSkaterRows = []sqlcdb.GetClubSkaterStatsBySeasonRow{
 		{PlayerID: 100, FirstName: "F", LastName: "L", Goals: 5, Assists: 5},
@@ -214,7 +299,7 @@ func (s *StateActivityTestSuite) TestLoadDraftCandidates_FiltersZeroScoreSkaters
 	assert.Equal(t, int64(100), got.Skaters[0].PlayerID)
 }
 
-func (s *StateActivityTestSuite) TestLoadDraftCandidates_ExcludesGoaliesFromSkaters() {
+func (s *DraftCandidatesTestSuite) TestLoadDraftCandidates_ExcludesGoaliesFromSkaters() {
 	t := s.T()
 	// A goalie shouldn't appear in skater rankings even if their
 	// goals/assists are nonzero (rare but possible — backup goalie
@@ -234,7 +319,7 @@ func (s *StateActivityTestSuite) TestLoadDraftCandidates_ExcludesGoaliesFromSkat
 	assert.Equal(t, int64(100), got.Skaters[0].PlayerID)
 }
 
-func (s *StateActivityTestSuite) TestLoadDraftCandidates_GoaliesFilteredAndRanked() {
+func (s *DraftCandidatesTestSuite) TestLoadDraftCandidates_GoaliesFilteredAndRanked() {
 	t := s.T()
 	s.queries.clubGoalieRows = []sqlcdb.GetClubGoalieStatsBySeasonRow{
 		{PlayerID: 1, FirstName: "F", LastName: "L", Wins: 30, GoalsAgainst: 95},
@@ -255,7 +340,7 @@ func (s *StateActivityTestSuite) TestLoadDraftCandidates_GoaliesFilteredAndRanke
 	assert.Equal(t, 35, got.Goalies[0].PriorW)
 }
 
-func (s *StateActivityTestSuite) TestLoadDraftCandidates_NullPositionDropped() {
+func (s *DraftCandidatesTestSuite) TestLoadDraftCandidates_NullPositionDropped() {
 	t := s.T()
 	// A player with a NULL position can't be classified — drop both
 	// from skater AND goalie lists.
@@ -277,7 +362,7 @@ func (s *StateActivityTestSuite) TestLoadDraftCandidates_NullPositionDropped() {
 // not one GetPlayer call per candidate. Also asserts zero-score/zero-W
 // players are excluded from the batch entirely (filtered before the
 // lookup, not after).
-func (s *StateActivityTestSuite) TestLoadDraftCandidates_BatchesPlayerLookups() {
+func (s *DraftCandidatesTestSuite) TestLoadDraftCandidates_BatchesPlayerLookups() {
 	t := s.T()
 	s.queries.clubSkaterRows = []sqlcdb.GetClubSkaterStatsBySeasonRow{
 		{PlayerID: 100, FirstName: "F", LastName: "L", Goals: 5, Assists: 5},
@@ -310,7 +395,7 @@ func (s *StateActivityTestSuite) TestLoadDraftCandidates_BatchesPlayerLookups() 
 	require.Len(t, got.Goalies, 1)
 }
 
-func (s *StateActivityTestSuite) TestLoadDraftCandidates_ErrorOnPriorSeason() {
+func (s *DraftCandidatesTestSuite) TestLoadDraftCandidates_ErrorOnPriorSeason() {
 	t := s.T()
 	// Season below the NHL minimum after the subtraction triggers
 	// the priorSeasonID error path.
@@ -319,175 +404,10 @@ func (s *StateActivityTestSuite) TestLoadDraftCandidates_ErrorOnPriorSeason() {
 	assert.Contains(t, err.Error(), "no valid prior NHL season")
 }
 
-func (s *StateActivityTestSuite) TestLoadDraftCandidates_PropagatesSkaterDBError() {
+func (s *DraftCandidatesTestSuite) TestLoadDraftCandidates_PropagatesSkaterDBError() {
 	t := s.T()
 	s.queries.clubSkaterErr = errors.New("query timeout")
 	_, err := s.env.ExecuteActivity(s.acts.LoadDraftCandidates, LoadDraftCandidatesInput{Season: 20242025})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "query timeout")
-}
-
-// ----------------------------------------------------------------------------
-// BuildManageRosterContextActivity
-// ----------------------------------------------------------------------------
-
-func (s *StateActivityTestSuite) registerContextActivity() {
-	s.env.RegisterActivity(s.acts.BuildManageRosterContext)
-}
-
-// TestBuildManageRosterContext_BatchesRosterPlayerLookups guards the
-// T3-B N+1 fix in loadRosterAndPositions: every roster player's name
-// + position is resolved with one GetPlayersByIDs call, not one
-// GetPlayer per roster row. FreeAgents/OnWaivers are left empty so
-// the only batch call in this invocation is the roster one.
-func (s *StateActivityTestSuite) TestBuildManageRosterContext_BatchesRosterPlayerLookups() {
-	t := s.T()
-	s.registerContextActivity()
-	s.queries.getSimAgentByID = map[int32]sqlcdb.SimAgent{1: {ID: 1}}
-	s.queries.listFullRosterByAgent = map[int32][]sqlcdb.SimRoster{
-		1: {
-			{PoolID: 1, AgentID: 1, PlayerID: 100, Slot: "C"},
-			{PoolID: 1, AgentID: 1, PlayerID: 200, Slot: "LW"},
-			{PoolID: 1, AgentID: 1, PlayerID: 300, Slot: "BN"},
-		},
-	}
-	s.queries.getPlayerByID = map[int64]sqlcdb.Player{
-		100: {FirstName: "A", LastName: "One", Position: sqlcdb.NullPlayerPosition{PlayerPosition: sqlcdb.PlayerPositionC, Valid: true}},
-		200: {FirstName: "B", LastName: "Two", Position: sqlcdb.NullPlayerPosition{PlayerPosition: sqlcdb.PlayerPositionLW, Valid: true}},
-		300: {FirstName: "C", LastName: "Three", Position: sqlcdb.NullPlayerPosition{PlayerPosition: sqlcdb.PlayerPositionD, Valid: true}},
-	}
-
-	in := BuildManageRosterContextInput{
-		PoolID: 1, AgentID: 1,
-		SimDate:    pgDate(t, "2024-11-15"),
-		PoolConfig: PoolConfig{RosterPositions: map[RosterSlot]int{SlotC: 1, SlotLW: 1, SlotBN: 1}},
-	}
-	future, err := s.env.ExecuteActivity(s.acts.BuildManageRosterContext, in)
-	require.NoError(t, err)
-	var got ManageRosterInput
-	require.NoError(t, future.Get(&got))
-
-	require.Len(t, s.queries.getPlayersByIDsCalls, 1, "one batched call for the whole roster, not one per player")
-	assert.ElementsMatch(t, []int64{100, 200, 300}, s.queries.getPlayersByIDsCalls[0])
-	require.Len(t, got.DailyPrompt.YourRoster, 3)
-	assert.Equal(t, sqlcdb.PlayerPositionD, got.Positions[300])
-}
-
-func (s *StateActivityTestSuite) TestBuildManageRosterContext_PopulatesNotesAndRoster() {
-	t := s.T()
-	s.registerContextActivity()
-	s.queries.getSimAgentByID = map[int32]sqlcdb.SimAgent{
-		1: {ID: 1, Notes: "Watch the schedule"},
-	}
-	s.queries.listFullRosterByAgent = map[int32][]sqlcdb.SimRoster{
-		1: {
-			{PoolID: 1, AgentID: 1, PlayerID: 100, Slot: "C"},
-			{PoolID: 1, AgentID: 1, PlayerID: 200, Slot: "BN"},
-		},
-	}
-	s.queries.getPlayerByID = map[int64]sqlcdb.Player{
-		100: {ID: 100, FirstName: "Connor", LastName: "McDavid", Position: sqlcdb.NullPlayerPosition{PlayerPosition: sqlcdb.PlayerPositionC, Valid: true}},
-		200: {ID: 200, FirstName: "Leon", LastName: "Draisaitl", Position: sqlcdb.NullPlayerPosition{PlayerPosition: sqlcdb.PlayerPositionC, Valid: true}},
-	}
-
-	in := BuildManageRosterContextInput{
-		PoolID: 1, AgentID: 1,
-		SimDate:    pgDate(t, "2024-11-15"),
-		PoolConfig: PoolConfig{RosterPositions: map[RosterSlot]int{SlotC: 2, SlotBN: 5}},
-		FreeAgents: []int64{300, 400},
-	}
-	future, err := s.env.ExecuteActivity(s.acts.BuildManageRosterContext, in)
-	require.NoError(t, err)
-	var got ManageRosterInput
-	require.NoError(t, future.Get(&got))
-
-	assert.Equal(t, "Watch the schedule", got.DailyPrompt.YourNotes)
-	require.Len(t, got.DailyPrompt.YourRoster, 2)
-	assert.Equal(t, "Connor McDavid", got.DailyPrompt.YourRoster[0].Player)
-	assert.Equal(t, RosterSlot("C"), got.DailyPrompt.YourRoster[0].Slot)
-	assert.Equal(t, RosterSlot("C"), got.Roster.Placements[100])
-	assert.Equal(t, RosterSlot("BN"), got.Roster.Placements[200])
-	assert.Equal(t, sqlcdb.PlayerPositionC, got.Positions[100])
-	assert.Equal(t, []int64{300, 400}, got.FreeAgents)
-}
-
-// PendingClaims for the agent flow into the context so the daily turn's
-// ValidateClaimPlayer can reject a duplicate pending claim cleanly.
-func (s *StateActivityTestSuite) TestBuildManageRosterContext_PopulatesPendingClaims() {
-	t := s.T()
-	s.registerContextActivity()
-	s.queries.getSimAgentByID = map[int32]sqlcdb.SimAgent{1: {ID: 1}}
-	s.queries.listFullRosterByAgent = map[int32][]sqlcdb.SimRoster{1: {}}
-	s.queries.listPendingByAgentRows = map[int32][]sqlcdb.SimWaiverClaim{
-		1: {claim(50, 1, 8478550, 0), claim(51, 1, 8480039, 0)},
-	}
-
-	future, err := s.env.ExecuteActivity(s.acts.BuildManageRosterContext, BuildManageRosterContextInput{
-		PoolID: 1, AgentID: 1,
-		SimDate: pgDate(t, "2024-11-15"),
-	})
-	require.NoError(t, err)
-	var got ManageRosterInput
-	require.NoError(t, future.Get(&got))
-
-	assert.ElementsMatch(t, []int64{8478550, 8480039}, got.PendingClaims)
-	require.Len(t, s.queries.listPendingByAgentArgs, 1)
-	assert.Equal(t, int32(1), s.queries.listPendingByAgentArgs[0].AgentID)
-}
-
-func (s *StateActivityTestSuite) TestBuildManageRosterContext_EmptyStandingsBeforeFirstGame() {
-	t := s.T()
-	s.registerContextActivity()
-	// No latest standings date yet — pre-first-game state.
-	s.queries.getSimStandingsLatestDateReturn = pgtype.Date{Valid: false}
-	s.queries.listFullRosterByAgent = map[int32][]sqlcdb.SimRoster{1: {}}
-	s.queries.getSimAgentByID = map[int32]sqlcdb.SimAgent{1: {ID: 1}}
-
-	future, err := s.env.ExecuteActivity(s.acts.BuildManageRosterContext, BuildManageRosterContextInput{
-		PoolID: 1, AgentID: 1,
-		SimDate: pgDate(t, "2024-10-08"),
-	})
-	require.NoError(t, err)
-	var got ManageRosterInput
-	require.NoError(t, future.Get(&got))
-	assert.Empty(t, got.DailyPrompt.Standings, "no standings yet → empty slice, not error")
-}
-
-func (s *StateActivityTestSuite) TestBuildManageRosterContext_StandingsTagIsYou() {
-	t := s.T()
-	s.registerContextActivity()
-	s.queries.getSimAgentByID = map[int32]sqlcdb.SimAgent{1: {ID: 1, TeamName: "Alpha"}, 2: {ID: 2, TeamName: "Bravo"}}
-	s.queries.listAgentsByPoolReturn = []sqlcdb.SimAgent{
-		{ID: 1, TeamName: "Alpha"}, {ID: 2, TeamName: "Bravo"},
-	}
-	s.queries.getSimStandingsLatestDateReturn = pgtype.Date{Valid: true}
-	s.queries.listSimStandingsByDateRows = []sqlcdb.SimStanding{
-		{AgentID: 1, Category: "G", RotoPoints: numericFromIntForTest(t, 5)},
-		{AgentID: 2, Category: "G", RotoPoints: numericFromIntForTest(t, 3)},
-	}
-	s.queries.listFullRosterByAgent = map[int32][]sqlcdb.SimRoster{1: {}, 2: {}}
-
-	future, err := s.env.ExecuteActivity(s.acts.BuildManageRosterContext, BuildManageRosterContextInput{
-		PoolID: 1, AgentID: 1,
-	})
-	require.NoError(t, err)
-	var got ManageRosterInput
-	require.NoError(t, future.Get(&got))
-
-	require.Len(t, got.DailyPrompt.Standings, 2)
-	byAgent := map[string]bool{}
-	for _, r := range got.DailyPrompt.Standings {
-		byAgent[r.Agent] = r.IsYou
-	}
-	assert.True(t, byAgent["Alpha"], "Alpha is the requested agent → is_you=true")
-	assert.False(t, byAgent["Bravo"], "Bravo is not requested → is_you=false")
-}
-
-// numericFromIntForTest is a tiny helper for test fixtures —
-// converts an int to pgtype.Numeric without dragging strconv into
-// the test imports section.
-func numericFromIntForTest(t require.TestingT, v int) pgtype.Numeric {
-	n, err := pgconv.NumericFromFloat(float64(v))
-	require.NoError(t, err)
-	return n
 }

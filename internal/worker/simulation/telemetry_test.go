@@ -40,7 +40,7 @@ func telemetryHeader(spend TurnSpend) TurnHeader {
 // parent sim_agent_turns row's token totals equal the sum of its per-round
 // child rows, because both are derived from the same captures.
 func TestRecordTurnTelemetryAggregationEquality(t *testing.T) {
-	q := &stubSimQueries{}
+	q := &turnRowsFake{}
 
 	captures := []roundCapture{
 		capture(llm.Usage{PromptTokens: 100, CompletionTokens: 20, CacheCreationInputTokens: 5, CacheReadInputTokens: 3}),
@@ -88,7 +88,7 @@ func TestRecordTurnTelemetryAggregationEquality(t *testing.T) {
 // captures. The header carries a spend that differs from what the
 // captures would price to, so a re-pricing path would be caught.
 func TestRecordTurnTelemetryWritesHeaderSpend(t *testing.T) {
-	q := &stubSimQueries{}
+	q := &turnRowsFake{}
 
 	captures := []roundCapture{
 		capture(llm.Usage{PromptTokens: 1_000, CompletionTokens: 500, CacheCreationInputTokens: 100, CacheReadInputTokens: 200}),
@@ -181,7 +181,7 @@ func TestRecordTurnTelemetry_MessagesGatedByRecordMessages(t *testing.T) {
 	toolCalls := []ToolCallCapture{{ToolName: ToolUpdateNotes, Outcome: ToolCallOutcomeAccepted}}
 
 	t.Run("RecordMessages true persists messages", func(t *testing.T) {
-		q := &stubSimQueries{}
+		q := &turnRowsFake{}
 		_, err := RecordTurnTelemetry(context.Background(), q, TurnTelemetry{
 			Header:         header,
 			ToolCalls:      toolCalls,
@@ -196,7 +196,7 @@ func TestRecordTurnTelemetry_MessagesGatedByRecordMessages(t *testing.T) {
 	})
 
 	t.Run("RecordMessages false skips messages but keeps tool calls", func(t *testing.T) {
-		q := &stubSimQueries{}
+		q := &turnRowsFake{}
 		_, err := RecordTurnTelemetry(context.Background(), q, TurnTelemetry{
 			Header:         header,
 			ToolCalls:      toolCalls,
@@ -234,7 +234,7 @@ func TestClampTokenCount(t *testing.T) {
 // out-of-int32-range token count is saturated rather than wrapped to a
 // negative value when written to the token columns.
 func TestRecordTurnTelemetryClampsOverflowingTokens(t *testing.T) {
-	q := &stubSimQueries{}
+	q := &turnRowsFake{}
 
 	captures := []roundCapture{
 		capture(llm.Usage{PromptTokens: math.MaxInt32, CompletionTokens: math.MaxInt32}),

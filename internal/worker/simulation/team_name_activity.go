@@ -94,9 +94,38 @@ const MaxStrategySummaryChars = 30
 // replacement makes a retry LOOK clean but does nothing to prevent a
 // second paid call — that's the probe's job.
 func (a *Activities) PickTeamName(ctx context.Context, in PickTeamNameInput) (PickTeamNameResult, error) {
+	return teamNameActivity{
+		q:      a.Queries,
+		tx:     narrowTx(a.Tx, func(q SimQueries) teamNameQueries { return q }),
+		agents: a,
+	}.PickTeamName(ctx, in)
+}
+
+// teamNameQueries is PickTeamName's query group: the agent row (its
+// team_name is the committed-result marker) and the record_full_messages
+// pre-flight, then the commit — name and summary, pool spend and turn
+// telemetry — or the aborted-turn write.
+type teamNameQueries interface {
+	GetSimAgent(ctx context.Context, id int32) (sqlcdb.SimAgent, error)
+	SetSimAgentTeamNameAndSummary(ctx context.Context, arg sqlcdb.SetSimAgentTeamNameAndSummaryParams) error
+	recordMessagesQueries
+	turnTelemetryQueries
+	abortedTurnQueries
+}
+
+// teamNameActivity runs PickTeamName over its own query group and the
+// worker's agent cache.
+type teamNameActivity struct {
+	q      teamNameQueries
+	tx     Transactor[teamNameQueries]
+	agents agentSource
+}
+
+// PickTeamName is (*Activities).PickTeamName's body.
+func (t teamNameActivity) PickTeamName(ctx context.Context, in PickTeamNameInput) (PickTeamNameResult, error) {
 	logger := activity.GetLogger(ctx)
 
-	committed, err := a.committedTeamName(ctx, in.AgentID)
+	committed, err := t.committedTeamName(ctx, in.AgentID)
 	if err != nil {
 		return PickTeamNameResult{}, err
 	}
@@ -113,26 +142,26 @@ func (a *Activities) PickTeamName(ctx context.Context, in PickTeamNameInput) (Pi
 
 	// Pre-flight the only read the persist path needs, so a DB hiccup
 	// can't fail this activity after the model has been paid.
-	recordMessages, err := a.fetchRecordMessagesFlag(ctx, in.PoolID)
+	recordMessages, err := fetchRecordMessagesFlag(ctx, t.q, in.PoolID)
 	if err != nil {
 		return PickTeamNameResult{}, err
 	}
 
-	turn, err := a.runTeamNameTurn(ctx, in)
+	turn, err := t.runTeamNameTurn(ctx, in)
 	if err != nil {
 		return PickTeamNameResult{}, err
 	}
 	header := teamNameTurnHeader(in, turn)
 	// An activity that ended mid-turn keeps only what the turn billed,
 	// never a name the retry would then adopt.
-	if err := a.abortIfDone(ctx, teamNameTurnTelemetry(header, turn, recordMessages), "team-name turn"); err != nil {
+	if err := abortIfDone(ctx, abortedTurnTx(t.tx), teamNameTurnTelemetry(header, turn, recordMessages), "team-name turn"); err != nil {
 		return PickTeamNameResult{}, err
 	}
 
 	// Persist before branching on the outcome: both failure arms
 	// consumed tokens, so their cost and rejected tool calls have to
 	// reach the DB even though the activity is about to error.
-	if err := a.persistTeamNameTurn(ctx, in, header, turn, recordMessages); err != nil {
+	if err := t.persistTeamNameTurn(ctx, in, header, turn, recordMessages); err != nil {
 		return PickTeamNameResult{}, err
 	}
 
@@ -166,8 +195,8 @@ func (a *Activities) PickTeamName(ctx context.Context, in PickTeamNameInput) (Pi
 // A missing agent row is a real error — the workflow only ever asks for
 // agent IDs it loaded from sim_agents — so it propagates instead of
 // falling through to the LLM.
-func (a *Activities) committedTeamName(ctx context.Context, agentID int32) (string, error) {
-	agent, err := a.Queries.GetSimAgent(ctx, agentID)
+func (t teamNameActivity) committedTeamName(ctx context.Context, agentID int32) (string, error) {
+	agent, err := t.q.GetSimAgent(ctx, agentID)
 	if err != nil {
 		return "", fmt.Errorf("simulation: probe committed team name (agent %d): %w", agentID, err)
 	}
@@ -204,8 +233,8 @@ type teamNameTurn struct {
 // construction); anything the LLM call itself produced — its error
 // included — rides on the teamNameTurn so the caller can persist the
 // attempt first.
-func (a *Activities) runTeamNameTurn(ctx context.Context, in PickTeamNameInput) (teamNameTurn, error) {
-	agent, err := a.getOrCreateAgent(in.PoolID, in.AgentID, in.AgentConfig, in.NumTeams)
+func (t teamNameActivity) runTeamNameTurn(ctx context.Context, in PickTeamNameInput) (teamNameTurn, error) {
+	agent, err := t.agents.getOrCreateAgent(in.PoolID, in.AgentID, in.AgentConfig, in.NumTeams)
 	if err != nil {
 		return teamNameTurn{}, fmt.Errorf("simulation: build agent for team-name pick: %w", err)
 	}
@@ -405,7 +434,7 @@ func teamNameTurnHeader(in PickTeamNameInput, turn teamNameTurn) TurnHeader {
 // cleanly and IncrementSimPoolLLMCost adds it as a no-op, so branching
 // on the amount would only give free/unpriced models a second write
 // path to get wrong.
-func (a *Activities) persistTeamNameTurn(
+func (t teamNameActivity) persistTeamNameTurn(
 	ctx context.Context,
 	in PickTeamNameInput,
 	header TurnHeader,
@@ -417,7 +446,7 @@ func (a *Activities) persistTeamNameTurn(
 		return fmt.Errorf("simulation: encode team-name cost: %w", err)
 	}
 
-	return a.Tx.InTx(ctx, func(q SimQueries) error {
+	return t.tx.InTx(ctx, func(q teamNameQueries) error {
 		// team_name is written ONLY on the ok path: it doubles as this
 		// activity's committed-result marker, so setting it for an
 		// errored turn would make the next retry adopt a name that was

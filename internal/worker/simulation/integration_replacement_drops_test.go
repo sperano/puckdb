@@ -91,7 +91,7 @@ func waiverAvailability(t *testing.T, ctx context.Context, pgPool *pgxpool.Pool,
 		onWaivers = append(onWaivers, r.PlayerID.Int64)
 	}
 	freeAgents, err = q.ListSimFreeAgentCandidates(ctx, sqlcdb.ListSimFreeAgentCandidatesParams{
-		Season: waiverRaceSeason, GameDate: mustPgDate(day), PoolID: poolID, Column4: waiverRaceDays,
+		Season: waiverRaceSeason, GameDate: mustPgDate(day), PoolID: poolID, WaiverDays: waiverRaceDays,
 	})
 	require.NoError(t, err)
 	return onWaivers, freeAgents

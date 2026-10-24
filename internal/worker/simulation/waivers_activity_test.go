@@ -20,16 +20,16 @@ type ProcessWaiversTestSuite struct {
 	suite.Suite
 	testsuite.WorkflowTestSuite
 	env     *testsuite.TestActivityEnvironment
-	queries *stubSimQueries
-	tx      *stubTransactor
-	acts    *Activities
+	queries *waiverQueriesFake
+	tx      *stubTransactor[waiverQueries]
+	acts    waiversActivity
 }
 
 func (s *ProcessWaiversTestSuite) SetupTest() {
 	s.env = s.NewTestActivityEnvironment()
-	s.queries = &stubSimQueries{}
-	s.tx = &stubTransactor{queries: s.queries}
-	s.acts = &Activities{Queries: s.queries, Tx: s.tx}
+	s.queries = newWaiverQueriesFake()
+	s.tx = &stubTransactor[waiverQueries]{queries: s.queries}
+	s.acts = waiversActivity{tx: s.tx}
 	s.env.RegisterActivity(s.acts.ProcessWaivers)
 	s.setBenchLimit(testWaiverBenchLimit)
 }
@@ -117,7 +117,7 @@ func (s *ProcessWaiversTestSuite) TestNoDueClaims_Skips() {
 func (s *ProcessWaiversTestSuite) TestUncontestedClaim_Wins() {
 	t := s.T()
 	in := s.input()
-	s.queries.listClaimsDueRows = []sqlcdb.SimWaiverClaim{
+	s.queries.listClaimsForDuePlayersRows = []sqlcdb.SimWaiverClaim{
 		claim(100, 1, 8478402, 0),
 	}
 	s.setPriorities(
@@ -159,7 +159,7 @@ func (s *ProcessWaiversTestSuite) TestContestedClaim_HighestPriorityWins() {
 	in := s.input()
 	// Three agents claim same player. Agent 2 has priority 1 (highest);
 	// agents 1 and 3 have priority 2 and 3 respectively.
-	s.queries.listClaimsDueRows = []sqlcdb.SimWaiverClaim{
+	s.queries.listClaimsForDuePlayersRows = []sqlcdb.SimWaiverClaim{
 		claim(100, 1, 8478402, 0),
 		claim(101, 2, 8478402, 0),
 		claim(102, 3, 8478402, 0),
@@ -198,7 +198,7 @@ func (s *ProcessWaiversTestSuite) TestContestedClaim_HighestPriorityWins() {
 func (s *ProcessWaiversTestSuite) TestWinnerWithDrop_AppliesDrop() {
 	t := s.T()
 	in := s.input()
-	s.queries.listClaimsDueRows = []sqlcdb.SimWaiverClaim{
+	s.queries.listClaimsForDuePlayersRows = []sqlcdb.SimWaiverClaim{
 		claim(100, 1, 8478402, 8499999), // drop player 8499999
 	}
 	s.setPriorities(priority(1, 1))
@@ -234,7 +234,7 @@ func (s *ProcessWaiversTestSuite) TestPriorityDemotion_WinnerToBottom() {
 	t := s.T()
 	in := s.input()
 	// Agent 1 (priority 1) wins. Expect new order: 2, 3, 1.
-	s.queries.listClaimsDueRows = []sqlcdb.SimWaiverClaim{
+	s.queries.listClaimsForDuePlayersRows = []sqlcdb.SimWaiverClaim{
 		claim(100, 1, 8478402, 0),
 	}
 	s.setPriorities(
@@ -264,7 +264,7 @@ func (s *ProcessWaiversTestSuite) TestPriorityDemotion_MultipleWinners() {
 	// order: 1, 2, 3, 4. Expected new order: 3, 4, 1, 2 (winners go
 	// to tail, but agent 1 stays ahead of agent 2 because they had
 	// higher priority pre-resolution).
-	s.queries.listClaimsDueRows = []sqlcdb.SimWaiverClaim{
+	s.queries.listClaimsForDuePlayersRows = []sqlcdb.SimWaiverClaim{
 		claim(100, 1, 8478402, 0),
 		claim(101, 2, 8480039, 0),
 	}
@@ -293,7 +293,7 @@ func (s *ProcessWaiversTestSuite) TestPriorityDemotion_MultipleWinners() {
 func (s *ProcessWaiversTestSuite) TestMultiplePlayers_IndependentResolution() {
 	t := s.T()
 	in := s.input()
-	s.queries.listClaimsDueRows = []sqlcdb.SimWaiverClaim{
+	s.queries.listClaimsForDuePlayersRows = []sqlcdb.SimWaiverClaim{
 		claim(100, 1, 8478402, 0),
 		claim(101, 2, 8480039, 0),
 		claim(102, 3, 8479318, 0),
@@ -402,7 +402,7 @@ func (s *ProcessWaiversTestSuite) TestListClaimsError_Aborts() {
 
 func (s *ProcessWaiversTestSuite) TestListPriorityError_Aborts() {
 	t := s.T()
-	s.queries.listClaimsDueRows = []sqlcdb.SimWaiverClaim{claim(1, 1, 100, 0)}
+	s.queries.listClaimsForDuePlayersRows = []sqlcdb.SimWaiverClaim{claim(1, 1, 100, 0)}
 	s.queries.listPriorityErr = errors.New("statement timeout")
 
 	_, err := s.env.ExecuteActivity(s.acts.ProcessWaivers, s.input())
@@ -412,7 +412,7 @@ func (s *ProcessWaiversTestSuite) TestListPriorityError_Aborts() {
 
 func (s *ProcessWaiversTestSuite) TestCommitError_Aborts() {
 	t := s.T()
-	s.queries.listClaimsDueRows = []sqlcdb.SimWaiverClaim{claim(1, 1, 100, 0)}
+	s.queries.listClaimsForDuePlayersRows = []sqlcdb.SimWaiverClaim{claim(1, 1, 100, 0)}
 	s.setPriorities(priority(1, 1))
 	s.tx.commitErr = errors.New("deadlock detected")
 
@@ -432,7 +432,7 @@ func (s *ProcessWaiversTestSuite) TestCommitError_Aborts() {
 
 func (s *ProcessWaiversTestSuite) TestListPriority_ReadInsideTransaction() {
 	t := s.T()
-	s.queries.listClaimsDueRows = []sqlcdb.SimWaiverClaim{claim(100, 1, 8478402, 0)}
+	s.queries.listClaimsForDuePlayersRows = []sqlcdb.SimWaiverClaim{claim(100, 1, 8478402, 0)}
 	s.setPriorities(priority(1, 1))
 
 	var argsAtTxEntry int
@@ -455,7 +455,7 @@ func (s *ProcessWaiversTestSuite) TestListPriority_ReadInsideTransaction() {
 // after another attempt committed.
 func (s *ProcessWaiversTestSuite) TestPoolLock_PrecedesClaimAndPriorityReads() {
 	t := s.T()
-	s.queries.listClaimsDueRows = []sqlcdb.SimWaiverClaim{claim(100, 1, 8478402, 0)}
+	s.queries.listClaimsForDuePlayersRows = []sqlcdb.SimWaiverClaim{claim(100, 1, 8478402, 0)}
 	s.setPriorities(priority(1, 1))
 
 	readsBeforeLock := -1
@@ -478,7 +478,7 @@ func (s *ProcessWaiversTestSuite) TestPoolLock_PrecedesClaimAndPriorityReads() {
 func (s *ProcessWaiversTestSuite) TestResolvedAt_CarriesSimDate() {
 	t := s.T()
 	in := s.input()
-	s.queries.listClaimsDueRows = []sqlcdb.SimWaiverClaim{claim(100, 1, 8478402, 0)}
+	s.queries.listClaimsForDuePlayersRows = []sqlcdb.SimWaiverClaim{claim(100, 1, 8478402, 0)}
 	s.setPriorities(priority(1, 1))
 
 	_, err := s.env.ExecuteActivity(s.acts.ProcessWaivers, in)
@@ -491,7 +491,7 @@ func (s *ProcessWaiversTestSuite) TestResolvedAt_CarriesSimDate() {
 // allocates new slices).
 func (s *ProcessWaiversTestSuite) TestInputPriorities_NotMutated() {
 	t := s.T()
-	s.queries.listClaimsDueRows = []sqlcdb.SimWaiverClaim{claim(1, 1, 100, 0)}
+	s.queries.listClaimsForDuePlayersRows = []sqlcdb.SimWaiverClaim{claim(1, 1, 100, 0)}
 	originalPriorities := []sqlcdb.SimWaiverPriority{
 		priority(1, 1), priority(2, 2), priority(3, 3),
 	}

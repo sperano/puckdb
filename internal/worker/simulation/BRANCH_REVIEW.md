@@ -178,9 +178,9 @@ This is the meat of the runtime layer. Read in order:
 
 **File:** [`worker/simulation/activities.go`](https://github.com/sperano/puckdb/blob/feature/simulation/worker/simulation/activities.go)
 
-The `Activities` struct grows with each new activity. Initial shape: just `Queries SimQueries`. By the end of Phase 3.1 it has `Queries`, `Tx Transactor`, `Signaler WorkflowSignaler`, `ProviderConfigs`, `AgentFactory`, a bounded agent cache. The `SimQueries` interface is narrowed (not `*sqlcdb.Queries`) so tests can inject a mock that implements only the methods their activity touches.
+The `Activities` struct grows with each new activity. Initial shape: just `Queries SimQueries`. By the end of Phase 3.1 it has `Queries`, `Tx Transactor[SimQueries]`, `ProviderConfigs`, `AgentFactory`, a bounded agent cache. `SimQueries` is the union of per-activity query groups (`freeAgentQueries`, `collectQueries`, ...); each activity method hands it to an activity type that takes only its own group, so tests inject a fake of that group alone.
 
-`BuildFreeAgentPool` and `UpdateStandings` are the simple read-only activities. Read these two first; they set the testing pattern (`testsuite.TestActivityEnvironment` + `stubSimQueries`).
+`BuildFreeAgentPool` and `UpdateStandings` are the simple read-only activities. Read these two first; they set the testing pattern (`testsuite.TestActivityEnvironment` + a fake of the activity's own query group, `freeAgentQueriesFake` / `standingsQueriesFake`).
 
 ### DraftPickActivity **(focus)**
 
@@ -192,7 +192,7 @@ The `Activities` struct grows with each new activity. Initial shape: just `Queri
 - [`worker/simulation/signaler.go`](https://github.com/sperano/puckdb/blob/feature/simulation/worker/simulation/signaler.go) (~45 lines)
 - [`worker/simulation/draft_activity_test.go`](https://github.com/sperano/puckdb/blob/feature/simulation/worker/simulation/draft_activity_test.go) (~540 lines, 12 test cases)
 
-The first LLM-driven activity, plus the shared infrastructure (`Transactor`, `WorkflowSignaler`, agent cache) both LLM activities use. **What to look at:**
+The first LLM-driven activity, plus the shared infrastructure (`Transactor`, agent cache) both LLM activities use. **What to look at:**
 
 - The 6-step flow: idempotency probe → cost-cap probe → 1 LLM attempt → 1 retry → fallback → atomic commit. Each step has a clear exit condition.
 - `Transactor.InTx` callback receives a `SimQueries` handle scoped to the open `pgx.Tx`. `*sqlcdb.Queries` structurally satisfies `SimQueries` (the interface was assembled from sqlc's signatures), so `sqlcdb.New(tx)` is passed directly without an adapter type.
@@ -371,7 +371,7 @@ If you have:
 - **Half-day** — Read everything top-to-bottom in the order above. The branch is ~17K lines but ≥30% is tests; the prose-to-code ratio is high in the architecturally interesting sections.
 
 Things the review should specifically scrutinize:
-1. The `Transactor` / `WorkflowSignaler` interfaces — clean abstractions or unnecessary indirection?
+1. The `Transactor` interface — clean abstraction or unnecessary indirection?
 2. Cost-cap branch ordering (DB tx first, signal after) — is the retry semantics genuinely correct?
 3. Tool-executor closure mutating working state across rounds — is the deep-copy on entry sufficient?
 4. ContinueAsNew + drain protocol — does the `pendingAdvances` counter survive a CAN cleanly?

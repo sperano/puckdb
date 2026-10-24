@@ -26,15 +26,15 @@ func (c *cancelingLLMClient) Complete(context.Context, *llm.Request) (*llm.Respo
 	return c.resp, nil
 }
 
-// cancelDuringTurn makes every agent built by acts answer resp once and
-// then end the activity context of env.
-func cancelDuringTurn(t *testing.T, env *testsuite.TestActivityEnvironment, acts *Activities, resp *llm.Response) {
+// cancelDuringTurn makes every agent built by agents answer resp once
+// and then end the activity context of env.
+func cancelDuringTurn(t *testing.T, env *testsuite.TestActivityEnvironment, agents *Activities, resp *llm.Response) {
 	t.Helper()
 	activityCtx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 	env.SetWorkerOptions(worker.Options{BackgroundActivityContext: activityCtx})
 	client := &cancelingLLMClient{resp: resp, cancel: cancel}
-	acts.AgentFactory = func(_ int32, cfg AgentConfig, _ map[llm.Provider]llm.ProviderConfig, _ int) (*Agent, error) {
+	agents.AgentFactory = func(_ int32, cfg AgentConfig, _ map[llm.Provider]llm.ProviderConfig, _ int) (*Agent, error) {
 		return fakeAgent(client, cfg), nil
 	}
 }
@@ -42,21 +42,21 @@ func cancelDuringTurn(t *testing.T, env *testsuite.TestActivityEnvironment, acts
 // requireAbortedTurnSpend checks the write recordAbortedTurn makes: one
 // transaction, on a live context, adding the billed round to the pool
 // total and recording an errored turn row priced the same.
-func requireAbortedTurnSpend(t *testing.T, q *stubSimQueries, tx *stubTransactor, wantKind ErrorKind) {
+func requireAbortedTurnSpend[Q any](t *testing.T, pool *poolFake, turns *turnRowsFake, tx *stubTransactor[Q], wantKind ErrorKind) {
 	t.Helper()
 	require.Equal(t, 1, tx.inTxCalled, "one transaction for the aborted turn")
 	assert.NoError(t, tx.ctxErrs[0], "the write must not run on the done activity context")
 	assert.True(t, tx.deadlines[0], "the detached write is still bounded")
 
-	require.Len(t, q.incrementCostCalls, 1)
-	poolCost, err := pgconv.NumericToFloat(q.incrementCostCalls[0].TotalLLMCostUSD)
+	require.Len(t, pool.incrementCostCalls, 1)
+	poolCost, err := pgconv.NumericToFloat(pool.incrementCostCalls[0].TotalLLMCostUSD)
 	require.NoError(t, err)
 	assert.Greater(t, poolCost, 0.0, "the billed round reaches the pool total")
 
-	assert.Empty(t, q.deleteTurnCalls, "an aborted write never deletes a turn")
-	assert.Empty(t, q.insertTurnCalls)
-	require.Len(t, q.insertTurnIfAbsentCalls, 1)
-	turn := q.insertTurnIfAbsentCalls[0]
+	assert.Empty(t, turns.deleteTurnCalls, "an aborted write never deletes a turn")
+	assert.Empty(t, turns.insertTurnCalls)
+	require.Len(t, turns.insertTurnIfAbsentCalls, 1)
+	turn := turns.insertTurnIfAbsentCalls[0]
 	assert.Equal(t, string(TurnStatusErrored), turn.Status)
 	assert.Equal(t, string(wantKind), turn.ErrorKind.String)
 	assert.Equal(t, int32(1), turn.Rounds)
@@ -69,10 +69,10 @@ func requireAbortedTurnSpend(t *testing.T, q *stubSimQueries, tx *stubTransactor
 // the tool calls the executor accepted before the context ended, each at
 // its own (round, sequence): two at one coordinate would violate the
 // sim_agent_tool_calls primary key and roll the spend back.
-func requireAcceptedToolCalls(t *testing.T, q *stubSimQueries, wantTools ...string) {
+func requireAcceptedToolCalls(t *testing.T, turns *turnRowsFake, wantTools ...string) {
 	t.Helper()
-	require.Len(t, q.insertToolCallBatches, 1)
-	calls := q.insertToolCallBatches[0]
+	require.Len(t, turns.insertToolCallBatches, 1)
+	calls := turns.insertToolCallBatches[0]
 	require.Len(t, calls, len(wantTools))
 	for i, call := range calls {
 		assert.Equal(t, wantTools[i], call.ToolName)
@@ -101,13 +101,13 @@ func draftNotesThenPick(playerID int64) *llm.Response {
 // retry drafts from scratch.
 func (s *DraftPickTestSuite) TestAbortedTurn_RecordsSpendWithoutPick() {
 	t := s.T()
-	cancelDuringTurn(t, s.env, s.acts, draftNotesThenPick(8478402))
+	cancelDuringTurn(t, s.env, s.agents, draftNotesThenPick(8478402))
 
 	_, err := s.env.ExecuteActivity(s.acts.DraftPick, s.validInput())
 	require.ErrorContains(t, err, "draft turn aborted")
 
-	requireAbortedTurnSpend(t, s.queries, s.tx, ErrorKindLLMError)
-	requireAcceptedToolCalls(t, s.queries, ToolUpdateNotes, ToolDraftPlayer)
+	requireAbortedTurnSpend(t, s.queries.poolFake, s.queries.turnRowsFake, s.tx, ErrorKindLLMError)
+	requireAcceptedToolCalls(t, s.queries.turnRowsFake, ToolUpdateNotes, ToolDraftPlayer)
 	assert.Empty(t, s.queries.insertRosterCalls)
 	assert.Empty(t, s.queries.insertDraftPickCalls)
 	assert.Empty(t, s.queries.updateAgentNotesCalls)
@@ -125,7 +125,7 @@ func (s *DraftPickTestSuite) TestNoDraftablePlayer_RecordsSpendWithoutPick() {
 	_, err := s.env.ExecuteActivity(s.acts.DraftPick, s.validInput())
 	require.ErrorContains(t, err, "no draftable player")
 
-	requireAbortedTurnSpend(t, s.queries, s.tx, ErrorKindToolUseFailure)
+	requireAbortedTurnSpend(t, s.queries.poolFake, s.queries.turnRowsFake, s.tx, ErrorKindToolUseFailure)
 	assert.Empty(t, s.queries.insertRosterCalls)
 	assert.Empty(t, s.queries.insertDraftPickCalls)
 }
@@ -135,13 +135,13 @@ func (s *DraftPickTestSuite) TestNoDraftablePlayer_RecordsSpendWithoutPick() {
 // unwritten, so the retry runs the day again.
 func (s *ManageRosterTestSuite) TestAbortedTurn_RecordsSpendWithoutActions() {
 	t := s.T()
-	cancelDuringTurn(t, s.env, s.acts, dailyToolResponse(ToolUpdateNotes, `{"notes":"watch the waiver wire"}`, ""))
+	cancelDuringTurn(t, s.env, s.agents, dailyToolResponse(ToolUpdateNotes, `{"notes":"watch the waiver wire"}`, ""))
 
 	_, err := s.env.ExecuteActivity(s.acts.ManageRoster, s.validInput())
 	require.ErrorContains(t, err, "daily turn aborted")
 
-	requireAbortedTurnSpend(t, s.queries, s.tx, ErrorKindLLMError)
-	requireAcceptedToolCalls(t, s.queries, ToolUpdateNotes)
+	requireAbortedTurnSpend(t, s.queries.poolFake, s.queries.turnRowsFake, s.tx, ErrorKindLLMError)
+	requireAcceptedToolCalls(t, s.queries.turnRowsFake, ToolUpdateNotes)
 	assert.Empty(t, s.queries.updateAgentNotesCalls)
 	assert.Empty(t, s.queries.insertDailyTurnDoneCalls, "no marker: the retry must run the day")
 	assert.Empty(t, s.queries.insertPassCalls)
@@ -153,23 +153,22 @@ func (s *ManageRosterTestSuite) TestAbortedTurn_RecordsSpendWithoutActions() {
 // would be adopted by the retry as already chosen.
 func (s *PickTeamNameTestSuite) TestAbortedTurn_RecordsSpendWithoutName() {
 	t := s.T()
-	cancelDuringTurn(t, s.env, s.acts, setTeamNameToolCall("Rink Rats", "balanced"))
+	cancelDuringTurn(t, s.env, s.agents, setTeamNameToolCall("Rink Rats", "balanced"))
 
 	_, err := s.env.ExecuteActivity(s.acts.PickTeamName, s.teamNameInput())
 	require.ErrorContains(t, err, "team-name turn aborted")
 
-	requireAbortedTurnSpend(t, s.queries, s.tx, ErrorKindLLMError)
-	requireAcceptedToolCalls(t, s.queries, ToolSetTeamName)
+	requireAbortedTurnSpend(t, s.queries.poolFake, s.queries.turnRowsFake, s.tx, ErrorKindLLMError)
+	requireAcceptedToolCalls(t, s.queries.turnRowsFake, ToolSetTeamName)
 	assert.Empty(t, s.queries.setTeamNameCalls)
 }
 
 // A turn without a captured round made no model call: nothing to write.
 func TestRecordAbortedTurnSkipsTurnWithoutRounds(t *testing.T) {
-	tx := &stubTransactor{queries: &stubSimQueries{}}
-	acts := &Activities{Tx: tx}
+	tx := &stubTransactor[abortedTurnQueries]{queries: newAbortedTurnFake()}
 	cause := errors.New("build agent")
 
-	err := acts.recordAbortedTurn(context.Background(), TurnTelemetry{}, cause)
+	err := recordAbortedTurn(context.Background(), tx, TurnTelemetry{}, cause)
 
 	assert.Same(t, cause, err)
 	assert.Zero(t, tx.inTxCalled)
@@ -177,12 +176,12 @@ func TestRecordAbortedTurnSkipsTurnWithoutRounds(t *testing.T) {
 
 // A failed write keeps the turn's own error visible next to it.
 func TestRecordAbortedTurnJoinsWriteFailure(t *testing.T) {
-	q := &stubSimQueries{insertTurnIfAbsentErr: errors.New("insert turn")}
-	tx := &stubTransactor{queries: q}
-	acts := &Activities{Tx: tx}
+	q := newAbortedTurnFake()
+	q.insertTurnIfAbsentErr = errors.New("insert turn")
+	tx := &stubTransactor[abortedTurnQueries]{queries: q}
 	cause := errors.New("turn aborted")
 
-	err := acts.recordAbortedTurn(context.Background(), TurnTelemetry{
+	err := recordAbortedTurn(context.Background(), tx, TurnTelemetry{
 		Header:   TurnHeader{PoolID: 1, Phase: TurnPhaseTeamName},
 		Captures: []roundCapture{capture(llm.Usage{PromptTokens: 1})},
 	}, cause)
@@ -195,12 +194,12 @@ func TestRecordAbortedTurnJoinsWriteFailure(t *testing.T) {
 // A late write from a stale attempt, landing after the retry committed
 // its turn, still adds its spend but leaves the retry's turn row alone.
 func TestRecordAbortedTurnKeepsNewerTurn(t *testing.T) {
-	q := &stubSimQueries{turnTaken: true}
-	tx := &stubTransactor{queries: q}
-	acts := &Activities{Tx: tx}
+	q := newAbortedTurnFake()
+	q.turnTaken = true
+	tx := &stubTransactor[abortedTurnQueries]{queries: q}
 	cause := errors.New("turn aborted")
 
-	err := acts.recordAbortedTurn(context.Background(), TurnTelemetry{
+	err := recordAbortedTurn(context.Background(), tx, TurnTelemetry{
 		Header:    TurnHeader{PoolID: 1, Phase: TurnPhaseTeamName, Spend: TurnSpend{CostUsd: 0.25}},
 		Captures:  []roundCapture{capture(llm.Usage{PromptTokens: 1})},
 		ToolCalls: []ToolCallCapture{{ToolName: ToolSetTeamName, Outcome: ToolCallOutcomeAccepted}},

@@ -1,6 +1,7 @@
 package simulation
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"testing"
@@ -23,32 +24,58 @@ import (
 // may cause a SECOND paid call for the same name.
 // ----------------------------------------------------------------------------
 
+// teamNameQueriesFake is PickTeamName's query group: the name and
+// summary write over the shared pool, agent and turn fakes.
+type teamNameQueriesFake struct {
+	*poolFake
+	*agentFake
+	*turnRowsFake
+
+	// SetSimAgentTeamNameAndSummary — PickTeamName's success-path write.
+	// Recorded so tests can assert the name lands (and, on the error
+	// arms, that it does NOT: team_name doubles as the activity's
+	// committed-result marker).
+	setTeamNameCalls []sqlcdb.SetSimAgentTeamNameAndSummaryParams
+	setTeamNameErr   error
+}
+
+var _ teamNameQueries = (*teamNameQueriesFake)(nil)
+
+func newTeamNameQueriesFake() *teamNameQueriesFake {
+	return &teamNameQueriesFake{poolFake: &poolFake{}, agentFake: &agentFake{}, turnRowsFake: &turnRowsFake{}}
+}
+
+func (s *teamNameQueriesFake) SetSimAgentTeamNameAndSummary(_ context.Context, arg sqlcdb.SetSimAgentTeamNameAndSummaryParams) error {
+	s.setTeamNameCalls = append(s.setTeamNameCalls, arg)
+	return s.setTeamNameErr
+}
+
 type PickTeamNameTestSuite struct {
 	suite.Suite
 	testsuite.WorkflowTestSuite
 	env     *testsuite.TestActivityEnvironment
-	queries *stubSimQueries
-	tx      *stubTransactor
+	queries *teamNameQueriesFake
+	tx      *stubTransactor[teamNameQueries]
 	llm     *scriptedLLMClient
-	acts    *Activities
+	agents  *Activities
+	acts    teamNameActivity
 	// builtNumTeams records the pool size of every agent build.
 	builtNumTeams []int
 }
 
 func (s *PickTeamNameTestSuite) SetupTest() {
 	s.env = s.NewTestActivityEnvironment()
-	s.queries = &stubSimQueries{}
-	s.tx = &stubTransactor{queries: s.queries}
+	s.queries = newTeamNameQueriesFake()
+	s.tx = &stubTransactor[teamNameQueries]{queries: s.queries}
 	s.llm = &scriptedLLMClient{t: s.T()}
 	s.builtNumTeams = nil
-	s.acts = &Activities{
-		Queries: s.queries,
-		Tx:      s.tx,
+	s.agents = &Activities{
 		AgentFactory: func(_ int32, cfg AgentConfig, _ map[llm.Provider]llm.ProviderConfig, numTeams int) (*Agent, error) {
 			s.builtNumTeams = append(s.builtNumTeams, numTeams)
 			return fakeAgent(s.llm, cfg), nil
 		},
 	}
+	s.acts = teamNameActivity{q: s.queries, tx: s.tx, agents: s.agents}
 	s.env.RegisterActivity(s.acts.PickTeamName)
 }
 
@@ -140,7 +167,7 @@ func (s *PickTeamNameTestSuite) TestBuildsAgentWithPoolSize() {
 	require.NoError(t, future.Get(&PickTeamNameResult{}))
 	require.Equal(t, []int{teamNameTestNumTeams}, s.builtNumTeams)
 
-	_, err = s.acts.getOrCreateAgent(in.PoolID, in.AgentID, in.AgentConfig, teamNameTestNumTeams)
+	_, err = s.agents.getOrCreateAgent(in.PoolID, in.AgentID, in.AgentConfig, teamNameTestNumTeams)
 	require.NoError(t, err)
 	assert.Equal(t, []int{teamNameTestNumTeams}, s.builtNumTeams,
 		"a draft turn of the same pool size reuses the team-name agent")
@@ -245,7 +272,7 @@ func (s *PickTeamNameTestSuite) TestPartialTurn_AcceptedNameButLoopErrors_DoesNo
 
 // A successful turn whose team_name write fails inside the commit tx must
 // surface the error — mirrors draft_activity_test.go's
-// TestCommit_FailureSurfacesError. Exercises stubSimQueries.setTeamNameErr,
+// TestCommit_FailureSurfacesError. Exercises teamNameQueriesFake.setTeamNameErr,
 // which fails the mid-tx SetSimAgentTeamNameAndSummary write.
 func (s *PickTeamNameTestSuite) TestCommit_TeamNameWriteFailureSurfacesError() {
 	t := s.T()

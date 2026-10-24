@@ -125,6 +125,62 @@ const SkipReasonAlreadyManaged = "already_managed"
 // context ending mid-turn abort. The last still adds the billed rounds
 // to the pool total (see recordAbortedTurn).
 func (a *Activities) ManageRoster(ctx context.Context, in ManageRosterInput) (ManageRosterResult, error) {
+	return manageActivity{
+		q:      a.Queries,
+		tx:     narrowTx(a.Tx, func(q SimQueries) manageRosterQueries { return q }),
+		agents: a,
+	}.ManageRoster(ctx, in)
+}
+
+// manageRosterQueries is ManageRoster's query group: the day-marker
+// idempotency probe and the pre-flights (cost cap,
+// record_full_messages) before the model runs, then the commit — the
+// commit-time claimability recheck, the accepted actions, notes, the
+// no-action marker, the day marker, pool spend and turn telemetry — or
+// the aborted-turn write.
+type manageRosterQueries interface {
+	ExistsSimDailyTurnMarker(ctx context.Context, arg sqlcdb.ExistsSimDailyTurnMarkerParams) (bool, error)
+	UpdateSimAgentNotes(ctx context.Context, arg sqlcdb.UpdateSimAgentNotesParams) error
+	InsertSimTransactionDailyTurnDone(ctx context.Context, arg sqlcdb.InsertSimTransactionDailyTurnDoneParams) error
+	dailyActionQueries
+	dailyMarkerQueries
+	rosterProbeQueries
+	costCapQueries
+	recordMessagesQueries
+	turnTelemetryQueries
+	abortedTurnQueries
+}
+
+// dailyActionQueries applies a daily turn's accepted actions (applyAction)
+// inside its commit.
+type dailyActionQueries interface {
+	InsertSimRoster(ctx context.Context, arg sqlcdb.InsertSimRosterParams) error
+	InsertSimTransactionAdd(ctx context.Context, arg sqlcdb.InsertSimTransactionAddParams) (sqlcdb.SimTransaction, error)
+	InsertSimWaiverClaim(ctx context.Context, arg sqlcdb.InsertSimWaiverClaimParams) (sqlcdb.SimWaiverClaim, error)
+	InsertSimTransactionClaim(ctx context.Context, arg sqlcdb.InsertSimTransactionClaimParams) (sqlcdb.SimTransaction, error)
+	InsertSimTransactionLineupSet(ctx context.Context, arg sqlcdb.InsertSimTransactionLineupSetParams) (sqlcdb.SimTransaction, error)
+	UpdateSimRosterSlot(ctx context.Context, arg sqlcdb.UpdateSimRosterSlotParams) error
+	InsertSimLineupMove(ctx context.Context, arg sqlcdb.InsertSimLineupMoveParams) error
+	rosterDropQueries
+}
+
+// dailyMarkerQueries writes the no-action audit row of a daily turn
+// (writeMarkerRow).
+type dailyMarkerQueries interface {
+	InsertSimTransactionPass(ctx context.Context, arg sqlcdb.InsertSimTransactionPassParams) (sqlcdb.SimTransaction, error)
+	InsertSimTransactionError(ctx context.Context, arg sqlcdb.InsertSimTransactionErrorParams) (sqlcdb.SimTransaction, error)
+}
+
+// manageActivity runs ManageRoster over its own query group and the
+// worker's agent cache.
+type manageActivity struct {
+	q      manageRosterQueries
+	tx     Transactor[manageRosterQueries]
+	agents pausingAgentSource
+}
+
+// ManageRoster is (*Activities).ManageRoster's body.
+func (m manageActivity) ManageRoster(ctx context.Context, in ManageRosterInput) (ManageRosterResult, error) {
 	logger := activity.GetLogger(ctx)
 	logger.Debug("ManageRoster start",
 		"pool_id", in.PoolID,
@@ -132,7 +188,7 @@ func (a *Activities) ManageRoster(ctx context.Context, in ManageRosterInput) (Ma
 		"sim_date", in.SimDate.Time,
 	)
 
-	exists, err := a.Queries.ExistsSimDailyTurnMarker(ctx, sqlcdb.ExistsSimDailyTurnMarkerParams{
+	exists, err := m.q.ExistsSimDailyTurnMarker(ctx, sqlcdb.ExistsSimDailyTurnMarkerParams{
 		PoolID:  in.PoolID,
 		AgentID: in.AgentID,
 		Date:    in.SimDate,
@@ -145,12 +201,12 @@ func (a *Activities) ManageRoster(ctx context.Context, in ManageRosterInput) (Ma
 		return ManageRosterResult{Skipped: true, SkipReason: SkipReasonAlreadyManaged}, nil
 	}
 
-	tripped, currentCostUsd, capUsd, err := a.checkCostCap(ctx, in.PoolID, in.PoolConfig.MaxLLMCostUsdPerPool)
+	tripped, currentCostUsd, capUsd, err := checkCostCap(ctx, m.q, in.PoolID, in.PoolConfig.MaxLLMCostUsdPerPool)
 	if err != nil {
 		return ManageRosterResult{}, err
 	}
 	if tripped {
-		if err := a.pauseForCostCap(ctx, in.PoolID, in.AgentID, in.SimDate, currentCostUsd, capUsd); err != nil {
+		if err := pauseForCostCap(ctx, m.q, m.agents, in.PoolID, in.AgentID, in.SimDate, currentCostUsd, capUsd); err != nil {
 			return ManageRosterResult{}, err
 		}
 		return ManageRosterResult{Skipped: true, SkipReason: SkipReasonCostCapReached}, nil
@@ -159,24 +215,24 @@ func (a *Activities) ManageRoster(ctx context.Context, in ManageRosterInput) (Ma
 	// Read record_full_messages up-front, alongside the idempotency and
 	// cost-cap probes, so every avoidable failure point sits BEFORE the
 	// LLM runs (see fetchRecordMessagesFlag for why).
-	recordMessages, err := a.fetchRecordMessagesFlag(ctx, in.PoolID)
+	recordMessages, err := fetchRecordMessagesFlag(ctx, m.q, in.PoolID)
 	if err != nil {
 		return ManageRosterResult{}, err
 	}
 
-	agent, err := a.getOrCreateAgent(in.PoolID, in.AgentID, in.AgentConfig, in.PoolConfig.NumTeams)
+	agent, err := m.agents.getOrCreateAgent(in.PoolID, in.AgentID, in.AgentConfig, in.PoolConfig.NumTeams)
 	if err != nil {
 		return ManageRosterResult{}, fmt.Errorf("simulation: build agent: %w", err)
 	}
 
-	outcome := a.runDailyAgent(ctx, agent, in)
+	outcome := runDailyAgent(ctx, agent, in)
 	// An activity that ended mid-turn keeps only what the turn billed;
 	// its actions and the day marker stay unwritten for the retry.
-	if err := a.abortIfDone(ctx, dailyTurnTelemetry(in, outcome, recordMessages), "daily turn"); err != nil {
+	if err := abortIfDone(ctx, abortedTurnTx(m.tx), dailyTurnTelemetry(in, outcome, recordMessages), "daily turn"); err != nil {
 		return ManageRosterResult{}, err
 	}
 
-	if err := a.commitDailyTurn(ctx, in, outcome, recordMessages); err != nil {
+	if err := m.commitDailyTurn(ctx, in, outcome, recordMessages); err != nil {
 		return ManageRosterResult{}, err
 	}
 
@@ -252,12 +308,12 @@ type recordedAction struct {
 // (actions, notes, reasoning, cost, telemetry captures, error markers);
 // never returns an error itself — agent-side failures land in
 // dailyOutcome.errored.
-func (a *Activities) runDailyAgent(ctx context.Context, agent *Agent, in ManageRosterInput) dailyOutcome {
+func runDailyAgent(ctx context.Context, agent *Agent, in ManageRosterInput) dailyOutcome {
 	logger := activity.GetLogger(ctx)
 	work := newDailyWorkingState(in)
 
 	var outcome dailyOutcome
-	exec := a.makeDailyToolExecutor(work, &outcome, agent.DailyTools(), agent.Config)
+	exec := makeDailyToolExecutor(work, &outcome, agent.DailyTools(), agent.Config)
 
 	msgs, err := agent.DailyMessages(in.DailyPrompt)
 	if err != nil {
@@ -382,7 +438,7 @@ func newDailyWorkingState(in ManageRosterInput) *dailyWorkingState {
 // puckdb_sim_llm_failures_total with the appropriate reason label
 // — RecoverAction failures = parse_error, validator rejections =
 // tool_use_failure. agentCfg supplies the provider+model labels.
-func (a *Activities) makeDailyToolExecutor(work *dailyWorkingState, outcome *dailyOutcome, tools []llm.Tool, agentCfg AgentConfig) agentloop.ToolExecutor {
+func makeDailyToolExecutor(work *dailyWorkingState, outcome *dailyOutcome, tools []llm.Tool, agentCfg AgentConfig) agentloop.ToolExecutor {
 	failTUF := func() {
 		metrics.IncSimLLMFailure(agentCfg.Provider, agentCfg.Model, metrics.SimFailureToolUseFailure)
 	}
@@ -555,13 +611,13 @@ func applyLineupToWorkingState(work *dailyWorkingState, resolved []ResolvedLineu
 // flag) as a parameter rather than reading it here: the read happens
 // up-front in ManageRoster, before the LLM runs, so a flaky read can't
 // discard a completed, paid-for turn (see ManageRoster).
-func (a *Activities) commitDailyTurn(ctx context.Context, in ManageRosterInput, outcome dailyOutcome, recordMessages bool) error {
+func (m manageActivity) commitDailyTurn(ctx context.Context, in ManageRosterInput, outcome dailyOutcome, recordMessages bool) error {
 	costNum, err := pgconv.NumericFromFloat(outcome.spend.CostUsd)
 	if err != nil {
 		return fmt.Errorf("simulation: encode cost: %w", err)
 	}
 
-	return a.Tx.InTx(ctx, func(q SimQueries) error {
+	return m.tx.InTx(ctx, func(q manageRosterQueries) error {
 		// Commit-time revalidation: an add validated against the morning
 		// FA snapshot can lose to another agent who took the same player
 		// earlier today. Re-check claimability now and drop conflicting
@@ -677,7 +733,7 @@ func dailyTurnHeader(in ManageRosterInput, outcome dailyOutcome) TurnHeader {
 // dailyOutcome.errored is set, otherwise `pass`. Either way, the
 // (pool, agent, date) coordinate gets a row so subsequent retries
 // short-circuit on the idempotency probe.
-func writeMarkerRow(ctx context.Context, q SimQueries, in ManageRosterInput, outcome dailyOutcome) error {
+func writeMarkerRow(ctx context.Context, q dailyMarkerQueries, in ManageRosterInput, outcome dailyOutcome) error {
 	if outcome.errored {
 		_, err := q.InsertSimTransactionError(ctx, sqlcdb.InsertSimTransactionErrorParams{
 			PoolID:      in.PoolID,
@@ -710,7 +766,7 @@ func writeMarkerRow(ctx context.Context, q SimQueries, in ManageRosterInput, out
 //
 // Returns the new sim_transactions.id so commitDailyTurn can backfill
 // the corresponding ToolCallCapture's applied_transaction_id.
-func applyAction(ctx context.Context, q SimQueries, in ManageRosterInput, act recordedAction) (int32, error) {
+func applyAction(ctx context.Context, q dailyActionQueries, in ManageRosterInput, act recordedAction) (int32, error) {
 	switch a := act.args.(type) {
 	case AddPlayerArgs:
 		return applyAdd(ctx, q, in, a.Reason, a)
@@ -730,7 +786,7 @@ func applyAction(ctx context.Context, q SimQueries, in ManageRosterInput, act re
 // insert the new roster row in BN, then the add transaction row. The
 // add row's drop_player_id keeps the add/drop relation for history; the
 // drop row is the waiver marker.
-func applyAdd(ctx context.Context, q SimQueries, in ManageRosterInput, reasoning string, args AddPlayerArgs) (int32, error) {
+func applyAdd(ctx context.Context, q dailyActionQueries, in ManageRosterInput, reasoning string, args AddPlayerArgs) (int32, error) {
 	if args.DropPlayerID != nil {
 		// The drop row carries the add's reasoning: the agent gave one
 		// reason for the swap.
@@ -773,7 +829,7 @@ func applyAdd(ctx context.Context, q SimQueries, in ManageRosterInput, reasoning
 // PoolConfig (PLAN.md > "Waivers"). If WaiverDays is 0 (config
 // default), the claim processes the next day — same-day processing
 // would race with this turn's other adds, so we bump by 1 minimum.
-func applyClaim(ctx context.Context, q SimQueries, in ManageRosterInput, reasoning string, args ClaimPlayerArgs) (int32, error) {
+func applyClaim(ctx context.Context, q dailyActionQueries, in ManageRosterInput, reasoning string, args ClaimPlayerArgs) (int32, error) {
 	processDate := addDays(in.SimDate, claimProcessOffset(in.PoolConfig.WaiverDays))
 	if _, err := q.InsertSimWaiverClaim(ctx, sqlcdb.InsertSimWaiverClaimParams{
 		PoolID:       in.PoolID,
@@ -802,7 +858,7 @@ func applyClaim(ctx context.Context, q SimQueries, in ManageRosterInput, reasoni
 // applyDrop: delete the roster row, log the drop transaction. The
 // drop row puts the player on waivers for waiver_days (see
 // removeAndLogDrop).
-func applyDrop(ctx context.Context, q SimQueries, in ManageRosterInput, reasoning string, args DropPlayerArgs) (int32, error) {
+func applyDrop(ctx context.Context, q dailyActionQueries, in ManageRosterInput, reasoning string, args DropPlayerArgs) (int32, error) {
 	return removeAndLogDrop(ctx, q, rosterDrop{
 		PoolID: in.PoolID, AgentID: in.AgentID, Date: in.SimDate,
 		PlayerID: args.PlayerID, Reasoning: reasoning,
@@ -816,7 +872,7 @@ func applyDrop(ctx context.Context, q SimQueries, in ManageRosterInput, reasonin
 //
 // Sequence is the move's index in the resolved list — preserves the
 // agent's intended ordering for displaced-player tracing.
-func applyLineupSet(ctx context.Context, q SimQueries, in ManageRosterInput, reasoning string, resolved []ResolvedLineupMove) (int32, error) {
+func applyLineupSet(ctx context.Context, q dailyActionQueries, in ManageRosterInput, reasoning string, resolved []ResolvedLineupMove) (int32, error) {
 	parent, err := q.InsertSimTransactionLineupSet(ctx, sqlcdb.InsertSimTransactionLineupSetParams{
 		PoolID:    in.PoolID,
 		AgentID:   in.AgentID,
