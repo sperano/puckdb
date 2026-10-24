@@ -31,8 +31,9 @@ const (
 
 // draftOverridesStore adds overrides to the draft leagues fixture: an
 // active one of the fixture league, an active one covering every league,
-// an expired and a reset one, and an active one of another league. Each is
-// an hour newer than the next, in that order.
+// an expired and a reset one, created 1, 2, 3 and 4 hours ago in that order
+// and listed out of that order, and an active one of another league,
+// created now.
 func draftOverridesStore(t *testing.T) *draftfixtures.Store {
 	t.Helper()
 	store, _ := draftLeaguesStore(t)
