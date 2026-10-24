@@ -2004,6 +2004,159 @@ func (q *Queries) ListSimFreeAgentCandidates(ctx context.Context, arg ListSimFre
 	return items, nil
 }
 
+const listSimFreeAgentGoalieStats = `-- name: ListSimFreeAgentGoalieStats :many
+SELECT
+    s.player_id,
+    COALESCE(SUM(s.goals_against), 0)::INT AS season_ga,
+    COALESCE(SUM(s.toi_seconds), 0)::INT AS season_toi,
+    COUNT(*) FILTER (WHERE s.decision = 'W')::INT AS season_wins,
+    COALESCE(SUM(s.goals_against) FILTER (WHERE g.game_date >= $1::DATE - INTERVAL '7 days'), 0)::INT AS recent_ga,
+    COALESCE(SUM(s.toi_seconds) FILTER (WHERE g.game_date >= $1::DATE - INTERVAL '7 days'), 0)::INT AS recent_toi,
+    COUNT(*) FILTER (WHERE s.decision = 'W' AND g.game_date >= $1::DATE - INTERVAL '7 days')::INT AS recent_wins
+FROM game_goalie_stats s
+JOIN games g ON s.game_id = g.id
+WHERE s.player_id = ANY($2::bigint[])
+  AND g.season = $3
+  AND g.game_type = 'regular_season'
+  AND g.game_date < $1::DATE
+GROUP BY s.player_id
+`
+
+type ListSimFreeAgentGoalieStatsParams struct {
+	GameDate  pgtype.Date `json:"game_date"`
+	PlayerIds []int64     `json:"player_ids"`
+	Season    int32       `json:"season"`
+}
+
+type ListSimFreeAgentGoalieStatsRow struct {
+	PlayerID   int64 `json:"player_id"`
+	SeasonGa   int32 `json:"season_ga"`
+	SeasonToi  int32 `json:"season_toi"`
+	SeasonWins int32 `json:"season_wins"`
+	RecentGa   int32 `json:"recent_ga"`
+	RecentToi  int32 `json:"recent_toi"`
+	RecentWins int32 `json:"recent_wins"`
+}
+
+// ListSimFreeAgentGoalieStats aggregates each free-agent goalie's
+// season-to-date and last-7-day W/GA/TOI components in one pass. Same
+// pre-sim_date information horizon as ListSimFreeAgentSkaterStats; GAA is
+// derived from the GA and TOI components by the caller.
+func (q *Queries) ListSimFreeAgentGoalieStats(ctx context.Context, arg ListSimFreeAgentGoalieStatsParams) ([]ListSimFreeAgentGoalieStatsRow, error) {
+	rows, err := q.db.Query(ctx, listSimFreeAgentGoalieStats, arg.GameDate, arg.PlayerIds, arg.Season)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListSimFreeAgentGoalieStatsRow{}
+	for rows.Next() {
+		var i ListSimFreeAgentGoalieStatsRow
+		if err := rows.Scan(
+			&i.PlayerID,
+			&i.SeasonGa,
+			&i.SeasonToi,
+			&i.SeasonWins,
+			&i.RecentGa,
+			&i.RecentToi,
+			&i.RecentWins,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listSimFreeAgentSkaterStats = `-- name: ListSimFreeAgentSkaterStats :many
+SELECT
+    s.player_id,
+    COALESCE(SUM(s.goals), 0)::INT AS season_goals,
+    COALESCE(SUM(s.assists), 0)::INT AS season_assists,
+    COALESCE(SUM(s.plus_minus), 0)::INT AS season_plus_minus,
+    COALESCE(SUM(s.penalty_minutes), 0)::INT AS season_pim,
+    COALESCE(SUM(s.power_play_points), 0)::INT AS season_ppp,
+    COALESCE(SUM(s.shots_on_goal), 0)::INT AS season_sog,
+    COALESCE(SUM(s.goals) FILTER (WHERE g.game_date >= $1::DATE - INTERVAL '7 days'), 0)::INT AS recent_goals,
+    COALESCE(SUM(s.assists) FILTER (WHERE g.game_date >= $1::DATE - INTERVAL '7 days'), 0)::INT AS recent_assists,
+    COALESCE(SUM(s.plus_minus) FILTER (WHERE g.game_date >= $1::DATE - INTERVAL '7 days'), 0)::INT AS recent_plus_minus,
+    COALESCE(SUM(s.penalty_minutes) FILTER (WHERE g.game_date >= $1::DATE - INTERVAL '7 days'), 0)::INT AS recent_pim,
+    COALESCE(SUM(s.power_play_points) FILTER (WHERE g.game_date >= $1::DATE - INTERVAL '7 days'), 0)::INT AS recent_ppp,
+    COALESCE(SUM(s.shots_on_goal) FILTER (WHERE g.game_date >= $1::DATE - INTERVAL '7 days'), 0)::INT AS recent_sog
+FROM game_skater_stats s
+JOIN games g ON s.game_id = g.id
+WHERE s.player_id = ANY($2::bigint[])
+  AND g.season = $3
+  AND g.game_type = 'regular_season'
+  AND g.game_date < $1::DATE
+GROUP BY s.player_id
+`
+
+type ListSimFreeAgentSkaterStatsParams struct {
+	GameDate  pgtype.Date `json:"game_date"`
+	PlayerIds []int64     `json:"player_ids"`
+	Season    int32       `json:"season"`
+}
+
+type ListSimFreeAgentSkaterStatsRow struct {
+	PlayerID        int64 `json:"player_id"`
+	SeasonGoals     int32 `json:"season_goals"`
+	SeasonAssists   int32 `json:"season_assists"`
+	SeasonPlusMinus int32 `json:"season_plus_minus"`
+	SeasonPim       int32 `json:"season_pim"`
+	SeasonPpp       int32 `json:"season_ppp"`
+	SeasonSog       int32 `json:"season_sog"`
+	RecentGoals     int32 `json:"recent_goals"`
+	RecentAssists   int32 `json:"recent_assists"`
+	RecentPlusMinus int32 `json:"recent_plus_minus"`
+	RecentPim       int32 `json:"recent_pim"`
+	RecentPpp       int32 `json:"recent_ppp"`
+	RecentSog       int32 `json:"recent_sog"`
+}
+
+// ListSimFreeAgentSkaterStats aggregates each free-agent skater's
+// season-to-date and last-7-day counting categories in one pass. The
+// information horizon is everything BEFORE sim_date: the daily turn runs
+// before CollectDayStats scores today's games, so today's boxscores must
+// not leak into the agent's decision (PLAN.md > "Draft Ranking for
+// Available Players" no-future-info rationale). "Last 7 days" is the
+// 7-day window ending the day before sim_date.
+func (q *Queries) ListSimFreeAgentSkaterStats(ctx context.Context, arg ListSimFreeAgentSkaterStatsParams) ([]ListSimFreeAgentSkaterStatsRow, error) {
+	rows, err := q.db.Query(ctx, listSimFreeAgentSkaterStats, arg.GameDate, arg.PlayerIds, arg.Season)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListSimFreeAgentSkaterStatsRow{}
+	for rows.Next() {
+		var i ListSimFreeAgentSkaterStatsRow
+		if err := rows.Scan(
+			&i.PlayerID,
+			&i.SeasonGoals,
+			&i.SeasonAssists,
+			&i.SeasonPlusMinus,
+			&i.SeasonPim,
+			&i.SeasonPpp,
+			&i.SeasonSog,
+			&i.RecentGoals,
+			&i.RecentAssists,
+			&i.RecentPlusMinus,
+			&i.RecentPim,
+			&i.RecentPpp,
+			&i.RecentSog,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listSimLineupMovesByTransaction = `-- name: ListSimLineupMovesByTransaction :many
 SELECT transaction_id, sequence, player_id, from_slot, to_slot, displaced_player_id
 FROM sim_lineup_moves

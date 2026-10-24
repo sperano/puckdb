@@ -20,25 +20,25 @@ import (
 //
 // The workflow goroutine can't read Postgres directly (deterministic-
 // replay constraint), so the daily prompt context — standings, roster,
-// agent notes — gets pre-fetched here and returned in one activity
-// payload. ManageRosterActivity then receives it ready-to-use.
+// free agents, waiver pool, agent notes — gets pre-fetched here and
+// returned in one activity payload. ManageRosterActivity then receives
+// it ready-to-use.
 //
-// V1 minimal context: the DailyPromptInput's expensive optional
-// blocks (TodaysSchedule, TopFreeAgents, DailyAnalysis) are left
-// empty. Rationale:
+// Populated blocks:
+//   - standings, your_roster, your_notes, your_pending_claims — the
+//     load-bearing pieces.
+//   - top_free_agents — the ranked free-agent pool (top skaters/goalies
+//     by recent composite, each carrying a valid player id for
+//     add_player).
+//   - on_waivers — the players currently in their waiver-clearing
+//     window, each carrying a valid player id for claim_player.
 //
-//   - TodaysSchedule needs ListSimDayGames + GetTeamGoalsPerGame
-//     joins with team-name resolution. Useful for the LLM but not
-//     load-bearing — the model can play without knowing which teams
-//     have games today (it will just lean conservative on lineup).
-//   - TopFreeAgents needs the recent-7-day ranking pipeline; the
-//     workflow already passes the FreeAgents []int64 list, which is
-//     enough for the validator's "is this a free agent?" check.
-//   - DailyAnalysis is a derived summary the LLM could also compute
-//     itself from the standings + roster blocks.
-//
-// All three are V2 polish. The agent's notes, current roster, and
-// latest standings — the load-bearing pieces — ARE populated.
+// Still empty (documented V2 follow-ups):
+//   - todays_schedule — needs ListSimDayGames + GetTeamGoalsPerGame
+//     with team-abbrev resolution (see CHECKLIST.md "Known V2
+//     Follow-ups").
+//   - your_analysis — a derived summary the LLM can also compute itself
+//     from the standings + roster blocks.
 // ============================================================================
 
 // BuildManageRosterContextInput is the workflow's request.
@@ -49,7 +49,6 @@ type BuildManageRosterContextInput struct {
 	PoolConfig  PoolConfig  `json:"pool_config"`
 	AgentConfig AgentConfig `json:"agent_config"`
 	FreeAgents  []int64     `json:"free_agents"`
-	OnWaivers   []int64     `json:"on_waivers"`
 }
 
 // BuildManageRosterContext returns a fully-populated
@@ -61,8 +60,8 @@ func (a *Activities) BuildManageRosterContext(ctx context.Context, in BuildManag
 
 // rosterContextQueries is BuildManageRosterContext's query group: the
 // agent row (notes), its roster and the players behind it, the latest
-// standings with the pool's agent names, the waiver pool and the
-// agent's own pending claims.
+// standings with the pool's agent names, the waiver pool, the free-
+// agent ranking stats and the agent's own pending claims.
 type rosterContextQueries interface {
 	GetSimAgent(ctx context.Context, id int32) (sqlcdb.SimAgent, error)
 	ListSimAgentsByPool(ctx context.Context, poolID int32) ([]sqlcdb.SimAgent, error)
@@ -70,6 +69,8 @@ type rosterContextQueries interface {
 	GetSimStandingsLatestDate(ctx context.Context, poolID int32) (pgtype.Date, error)
 	ListSimStandingsByDate(ctx context.Context, arg sqlcdb.ListSimStandingsByDateParams) ([]sqlcdb.SimStanding, error)
 	ListSimPlayersOnWaivers(ctx context.Context, arg sqlcdb.ListSimPlayersOnWaiversParams) ([]sqlcdb.ListSimPlayersOnWaiversRow, error)
+	ListSimFreeAgentSkaterStats(ctx context.Context, arg sqlcdb.ListSimFreeAgentSkaterStatsParams) ([]sqlcdb.ListSimFreeAgentSkaterStatsRow, error)
+	ListSimFreeAgentGoalieStats(ctx context.Context, arg sqlcdb.ListSimFreeAgentGoalieStatsParams) ([]sqlcdb.ListSimFreeAgentGoalieStatsRow, error)
 	// ListSimWaiverClaimsPendingByAgent feeds the daily working state so
 	// a duplicate pending claim by the same agent is rejected as a clean
 	// action error instead of violating the pending-one-per-agent-player
@@ -102,14 +103,25 @@ func (b rosterContextActivity) BuildManageRosterContext(ctx context.Context, in 
 		return ManageRosterInput{}, err
 	}
 
+	// Players currently in their waiver-clearing window — populated from
+	// ListSimPlayersOnWaivers so the agent's claim_player tool calls
+	// validate against a real waiver pool, and rendered into the daily
+	// prompt so the agent has real ids to claim. Without this,
+	// ValidateClaimPlayer rejects every claim with "player not on
+	// waivers" regardless of state.
+	onWaivers, waiverRows, err := b.loadOnWaivers(ctx, in.PoolID, in.SimDate, in.PoolConfig.WaiverDays)
+	if err != nil {
+		return ManageRosterInput{}, fmt.Errorf("simulation: load on-waivers: %w", err)
+	}
+
 	// Extend the position map to cover free-agent and waiver-pool players.
-	// An agent may add one of these players in round 1 and then try to slot
-	// them in round 2 of the same turn; without their position in the working
-	// state the set_lineup validator would error with "player not in catalog".
+	// An agent may add a free agent in round 1 and then try to slot them in
+	// round 2 of the same turn; without their position in the working state
+	// the set_lineup validator would error with "player not in catalog".
 	if err := b.loadCandidatePositions(ctx, in.FreeAgents, positions); err != nil {
 		return ManageRosterInput{}, err
 	}
-	if err := b.loadCandidatePositions(ctx, in.OnWaivers, positions); err != nil {
+	if err := b.loadCandidatePositions(ctx, onWaivers, positions); err != nil {
 		return ManageRosterInput{}, err
 	}
 
@@ -118,14 +130,9 @@ func (b rosterContextActivity) BuildManageRosterContext(ctx context.Context, in 
 		return ManageRosterInput{}, err
 	}
 
-	// Players currently in their waiver-clearing window —
-	// populated from ListSimPlayersOnWaivers so the agent's
-	// claim_player tool calls validate against a real waiver pool.
-	// Without this, ValidateClaimPlayer rejects every claim with
-	// "player not on waivers" regardless of state.
-	onWaivers, err := b.loadOnWaivers(ctx, in.PoolID, in.SimDate, in.PoolConfig.WaiverDays)
+	topFreeAgents, err := b.loadTopFreeAgents(ctx, in)
 	if err != nil {
-		return ManageRosterInput{}, fmt.Errorf("simulation: load on-waivers: %w", err)
+		return ManageRosterInput{}, fmt.Errorf("simulation: load top free agents: %w", err)
 	}
 
 	// Players this agent already has an open claim on — feeds both the
@@ -143,7 +150,8 @@ func (b rosterContextActivity) BuildManageRosterContext(ctx context.Context, in 
 		Standings:      standingsRows,
 		YourRoster:     rosterRows,
 		TodaysSchedule: nil, // V2 polish — see file header
-		TopFreeAgents:  TopFreeAgents{},
+		TopFreeAgents:  topFreeAgents,
+		OnWaivers:      waiverRows,
 		PendingClaims:  pendingClaimRows,
 		YourNotes:      notes,
 		YourAnalysis:   DailyAnalysis{},
@@ -218,29 +226,215 @@ func (b rosterContextActivity) loadAgentPendingClaims(ctx context.Context, poolI
 }
 
 // loadOnWaivers queries the players whose waiver-clearing window
-// covers `simDate`. The list goes into ManageRosterInput.OnWaivers
-// so ValidateClaimPlayer recognizes a claimed player as actually
-// being on waivers.
+// covers `simDate`. It returns the player ids for the working state
+// (ManageRosterInput.OnWaivers, so ValidateClaimPlayer recognizes a
+// claimed player as actually being on waivers) and the named rows for
+// the daily prompt's on_waivers block, so the agent can file a claim
+// against a real id rather than inventing one.
 //
 // Empty list (no recent drops) is the common path — early-season
 // pools have nothing on waivers. Errors propagate; an empty result
 // is not an error.
-func (b rosterContextActivity) loadOnWaivers(ctx context.Context, poolID int32, simDate pgtype.Date, waiverDays int) ([]int64, error) {
+func (b rosterContextActivity) loadOnWaivers(ctx context.Context, poolID int32, simDate pgtype.Date, waiverDays int) ([]int64, []WaiverPlayerRow, error) {
 	rows, err := b.q.ListSimPlayersOnWaivers(ctx, sqlcdb.ListSimPlayersOnWaiversParams{
 		PoolID:     poolID,
 		SimDate:    simDate,
 		WaiverDays: int32(waiverDays),
 	})
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	out := make([]int64, 0, len(rows))
+
+	ids := make([]int64, 0, len(rows))
+	clearsOn := make(map[int64]pgtype.Date, len(rows))
 	for _, r := range rows {
-		if r.PlayerID.Valid {
-			out = append(out, r.PlayerID.Int64)
+		if !r.PlayerID.Valid {
+			continue
+		}
+		ids = append(ids, r.PlayerID.Int64)
+		clearsOn[r.PlayerID.Int64] = r.ClearsOn
+	}
+	players, err := loadPlayersByIDs(ctx, b.q, ids)
+	if err != nil {
+		return nil, nil, fmt.Errorf("simulation: batch load on-waivers players: %w", err)
+	}
+
+	promptRows := make([]WaiverPlayerRow, 0, len(ids))
+	for _, id := range ids {
+		p, ok := players[id]
+		if !ok {
+			return nil, nil, fmt.Errorf("simulation: get on-waivers player %d: not found", id)
+		}
+		promptRows = append(promptRows, WaiverPlayerRow{
+			Player:      p.FirstName + " " + p.LastName,
+			ID:          id,
+			NHLPosition: pgconv.FormatPlayerPosition(p.Position),
+			ClearsOn:    pgconv.FormatDate(clearsOn[id]),
+		})
+	}
+	return ids, promptRows, nil
+}
+
+// loadTopFreeAgents builds the daily prompt's top_free_agents block:
+// the free-agent pool split into skaters and goalies, each with their
+// last-7-day and season-to-date stats, ranked through the pure
+// RankFreeAgentSkaters / RankFreeAgentGoalies helpers.
+//
+// The returned candidates carry the player id the add_player tool
+// validates against, so the agent is shown exactly the ids it may act
+// on. F / NULL-position players are skipped — they cannot be slotted
+// into any active slot, so presenting them as pickups would mislead.
+func (b rosterContextActivity) loadTopFreeAgents(ctx context.Context, in BuildManageRosterContextInput) (TopFreeAgents, error) {
+	if len(in.FreeAgents) == 0 {
+		return TopFreeAgents{}, nil
+	}
+	players, err := loadPlayersByIDs(ctx, b.q, in.FreeAgents)
+	if err != nil {
+		return TopFreeAgents{}, fmt.Errorf("simulation: batch load free agent players: %w", err)
+	}
+
+	skaterIDs, goalieIDs := partitionFreeAgentIDs(in.FreeAgents, players)
+
+	skaters, err := b.loadFreeAgentSkaters(ctx, in, skaterIDs, players)
+	if err != nil {
+		return TopFreeAgents{}, err
+	}
+	goalies, err := b.loadFreeAgentGoalies(ctx, in, goalieIDs, players)
+	if err != nil {
+		return TopFreeAgents{}, err
+	}
+
+	return TopFreeAgents{
+		Skaters: RankFreeAgentSkaters(skaters, MaxTopFreeAgentSkaters),
+		Goalies: RankFreeAgentGoalies(goalies, MaxTopFreeAgentGoalies),
+	}, nil
+}
+
+// partitionFreeAgentIDs splits the free-agent pool into skaters and
+// goalies by players.position. Players with no row, an F position, or
+// a NULL position are dropped entirely — they cannot be slotted into
+// an active slot, so showing them as pickups would mislead the agent.
+func partitionFreeAgentIDs(ids []int64, players map[int64]sqlcdb.Player) (skaters, goalies []int64) {
+	for _, id := range ids {
+		p, ok := players[id]
+		if !ok {
+			continue // FA pool id with no players row — data gap
+		}
+		if isGoalie(p) {
+			goalies = append(goalies, id)
+			continue
+		}
+		if _, ok := skaterDraftPosition(p); ok {
+			skaters = append(skaters, id)
 		}
 	}
+	return skaters, goalies
+}
+
+// loadFreeAgentSkaters builds one FreeAgentSkaterCandidate per FA
+// skater with a stats row. Iteration order of the stats rows doesn't
+// matter: RankFreeAgentSkaters re-sorts by composite then id, so the
+// final output is deterministic regardless of the query's return order.
+func (b rosterContextActivity) loadFreeAgentSkaters(
+	ctx context.Context,
+	in BuildManageRosterContextInput,
+	ids []int64,
+	players map[int64]sqlcdb.Player,
+) ([]FreeAgentSkaterCandidate, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	rows, err := b.q.ListSimFreeAgentSkaterStats(ctx, sqlcdb.ListSimFreeAgentSkaterStatsParams{
+		PlayerIds: ids,
+		Season:    int32(in.PoolConfig.Season),
+		GameDate:  in.SimDate,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("simulation: list free agent skater stats: %w", err)
+	}
+	out := make([]FreeAgentSkaterCandidate, 0, len(rows))
+	for _, r := range rows {
+		p, ok := players[r.PlayerID]
+		if !ok {
+			continue // stats row with no players row — data gap
+		}
+		out = append(out, FreeAgentSkaterCandidate{
+			Player:      p.FirstName + " " + p.LastName,
+			ID:          r.PlayerID,
+			NHLPosition: pgconv.FormatPlayerPosition(p.Position),
+			Last7: SkaterStats{
+				G:         int(r.RecentGoals),
+				A:         int(r.RecentAssists),
+				PlusMinus: int(r.RecentPlusMinus),
+				PIM:       int(r.RecentPim),
+				PPP:       int(r.RecentPpp),
+				SOG:       int(r.RecentSog),
+			},
+			Season: SkaterStats{
+				G:         int(r.SeasonGoals),
+				A:         int(r.SeasonAssists),
+				PlusMinus: int(r.SeasonPlusMinus),
+				PIM:       int(r.SeasonPim),
+				PPP:       int(r.SeasonPpp),
+				SOG:       int(r.SeasonSog),
+			},
+		})
+	}
 	return out, nil
+}
+
+// loadFreeAgentGoalies builds one FreeAgentGoalieCandidate per FA
+// goalie with a stats row, deriving GAA from the stored GA/TOI
+// components.
+func (b rosterContextActivity) loadFreeAgentGoalies(
+	ctx context.Context,
+	in BuildManageRosterContextInput,
+	ids []int64,
+	players map[int64]sqlcdb.Player,
+) ([]FreeAgentGoalieCandidate, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	rows, err := b.q.ListSimFreeAgentGoalieStats(ctx, sqlcdb.ListSimFreeAgentGoalieStatsParams{
+		PlayerIds: ids,
+		Season:    int32(in.PoolConfig.Season),
+		GameDate:  in.SimDate,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("simulation: list free agent goalie stats: %w", err)
+	}
+	out := make([]FreeAgentGoalieCandidate, 0, len(rows))
+	for _, r := range rows {
+		p, ok := players[r.PlayerID]
+		if !ok {
+			continue // stats row with no players row — data gap
+		}
+		out = append(out, FreeAgentGoalieCandidate{
+			Player:      p.FirstName + " " + p.LastName,
+			ID:          r.PlayerID,
+			NHLPosition: pgconv.FormatPlayerPosition(p.Position),
+			Last7: GoalieStats{
+				W:   int(r.RecentWins),
+				GA:  int(r.RecentGa),
+				GAA: goalsAgainstAverage(int(r.RecentGa), int(r.RecentToi)),
+			},
+			Season: GoalieStats{
+				W:   int(r.SeasonWins),
+				GA:  int(r.SeasonGa),
+				GAA: goalsAgainstAverage(int(r.SeasonGa), int(r.SeasonToi)),
+			},
+		})
+	}
+	return out, nil
+}
+
+// goalsAgainstAverage returns GAA = GA / TOI * 3600, or 0 when the
+// goalie has no recorded ice time (no games in the window).
+func goalsAgainstAverage(ga, toiSeconds int) float64 {
+	if toiSeconds <= 0 {
+		return 0
+	}
+	return float64(ga) / float64(toiSeconds) * 3600
 }
 
 // loadAgentNotes returns sim_agents.notes for the agent.

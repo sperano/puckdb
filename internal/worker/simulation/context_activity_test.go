@@ -38,6 +38,14 @@ type rosterContextQueriesFake struct {
 	listPlayersOnWaiversReturn []sqlcdb.ListSimPlayersOnWaiversRow
 	listPlayersOnWaiversErr    error
 
+	// ListSimFreeAgentSkaterStats / ListSimFreeAgentGoalieStats
+	listFreeAgentSkaterStatsArgs   []sqlcdb.ListSimFreeAgentSkaterStatsParams
+	listFreeAgentSkaterStatsReturn []sqlcdb.ListSimFreeAgentSkaterStatsRow
+	listFreeAgentSkaterStatsErr    error
+	listFreeAgentGoalieStatsArgs   []sqlcdb.ListSimFreeAgentGoalieStatsParams
+	listFreeAgentGoalieStatsReturn []sqlcdb.ListSimFreeAgentGoalieStatsRow
+	listFreeAgentGoalieStatsErr    error
+
 	// ListSimWaiverClaimsPendingByAgent — agent_id → pending claims.
 	listPendingByAgentArgs []sqlcdb.ListSimWaiverClaimsPendingByAgentParams
 	listPendingByAgentRows map[int32][]sqlcdb.SimWaiverClaim
@@ -70,6 +78,22 @@ func (s *rosterContextQueriesFake) ListSimPlayersOnWaivers(_ context.Context, ar
 		return nil, s.listPlayersOnWaiversErr
 	}
 	return s.listPlayersOnWaiversReturn, nil
+}
+
+func (s *rosterContextQueriesFake) ListSimFreeAgentSkaterStats(_ context.Context, arg sqlcdb.ListSimFreeAgentSkaterStatsParams) ([]sqlcdb.ListSimFreeAgentSkaterStatsRow, error) {
+	s.listFreeAgentSkaterStatsArgs = append(s.listFreeAgentSkaterStatsArgs, arg)
+	if s.listFreeAgentSkaterStatsErr != nil {
+		return nil, s.listFreeAgentSkaterStatsErr
+	}
+	return s.listFreeAgentSkaterStatsReturn, nil
+}
+
+func (s *rosterContextQueriesFake) ListSimFreeAgentGoalieStats(_ context.Context, arg sqlcdb.ListSimFreeAgentGoalieStatsParams) ([]sqlcdb.ListSimFreeAgentGoalieStatsRow, error) {
+	s.listFreeAgentGoalieStatsArgs = append(s.listFreeAgentGoalieStatsArgs, arg)
+	if s.listFreeAgentGoalieStatsErr != nil {
+		return nil, s.listFreeAgentGoalieStatsErr
+	}
+	return s.listFreeAgentGoalieStatsReturn, nil
 }
 
 func (s *rosterContextQueriesFake) ListSimWaiverClaimsPendingByAgent(_ context.Context, arg sqlcdb.ListSimWaiverClaimsPendingByAgentParams) ([]sqlcdb.SimWaiverClaim, error) {
@@ -400,6 +424,158 @@ func (s *BuildContextTestSuite) TestContext_PendingClaimsInDailyPrompt() {
 	assert.Equal(t, "Dropped Goalie", claim.DropPlayer)
 	assert.Equal(t, []int64{100}, got.PendingClaims,
 		"working-state pending set must stay populated alongside the prompt rows")
+}
+
+// Finding SIM-U3 — the daily prompt must surface ranked free agents with
+// the exact ids add_player validates against, so the agent is shown the ids
+// it may act on rather than having to invent one.
+func (s *BuildContextTestSuite) TestContext_TopFreeAgentsRankedCarryIDs() {
+	t := s.T()
+	skaterIDs := []int64{100, 200, 300}
+	goalieIDs := []int64{400}
+	in := s.minimalInput()
+	in.FreeAgents = append(append([]int64(nil), skaterIDs...), goalieIDs...)
+
+	s.queries.getPlayerByID = map[int64]sqlcdb.Player{
+		100: {FirstName: "Hot", LastName: "Skaters", Position: sqlcdb.NullPlayerPosition{PlayerPosition: sqlcdb.PlayerPositionLW, Valid: true}},
+		200: {FirstName: "Cold", LastName: "Skater", Position: sqlcdb.NullPlayerPosition{PlayerPosition: sqlcdb.PlayerPositionD, Valid: true}},
+		300: {FirstName: "Warm", LastName: "Skater", Position: sqlcdb.NullPlayerPosition{PlayerPosition: sqlcdb.PlayerPositionC, Valid: true}},
+		400: {FirstName: "Standout", LastName: "Goalie", Position: sqlcdb.NullPlayerPosition{PlayerPosition: sqlcdb.PlayerPositionG, Valid: true}},
+	}
+	// Recent G+A+PPP composites: 100 → 6, 200 → 1, 300 → 6 (tie broken by id).
+	s.queries.listFreeAgentSkaterStatsReturn = []sqlcdb.ListSimFreeAgentSkaterStatsRow{
+		{PlayerID: 200, RecentGoals: 1, RecentAssists: 0, RecentPpp: 0},
+		{PlayerID: 100, RecentGoals: 3, RecentAssists: 2, RecentPpp: 1},
+		{PlayerID: 300, RecentGoals: 2, RecentAssists: 2, RecentPpp: 2},
+	}
+	s.queries.listFreeAgentGoalieStatsReturn = []sqlcdb.ListSimFreeAgentGoalieStatsRow{
+		{PlayerID: 400, RecentWins: 2, RecentGa: 5, RecentToi: 3600},
+	}
+
+	future, err := s.env.ExecuteActivity(s.acts.BuildManageRosterContext, in)
+	require.NoError(t, err)
+	var got ManageRosterInput
+	require.NoError(t, future.Get(&got))
+
+	// Ranking: skaters descending by composite, ties by id ascending.
+	require.Len(t, got.DailyPrompt.TopFreeAgents.Skaters, 3)
+	assert.Equal(t, []int64{100, 300, 200}, []int64{
+		got.DailyPrompt.TopFreeAgents.Skaters[0].ID,
+		got.DailyPrompt.TopFreeAgents.Skaters[1].ID,
+		got.DailyPrompt.TopFreeAgents.Skaters[2].ID,
+	})
+	assert.Equal(t, 6, got.DailyPrompt.TopFreeAgents.Skaters[0].RecentScore)
+	assert.Equal(t, "Hot Skaters", got.DailyPrompt.TopFreeAgents.Skaters[0].Player)
+	assert.Equal(t, "LW", got.DailyPrompt.TopFreeAgents.Skaters[0].NHLPosition)
+
+	require.Len(t, got.DailyPrompt.TopFreeAgents.Goalies, 1)
+	assert.Equal(t, int64(400), got.DailyPrompt.TopFreeAgents.Goalies[0].ID)
+	assert.Equal(t, 2, got.DailyPrompt.TopFreeAgents.Goalies[0].RecentScore)
+	assert.InDelta(t, 5.0, got.DailyPrompt.TopFreeAgents.Goalies[0].Last7.GAA, 0.001)
+
+	// The stats queries receive exactly the partitioned skater/goalie ids.
+	require.Len(t, s.queries.listFreeAgentSkaterStatsArgs, 1)
+	assert.ElementsMatch(t, skaterIDs, s.queries.listFreeAgentSkaterStatsArgs[0].PlayerIds)
+	require.Len(t, s.queries.listFreeAgentGoalieStatsArgs, 1)
+	assert.ElementsMatch(t, goalieIDs, s.queries.listFreeAgentGoalieStatsArgs[0].PlayerIds)
+}
+
+// Finding SIM-U3 — the daily prompt must list the players currently on
+// waivers with the ids claim_player validates against and their clears_on
+// date, so the agent can file a claim against a real id.
+func (s *BuildContextTestSuite) TestContext_OnWaiversInDailyPrompt() {
+	t := s.T()
+	in := s.minimalInput()
+	s.queries.listPlayersOnWaiversReturn = []sqlcdb.ListSimPlayersOnWaiversRow{
+		{PlayerID: pgtype.Int8{Int64: 500, Valid: true}, DroppedOn: pgDate(t, "2025-01-09"), ClearsOn: pgDate(t, "2025-01-11")},
+	}
+	s.queries.getPlayerByID = map[int64]sqlcdb.Player{
+		500: {FirstName: "Dropped", LastName: "Winger", Position: sqlcdb.NullPlayerPosition{PlayerPosition: sqlcdb.PlayerPositionRW, Valid: true}},
+	}
+
+	future, err := s.env.ExecuteActivity(s.acts.BuildManageRosterContext, in)
+	require.NoError(t, err)
+	var got ManageRosterInput
+	require.NoError(t, future.Get(&got))
+
+	require.Len(t, got.DailyPrompt.OnWaivers, 1)
+	row := got.DailyPrompt.OnWaivers[0]
+	assert.Equal(t, int64(500), row.ID)
+	assert.Equal(t, "Dropped Winger", row.Player)
+	assert.Equal(t, "RW", row.NHLPosition)
+	assert.Equal(t, "2025-01-11", row.ClearsOn)
+	// Working state carries the same id so ValidateClaimPlayer accepts it.
+	assert.Equal(t, []int64{500}, got.OnWaivers)
+}
+
+// Finding SIM-U3 — free agents and waiver candidates are disjoint, and the
+// prompt routes each to the block matching the tool that acts on it:
+// add_player reads top_free_agents, claim_player reads on_waivers.
+func (s *BuildContextTestSuite) TestContext_FreeAgentsDistinctFromWaivers() {
+	t := s.T()
+	in := s.minimalInput()
+	in.FreeAgents = []int64{100}
+	s.queries.listPlayersOnWaiversReturn = []sqlcdb.ListSimPlayersOnWaiversRow{
+		{PlayerID: pgtype.Int8{Int64: 500, Valid: true}, ClearsOn: pgDate(t, "2025-01-11")},
+	}
+	s.queries.getPlayerByID = map[int64]sqlcdb.Player{
+		100: {FirstName: "Free", LastName: "Agent", Position: sqlcdb.NullPlayerPosition{PlayerPosition: sqlcdb.PlayerPositionC, Valid: true}},
+		500: {FirstName: "Waiver", LastName: "Player", Position: sqlcdb.NullPlayerPosition{PlayerPosition: sqlcdb.PlayerPositionRW, Valid: true}},
+	}
+	s.queries.listFreeAgentSkaterStatsReturn = []sqlcdb.ListSimFreeAgentSkaterStatsRow{
+		{PlayerID: 100, RecentGoals: 2},
+	}
+
+	future, err := s.env.ExecuteActivity(s.acts.BuildManageRosterContext, in)
+	require.NoError(t, err)
+	var got ManageRosterInput
+	require.NoError(t, future.Get(&got))
+
+	// Free agent appears only in top_free_agents, not on_waivers.
+	require.Len(t, got.DailyPrompt.TopFreeAgents.Skaters, 1)
+	assert.Equal(t, int64(100), got.DailyPrompt.TopFreeAgents.Skaters[0].ID)
+	require.Len(t, got.DailyPrompt.OnWaivers, 1)
+	assert.NotEqual(t, int64(100), got.DailyPrompt.OnWaivers[0].ID)
+
+	// Waiver player appears only in on_waivers, not top_free_agents.
+	assert.Equal(t, int64(500), got.DailyPrompt.OnWaivers[0].ID)
+	for _, sk := range got.DailyPrompt.TopFreeAgents.Skaters {
+		assert.NotEqual(t, int64(500), sk.ID, "waiver player must not appear as a free agent")
+	}
+	assert.Equal(t, []int64{100}, got.FreeAgents)
+	assert.Equal(t, []int64{500}, got.OnWaivers)
+}
+
+// Finding SIM-U3 — F / NULL-position free agents are not slottable, so they
+// must be dropped from top_free_agents rather than presented as pickups.
+func (s *BuildContextTestSuite) TestContext_TopFreeAgentsSkipsUnslottablePositions() {
+	t := s.T()
+	in := s.minimalInput()
+	in.FreeAgents = []int64{100, 200, 300}
+	s.queries.getPlayerByID = map[int64]sqlcdb.Player{
+		100: {FirstName: "Good", LastName: "Center", Position: sqlcdb.NullPlayerPosition{PlayerPosition: sqlcdb.PlayerPositionC, Valid: true}},
+		200: {FirstName: "Forward", LastName: "Unslottable", Position: sqlcdb.NullPlayerPosition{PlayerPosition: sqlcdb.PlayerPositionF, Valid: true}},
+		300: {FirstName: "Null", LastName: "Position"},
+	}
+	s.queries.listFreeAgentSkaterStatsReturn = []sqlcdb.ListSimFreeAgentSkaterStatsRow{
+		{PlayerID: 100, RecentGoals: 1},
+	}
+
+	future, err := s.env.ExecuteActivity(s.acts.BuildManageRosterContext, in)
+	require.NoError(t, err)
+	var got ManageRosterInput
+	require.NoError(t, future.Get(&got))
+
+	require.Len(t, got.DailyPrompt.TopFreeAgents.Skaters, 1)
+	assert.Equal(t, int64(100), got.DailyPrompt.TopFreeAgents.Skaters[0].ID)
+}
+
+// goalsAgainstAverage: zero TOI yields 0 (no games), otherwise GA/TOI*3600.
+func TestGoalsAgainstAverage(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, 0.0, goalsAgainstAverage(3, 0))
+	assert.InDelta(t, 6.0, goalsAgainstAverage(2, 1200), 0.0001)
+	assert.InDelta(t, 0.0, goalsAgainstAverage(0, 3600), 0.0001)
 }
 
 // buildStandingRows is a test helper that converts a (agent, rotoPoints) list

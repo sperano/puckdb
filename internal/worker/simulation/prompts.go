@@ -253,6 +253,18 @@ type PendingClaimRow struct {
 	DropPlayer string `json:"drop_player,omitempty"`
 }
 
+// WaiverPlayerRow is one player currently in their waiver-clearing
+// window. Shown so the agent can file a claim_player against a real
+// player id — the working state (ManageRosterInput.OnWaivers) and the
+// validator both key off that id, so without this block the agent
+// would have to invent one. ClearsOn is the date the window ends.
+type WaiverPlayerRow struct {
+	Player      string `json:"player"`
+	ID          int64  `json:"id"`
+	NHLPosition string `json:"nhl_position"`
+	ClearsOn    string `json:"clears_on"`
+}
+
 // DailyPromptInput is the full set of fields rendered into the
 // per-day context message. Keep field order matching the JSON example
 // in PLAN.md > "What the Agent Sees" so the rendered prompt and the
@@ -263,6 +275,7 @@ type DailyPromptInput struct {
 	YourRoster     []RosterRow       `json:"your_roster"`
 	TodaysSchedule []ScheduleGameRow `json:"todays_schedule"`
 	TopFreeAgents  TopFreeAgents     `json:"top_free_agents"`
+	OnWaivers      []WaiverPlayerRow `json:"on_waivers"`
 	PendingClaims  []PendingClaimRow `json:"your_pending_claims"`
 	YourNotes      string            `json:"your_notes"`
 	YourAnalysis   DailyAnalysis     `json:"your_analysis"`
