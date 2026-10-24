@@ -14,9 +14,10 @@ import (
 // PoolOptions.OnlyOnSuccess is set.
 type PoolProgress interface {
 	// hooks checks the mode against the tracker's report for total items
-	// and returns the scheduler hooks that apply it. Unexported: the set of
-	// modes is closed.
-	hooks(t *ReportTracker, total int) (workerPoolHooks, error)
+	// and returns the scheduler hooks that apply it. saveEach makes every
+	// mutation save immediately; otherwise the pool batches the saves.
+	// Unexported: the set of modes is closed.
+	hooks(t *ReportTracker, total int, saveEach bool) (workerPoolHooks, error)
 }
 
 // SingleBar advances one bar per completed item: by Increment(i), or by 1
@@ -26,7 +27,7 @@ type SingleBar struct {
 	Increment IncrementFunc
 }
 
-func (p SingleBar) hooks(t *ReportTracker, _ int) (workerPoolHooks, error) {
+func (p SingleBar) hooks(t *ReportTracker, _ int, saveEach bool) (workerPoolHooks, error) {
 	bars, ok := t.poolGroupBars(p.Bar.Group)
 	if !ok || p.Bar.Bar < 0 || p.Bar.Bar >= bars {
 		return workerPoolHooks{}, fmt.Errorf("worker pool: bar %s outside report (%s)", p.Bar, t.poolReportShape(p.Bar.Group))
@@ -35,8 +36,13 @@ func (p SingleBar) hooks(t *ReportTracker, _ int) (workerPoolHooks, error) {
 	if increment == nil {
 		increment = func(int) int { return 1 }
 	}
-	return workerPoolHooks{onComplete: func(ctx workflow.Context, index int) {
-		t.IncrementBarBy(ctx, ref, increment(index))
+	if saveEach {
+		return workerPoolHooks{onComplete: func(ctx workflow.Context, index int) {
+			t.IncrementBarBy(ctx, ref, increment(index))
+		}}, nil
+	}
+	return workerPoolHooks{onComplete: func(_ workflow.Context, index int) {
+		t.incrementBarByNoSave(ref, increment(index))
 	}}, nil
 }
 
@@ -47,19 +53,29 @@ type BarPerItem struct {
 	First int
 }
 
-func (p BarPerItem) hooks(t *ReportTracker, total int) (workerPoolHooks, error) {
+func (p BarPerItem) hooks(t *ReportTracker, total int, saveEach bool) (workerPoolHooks, error) {
 	bars, ok := t.poolGroupBars(p.Group)
 	if !ok || p.First < 0 || total > bars-p.First {
 		return workerPoolHooks{}, fmt.Errorf("worker pool: bars [%d, %d) of group %d outside report (%s)",
 			p.First, p.First+total, p.Group, t.poolReportShape(p.Group))
 	}
 	group, first := p.Group, p.First
+	if saveEach {
+		return workerPoolHooks{
+			onStart: func(ctx workflow.Context, index int) {
+				t.StartBar(ctx, BarRef{Group: group, Bar: first + index})
+			},
+			onComplete: func(ctx workflow.Context, index int) {
+				t.CompleteBar(ctx, BarRef{Group: group, Bar: first + index})
+			},
+		}, nil
+	}
 	return workerPoolHooks{
-		onStart: func(ctx workflow.Context, index int) {
-			t.StartBar(ctx, BarRef{Group: group, Bar: first + index})
+		onStart: func(_ workflow.Context, index int) {
+			t.startBarNoSave(BarRef{Group: group, Bar: first + index})
 		},
-		onComplete: func(ctx workflow.Context, index int) {
-			t.CompleteBar(ctx, BarRef{Group: group, Bar: first + index})
+		onComplete: func(_ workflow.Context, index int) {
+			t.completeBarNoSave(BarRef{Group: group, Bar: first + index})
 		},
 	}, nil
 }
@@ -71,7 +87,7 @@ type BarsPerItem struct {
 	Ranges []BarRange
 }
 
-func (p BarsPerItem) hooks(t *ReportTracker, total int) (workerPoolHooks, error) {
+func (p BarsPerItem) hooks(t *ReportTracker, total int, saveEach bool) (workerPoolHooks, error) {
 	if len(p.Ranges) != total {
 		return workerPoolHooks{}, fmt.Errorf("worker pool: %d bar ranges for %d items", len(p.Ranges), total)
 	}
@@ -87,12 +103,22 @@ func (p BarsPerItem) hooks(t *ReportTracker, total int) (workerPoolHooks, error)
 	}
 	// A copy: the caller may reuse its slice once validation has passed.
 	group, ranges := p.Group, slices.Clone(p.Ranges)
+	if saveEach {
+		return workerPoolHooks{
+			onStart: func(ctx workflow.Context, index int) {
+				t.StartBars(ctx, group, ranges[index])
+			},
+			onComplete: func(ctx workflow.Context, index int) {
+				t.CompleteBars(ctx, group, ranges[index])
+			},
+		}, nil
+	}
 	return workerPoolHooks{
-		onStart: func(ctx workflow.Context, index int) {
-			t.StartBars(ctx, group, ranges[index])
+		onStart: func(_ workflow.Context, index int) {
+			t.startBarsNoSave(group, ranges[index])
 		},
-		onComplete: func(ctx workflow.Context, index int) {
-			t.CompleteBars(ctx, group, ranges[index])
+		onComplete: func(_ workflow.Context, index int) {
+			t.completeBarsNoSave(group, ranges[index])
 		},
 	}, nil
 }

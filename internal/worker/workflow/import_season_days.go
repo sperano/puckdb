@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/sperano/nhl-api-go/nhl"
+	"github.com/sperano/puckdb/internal/config"
 	"github.com/sperano/puckdb/internal/core"
 	worknhl "github.com/sperano/puckdb/internal/worker/nhl"
 	"github.com/sperano/puckdb/internal/worker/shared"
@@ -59,6 +60,7 @@ func importSeasonDays(ctx workflow.Context, tracker *shared.ReportTracker, seaso
 	if skipUnchanged {
 		err = tracker.RunWorkerPool(ctx, shared.PoolOptions{
 			Total: numDays, Concurrency: cfg.DayConcurrency, Progress: importDaysProgress,
+			SaveEvery: config.DefaultDayLoopProgressSaveEvery,
 			Start: func(_ workflow.Context, i int) workflow.Future {
 				input := worknhl.ImportDayIfChangedInput{ImportDayInput: dayInput(i), Force: opts.ReimportDays}
 				return workflow.ExecuteActivity(ctx, ia.ImportDayIfChanged, input)
@@ -68,6 +70,7 @@ func importSeasonDays(ctx workflow.Context, tracker *shared.ReportTracker, seaso
 	} else {
 		err = tracker.RunWorkerPool(ctx, shared.PoolOptions{
 			Total: numDays, Concurrency: cfg.DayConcurrency, Progress: importDaysProgress,
+			SaveEvery: config.DefaultDayLoopProgressSaveEvery,
 			Start: func(_ workflow.Context, i int) workflow.Future {
 				return workflow.ExecuteActivity(ctx, ia.ImportDay, dayInput(i))
 			},

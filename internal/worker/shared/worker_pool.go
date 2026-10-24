@@ -19,15 +19,17 @@ type ResultHandler func(ctx workflow.Context, index int, future workflow.Future)
 
 // workerPoolHooks are the callbacks the scheduler invokes.
 // onStart runs immediately before an item is dispatched; onComplete runs after
-// the item's result handler. stopDispatch, checked before each dispatch, ends
-// dispatching for good once it reports true (it is not called again); items
-// already in flight still complete.
+// the item's result handler. afterComplete runs after those two hooks for every
+// observed completion, including a failed one. stopDispatch, checked before
+// each dispatch, ends dispatching for good once it reports true (it is not
+// called again); items already in flight still complete.
 // Any may be nil. All run on the workflow goroutine, so any side effects they
 // emit (Save local activities, etc.) are recorded in deterministic order.
 type workerPoolHooks struct {
-	onStart      func(ctx workflow.Context, index int)
-	onComplete   func(ctx workflow.Context, index int)
-	stopDispatch func() bool
+	onStart       func(ctx workflow.Context, index int)
+	onComplete    func(ctx workflow.Context, index int)
+	afterComplete func(ctx workflow.Context)
+	stopDispatch  func() bool
 }
 
 // stopped reports whether stopDispatch asks to dispatch no further item.
@@ -53,6 +55,15 @@ type PoolOptions struct {
 	// a failed item's bar stays as it was. Default false: advance regardless.
 	// With a nil Progress it is accepted and does nothing.
 	OnlyOnSuccess bool
+	// SaveEvery batches progress persistence while keeping every in-memory
+	// mutation. Values 0 and 1 save on every progress hook. A value greater
+	// than 1 saves after every SaveEvery-th completion, after the final
+	// completion, and before returning an item error; dispatch hooks wait for
+	// the next batched save. The progressReport Temporal query registered by
+	// ReportTracker.RegisterQueryHandler reads the in-memory report and remains
+	// current. The Redis copy used by GraphQL *Progress fields may lag by at
+	// most SaveEvery-1 completed items. A negative value is invalid.
+	SaveEvery int
 	// StopDispatch, checked before every dispatch, ends dispatching once it
 	// returns true; in-flight items still complete and reach Handle. The first
 	// true is final: StopDispatch is not called again.
@@ -86,13 +97,17 @@ func (t *ReportTracker) RunWorkerPool(ctx workflow.Context, opts PoolOptions) er
 // when Progress is) and runs the items on the scheduler. Every entry point
 // goes through it, so the validation order is the same for all of them.
 func runPoolOn(ctx workflow.Context, t *ReportTracker, opts PoolOptions) error {
+	if opts.SaveEvery < 0 {
+		return errors.New("worker pool: SaveEvery must not be negative")
+	}
 	if opts.Total == 0 {
 		return nil
 	}
 	if err := validatePoolOptions(opts); err != nil {
 		return err
 	}
-	hooks, err := t.progressHooks(opts.Progress, opts.Total)
+	batched := opts.Progress != nil && opts.SaveEvery > 1
+	hooks, err := t.progressHooks(opts.Progress, opts.Total, !batched)
 	if err != nil {
 		return err
 	}
@@ -101,7 +116,44 @@ func runPoolOn(ctx workflow.Context, t *ReportTracker, opts PoolOptions) error {
 	if opts.OnlyOnSuccess {
 		handle, hooks = completeOnlyOnSuccess(handle, hooks)
 	}
-	return runWorkerPool(ctx, opts.Total, opts.Concurrency, opts.Start, handle, hooks)
+	var saver *poolProgressSaver
+	if batched {
+		saver = &poolProgressSaver{tracker: t, every: opts.SaveEvery}
+		hooks.afterComplete = saver.onCompletion
+	}
+	err = runWorkerPool(ctx, opts.Total, opts.Concurrency, opts.Start, handle, hooks)
+	if saver != nil {
+		saver.finish(ctx)
+	}
+	return err
+}
+
+// poolProgressSaver publishes mutation-only progress hooks at completion
+// boundaries. lastSaved avoids a duplicate save when the final or failing
+// completion is itself an exact batch boundary.
+type poolProgressSaver struct {
+	tracker   *ReportTracker
+	every     int
+	completed int
+	lastSaved int
+}
+
+func (s *poolProgressSaver) onCompletion(ctx workflow.Context) {
+	s.completed++
+	if s.completed%s.every == 0 {
+		s.save(ctx)
+	}
+}
+
+func (s *poolProgressSaver) finish(ctx workflow.Context) {
+	if s.completed > s.lastSaved {
+		s.save(ctx)
+	}
+}
+
+func (s *poolProgressSaver) save(ctx workflow.Context) {
+	s.tracker.Save(ctx)
+	s.lastSaved = s.completed
 }
 
 // validatePoolOptions checks the fields of opts other than Progress.
@@ -144,7 +196,7 @@ func completeOnlyOnSuccess(handle ResultHandler, hooks workerPoolHooks) (ResultH
 // progressHooks validates progress against the tracker's report for total
 // items and returns the hooks of its mode; a nil progress needs no tracker
 // and has no hooks.
-func (t *ReportTracker) progressHooks(progress PoolProgress, total int) (workerPoolHooks, error) {
+func (t *ReportTracker) progressHooks(progress PoolProgress, total int, saveEach bool) (workerPoolHooks, error) {
 	switch {
 	case progress == nil:
 		return workerPoolHooks{}, nil
@@ -153,7 +205,7 @@ func (t *ReportTracker) progressHooks(progress PoolProgress, total int) (workerP
 	}
 	switch progress.(type) {
 	case SingleBar, BarPerItem, BarsPerItem:
-		return progress.hooks(t, total)
+		return progress.hooks(t, total, saveEach)
 	default:
 		// A pointer mode satisfies PoolProgress too, and a typed nil one would
 		// panic in hooks: reject it as an error like every other bad option.
@@ -232,6 +284,9 @@ func runWorkerPool(ctx workflow.Context, total, concurrency int, startActivity A
 				}
 				if hooks.onComplete != nil {
 					hooks.onComplete(ctx, idx)
+				}
+				if hooks.afterComplete != nil {
+					hooks.afterComplete(ctx)
 				}
 				delete(futures, idx)
 				activeIndexes = removeActiveIndex(activeIndexes, idx)
