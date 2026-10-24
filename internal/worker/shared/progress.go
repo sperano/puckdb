@@ -216,7 +216,7 @@ func LoadReportTracker(ctx workflow.Context) (*ReportTracker, error) {
 
 // IncrementBar increments the current count of a specific bar and saves to Redis.
 func (t *ReportTracker) IncrementBar(ctx workflow.Context, ref BarRef) {
-	t.incrementBarNoSave(ref)
+	t.incrementBarByNoSave(ref, 1)
 	t.Save(ctx)
 }
 
@@ -224,10 +224,6 @@ func (t *ReportTracker) IncrementBar(ctx workflow.Context, ref BarRef) {
 func (t *ReportTracker) IncrementBarBy(ctx workflow.Context, ref BarRef, amount int) {
 	t.incrementBarByNoSave(ref, amount)
 	t.Save(ctx)
-}
-
-func (t *ReportTracker) incrementBarNoSave(ref BarRef) {
-	t.incrementBarByNoSave(ref, 1)
 }
 
 func (t *ReportTracker) incrementBarByNoSave(ref BarRef, amount int) {

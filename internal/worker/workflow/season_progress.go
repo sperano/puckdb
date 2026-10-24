@@ -8,6 +8,8 @@ import (
 // dayLoopBatchedProgressChangeID gates batched progress saves in the NHL
 // season fetch and import day loops. Histories recorded before it save after
 // every completion and carry no marker, so they must retain SaveEvery 0.
+// Increment dayLoopBatchedProgressVersion before changing the save cadence,
+// and preserve the version 1 cadence for histories that recorded version 1.
 const (
 	dayLoopBatchedProgressChangeID = "nhl-season-day-loop-batched-progress"
 	dayLoopBatchedProgressVersion  = 1
