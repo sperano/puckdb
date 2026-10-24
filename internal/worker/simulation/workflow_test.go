@@ -94,6 +94,26 @@ func TestParseStopAfter_DefaultsAndErrors(t *testing.T) {
 	assert.Error(t, err, "invalid value must error")
 }
 
+func TestAssembleDraftPickInput_SortsTaken(t *testing.T) {
+	const (
+		firstTakenPlayerID int64 = 101
+		takenPlayerCount   int   = 32
+	)
+	taken := make(map[int64]struct{}, takenPlayerCount)
+	want := make([]int64, 0, takenPlayerCount)
+	for index := range takenPlayerCount {
+		playerID := firstTakenPlayerID + int64(index)
+		taken[playerID] = struct{}{}
+		want = append(want, playerID)
+	}
+
+	input := assembleDraftPickInput(
+		simState{}, 0, 0, 0, LoadDraftCandidatesResult{}, taken, nil, "", nil,
+	)
+
+	assert.Equal(t, want, input.Taken)
+}
+
 // ============================================================================
 // Helper builders for test setup
 // ============================================================================
