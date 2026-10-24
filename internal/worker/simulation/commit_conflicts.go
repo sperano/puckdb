@@ -7,9 +7,10 @@ import (
 	"github.com/sperano/puckdb/internal/sqlcdb"
 )
 
-// rosterProbeQueries is the commit-time claimability probe (add_player
-// and claim_player) that converts a UNIQUE(pool_id, player_id) conflict
-// into a clean rejection instead of a tx-aborting violation.
+// rosterProbeQueries is the commit-time claimability probe (a turn's
+// add_player in ManageRoster, a claim group in ProcessWaivers) that
+// converts a UNIQUE(pool_id, player_id) conflict into a clean rejection
+// instead of a tx-aborting violation.
 type rosterProbeQueries interface {
 	ExistsSimRosterPlayer(ctx context.Context, arg sqlcdb.ExistsSimRosterPlayerParams) (bool, error)
 }

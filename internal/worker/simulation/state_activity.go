@@ -159,7 +159,7 @@ type poolStateQueries interface {
 // query group; agents is the cache SetPoolStatus evicts.
 type poolStateActivity struct {
 	q      poolStateQueries
-	agents agentSource
+	agents agentEvictor
 }
 
 // poolState binds the pool lifecycle activities to the worker's handles.

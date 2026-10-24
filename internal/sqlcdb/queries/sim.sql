@@ -466,20 +466,20 @@ WITH active_players AS (
     SELECT DISTINCT gss.player_id
     FROM game_skater_stats gss
     JOIN games g ON gss.game_id = g.id
-    WHERE g.season = $1 AND g.game_type = 'regular_season' AND g.game_date <= $2
+    WHERE g.season = sqlc.arg(season) AND g.game_type = 'regular_season' AND g.game_date <= sqlc.arg(game_date)
     UNION
     SELECT DISTINCT ggs.player_id
     FROM game_goalie_stats ggs
     JOIN games g ON ggs.game_id = g.id
-    WHERE g.season = $1 AND g.game_type = 'regular_season' AND g.game_date <= $2
+    WHERE g.season = sqlc.arg(season) AND g.game_type = 'regular_season' AND g.game_date <= sqlc.arg(game_date)
 )
 SELECT player_id FROM active_players
-EXCEPT SELECT r.player_id FROM sim_rosters r WHERE r.pool_id = $3
+EXCEPT SELECT r.player_id FROM sim_rosters r WHERE r.pool_id = sqlc.arg(pool_id)
 EXCEPT SELECT wc.player_id FROM sim_waiver_claims wc
-       WHERE wc.pool_id = $3 AND wc.status = 'pending'
+       WHERE wc.pool_id = sqlc.arg(pool_id) AND wc.status = 'pending'
 EXCEPT SELECT t.player_id FROM sim_transactions t
-       WHERE t.pool_id = $3 AND t.type = 'drop'
-         AND t.date > ($2::DATE - ($4::INT) * INTERVAL '1 day');
+       WHERE t.pool_id = sqlc.arg(pool_id) AND t.type = 'drop'
+         AND t.date > (sqlc.arg(game_date)::DATE - (sqlc.arg(waiver_days)::INT) * INTERVAL '1 day');
 
 -- =============================================================================
 -- sim_waiver_priority

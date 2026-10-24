@@ -43,6 +43,9 @@ func (t *stubTransactor[Q]) InTx(ctx context.Context, fn func(Q) error) error {
 	t.ctxErrs = append(t.ctxErrs, ctx.Err())
 	_, hasDeadline := ctx.Deadline()
 	t.deadlines = append(t.deadlines, hasDeadline)
+	if err := ctx.Err(); err != nil {
+		return err // PgxTransactor's Begin fails before fn runs
+	}
 	if t.beforeFn != nil {
 		t.beforeFn()
 	}
@@ -410,12 +413,11 @@ type playerFake struct {
 	getPlayersByIDsCalls [][]int64
 }
 
-// GetPlayersByIDs returns a bare {ID: id} row for an id the test hasn't
-// put in getPlayerByID, and forces p.ID == id on every returned row
-// regardless of what's stored in the fixture map — real GetPlayersByIDs
-// rows always carry their own id column, but fixtures keyed by map key
-// often leave ID zero-valued, and loadPlayersByIDs re-keys the batch
-// result by p.ID.
+// GetPlayersByIDs returns, like the real query, a row only for the ids
+// the test put in getPlayerByID, and forces p.ID == id on each one —
+// real GetPlayersByIDs rows always carry their own id column, but
+// fixtures keyed by map key often leave ID zero-valued, and
+// loadPlayersByIDs re-keys the batch result by p.ID.
 func (s *playerFake) GetPlayersByIDs(_ context.Context, ids []int64) ([]sqlcdb.Player, error) {
 	s.getPlayersByIDsCalls = append(s.getPlayersByIDsCalls, ids)
 	if s.getPlayerErr != nil {
@@ -423,7 +425,10 @@ func (s *playerFake) GetPlayersByIDs(_ context.Context, ids []int64) ([]sqlcdb.P
 	}
 	out := make([]sqlcdb.Player, 0, len(ids))
 	for _, id := range ids {
-		p := s.getPlayerByID[id]
+		p, ok := s.getPlayerByID[id]
+		if !ok {
+			continue
+		}
 		p.ID = id
 		out = append(out, p)
 	}

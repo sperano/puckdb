@@ -1968,10 +1968,10 @@ EXCEPT SELECT t.player_id FROM sim_transactions t
 `
 
 type ListSimFreeAgentCandidatesParams struct {
-	Season   int32       `json:"season"`
-	GameDate pgtype.Date `json:"game_date"`
-	PoolID   int32       `json:"pool_id"`
-	Column4  int32       `json:"column_4"`
+	Season     int32       `json:"season"`
+	GameDate   pgtype.Date `json:"game_date"`
+	PoolID     int32       `json:"pool_id"`
+	WaiverDays int32       `json:"waiver_days"`
 }
 
 // =============================================================================
@@ -1984,7 +1984,7 @@ func (q *Queries) ListSimFreeAgentCandidates(ctx context.Context, arg ListSimFre
 		arg.Season,
 		arg.GameDate,
 		arg.PoolID,
-		arg.Column4,
+		arg.WaiverDays,
 	)
 	if err != nil {
 		return nil, err

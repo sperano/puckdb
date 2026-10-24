@@ -31,6 +31,19 @@ func (s *freeAgentQueriesFake) ListSimFreeAgentCandidates(_ context.Context, arg
 	return s.listFARows, nil
 }
 
+// freeAgentOnlySimQueries is a SimQueries whose only working method is
+// freeAgentQueries': every other one panics on the nil embedded
+// interface, so a facade test fails loudly if the activity reaches for
+// a query outside its group.
+type freeAgentOnlySimQueries struct {
+	SimQueries
+	fake *freeAgentQueriesFake
+}
+
+func (q freeAgentOnlySimQueries) ListSimFreeAgentCandidates(ctx context.Context, arg sqlcdb.ListSimFreeAgentCandidatesParams) ([]int64, error) {
+	return q.fake.ListSimFreeAgentCandidates(ctx, arg)
+}
+
 // FreeAgentPoolTestSuite uses Temporal's TestActivityEnvironment so
 // activity.GetLogger(ctx) works (it panics outside an activity ctx).
 type FreeAgentPoolTestSuite struct {
@@ -76,9 +89,27 @@ func (s *FreeAgentPoolTestSuite) TestBuildFreeAgentPool_PassesParamsToQuery() {
 	args := s.queries.listFAArgs[0]
 	assert.Equal(s.T(), int32(7), args.PoolID)
 	assert.Equal(s.T(), int32(20242025), args.Season)
-	assert.Equal(s.T(), int32(2), args.Column4,
-		"waiver_days must thread through to the Column4 sqlc param")
+	assert.Equal(s.T(), int32(2), args.WaiverDays,
+		"waiver_days must thread through to the WaiverDays sqlc param")
 	assert.Equal(s.T(), "2025-11-15", args.GameDate.Time.Format("2006-01-02"))
+}
+
+// The worker registers (*Activities).BuildFreeAgentPool, not the group
+// method: pin that the facade hands its Queries to the activity.
+func (s *FreeAgentPoolTestSuite) TestActivitiesBuildFreeAgentPool_UsesQueries() {
+	s.queries.listFARows = []int64{4, 5}
+	acts := &Activities{Queries: freeAgentOnlySimQueries{fake: s.queries}}
+	env := s.NewTestActivityEnvironment() // s.env already holds the group method under the same name
+	env.RegisterActivity(acts.BuildFreeAgentPool)
+
+	future, err := env.ExecuteActivity(acts.BuildFreeAgentPool, BuildFreeAgentPoolInput{PoolID: 7, WaiverDays: 2})
+	require.NoError(s.T(), err)
+
+	var got BuildFreeAgentPoolResult
+	require.NoError(s.T(), future.Get(&got))
+	assert.Equal(s.T(), []int64{4, 5}, got.PlayerIDs)
+	require.Len(s.T(), s.queries.listFAArgs, 1)
+	assert.Equal(s.T(), int32(7), s.queries.listFAArgs[0].PoolID)
 }
 
 func (s *FreeAgentPoolTestSuite) TestBuildFreeAgentPool_PropagatesQueryError() {

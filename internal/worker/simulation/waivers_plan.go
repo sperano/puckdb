@@ -15,14 +15,19 @@ import (
 // committed.
 var errWaiverClaimNotPending = errors.New("waiver claim is no longer pending")
 
-// waiverPlanQueries is the commit-time re-validation of one claim group
-// and the claim status writes that follow it.
-type waiverPlanQueries interface {
-	// ExistsSimRosterPlayer is the claimability probe that converts a
-	// UNIQUE(pool_id, player_id) conflict into a lost group instead of
-	// a tx-aborting violation.
-	ExistsSimRosterPlayer(ctx context.Context, arg sqlcdb.ExistsSimRosterPlayerParams) (bool, error)
+// waiverPlanReadQueries is the read-only commit-time re-validation of
+// one claim group: the claimability probe, which turns a
+// UNIQUE(pool_id, player_id) conflict into a lost group, and the
+// winner's roster.
+type waiverPlanReadQueries interface {
+	rosterProbeQueries
 	ListSimRosterByAgent(ctx context.Context, arg sqlcdb.ListSimRosterByAgentParams) ([]sqlcdb.SimRoster, error)
+}
+
+// waiverPlanQueries is the re-validation of one claim group and the
+// claim status writes that follow it.
+type waiverPlanQueries interface {
+	waiverPlanReadQueries
 	// ResolveSimWaiverClaim moves a claim out of 'pending'; 0 rows means
 	// the claim was no longer pending and nothing changed.
 	ResolveSimWaiverClaim(ctx context.Context, arg sqlcdb.ResolveSimWaiverClaimParams) (int64, error)
@@ -57,7 +62,7 @@ type waiverPlan struct {
 //     present) plus the claimed player in BN must pass
 //     checkAcquisitionCapacity against the pool's per-slot limits — the
 //     same policy add_player and claim_player apply at turn time.
-func planWaiverResolution(ctx context.Context, q waiverPlanQueries, in ProcessWaiversInput, limits map[RosterSlot]int, w sqlcdb.SimWaiverClaim) (waiverPlan, error) {
+func planWaiverResolution(ctx context.Context, q waiverPlanReadQueries, in ProcessWaiversInput, limits map[RosterSlot]int, w sqlcdb.SimWaiverClaim) (waiverPlan, error) {
 	rostered, err := q.ExistsSimRosterPlayer(ctx, sqlcdb.ExistsSimRosterPlayerParams{
 		PoolID: in.PoolID, PlayerID: w.PlayerID,
 	})

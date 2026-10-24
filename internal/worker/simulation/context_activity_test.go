@@ -475,6 +475,8 @@ func (s *BuildContextTestSuite) TestBuildManageRosterContext_PopulatesNotesAndRo
 	s.queries.getPlayerByID = map[int64]sqlcdb.Player{
 		100: {ID: 100, FirstName: "Connor", LastName: "McDavid", Position: sqlcdb.NullPlayerPosition{PlayerPosition: sqlcdb.PlayerPositionC, Valid: true}},
 		200: {ID: 200, FirstName: "Leon", LastName: "Draisaitl", Position: sqlcdb.NullPlayerPosition{PlayerPosition: sqlcdb.PlayerPositionC, Valid: true}},
+		300: {ID: 300, FirstName: "Free", LastName: "Agent", Position: sqlcdb.NullPlayerPosition{PlayerPosition: sqlcdb.PlayerPositionLW, Valid: true}},
+		400: {ID: 400, FirstName: "Other", LastName: "Agent", Position: sqlcdb.NullPlayerPosition{PlayerPosition: sqlcdb.PlayerPositionD, Valid: true}},
 	}
 
 	in := BuildManageRosterContextInput{
@@ -506,6 +508,10 @@ func (s *BuildContextTestSuite) TestBuildManageRosterContext_PopulatesPendingCla
 	s.queries.listFullRosterByAgent = map[int32][]sqlcdb.SimRoster{1: {}}
 	s.queries.listPendingByAgentRows = map[int32][]sqlcdb.SimWaiverClaim{
 		1: {claim(50, 1, 8478550, 0), claim(51, 1, 8480039, 0)},
+	}
+	s.queries.getPlayerByID = map[int64]sqlcdb.Player{
+		8478550: {FirstName: "Claimed", LastName: "One"},
+		8480039: {FirstName: "Claimed", LastName: "Two"},
 	}
 
 	future, err := s.env.ExecuteActivity(s.acts.BuildManageRosterContext, BuildManageRosterContextInput{

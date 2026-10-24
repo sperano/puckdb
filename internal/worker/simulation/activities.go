@@ -42,10 +42,10 @@ type Activities struct {
 	// its group alone.
 	Queries SimQueries
 
-	// Tx wraps the "begin → run a query batch → commit" dance for
-	// atomic-commit activities (DraftPickActivity, ManageRosterActivity),
-	// narrowed per activity like Queries (narrowTx). Read-only
-	// activities ignore it.
+	// Tx wraps the "begin → run a query batch → commit" dance for the
+	// activities that commit atomically (CollectDayStats, DraftPick,
+	// ManageRoster, ProcessWaivers, PickTeamName), narrowed per
+	// activity like Queries (narrowTx). Read-only activities ignore it.
 	Tx Transactor[SimQueries]
 
 	// ProviderConfigs maps llm.Provider → connection details. Each
@@ -113,10 +113,16 @@ func (a *Activities) getOrCreateAgent(poolID, agentID int32, cfg AgentConfig, nu
 }
 
 // agentSource is the per-worker agent cache the LLM-driven activities
-// and SetPoolStatus share; *Activities implements it, so tests pass an
-// Activities with only an AgentFactory set.
+// share; *Activities implements it, so tests pass an Activities with
+// only an AgentFactory set.
 type agentSource interface {
 	getOrCreateAgent(poolID, agentID int32, cfg AgentConfig, numTeams int) (*Agent, error)
+	agentEvictor
+}
+
+// agentEvictor is the part of the agent cache that SetPoolStatus and
+// the cost-cap pause use: dropping a pool's agents once it stops.
+type agentEvictor interface {
 	evictPoolAgents(poolID int32) int
 }
 

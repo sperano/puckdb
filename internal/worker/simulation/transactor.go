@@ -32,10 +32,12 @@ type Transactor[Q any] interface {
 	InTx(ctx context.Context, fn func(Q) error) error
 }
 
-// narrowTx exposes the transactions of tx as the query group Q. as is
-// the conversion from the wider handle, normally the identity
-// (func(q SimQueries) collectQueries { return q }); spelling it out
-// lets the compiler check that S provides every method of Q.
+// narrowTx exposes the transactions of tx as the query group Q. Go has
+// no implicit conversion from Transactor[S] to Transactor[Q], even when
+// S implements Q, so the caller passes the per-handle conversion as:
+// normally the identity, func(q SimQueries) collectQueries { return q }.
+// Writing it out also makes the compiler check that S provides every
+// method of Q.
 func narrowTx[S, Q any](tx Transactor[S], as func(S) Q) Transactor[Q] {
 	return narrowedTx[S, Q]{tx: tx, as: as}
 }

@@ -84,7 +84,7 @@ func checkCostCap(ctx context.Context, q costCapQueries, poolID int32, capUsd fl
 func pauseForCostCap(
 	ctx context.Context,
 	q costCapQueries,
-	agents agentSource,
+	agents agentEvictor,
 	poolID, agentID int32,
 	simDate pgtype.Date,
 	currentCostUsd, capUsd float64,

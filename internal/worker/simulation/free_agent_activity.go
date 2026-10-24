@@ -77,14 +77,10 @@ func (f freeAgentActivity) BuildFreeAgentPool(ctx context.Context, in BuildFreeA
 	)
 
 	rows, err := f.q.ListSimFreeAgentCandidates(ctx, sqlcdb.ListSimFreeAgentCandidatesParams{
-		Season:   in.Season,
-		GameDate: in.SimDate,
-		PoolID:   in.PoolID,
-		// sqlc named the fourth param "Column4" because the SQL
-		// references $4 only inside an interval expression rather
-		// than as a top-level value with a column tag. The semantic
-		// is "waiver_days days back".
-		Column4: in.WaiverDays,
+		Season:     in.Season,
+		GameDate:   in.SimDate,
+		PoolID:     in.PoolID,
+		WaiverDays: in.WaiverDays,
 	})
 	if err != nil {
 		return BuildFreeAgentPoolResult{}, fmt.Errorf("simulation: list free agent candidates: %w", err)

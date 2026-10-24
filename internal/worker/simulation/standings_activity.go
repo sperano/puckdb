@@ -39,10 +39,10 @@ import (
 // before this runs).
 //
 // AgentIDs is the full set of agents in the pool. It ensures every
-// agent appears in the ranking even when they have no totals rows yet
-// (e.g. their goalies haven't played) — without this, the pool size
-// used for point scaling shrinks to just the agents that have played,
-// and cross-day totals become incomparable.
+// agent appears in each ranked category even when they have no totals
+// row in it yet (e.g. their goalies haven't played) — without this,
+// the pool size used for point scaling shrinks to just the agents that
+// have played, and cross-day totals become incomparable.
 type UpdateStandingsInput struct {
 	PoolID   int32       `json:"pool_id"`
 	SimDate  pgtype.Date `json:"sim_date"`
@@ -50,8 +50,11 @@ type UpdateStandingsInput struct {
 }
 
 // UpdateStandingsResult is mostly diagnostic. StandingsWritten counts
-// upsert calls (one per agent per category). For an N-team pool with
-// the 9 Crapettes 2025 categories, expect 9*N rows per day.
+// upsert calls (one per agent per ranked category). For an N-team pool
+// with the 9 Crapettes 2025 categories, expect 9*N rows per day once
+// every category has a totals row; a category no agent has a row in
+// yet (W, GA and GAA before any rostered goalie has played) is not
+// ranked.
 type UpdateStandingsResult struct {
 	StandingsWritten int `json:"standings_written"`
 }
@@ -150,11 +153,12 @@ func (s standingsActivity) UpdateStandings(ctx context.Context, in UpdateStandin
 // containing the per-agent stat rows.
 //
 // agentIDs is the full pool agent list. Any agent that has no row in
-// totals for a given category gets a zero-valued AgentCategoryStat so
-// that the ranking pool size is always len(agentIDs). This prevents
-// points from compressing when, e.g., an agent's goalies haven't
-// played yet — for lower-is-better categories a zero stat is correctly
-// ranked best (or tied best), and for higher-is-better it ties last.
+// totals for a category some agent has a row in gets a zero-valued
+// AgentCategoryStat, so that the ranking pool size is always
+// len(agentIDs). This prevents points from compressing when, e.g., an
+// agent's goalies haven't played yet: the padded agent ties last in
+// the higher-is-better categories and in GAA (RankGAA ranks zero
+// goalie TOI worst), and ranks best (or tied best) in GA.
 //
 // Conversion notes:
 //   - Value is pgtype.Numeric in the DB → float64 in the scoring
