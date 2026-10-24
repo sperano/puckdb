@@ -545,20 +545,10 @@ func loadDraftCandidates(ctx workflow.Context, state simState) (LoadDraftCandida
 func buildCandidateLookup(candidates LoadDraftCandidatesResult) map[int64]DraftablePlayer {
 	out := make(map[int64]DraftablePlayer, len(candidates.Skaters)+len(candidates.Goalies))
 	for _, s := range candidates.Skaters {
-		out[s.PlayerID] = DraftablePlayer{
-			Player:     s.Name,
-			ID:         s.PlayerID,
-			Position:   s.Position,
-			LastSeason: SkaterStats{G: s.PriorG, A: s.PriorA},
-		}
+		out[s.PlayerID] = s.draftable()
 	}
 	for _, g := range candidates.Goalies {
-		out[g.PlayerID] = DraftablePlayer{
-			Player:     g.Name,
-			ID:         g.PlayerID,
-			Position:   "G",
-			LastSeason: GoalieStats{W: g.PriorW, GA: g.PriorGA},
-		}
+		out[g.PlayerID] = g.draftable()
 	}
 	return out
 }
@@ -594,10 +584,6 @@ func assembleDraftPickInput(
 		takenSlice = append(takenSlice, id)
 	}
 
-	// Locate AgentConfig for this agent_id via the precomputed lookup
-	// (built once in loadSimState) rather than scanning AgentIDs.
-	agentCfg := state.AgentConfigByID[agentID]
-
 	byPosition, bestAvailable := SelectAvailableByPosition(candidates.Skaters, candidates.Goalies, taken)
 	yourRoster := make([]DraftRosterRow, 0, len(agentPicks))
 	for i, pid := range agentPicks {
@@ -617,13 +603,9 @@ func assembleDraftPickInput(
 	}
 
 	return DraftPickInput{
-		PoolID:      state.PoolID,
-		AgentID:     agentID,
-		Round:       round,
-		Pick:        pick,
-		SimDate:     state.SeasonStartDate,
-		PoolConfig:  state.PoolConfig,
-		AgentConfig: agentCfg,
+		TurnScope: state.turnScope(agentID, state.SeasonStartDate),
+		Round:     round,
+		Pick:      pick,
 		DraftPrompt: DraftPromptInput{
 			DraftInfo: DraftInfo{
 				Round:          int(round),
@@ -731,7 +713,7 @@ func runSeasonPhase(
 			return false, err
 		}
 
-		in.SimDate = addOneDay(in.SimDate)
+		in.SimDate = addDays(in.SimDate, 1)
 		in.DayCount++
 		tracker.IncrementBar(ctx, shared.BarRef{Group: 1})
 
@@ -821,15 +803,10 @@ func processOneDay(
 	}
 
 	for _, agentID := range order {
-		agentCfg := state.AgentConfigByID[agentID]
 		var input ManageRosterInput
 		if err := workflow.ExecuteActivity(dbCtx, acts.BuildManageRosterContext, BuildManageRosterContextInput{
-			PoolID:      state.PoolID,
-			AgentID:     agentID,
-			SimDate:     simDate,
-			PoolConfig:  state.PoolConfig,
-			AgentConfig: agentCfg,
-			FreeAgents:  faRes.PlayerIDs,
+			TurnScope:  state.turnScope(agentID, simDate),
+			FreeAgents: faRes.PlayerIDs,
 		}).Get(ctx, &input); err != nil {
 			return false, fmt.Errorf("build daily context (agent %d): %w", agentID, err)
 		}
@@ -902,16 +879,6 @@ func shuffleAgents(ctx workflow.Context, ids []int32, kind string) error {
 	rng := rand.New(rand.NewSource(seed))
 	rng.Shuffle(len(ids), func(i, j int) { ids[i], ids[j] = ids[j], ids[i] })
 	return nil
-}
-
-// addOneDay returns a pgtype.Date one calendar day after base. Used
-// by the day loop's simDate progression — a thin wrapper so the day
-// arithmetic is one obvious place to look for off-by-one bugs.
-func addOneDay(base pgtype.Date) pgtype.Date {
-	if !base.Valid {
-		return base
-	}
-	return pgtype.Date{Time: base.Time.AddDate(0, 0, 1), Valid: true}
 }
 
 // ============================================================================
