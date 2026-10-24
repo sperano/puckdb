@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	nhlapi "github.com/sperano/nhl-api-go/nhl"
+	"github.com/sperano/puckdb/internal/store"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -91,4 +92,16 @@ func TestHomePlayoffGames_PartitionsSeriesAcrossTeams(t *testing.T) {
 	for id, count := range seen {
 		assert.Equal(t, 1, count, "game %d assigned to more than one team", id)
 	}
+}
+
+func TestNewPlayoffActivitiesWiresEveryQueryField(t *testing.T) {
+	queries := struct{ PlayoffQueries }{}
+	mem := store.NewMemStorage()
+	client := &MockNHLClient{}
+
+	got := NewPlayoffActivities(queries, PlayoffActivities{Storage: mem, NHLClient: client})
+
+	assert.Empty(t, unwiredQueryFields(got, queries, "Storage", "NHLClient"))
+	assert.Same(t, mem, got.Storage)
+	assert.Same(t, client, got.NHLClient)
 }

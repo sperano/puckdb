@@ -52,7 +52,7 @@ func (e errBatchResults) QueryRow() pgx.Row        { return nil }
 func (e errBatchResults) Close() error             { return nil }
 
 // =============================================================================
-// MockQueries implements the full Queries composite interface for ImportActivities.
+// MockQueries implements the full ImportQueries composite interface for ImportActivities.
 // =============================================================================
 
 type MockQueries struct {
@@ -331,7 +331,7 @@ func TestImportGameStorySuite(t *testing.T) {
 	suite.Run(t, new(ImportGameStorySuite))
 }
 
-func (s *ImportGameStorySuite) newActivities(mem *store.MemStorage, q Queries) *ImportActivities {
+func (s *ImportGameStorySuite) newActivities(mem *store.MemStorage, q ImportQueries) *ImportActivities {
 	return &ImportActivities{
 		Storage:  mem,
 		GobCache: newImportTestGobCache(),
@@ -526,7 +526,7 @@ func TestImportPlayByPlaySuite(t *testing.T) {
 	suite.Run(t, new(ImportPlayByPlaySuite))
 }
 
-func (s *ImportPlayByPlaySuite) newActivities(mem *store.MemStorage, q Queries) *ImportActivities {
+func (s *ImportPlayByPlaySuite) newActivities(mem *store.MemStorage, q ImportQueries) *ImportActivities {
 	return &ImportActivities{
 		Storage:  mem,
 		GobCache: newImportTestGobCache(),
@@ -671,7 +671,7 @@ func TestImportStandingsSuite(t *testing.T) {
 	suite.Run(t, new(ImportStandingsSuite))
 }
 
-func (s *ImportStandingsSuite) newActivities(mem *store.MemStorage, q Queries) *ImportActivities {
+func (s *ImportStandingsSuite) newActivities(mem *store.MemStorage, q ImportQueries) *ImportActivities {
 	return &ImportActivities{
 		Storage:  mem,
 		GobCache: newImportTestGobCache(),
@@ -1463,7 +1463,7 @@ func TestImportDaySuite(t *testing.T) {
 	suite.Run(t, new(ImportDaySuite))
 }
 
-func (s *ImportDaySuite) newActivities(mem *store.MemStorage, q Queries) *ImportActivities {
+func (s *ImportDaySuite) newActivities(mem *store.MemStorage, q ImportQueries) *ImportActivities {
 	return &ImportActivities{
 		Storage:  mem,
 		GobCache: newImportTestGobCache(),

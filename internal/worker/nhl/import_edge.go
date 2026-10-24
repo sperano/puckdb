@@ -36,7 +36,7 @@ type EdgeStatsUpserter interface {
 	UpsertEdgeTeamShotDifferential(ctx context.Context, arg sqlcdb.UpsertEdgeTeamShotDifferentialParams) error
 
 	// Shared
-	GetSeasonTeamAbbrevs(ctx context.Context, seasonID int32) ([]sqlcdb.GetSeasonTeamAbbrevsRow, error)
+	SeasonTeamAbbrevsLister
 }
 
 // ===== Season-wide import activities =====

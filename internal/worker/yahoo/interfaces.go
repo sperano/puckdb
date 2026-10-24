@@ -59,8 +59,8 @@ type YahooLeaguePlayerStore interface {
 	DeleteStaleYahooLeaguePlayers(ctx context.Context, arg sqlcdb.DeleteStaleYahooLeaguePlayersParams) (int64, error)
 }
 
-// Queries is a composite interface for all Yahoo import activity database operations.
-type Queries interface {
+// YahooImportQueries is the composite of every Yahoo import activity database operation.
+type YahooImportQueries interface {
 	YahooLeagueUpserter
 	YahooStandInLeagueStore
 	YahooLeagueRuleStore

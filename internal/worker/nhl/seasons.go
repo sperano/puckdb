@@ -37,22 +37,43 @@ type seasonTeamsUpserter interface {
 	UpsertSeasonTeam(ctx context.Context, arg sqlcdb.UpsertSeasonTeamParams) error
 }
 
+// SeasonTeamAbbrevsLister lists a season's clubs. The activities that work
+// team by team embed it in their own narrow interfaces.
+type SeasonTeamAbbrevsLister interface {
+	GetSeasonTeamAbbrevs(ctx context.Context, seasonID int32) ([]sqlcdb.GetSeasonTeamAbbrevsRow, error)
+}
+
 // SeasonRosterUpserter is the interface for season roster database operations.
 type SeasonRosterUpserter interface {
-	GetSeasonTeamAbbrevs(ctx context.Context, seasonID int32) ([]sqlcdb.GetSeasonTeamAbbrevsRow, error)
+	SeasonTeamAbbrevsLister
 	EnsurePlayerExistsBatch(ctx context.Context, arg []sqlcdb.EnsurePlayerExistsBatchParams) *sqlcdb.EnsurePlayerExistsBatchBatchResults
 	UpsertSeasonRosterBatch(ctx context.Context, arg []sqlcdb.UpsertSeasonRosterBatchParams) *sqlcdb.UpsertSeasonRosterBatchBatchResults
 }
 
 // ClubStatsUpserter is the interface for club stats database operations.
 type ClubStatsUpserter interface {
-	GetSeasonTeamAbbrevs(ctx context.Context, seasonID int32) ([]sqlcdb.GetSeasonTeamAbbrevsRow, error)
+	SeasonTeamAbbrevsLister
 	UpsertClubSkaterStatsBatch(ctx context.Context, arg []sqlcdb.UpsertClubSkaterStatsBatchParams) *sqlcdb.UpsertClubSkaterStatsBatchBatchResults
 	UpsertClubGoalieStatsBatch(ctx context.Context, arg []sqlcdb.UpsertClubGoalieStatsBatchParams) *sqlcdb.UpsertClubGoalieStatsBatchBatchResults
 }
 
+// SeasonsQueries is every query the season activities run, the single
+// dependency NewSeasonsActivities spreads over their narrow query fields.
+type SeasonsQueries interface {
+	seasonsUpserter
+	seasonTeamsUpserter
+	SeasonRosterUpserter
+	UpcomingSeasonQueries
+	ClubStatsUpserter
+	EdgeStatsUpserter
+}
+
+var _ SeasonsQueries = (*sqlcdb.Queries)(nil)
+
 // SeasonsActivities holds dependencies for season management activities:
 // fetching season manifests, upserting seasons/teams, rosters, and club stats.
+// Each query field is the narrow interface its activities use, so a test sets
+// only the ones it exercises; the worker builds it with NewSeasonsActivities.
 type SeasonsActivities struct {
 	Storage             store.Storage
 	GobCache            *cache.GobCache
@@ -64,6 +85,19 @@ type SeasonsActivities struct {
 	ClubStatsQueries    ClubStatsUpserter
 	EdgeQueries         EdgeStatsUpserter
 	RedisClient         *redis.Client // for progress tracking (nil-safe)
+}
+
+// NewSeasonsActivities returns a copy of deps with every query field set to
+// queries, so the worker cannot leave one nil; query fields already set in
+// deps are replaced.
+func NewSeasonsActivities(queries SeasonsQueries, deps SeasonsActivities) *SeasonsActivities {
+	deps.SeasonsUpserter = queries
+	deps.SeasonTeamsUpserter = queries
+	deps.RosterQueries = queries
+	deps.UpcomingQueries = queries
+	deps.ClubStatsQueries = queries
+	deps.EdgeQueries = queries
+	return &deps
 }
 
 // --- FetchSeasonsManifest ---

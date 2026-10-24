@@ -10,7 +10,7 @@ import (
 
 type mockBatchResults = pgxfixtures.BatchResults
 
-// MockQueries is a testify mock implementing the Queries interface.
+// MockQueries is a testify mock implementing the YahooImportQueries interface.
 type MockQueries struct {
 	mock.Mock
 }
@@ -111,5 +111,5 @@ func (m *MockQueries) DeleteStaleYahooLeaguePlayers(ctx context.Context, arg sql
 	return args.Get(0).(int64), args.Error(1)
 }
 
-// Compile-time check: MockQueries must satisfy Queries.
-var _ Queries = (*MockQueries)(nil)
+// Compile-time check: MockQueries must satisfy YahooImportQueries.
+var _ YahooImportQueries = (*MockQueries)(nil)

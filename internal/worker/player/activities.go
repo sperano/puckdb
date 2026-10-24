@@ -38,7 +38,18 @@ type PlayerCareerUpserter interface {
 	UpsertInternationalSeasonTeam(ctx context.Context, arg sqlcdb.UpsertInternationalSeasonTeamParams) error
 }
 
+// ActivityQueries is every pool-scoped query the player activities run, the single
+// dependency NewActivities spreads over Queries and CareerQueries.
+type ActivityQueries interface {
+	PlayerUpserter
+	PlayerCareerUpserter
+}
+
+var _ ActivityQueries = (*sqlcdb.Queries)(nil)
+
 // Activities groups player-related activities with their dependencies.
+// Queries and CareerQueries stay separate narrow seams for tests; the worker
+// builds the struct with NewActivities.
 type Activities struct {
 	Storage                store.Storage
 	NHLClient              shared.NHLClient
@@ -50,6 +61,16 @@ type Activities struct {
 	// Manifests holds the durable player manifests and per-player errors of
 	// ProcessPlayers chains.
 	Manifests ProcessPlayersStore
+}
+
+// NewActivities returns a copy of deps with Queries and CareerQueries set to
+// queries, so the worker cannot leave one nil; values already set in deps
+// are replaced. Manifests stays the caller's: it is a transactional store,
+// not a pool-scoped query.
+func NewActivities(queries ActivityQueries, deps Activities) *Activities {
+	deps.Queries = queries
+	deps.CareerQueries = queries
+	return &deps
 }
 
 // --- Player landing activities ---

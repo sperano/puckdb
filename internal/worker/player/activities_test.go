@@ -2,6 +2,8 @@ package player
 
 import (
 	"context"
+	"reflect"
+	"slices"
 	"testing"
 
 	"github.com/sperano/nhl-api-go/nhl"
@@ -18,6 +20,39 @@ func newTestActivities(storage store.Storage) *Activities {
 		Storage:   storage,
 		NHLClient: &MockNHLClient{},
 	}
+}
+
+// unwiredQueryFields names the interface fields of the struct activities
+// points to that do not hold queries, skipping the non-query dependencies
+// listed in others. A query field added to Activities but not to
+// NewActivities shows up here.
+func unwiredQueryFields(activities, queries any, others ...string) []string {
+	v := reflect.ValueOf(activities).Elem()
+	var unwired []string
+	for i := range v.NumField() {
+		field := v.Type().Field(i)
+		if field.Type.Kind() != reflect.Interface || slices.Contains(others, field.Name) {
+			continue
+		}
+		if v.Field(i).Interface() != queries {
+			unwired = append(unwired, field.Name)
+		}
+	}
+	return unwired
+}
+
+func TestNewActivitiesWiresEveryQueryField(t *testing.T) {
+	queries := struct{ ActivityQueries }{}
+	mem := store.NewMemStorage()
+	client := &MockNHLClient{}
+	manifests := NewPgProcessPlayersStore(nil)
+
+	got := NewActivities(queries, Activities{Storage: mem, NHLClient: client, Manifests: manifests})
+
+	assert.Empty(t, unwiredQueryFields(got, queries, "Storage", "NHLClient", "Manifests"))
+	assert.Same(t, mem, got.Storage)
+	assert.Same(t, client, got.NHLClient)
+	assert.Same(t, manifests, got.Manifests)
 }
 
 func TestDownloadPlayerGameLogsBatch_EmptyInput(t *testing.T) {
