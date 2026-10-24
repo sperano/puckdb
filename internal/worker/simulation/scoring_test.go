@@ -363,3 +363,11 @@ func TestAgentRotoTotals_SumsAcrossCategoriesAndSortsDescending(t *testing.T) {
 	assert.Equal(t, int32(4), totals[4].AgentID)
 	assert.Equal(t, 4.0, totals[4].TotalRotoPoints)
 }
+
+// goalsAgainstAverage: zero TOI yields 0 (no games), otherwise GA/TOI*3600.
+func TestGoalsAgainstAverage(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, 0.0, goalsAgainstAverage(3, 0))
+	assert.InDelta(t, 6.0, goalsAgainstAverage(2, 1200), 0.0001)
+	assert.InDelta(t, 0.0, goalsAgainstAverage(0, 3600), 0.0001)
+}

@@ -128,8 +128,21 @@ func RankCategory(stats []AgentCategoryStat, lowerIsBetter bool) []CategoryRanki
 	return out
 }
 
+// secondsPerHour converts TOI seconds to the per-60-minutes basis every
+// rate stat (GAA) is expressed in.
+const secondsPerHour = 3600
+
+// goalsAgainstAverage returns GAA = GA / TOI * 3600, or 0 when the
+// goalie has no recorded ice time (no games in the window).
+func goalsAgainstAverage(ga, toiSeconds int) float64 {
+	if toiSeconds <= 0 {
+		return 0
+	}
+	return float64(ga) / float64(toiSeconds) * secondsPerHour
+}
+
 // RankGAA ranks agents in the GAA category. The displayed GAA is derived
-// from cumulative components: GAA = (GoalieGA / GoalieTOISeconds) * 3600.
+// from cumulative components via goalsAgainstAverage.
 //
 // Agents with GoalieTOISeconds == 0 are forced to the worst sorted position
 // regardless of value (PLAN.md "Rate stats"); their reported Value is 0
@@ -151,7 +164,7 @@ func RankGAA(stats []AgentCategoryStat) []CategoryRanking {
 			// Replaced with 0 in the output below.
 			derived[i].Value = math.Inf(1)
 		} else {
-			derived[i].Value = float64(s.GoalieGA) / float64(s.GoalieTOISeconds) * 3600.0
+			derived[i].Value = goalsAgainstAverage(s.GoalieGA, s.GoalieTOISeconds)
 		}
 	}
 	rankings := RankCategory(derived, true)

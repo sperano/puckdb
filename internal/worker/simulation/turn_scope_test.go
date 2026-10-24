@@ -63,7 +63,7 @@ func TestTurnInputs_KeepLegacyTopLevelKeys(t *testing.T) {
 		"BuildManageRosterContextInput": {
 			in: BuildManageRosterContextInput{TurnScope: scope},
 			want: []string{
-				"agent_config", "agent_id", "free_agents", "on_waivers", "pool_config",
+				"agent_config", "agent_id", "free_agents", "pool_config",
 				"pool_id", "sim_date",
 			},
 		},
