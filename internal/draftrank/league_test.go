@@ -1,6 +1,7 @@
 package draftrank
 
 import (
+	"math"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -28,7 +29,8 @@ func TestParseLeague(t *testing.T) {
 		value  string
 		season int
 	}{{"", 2026}, {"465.l.x", 2026}, {"465.l.0", 2026}, {"abc", 2026}, {"-3", 2026}, {"1001", 0},
-		{"abc.l.1001", 2026}, {"465.l.1001.2", 2026}, {"465.x.1001", 2026}, {"1.5", 2026}, {"2147483648", 2026}} {
+		{"abc.l.1001", 2026}, {"465.l.1001.2", 2026}, {"465.x.1001", 2026}, {"1.5", 2026}, {"2147483648", 2026},
+		{"+1001", 2026}, {"465.l.01001", 2026}, {"1001", math.MaxInt32 + 1}} {
 		_, err := ParseLeague(bad.value, bad.season)
 		assert.ErrorIs(t, err, ErrUnknownLeague, "%q season %d", bad.value, bad.season)
 	}

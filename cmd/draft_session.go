@@ -16,6 +16,7 @@ import (
 	"github.com/sperano/puckdb/internal/draftwatch"
 	"github.com/sperano/puckdb/internal/sqlcdb"
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 )
 
@@ -62,7 +63,7 @@ func newDraftSessionCommand(use, short string, run func(*cobra.Command, draftSes
 		Use: use, Short: short, Long: short + ".\n\n" + draftSessionLeagueHelp, Args: cobra.NoArgs,
 		PreRunE: bindFlagsPreRunE(slices.Concat(draftSessionCLIFlagGroups, localGroups)...),
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			loaded, err := loadDraftSessionContext(cmd.Context())
+			loaded, err := loadDraftSessionContext(cmd)
 			if err != nil {
 				return err
 			}
@@ -80,12 +81,13 @@ type draftSessionContext struct {
 	repository *draftwatch.Repository
 }
 
-func loadDraftSessionContext(ctx context.Context) (draftSessionContext, error) {
+func loadDraftSessionContext(cmd *cobra.Command) (draftSessionContext, error) {
+	ctx := cmd.Context()
 	pool, err := openPGXPool(ctx)
 	if err != nil {
 		return draftSessionContext{}, fmt.Errorf("open database pool: %w", err)
 	}
-	id, err := resolveDraftSessionIdentity(ctx, pool)
+	id, err := resolveDraftSessionIdentity(ctx, cmd.Flags(), pool)
 	if err != nil {
 		pool.Close()
 		return draftSessionContext{}, err
@@ -96,26 +98,33 @@ func loadDraftSessionContext(ctx context.Context) (draftSessionContext, error) {
 // resolveDraftSessionIdentity resolves the session league of `sync draft` and
 // `draft session` from --draft-league (or its deprecated --league alias) and
 // --draft-season, which defaults to the season whose rules for a numeric ID
-// were imported last.
-func resolveDraftSessionIdentity(ctx context.Context, pool *pgxpool.Pool) (draftwatch.Identity, error) {
-	league, err := draftSessionLeagueFromFlags()
+// were imported last. ResolveIdentity's errors name the league or season
+// themselves, so they are returned as they are.
+func resolveDraftSessionIdentity(ctx context.Context, flags *pflag.FlagSet, pool *pgxpool.Pool) (draftwatch.Identity, error) {
+	league, err := draftSessionLeagueFromFlags(flags)
 	if err != nil {
 		return draftwatch.Identity{}, err
 	}
-	id, err := draftwatch.ResolveIdentity(ctx, pool, league, viper.GetInt(config.FlagDraftSeason))
-	if err != nil {
-		return draftwatch.Identity{}, fmt.Errorf("--%s: %w", config.FlagDraftLeague, err)
+	if league == "" {
+		return draftwatch.Identity{}, fmt.Errorf("--%s is required", config.FlagDraftLeague)
 	}
-	return id, nil
+	return draftwatch.ResolveIdentity(ctx, pool, league, viper.GetInt(config.FlagDraftSeason))
 }
 
 // draftSessionLeagueFromFlags reads --draft-league, or the deprecated
-// --league alias when only it is set; the two naming different leagues is an
-// error rather than a silent choice.
-func draftSessionLeagueFromFlags() (string, error) {
+// --league alias. A flag typed on the command line wins over the other one's
+// environment or config value; two typed flags, or two configured values,
+// naming different leagues are an error rather than a silent choice.
+func draftSessionLeagueFromFlags(flags *pflag.FlagSet) (string, error) {
 	league := strings.TrimSpace(viper.GetString(config.FlagDraftLeague))
 	legacy := strings.TrimSpace(viper.GetString(config.FlagDraftLegacyLeague))
+	leagueTyped := flags.Changed(config.FlagDraftLeague)
+	legacyTyped := flags.Changed(config.FlagDraftLegacyLeague)
 	switch {
+	case leagueTyped && !legacyTyped:
+		return league, nil
+	case legacyTyped && !leagueTyped:
+		return legacy, nil
 	case legacy == "":
 		return league, nil
 	case league == "":

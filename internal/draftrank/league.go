@@ -3,6 +3,7 @@ package draftrank
 import (
 	"errors"
 	"fmt"
+	"math"
 	"strings"
 
 	"github.com/sperano/puckdb/internal/draft"
@@ -43,6 +44,9 @@ func ParseLeague(value string, season int) (LeagueRef, error) {
 	}
 	if season <= 0 {
 		return LeagueRef{}, fmt.Errorf("%w: league ID %d needs a season", ErrUnknownLeague, id)
+	}
+	if season > math.MaxInt32 {
+		return LeagueRef{}, fmt.Errorf("%w: season %d is not a season start year", ErrUnknownLeague, season)
 	}
 	return LeagueRef{Season: season, LeagueID: id}, nil
 }

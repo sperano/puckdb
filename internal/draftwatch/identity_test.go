@@ -90,11 +90,16 @@ func TestResolveIdentityOverPostgreSQL(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, oldIdentity, got)
 
+	_, err = ResolveIdentity(ctx, pool, oldKey, identityNewSeason)
+	require.ErrorIs(t, err, ErrLeagueNotImported)
+	assert.ErrorContains(t, err, fmt.Sprintf("the key belongs to season %d", identityOldSeason))
+	assert.NotContains(t, err.Error(), "sync its league metadata first")
+
 	for name, tc := range map[string]struct {
 		ref    string
 		season int
 	}{
-		"full key in another season":     {oldKey, identityNewSeason},
+		"missing full key in a season":   {fmt.Sprintf("%d.l.%d", identityNewGameKey, leagueID+1), identityNewSeason},
 		"missing full key":               {fmt.Sprintf("%d.l.%d", identityNewGameKey, leagueID+1), NewestSeason},
 		"numeric ID in a missing season": {numeric, identityNewSeason + 1},
 		"missing numeric ID":             {strconv.Itoa(leagueID + 1), NewestSeason},

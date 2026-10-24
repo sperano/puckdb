@@ -116,11 +116,30 @@ func findSeasonForKey(ctx context.Context, queries *sqlcdb.Queries, key string, 
 	})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return 0, fmt.Errorf("league %s%s: %w; sync its league metadata first", key, seasonLabel(requested), ErrLeagueNotImported)
+			return 0, keyNotImportedError(ctx, queries, key, requested)
 		}
 		return 0, fmt.Errorf("resolve league %s: %w", key, err)
 	}
 	return int(row.Season), nil
+}
+
+// keyNotImportedError explains why a full key has no rules in the requested
+// season: a key imported for another season names that season, since syncing
+// again would not help.
+func keyNotImportedError(ctx context.Context, queries *sqlcdb.Queries, key string, requested int) error {
+	if requested != NewestSeason {
+		row, err := queries.FindYahooLeagueRuleSnapshotByKey(ctx, sqlcdb.FindYahooLeagueRuleSnapshotByKeyParams{
+			LeagueKey: key, Season: NewestSeason,
+		})
+		if err == nil {
+			return fmt.Errorf("league %s%s: %w; the key belongs to season %d", key, seasonLabel(requested),
+				ErrLeagueNotImported, row.Season)
+		}
+		if !errors.Is(err, pgx.ErrNoRows) {
+			return fmt.Errorf("resolve league %s: %w", key, err)
+		}
+	}
+	return fmt.Errorf("league %s%s: %w; sync its league metadata first", key, seasonLabel(requested), ErrLeagueNotImported)
 }
 
 func findIdentityForID(ctx context.Context, queries *sqlcdb.Queries, leagueID, requestedSeason int) (Identity, error) {

@@ -16,7 +16,7 @@ func TestParseLeagueKey(t *testing.T) {
 	assert.Equal(t, 1001, leagueID)
 
 	for _, bad := range []string{"", "465", "465.l", "465.x.1001", "465.l.1001.2", "abc.l.1001", "465.l.x",
-		"0.l.1001", "465.l.0", "465.l.-1", "465.l." + strconv.FormatInt(math.MaxInt32+1, 10)} {
+		"0.l.1001", "465.l.0", "465.l.-1", "+465.l.1001", "465.l.+1001", "0465.l.1001", "465.l.01001", " 465.l.1001", "465.l." + strconv.FormatInt(math.MaxInt32+1, 10)} {
 		_, _, err := ParseLeagueKey(bad)
 		assert.ErrorIs(t, err, ErrMalformedLeagueRef, "%q", bad)
 	}
@@ -30,7 +30,7 @@ func TestParseLeagueID(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, math.MaxInt32, id)
 
-	for _, bad := range []string{"", "abc", "0", "-3", "1.5", strconv.FormatInt(math.MaxInt32+1, 10)} {
+	for _, bad := range []string{"", "abc", "0", "-3", "1.5", "+1001", "01001", " 1001", strconv.FormatInt(math.MaxInt32+1, 10)} {
 		_, err := ParseLeagueID(bad)
 		assert.ErrorIs(t, err, ErrMalformedLeagueRef, "%q", bad)
 	}

@@ -59,10 +59,16 @@ func ParseLeagueID(value string) (int, error) {
 	return id, nil
 }
 
+// positiveID parses a positive integer written canonically: digits only, no
+// sign and no leading zero, so a parsed key is the exact string the league_key
+// columns store.
 func positiveID(value string) (int, error) {
+	if value == "" || value[0] == '0' || strings.TrimLeft(value, "0123456789") != "" {
+		return 0, errors.New("not a canonical positive integer")
+	}
 	parsed, err := strconv.ParseInt(value, 10, leagueIDBits)
-	if err != nil || parsed <= 0 {
-		return 0, errors.New("not a positive integer")
+	if err != nil {
+		return 0, errors.New("not a canonical positive integer")
 	}
 	return int(parsed), nil
 }
