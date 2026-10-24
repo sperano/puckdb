@@ -62,6 +62,16 @@ func TestDraftRankingsRequestFromFlags_NumericLeagueUsesCurrentSeason(t *testing
 	assert.Equal(t, draftrank.LeagueRef{Season: nhl.Current().StartYear(), LeagueID: draftfixtures.LeagueID}, request.League)
 }
 
+func TestDraftRankingsRequestFromFlags_NumericLeagueUsesTheNamedSeason(t *testing.T) {
+	setDraftRankingDefaults()
+	t.Cleanup(viper.Reset)
+	viper.Set(config.FlagDraftLeague, "1001")
+	viper.Set(config.FlagDraftSeason, draftfixtures.Season-1)
+	request, err := draftRankingsRequestFromFlags()
+	require.NoError(t, err)
+	assert.Equal(t, draftrank.LeagueRef{Season: draftfixtures.Season - 1, LeagueID: draftfixtures.LeagueID}, request.League)
+}
+
 func TestDraftRankingsRequestFromFlags_Rejects(t *testing.T) {
 	for name, set := range map[string]func(){
 		"missing league": func() {},

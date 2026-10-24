@@ -283,11 +283,11 @@ const (
 
 // Draft helper report defaults
 const (
-	DefaultDraftSeason        = 0 // no default: the season must be named
-	DefaultDraftLeagues       = ""
-	DefaultDraftOutput        = ""
-	DefaultDraftStaleAfter    = 24 // hours
-	DefaultDraftSessionLeague = ""
+	DefaultDraftSeason       = 0 // none named: each command says what it requires or falls back to
+	DefaultDraftLeagues      = ""
+	DefaultDraftOutput       = ""
+	DefaultDraftStaleAfter   = 24 // hours
+	DefaultDraftLegacyLeague = ""
 	// The watch cadence is deliberately configurable: Yahoo live-draft
 	// latency and throttling must be measured before tightening it.
 	DefaultDraftPollIntervalSeconds = 30

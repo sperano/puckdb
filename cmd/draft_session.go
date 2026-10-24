@@ -21,6 +21,14 @@ import (
 
 const capabilityObservationLimit = 500
 
+// draftSessionLeagueHelp explains the league resolution shared by `sync draft`
+// and `draft session`.
+const draftSessionLeagueHelp = `--draft-league takes a full league key, which names its season, or a numeric
+league ID, which is looked up in --draft-season (default: the season whose
+rules for that ID were imported last, so name the season when an older one
+may have been re-imported; "draft rankings" defaults to the current season
+instead). --league is a deprecated alias of --draft-league.`
+
 var draftSessionCLIFlagGroups = []*config.FlagGroup{
 	&config.PostgresFlags,
 	&config.DraftSessionFlags,
@@ -30,7 +38,7 @@ func cmdDraftSession() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "session",
 		Short: "Inspect and manually maintain a live draft session",
-		Long:  "Local operations only; no command in this group submits a pick to Yahoo.",
+		Long:  "Local operations only; no command in this group submits a pick to Yahoo.\n\n" + draftSessionLeagueHelp,
 	}
 	config.InitFlags(cmd.PersistentFlags(), draftSessionCLIFlagGroups...)
 	cmd.AddCommand(
@@ -51,7 +59,7 @@ func cmdDraftSession() *cobra.Command {
 func newDraftSessionCommand(use, short string, run func(*cobra.Command, draftSessionContext) error,
 	localGroups ...*config.FlagGroup) *cobra.Command {
 	cmd := &cobra.Command{
-		Use: use, Short: short, Args: cobra.NoArgs,
+		Use: use, Short: short, Long: short + ".\n\n" + draftSessionLeagueHelp, Args: cobra.NoArgs,
 		PreRunE: bindFlagsPreRunE(slices.Concat(draftSessionCLIFlagGroups, localGroups)...),
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			loaded, err := loadDraftSessionContext(cmd.Context())
@@ -77,12 +85,47 @@ func loadDraftSessionContext(ctx context.Context) (draftSessionContext, error) {
 	if err != nil {
 		return draftSessionContext{}, fmt.Errorf("open database pool: %w", err)
 	}
-	id, err := draftwatch.ResolveIdentity(ctx, pool, viper.GetString(config.FlagDraftSessionLeague), viper.GetInt(config.FlagDraftSeason))
+	id, err := resolveDraftSessionIdentity(ctx, pool)
 	if err != nil {
 		pool.Close()
 		return draftSessionContext{}, err
 	}
 	return draftSessionContext{pool: pool, identity: id, repository: draftwatch.NewRepository(pool)}, nil
+}
+
+// resolveDraftSessionIdentity resolves the session league of `sync draft` and
+// `draft session` from --draft-league (or its deprecated --league alias) and
+// --draft-season, which defaults to the season whose rules for a numeric ID
+// were imported last.
+func resolveDraftSessionIdentity(ctx context.Context, pool *pgxpool.Pool) (draftwatch.Identity, error) {
+	league, err := draftSessionLeagueFromFlags()
+	if err != nil {
+		return draftwatch.Identity{}, err
+	}
+	id, err := draftwatch.ResolveIdentity(ctx, pool, league, viper.GetInt(config.FlagDraftSeason))
+	if err != nil {
+		return draftwatch.Identity{}, fmt.Errorf("--%s: %w", config.FlagDraftLeague, err)
+	}
+	return id, nil
+}
+
+// draftSessionLeagueFromFlags reads --draft-league, or the deprecated
+// --league alias when only it is set; the two naming different leagues is an
+// error rather than a silent choice.
+func draftSessionLeagueFromFlags() (string, error) {
+	league := strings.TrimSpace(viper.GetString(config.FlagDraftLeague))
+	legacy := strings.TrimSpace(viper.GetString(config.FlagDraftLegacyLeague))
+	switch {
+	case legacy == "":
+		return league, nil
+	case league == "":
+		return legacy, nil
+	case league != legacy:
+		return "", fmt.Errorf("--%s %q and the deprecated --%s %q name different leagues; use --%s only",
+			config.FlagDraftLeague, league, config.FlagDraftLegacyLeague, legacy, config.FlagDraftLeague)
+	default:
+		return league, nil
+	}
 }
 
 func runDraftSessionStatus(cmd *cobra.Command, loaded draftSessionContext) error {
@@ -176,8 +219,8 @@ func draftPickKeyFromFlags() (draftsession.PickKey, error) {
 func writeDraftSession(out io.Writer, session draftwatch.Session) error {
 	manual, conflicts := draftBoardCounts(session.State)
 	if _, err := fmt.Fprintf(out,
-		"league=%s version=%d status=%s complete=%t safe=%t manual=%d conflicts=%d last_poll=%s last_success=%s error=%q\n",
-		session.Identity.LeagueKey, session.State.Version, session.DraftStatus, session.Complete,
+		"league=%s season=%d version=%d status=%s complete=%t safe=%t manual=%d conflicts=%d last_poll=%s last_success=%s error=%q\n",
+		session.Identity.LeagueKey, session.Identity.Season, session.State.Version, session.DraftStatus, session.Complete,
 		session.SafeToRecommend(), manual, conflicts, formatOptionalTime(session.LastPollAt),
 		formatOptionalTime(session.LastSuccessAt), session.LastError); err != nil {
 		return err

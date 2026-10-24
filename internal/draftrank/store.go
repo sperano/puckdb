@@ -240,9 +240,13 @@ func (s *PGStore) ListLeagueRules(ctx context.Context, season int) ([]draft.Snap
 	return out, nil
 }
 
-// FindLeagueKey returns the season and numeric ID of a league key.
+// FindLeagueKey returns the season and numeric ID of a league key, from its
+// latest imported rules in any season (draftwatch.ResolveIdentity shares the
+// query and may restrict it to one season).
 func (s *PGStore) FindLeagueKey(ctx context.Context, leagueKey string) (int, int, error) {
-	row, err := s.queries.FindYahooLeagueRuleSnapshotByKey(ctx, leagueKey)
+	row, err := s.queries.FindYahooLeagueRuleSnapshotByKey(ctx, sqlcdb.FindYahooLeagueRuleSnapshotByKeyParams{
+		LeagueKey: leagueKey, Season: draft.AnySeason,
+	})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return 0, 0, fmt.Errorf("%w: league %s has no imported rules", ErrUnknownLeague, leagueKey)
 	}

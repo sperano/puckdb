@@ -146,3 +146,41 @@ func TestPGStore_OverrideChangesSinceSnapshot(t *testing.T) {
 	require.NoError(t, err)
 	assert.Zero(t, changes)
 }
+
+// TestPGStore_ResolvesEveryLeagueReferenceForm resolves the imported fixture
+// league through the shared rule-snapshot query: a full key in any season, a
+// numeric ID only in its season, and a missing league as ErrUnknownLeague.
+func TestPGStore_ResolvesEveryLeagueReferenceForm(t *testing.T) {
+	pool := openDraftTestDB(t)
+	seedLeague(t, pool, seed{rules: true})
+	store := draftrank.NewPGStore(pool)
+	ctx := context.Background()
+
+	season, leagueID, err := store.FindLeagueKey(ctx, draftfixtures.LeagueKey)
+	require.NoError(t, err)
+	assert.Equal(t, draftfixtures.Season, season)
+	assert.Equal(t, draftfixtures.LeagueID, leagueID)
+	_, _, err = store.FindLeagueKey(ctx, "465.l.1002")
+	assert.ErrorIs(t, err, draftrank.ErrUnknownLeague)
+
+	svc := draftrank.NewService(store, nil, draftrank.ServiceOptions{})
+	want := draftrank.LeagueRef{Season: draftfixtures.Season, LeagueID: draftfixtures.LeagueID, LeagueKey: draftfixtures.LeagueKey}
+	for name, ref := range map[string]draftrank.LeagueRef{
+		"full key":               {LeagueKey: draftfixtures.LeagueKey},
+		"full key, other season": {LeagueKey: draftfixtures.LeagueKey, Season: draftfixtures.Season + 1},
+		"numeric ID with season": {Season: draftfixtures.Season, LeagueID: draftfixtures.LeagueID},
+	} {
+		got, err := svc.ResolveLeague(ctx, ref)
+		require.NoError(t, err, name)
+		assert.Equal(t, want, got, name)
+	}
+	for name, ref := range map[string]draftrank.LeagueRef{
+		"missing full key":         {LeagueKey: "465.l.1002"},
+		"numeric ID, other season": {Season: draftfixtures.Season + 1, LeagueID: draftfixtures.LeagueID},
+		"missing numeric ID":       {Season: draftfixtures.Season, LeagueID: draftfixtures.OtherLeague},
+		"numeric ID, no season":    {LeagueID: draftfixtures.LeagueID},
+	} {
+		_, err := svc.ResolveLeague(ctx, ref)
+		assert.ErrorIs(t, err, draftrank.ErrUnknownLeague, name)
+	}
+}

@@ -6,15 +6,17 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/sperano/puckdb/internal/draft"
+	"github.com/sperano/puckdb/internal/sqlcdb"
 )
 
 const (
-	leagueKeyParts = 3
 	teamKeyParts   = 5
 	playerKeyParts = 3
 )
@@ -31,44 +33,44 @@ type Identity struct {
 	GameKey   int
 }
 
+// NewestSeason, as the season of ResolveIdentity, resolves a numeric league
+// ID to the season whose rules were seen last (draft.AnySeason): ordered by
+// last_seen_at, so re-importing an older season's rules makes it the newest.
+const NewestSeason = draft.AnySeason
+
 // ResolveIdentity resolves a full league key or a numeric ID from imported
-// league-rule metadata. A numeric ID without a season intentionally chooses
-// the most recently observed season.
+// league-rule metadata. A full key names its season itself; a season other
+// than NewestSeason must then be the key's, or the league is not found. A
+// numeric ID with NewestSeason intentionally chooses the most recently seen
+// season of that ID (draftrank.ParseLeague instead requires one): the live
+// draft is the newest season's, and a CLI caller names --draft-season when
+// the ID exists in several seasons. Keys and IDs are parsed by
+// draft.ParseLeagueKey and draft.ParseLeagueID, as in draftrank.
 func ResolveIdentity(ctx context.Context, pool *pgxpool.Pool, ref string, season int) (Identity, error) {
 	ref = strings.TrimSpace(ref)
 	if ref == "" {
 		return Identity{}, errors.New("league is required")
 	}
-	if strings.Contains(ref, ".") {
-		gameKey, leagueID, err := ParseLeagueKey(ref)
+	if season < NewestSeason || season > math.MaxInt32 {
+		return Identity{}, fmt.Errorf("season %d is not a season start year", season)
+	}
+	queries := sqlcdb.New(pool)
+	if draft.IsLeagueKey(ref) {
+		gameKey, leagueID, err := draft.ParseLeagueKey(ref)
 		if err != nil {
 			return Identity{}, err
 		}
-		resolvedSeason, err := findSeasonForKey(ctx, pool, ref, season)
+		resolvedSeason, err := findSeasonForKey(ctx, queries, ref, season)
 		if err != nil {
 			return Identity{}, err
 		}
 		return Identity{LeagueKey: ref, Season: resolvedSeason, LeagueID: leagueID, GameKey: gameKey}, nil
 	}
-	leagueID, err := strconv.Atoi(ref)
-	if err != nil || leagueID <= 0 {
-		return Identity{}, fmt.Errorf("league %q is neither a full Yahoo league key nor a positive numeric ID", ref)
+	leagueID, err := draft.ParseLeagueID(ref)
+	if err != nil {
+		return Identity{}, err
 	}
-	return findIdentityForID(ctx, pool, leagueID, season)
-}
-
-// ParseLeagueKey parses <game-key>.l.<league-id>.
-func ParseLeagueKey(key string) (int, int, error) {
-	parts := strings.Split(key, ".")
-	if len(parts) != leagueKeyParts || parts[1] != "l" {
-		return 0, 0, fmt.Errorf("invalid Yahoo league key %q", key)
-	}
-	gameKey, gameErr := positiveInt(parts[0])
-	leagueID, leagueErr := positiveInt(parts[2])
-	if gameErr != nil || leagueErr != nil {
-		return 0, 0, fmt.Errorf("invalid Yahoo league key %q", key)
-	}
-	return gameKey, leagueID, nil
+	return findIdentityForID(ctx, queries, leagueID, season)
 }
 
 // ParseTeamKey validates that key belongs to id and returns its numeric team.
@@ -108,37 +110,41 @@ func positiveInt(value string) (int, error) {
 	return parsed, nil
 }
 
-func findSeasonForKey(ctx context.Context, pool *pgxpool.Pool, key string, requested int) (int, error) {
-	const query = `
-SELECT season FROM yahoo_league_rule_snapshots
-WHERE league_key = $1 AND ($2::integer = 0 OR season = $2)
-ORDER BY last_seen_at DESC, id DESC LIMIT 1`
-	var season int
-	if err := pool.QueryRow(ctx, query, key, requested).Scan(&season); err != nil {
+func findSeasonForKey(ctx context.Context, queries *sqlcdb.Queries, key string, requested int) (int, error) {
+	row, err := queries.FindYahooLeagueRuleSnapshotByKey(ctx, sqlcdb.FindYahooLeagueRuleSnapshotByKeyParams{
+		LeagueKey: key, Season: int32(requested),
+	})
+	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return 0, fmt.Errorf("league %s: %w; sync its league metadata first", key, ErrLeagueNotImported)
+			return 0, fmt.Errorf("league %s%s: %w; sync its league metadata first", key, seasonLabel(requested), ErrLeagueNotImported)
 		}
 		return 0, fmt.Errorf("resolve league %s: %w", key, err)
 	}
-	return season, nil
+	return int(row.Season), nil
 }
 
-func findIdentityForID(ctx context.Context, pool *pgxpool.Pool, leagueID, requestedSeason int) (Identity, error) {
-	const query = `
-SELECT league_key, season FROM yahoo_league_rule_snapshots
-WHERE league_id = $1 AND ($2::integer = 0 OR season = $2)
-ORDER BY last_seen_at DESC, id DESC LIMIT 1`
-	var key string
-	var season int
-	if err := pool.QueryRow(ctx, query, leagueID, requestedSeason).Scan(&key, &season); err != nil {
+func findIdentityForID(ctx context.Context, queries *sqlcdb.Queries, leagueID, requestedSeason int) (Identity, error) {
+	row, err := queries.FindYahooLeagueRuleSnapshotByID(ctx, sqlcdb.FindYahooLeagueRuleSnapshotByIDParams{
+		LeagueID: int32(leagueID), Season: int32(requestedSeason),
+	})
+	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return Identity{}, fmt.Errorf("league ID %d season %d: %w", leagueID, requestedSeason, ErrLeagueNotImported)
+			return Identity{}, fmt.Errorf("league ID %d%s: %w; sync its league metadata first",
+				leagueID, seasonLabel(requestedSeason), ErrLeagueNotImported)
 		}
 		return Identity{}, fmt.Errorf("resolve league ID %d: %w", leagueID, err)
 	}
-	gameKey, parsedID, err := ParseLeagueKey(key)
+	gameKey, parsedID, err := draft.ParseLeagueKey(row.LeagueKey)
 	if err != nil || parsedID != leagueID {
-		return Identity{}, fmt.Errorf("stored league key %q is inconsistent with league ID %d", key, leagueID)
+		return Identity{}, fmt.Errorf("stored league key %q is inconsistent with league ID %d", row.LeagueKey, leagueID)
 	}
-	return Identity{LeagueKey: key, Season: season, LeagueID: leagueID, GameKey: gameKey}, nil
+	return Identity{LeagueKey: row.LeagueKey, Season: int(row.Season), LeagueID: leagueID, GameKey: gameKey}, nil
+}
+
+// seasonLabel names the season a lookup was restricted to, if any.
+func seasonLabel(season int) string {
+	if season == NewestSeason {
+		return " in any season"
+	}
+	return fmt.Sprintf(" season %d", season)
 }

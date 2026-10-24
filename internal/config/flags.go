@@ -31,6 +31,9 @@ type FlagDef struct {
 // FlagGroup is a collection of related flags.
 type FlagGroup struct {
 	Flags []FlagDef
+	// Deprecated maps a flag of the group to the message printed when it is
+	// used; the flag keeps working but is hidden from the help.
+	Deprecated map[string]string
 }
 
 // Init registers all flags in the group with the given FlagSet.
@@ -60,6 +63,11 @@ func (g *FlagGroup) Init(flags *flag.FlagSet) {
 				flags.BoolP(f.Name, f.Short, v, f.Usage)
 			} else {
 				flags.Bool(f.Name, v, f.Usage)
+			}
+		}
+		if message, ok := g.Deprecated[f.Name]; ok {
+			if err := flags.MarkDeprecated(f.Name, message); err != nil {
+				panic(fmt.Sprintf("deprecate flag %s: %v", f.Name, err))
 			}
 		}
 	}
@@ -742,21 +750,23 @@ func loadEnvFile() {
 
 // Draft helper report flags
 const (
-	FlagDraftSeason        = "draft-season"
-	FlagDraftLeagues       = "draft-leagues"
-	FlagDraftOutput        = "draft-output"
-	FlagDraftStaleAfter    = "draft-stale-after"
-	FlagDraftSessionLeague = "league"
-	FlagDraftWatch         = "watch"
-	FlagDraftPollInterval  = "draft-poll-interval"
-	FlagDraftMaxBackoff    = "draft-max-backoff"
-	FlagDraftFinalTimeout  = "draft-final-timeout"
-	FlagDraftRound         = "round"
-	FlagDraftPick          = "pick"
-	FlagDraftTeamKey       = "team-key"
-	FlagDraftPlayerKey     = "player-key"
-	FlagDraftCost          = "cost"
-	FlagDraftResolution    = "resolution"
+	FlagDraftSeason     = "draft-season"
+	FlagDraftLeagues    = "draft-leagues"
+	FlagDraftOutput     = "draft-output"
+	FlagDraftStaleAfter = "draft-stale-after"
+	// FlagDraftLegacyLeague is the deprecated alias of FlagDraftLeague on the
+	// draft session commands.
+	FlagDraftLegacyLeague = "league"
+	FlagDraftWatch        = "watch"
+	FlagDraftPollInterval = "draft-poll-interval"
+	FlagDraftMaxBackoff   = "draft-max-backoff"
+	FlagDraftFinalTimeout = "draft-final-timeout"
+	FlagDraftRound        = "round"
+	FlagDraftPick         = "pick"
+	FlagDraftTeamKey      = "team-key"
+	FlagDraftPlayerKey    = "player-key"
+	FlagDraftCost         = "cost"
+	FlagDraftResolution   = "resolution"
 )
 
 // DraftFlags defines the flags of the `draft` report commands.
@@ -769,12 +779,16 @@ var DraftFlags = FlagGroup{
 	},
 }
 
-// DraftSessionFlags identifies a full-key live draft session.
+// DraftSessionFlags identifies a full-key live draft session. A numeric
+// league ID without a season resolves to the season whose rules were imported
+// last (draftwatch.ResolveIdentity), unlike DraftRankingsFlags.
 var DraftSessionFlags = FlagGroup{
 	Flags: []FlagDef{
-		{FlagDraftSessionLeague, "", DefaultDraftSessionLeague, "Full Yahoo league key or numeric league ID; required", false},
-		{FlagDraftSeason, "", DefaultDraftSeason, "Season start year when resolving a numeric league ID", false},
+		{FlagDraftLeague, "", DefaultDraftLeague, "Full Yahoo league key (e.g. 465.l.1001) or numeric league ID; required", false},
+		{FlagDraftLegacyLeague, "", DefaultDraftLegacyLeague, "Deprecated alias of --" + FlagDraftLeague, false},
+		{FlagDraftSeason, "", DefaultDraftSeason, "Season start year of a numeric league ID (default: the season whose rules for that ID were imported last); with a full key it must be the key's season", false},
 	},
+	Deprecated: map[string]string{FlagDraftLegacyLeague: "use --" + FlagDraftLeague},
 }
 
 // DraftWatchFlags controls live polling. Duration values are seconds so they
@@ -832,11 +846,13 @@ const (
 	FlagDraftUncertaintyPenalty = "draft-uncertainty-penalty"
 )
 
-// DraftRankingsFlags defines the flags of `draft rankings`.
+// DraftRankingsFlags defines the flags of `draft rankings`. A numeric league
+// ID without a season resolves in the current season (draftrank.ParseLeague),
+// unlike DraftSessionFlags.
 var DraftRankingsFlags = FlagGroup{
 	Flags: []FlagDef{
-		{FlagDraftLeague, "", DefaultDraftLeague, "League key (e.g. 465.l.1001) or numeric league ID (with --draft-season); required", false},
-		{FlagDraftSeason, "", DefaultDraftSeason, "Season start year of a numeric league ID (default: the current season)", false},
+		{FlagDraftLeague, "", DefaultDraftLeague, "Full Yahoo league key (e.g. 465.l.1001) or numeric league ID; required", false},
+		{FlagDraftSeason, "", DefaultDraftSeason, "Season start year of a numeric league ID (default: the current season); not used with a full key", false},
 		{FlagDraftPositions, "", DefaultDraftPositions, "Comma-separated positions (C,LW,RW,D,G); a player matching any is listed once", false},
 		{FlagDraftPlayers, "", DefaultDraftPlayers, "Comma-separated Yahoo player keys to compare", false},
 		{FlagDraftFormat, "", DefaultDraftFormat, "Output format: table, csv or json", false},

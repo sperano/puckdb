@@ -73,9 +73,18 @@ WHERE season = $1
 ORDER BY league_id, last_seen_at DESC, id DESC;
 
 -- name: FindYahooLeagueRuleSnapshotByKey :one
--- Resolves a league key to its season and numeric league ID.
+-- Resolves a league key to its season and numeric league ID, from the latest
+-- rules of the key in @season (0: in any season).
 SELECT season, league_id FROM yahoo_league_rule_snapshots
-WHERE league_key = $1
+WHERE league_key = @league_key AND (@season::integer = 0 OR season = @season)
+ORDER BY last_seen_at DESC, id DESC
+LIMIT 1;
+
+-- name: FindYahooLeagueRuleSnapshotByID :one
+-- Resolves a numeric league ID to its league key and season, from the latest
+-- rules of the ID in @season (0: the most recently seen season).
+SELECT league_key, season FROM yahoo_league_rule_snapshots
+WHERE league_id = @league_id AND (@season::integer = 0 OR season = @season)
 ORDER BY last_seen_at DESC, id DESC
 LIMIT 1;
 
