@@ -737,31 +737,6 @@ func TestConvertGoalieGameLogEntry(t *testing.T) {
 	}
 }
 
-func TestPtrStringIfNotEmpty(t *testing.T) {
-	t.Run("empty string returns nil", func(t *testing.T) {
-		if got := ptrStringIfNotEmpty(""); got != nil {
-			t.Errorf("expected nil for empty input, got %q", *got)
-		}
-	})
-	t.Run("non-empty returns pointer to value", func(t *testing.T) {
-		got := ptrStringIfNotEmpty("hello")
-		if got == nil {
-			t.Fatal("expected non-nil pointer for non-empty input")
-		}
-		if *got != "hello" {
-			t.Errorf("expected 'hello', got %q", *got)
-		}
-	})
-	// Whitespace must NOT be treated as empty — pin the contract so a
-	// future change to TrimSpace-then-check is a deliberate behavior change.
-	t.Run("whitespace is non-empty", func(t *testing.T) {
-		got := ptrStringIfNotEmpty("   ")
-		if got == nil || *got != "   " {
-			t.Errorf("expected pointer to whitespace, got %v", got)
-		}
-	})
-}
-
 func TestConvertEdgeGoalieStats(t *testing.T) {
 	stat := sqlcdb.EdgeGoalieStat{
 		PlayerID:                 8478402,

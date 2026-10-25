@@ -27,11 +27,7 @@ func (r *queryResolver) Seasons(ctx context.Context) ([]*model.Season, error) {
 	if err != nil {
 		return nil, err
 	}
-	out := make([]*model.Season, len(rows))
-	for i, s := range rows {
-		out[i] = convertSeason(s)
-	}
-	return out, nil
+	return convertRows(rows, convertSeason), nil
 }
 
 // Season is the resolver for the season field.
@@ -57,11 +53,7 @@ func (r *queryResolver) Teams(ctx context.Context, season int) ([]*model.Team, e
 	if err != nil {
 		return nil, err
 	}
-	out := make([]*model.Team, len(rows))
-	for i, t := range rows {
-		out[i] = convertSeasonTeam(t)
-	}
-	return out, nil
+	return convertRows(rows, convertSeasonTeam), nil
 }
 
 // Team is the resolver for the team field.
@@ -110,11 +102,7 @@ func (r *queryResolver) Players(ctx context.Context, filter *model.PlayerFilter)
 	if err != nil {
 		return nil, err
 	}
-	out := make([]*model.Player, len(rows))
-	for i, p := range rows {
-		out[i] = convertPlayer(p)
-	}
-	return out, nil
+	return convertRows(rows, convertPlayer), nil
 }
 
 // SearchPlayers is the resolver for the searchPlayers field.
@@ -140,11 +128,7 @@ func (r *queryResolver) SearchPlayers(ctx context.Context, query string) ([]*mod
 	if err != nil {
 		return nil, err
 	}
-	out := make([]*model.Player, len(rows))
-	for i, p := range rows {
-		out[i] = convertPlayer(p)
-	}
-	return out, nil
+	return convertRows(rows, convertPlayer), nil
 }
 
 // Game is the resolver for the game field.
@@ -174,11 +158,7 @@ func (r *queryResolver) GamesByDate(ctx context.Context, date string) ([]*model.
 	if err != nil {
 		return nil, err
 	}
-	out := make([]*model.Game, len(rows))
-	for i, g := range rows {
-		out[i] = convertGamesByDateRow(g)
-	}
-	return out, nil
+	return convertRows(rows, convertGamesByDateRow), nil
 }
 
 // Games is the resolver for the games field.
@@ -208,11 +188,7 @@ func (r *queryResolver) Games(ctx context.Context, filter *model.GameFilter) ([]
 	if err != nil {
 		return nil, err
 	}
-	out := make([]*model.Game, len(rows))
-	for i, g := range rows {
-		out[i] = convertListGamesRow(g)
-	}
-	return out, nil
+	return convertRows(rows, convertListGamesRow), nil
 }
 
 // Standings is the resolver for the standings field.
@@ -232,11 +208,7 @@ func (r *queryResolver) Standings(ctx context.Context, season int, date string) 
 	if err != nil {
 		return nil, err
 	}
-	out := make([]*model.StandingsEntry, len(rows))
-	for i, s := range rows {
-		out[i] = convertStandingsSnapshot(s)
-	}
-	return out, nil
+	return convertRows(rows, convertStandingsSnapshot), nil
 }
 
 // Boxscore is the resolver for the boxscore field.
@@ -258,19 +230,10 @@ func (r *queryResolver) Boxscore(ctx context.Context, gameID int64) (*model.Boxs
 		return nil, fmt.Errorf("goalie stats for game %d: %w", gameID, err)
 	}
 
-	gqlSkaters := make([]*model.GameSkaterStats, len(skaters))
-	for i, s := range skaters {
-		gqlSkaters[i] = convertGameSkaterStats(s)
-	}
-	gqlGoalies := make([]*model.GameGoalieStats, len(goalies))
-	for i, g := range goalies {
-		gqlGoalies[i] = convertGameGoalieStats(g)
-	}
-
 	return &model.Boxscore{
 		Game:    convertGetGameRow(game),
-		Skaters: gqlSkaters,
-		Goalies: gqlGoalies,
+		Skaters: convertRows(skaters, convertGameSkaterStats),
+		Goalies: convertRows(goalies, convertGameGoalieStats),
 	}, nil
 }
 
@@ -287,11 +250,7 @@ func (r *queryResolver) SkaterGameLog(ctx context.Context, playerID int64, seaso
 	if err != nil {
 		return nil, err
 	}
-	out := make([]*model.SkaterGameLogEntry, len(rows))
-	for i, s := range rows {
-		out[i] = convertSkaterGameLogEntry(s)
-	}
-	return out, nil
+	return convertRows(rows, convertSkaterGameLogEntry), nil
 }
 
 // GoalieGameLog is the resolver for the goalieGameLog field.
@@ -307,11 +266,7 @@ func (r *queryResolver) GoalieGameLog(ctx context.Context, playerID int64, seaso
 	if err != nil {
 		return nil, err
 	}
-	out := make([]*model.GoalieGameLogEntry, len(rows))
-	for i, g := range rows {
-		out[i] = convertGoalieGameLogEntry(g)
-	}
-	return out, nil
+	return convertRows(rows, convertGoalieGameLogEntry), nil
 }
 
 // PlayerSeasonTotals is the resolver for the playerSeasonTotals field.
@@ -324,11 +279,7 @@ func (r *queryResolver) PlayerSeasonTotals(ctx context.Context, playerID int64) 
 	if err != nil {
 		return nil, err
 	}
-	out := make([]*model.PlayerSeasonTotal, len(rows))
-	for i, t := range rows {
-		out[i] = convertPlayerSeasonTotal(t)
-	}
-	return out, nil
+	return convertRows(rows, convertPlayerSeasonTotal), nil
 }
 
 // EdgeSkaterStats is the resolver for the edgeSkaterStats field.

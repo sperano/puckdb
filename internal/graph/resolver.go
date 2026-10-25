@@ -233,7 +233,7 @@ func (r *Resolver) queryProgressReport(ctx context.Context, workflowID string) (
 	result := &model.ProgressReport{
 		Total:     progress.Total,
 		Completed: progress.Completed,
-		Message:   ptrStringIfNotEmpty(progress.Message),
+		Message:   optionalString(progress.Message),
 		Groups:    make([]*model.ProgressGroup, 0, len(progress.Groups)),
 	}
 
@@ -250,7 +250,7 @@ func (r *Resolver) queryProgressReport(ctx context.Context, workflowID string) (
 		bars := make([]*model.ProgressBar, len(g.Bars))
 		for j, b := range g.Bars {
 			bars[j] = &model.ProgressBar{
-				Label:   ptrStringIfNotEmpty(b.Label),
+				Label:   optionalString(b.Label),
 				Current: b.Current,
 				Total:   b.Total,
 				Started: b.Started,
@@ -511,11 +511,4 @@ func (r *Resolver) mauriceConversation(ctx context.Context, id string) (*model.M
 		},
 		Messages: gqlMsgs,
 	}, nil
-}
-
-func ptrStringIfNotEmpty(s string) *string {
-	if s == "" {
-		return nil
-	}
-	return &s
 }
