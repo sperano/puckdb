@@ -693,6 +693,57 @@ WHERE season = $1
   AND game_date <= ($2::DATE + INTERVAL '7 days')::DATE
   AND (home_team_id = $3 OR away_team_id = $3);
 
+-- ListSimFreeAgentSkaterStats aggregates each free-agent skater's
+-- season-to-date and last-7-day counting categories in one pass. The
+-- information horizon is everything BEFORE sim_date: the daily turn runs
+-- before CollectDayStats scores today's games, so today's boxscores must
+-- not leak into the agent's decision (PLAN.md > "Draft Ranking for
+-- Available Players" no-future-info rationale). "Last 7 days" is the
+-- 7-day window ending the day before sim_date.
+-- name: ListSimFreeAgentSkaterStats :many
+SELECT
+    s.player_id,
+    COALESCE(SUM(s.goals), 0)::INT AS season_goals,
+    COALESCE(SUM(s.assists), 0)::INT AS season_assists,
+    COALESCE(SUM(s.plus_minus), 0)::INT AS season_plus_minus,
+    COALESCE(SUM(s.penalty_minutes), 0)::INT AS season_pim,
+    COALESCE(SUM(s.power_play_points), 0)::INT AS season_ppp,
+    COALESCE(SUM(s.shots_on_goal), 0)::INT AS season_sog,
+    COALESCE(SUM(s.goals) FILTER (WHERE g.game_date >= sqlc.arg('game_date')::DATE - INTERVAL '7 days'), 0)::INT AS recent_goals,
+    COALESCE(SUM(s.assists) FILTER (WHERE g.game_date >= sqlc.arg('game_date')::DATE - INTERVAL '7 days'), 0)::INT AS recent_assists,
+    COALESCE(SUM(s.plus_minus) FILTER (WHERE g.game_date >= sqlc.arg('game_date')::DATE - INTERVAL '7 days'), 0)::INT AS recent_plus_minus,
+    COALESCE(SUM(s.penalty_minutes) FILTER (WHERE g.game_date >= sqlc.arg('game_date')::DATE - INTERVAL '7 days'), 0)::INT AS recent_pim,
+    COALESCE(SUM(s.power_play_points) FILTER (WHERE g.game_date >= sqlc.arg('game_date')::DATE - INTERVAL '7 days'), 0)::INT AS recent_ppp,
+    COALESCE(SUM(s.shots_on_goal) FILTER (WHERE g.game_date >= sqlc.arg('game_date')::DATE - INTERVAL '7 days'), 0)::INT AS recent_sog
+FROM game_skater_stats s
+JOIN games g ON s.game_id = g.id
+WHERE s.player_id = ANY(sqlc.arg('player_ids')::bigint[])
+  AND g.season = sqlc.arg('season')
+  AND g.game_type = 'regular_season'
+  AND g.game_date < sqlc.arg('game_date')::DATE
+GROUP BY s.player_id;
+
+-- ListSimFreeAgentGoalieStats aggregates each free-agent goalie's
+-- season-to-date and last-7-day W/GA/TOI components in one pass. Same
+-- pre-sim_date information horizon as ListSimFreeAgentSkaterStats; GAA is
+-- derived from the GA and TOI components by the caller.
+-- name: ListSimFreeAgentGoalieStats :many
+SELECT
+    s.player_id,
+    COALESCE(SUM(s.goals_against), 0)::INT AS season_ga,
+    COALESCE(SUM(s.toi_seconds), 0)::INT AS season_toi,
+    COUNT(*) FILTER (WHERE s.decision = 'W')::INT AS season_wins,
+    COALESCE(SUM(s.goals_against) FILTER (WHERE g.game_date >= sqlc.arg('game_date')::DATE - INTERVAL '7 days'), 0)::INT AS recent_ga,
+    COALESCE(SUM(s.toi_seconds) FILTER (WHERE g.game_date >= sqlc.arg('game_date')::DATE - INTERVAL '7 days'), 0)::INT AS recent_toi,
+    COUNT(*) FILTER (WHERE s.decision = 'W' AND g.game_date >= sqlc.arg('game_date')::DATE - INTERVAL '7 days')::INT AS recent_wins
+FROM game_goalie_stats s
+JOIN games g ON s.game_id = g.id
+WHERE s.player_id = ANY(sqlc.arg('player_ids')::bigint[])
+  AND g.season = sqlc.arg('season')
+  AND g.game_type = 'regular_season'
+  AND g.game_date < sqlc.arg('game_date')::DATE
+GROUP BY s.player_id;
+
 -- GetTeamGoalsPerGame returns the team's GF and GA averages over completed
 -- games of one game type up to a date — used in the daily context payload
 -- (regular season up to sim_date) to give agents a coarse strength signal for
