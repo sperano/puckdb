@@ -12,6 +12,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/sperano/puckdb/internal/temporal"
+	"github.com/sperano/puckdb/internal/worker/shared"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.temporal.io/sdk/activity"
@@ -61,20 +63,17 @@ func temporalActivityName(a any) string {
 	return strings.TrimSuffix(full[strings.LastIndex(full, ".")+1:], "-fm")
 }
 
-// registeredWorkerActivities returns every activity name the tasks and asset
-// workers register (the admin queue registers its own inline).
-func registeredWorkerActivities() []string {
-	w := &recordingWorker{}
-	d := taskActivityDeps{}
-	registerSimulationActivities(w, nil, nil)
-	registerProgressActivities(w, nil)
-	registerYahooFetchActivities(w, d)
-	registerNHLActivities(w, d, registerYahooImportActivities(w, d))
-	registerPlayerActivities(w, d)
-	registerNewsActivities(w, nil, nil)
-	registerDraftRankingActivities(w, nil)
-	registerAssetActivities(w, nil)
-	return w.activities
+// registeredWorkerActivities returns, per task queue, every activity name the
+// tasks and asset workers register (the admin queue registers its own inline).
+func registeredWorkerActivities() map[string][]string {
+	tasks := &recordingWorker{}
+	registerTaskQueueActivities(tasks, taskActivityDeps{})
+	assets := &recordingWorker{}
+	registerAssetQueueActivities(assets, nil, nil)
+	return map[string][]string{
+		temporal.QueueTasks:    tasks.activities,
+		shared.TaskQueueAssets: assets.activities,
+	}
 }
 
 // scheduledActivityNames collects, from every workflow-code file under
@@ -141,17 +140,19 @@ func collectReferencedNames(file *ast.File, names map[string]bool) {
 // for histories is listed in historyOnlyActivities with the workflow that
 // recorded it.
 func TestRegisteredActivitiesAreScheduledOrRecorded(t *testing.T) {
-	registered := registeredWorkerActivities()
 	scheduled := scheduledActivityNames(t)
-	require.NotEmpty(t, registered)
-
-	seen := make(map[string]bool, len(registered))
-	for _, name := range registered {
-		assert.False(t, seen[name], "%s registered twice", name)
-		seen[name] = true
-		_, historyOnly := historyOnlyActivities[name]
-		assert.True(t, scheduled[name] || historyOnly,
-			"%s is registered but no workflow schedules it: unregister it, or list the workflow whose histories recorded it in historyOnlyActivities", name)
+	seen := make(map[string]bool)
+	for queue, registered := range registeredWorkerActivities() {
+		require.NotEmpty(t, registered, queue)
+		onQueue := make(map[string]bool, len(registered))
+		for _, name := range registered {
+			assert.False(t, onQueue[name], "%s registered twice on %s", name, queue)
+			onQueue[name] = true
+			seen[name] = true
+			_, historyOnly := historyOnlyActivities[name]
+			assert.True(t, scheduled[name] || historyOnly,
+				"%s is registered on %s but no workflow schedules it: unregister it, or list the workflow whose histories recorded it in historyOnlyActivities", name, queue)
+		}
 	}
 	for name, reason := range historyOnlyActivities {
 		assert.True(t, seen[name], "historyOnlyActivities lists %s (%s), which is not registered", name, reason)

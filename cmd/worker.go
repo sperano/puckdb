@@ -214,8 +214,7 @@ func cmdWorker() *cobra.Command {
 				})
 				queries := sqlcdb.New(pool)
 				registerAssetWorkflows(aw)
-				registerAssetActivities(aw, queries)
-				registerProgressActivities(aw, redisClient)
+				registerAssetQueueActivities(aw, queries, redisClient)
 
 				go func() {
 					errCh <- aw.Run(worker.InterruptCh())
@@ -312,17 +311,30 @@ func registerTasksActivities(w worker.Worker, pool *pgxpool.Pool, redisClient *r
 		boxscorePlayerCacheTTL: boxscorePlayerCacheTTLFrom(viper.GetViper()),
 	}
 
-	registerSimulationActivities(w, pool, d.queries)
-	registerProgressActivities(w, redisClient)
+	registerTaskQueueActivities(w, d)
+	return nil
+}
+
+// registerTaskQueueActivities registers every activity of the tasks queue.
+// TestRegisteredActivitiesAreScheduledOrRecorded calls it with zero deps, so
+// it must only register, never use, the dependencies.
+func registerTaskQueueActivities(w worker.Worker, d taskActivityDeps) {
+	registerSimulationActivities(w, d.pool, d.queries)
+	registerProgressActivities(w, d.redisClient)
 	registerYahooFetchActivities(w, d)
 
 	importYahooActivities := registerYahooImportActivities(w, d)
 	registerNHLActivities(w, d, importYahooActivities)
 	registerPlayerActivities(w, d)
-	registerNewsActivities(w, pool, d.queries)
-	registerDraftRankingActivities(w, pool)
+	registerNewsActivities(w, d.pool, d.queries)
+	registerDraftRankingActivities(w, d.pool)
+}
 
-	return nil
+// registerAssetQueueActivities registers every activity of the asset queue;
+// like registerTaskQueueActivities, the test calls it with nil dependencies.
+func registerAssetQueueActivities(w worker.Worker, queries *sqlcdb.Queries, redisClient *redis.Client) {
+	registerAssetActivities(w, queries)
+	registerProgressActivities(w, redisClient)
 }
 
 // registerSimulationActivities registers the simulation pool activities.
