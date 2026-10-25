@@ -218,20 +218,6 @@ func TestDefaultActivityOptions(t *testing.T) {
 	})
 }
 
-// --- IsCurrentSeason ---
-
-// IsCurrentSeason returns true iff the start year matches nhl.Current().
-// The "current" branch is exercised dynamically (the value derived from
-// nhl.Current() at test time keeps this correct as the calendar advances).
-// The "not current" branch uses year 0 — guaranteed never to be the
-// current NHL season, regardless of when the test runs.
-func TestIsCurrentSeason(t *testing.T) {
-	t.Parallel()
-
-	assert.True(t, IsCurrentSeason(nhl.Current().StartYear()))
-	assert.False(t, IsCurrentSeason(0))
-}
-
 // --- YahooDownloadActivityOptions ---
 
 // YahooDownloadActivityOptions returns DefaultActivityOptions with a longer

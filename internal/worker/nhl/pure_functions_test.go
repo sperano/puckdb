@@ -7,7 +7,6 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	nhlapi "github.com/sperano/nhl-api-go/nhl"
 	"github.com/sperano/puckdb/internal/sqlcdb"
-	"github.com/sperano/puckdb/internal/worker/shared"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -32,109 +31,6 @@ func TestWorkflowIDExtractSeason(t *testing.T) {
 			assert.Equal(t, tt.expected, workflowIDExtractSeason(tt.startYear))
 		})
 	}
-}
-
-// --- addSkaterPlayer ---
-
-func TestAddSkaterPlayer(t *testing.T) {
-	t.Parallel()
-
-	players := make(map[int64]shared.PartialPlayer)
-	skater := nhlapi.SkaterStats{
-		PlayerID:      nhlapi.PlayerID(8478402),
-		Name:          nhlapi.LocalizedString{Default: "Connor McDavid"},
-		Position:      "C",
-		SweaterNumber: 97,
-	}
-
-	addSkaterPlayer(players, skater, 22)
-
-	require.Len(t, players, 1)
-	p := players[8478402]
-	assert.Equal(t, int64(8478402), p.ID)
-	assert.Equal(t, "Connor", p.FirstName)
-	assert.Equal(t, "McDavid", p.LastName)
-	assert.Equal(t, "C", p.Position)
-	assert.Equal(t, 97, p.SweaterNumber)
-	assert.Equal(t, int64(22), p.TeamID)
-	assert.True(t, p.HasBoxscoreData)
-}
-
-func TestAddSkaterPlayer_SingleNameNoSplit(t *testing.T) {
-	t.Parallel()
-
-	players := make(map[int64]shared.PartialPlayer)
-	skater := nhlapi.SkaterStats{
-		PlayerID: nhlapi.PlayerID(1),
-		Name:     nhlapi.LocalizedString{Default: "Gretzky"},
-	}
-
-	addSkaterPlayer(players, skater, 0)
-
-	p := players[1]
-	assert.Equal(t, "Gretzky", p.FirstName)
-	assert.Equal(t, "", p.LastName)
-}
-
-func TestAddSkaterPlayer_OverwritesExisting(t *testing.T) {
-	t.Parallel()
-
-	players := make(map[int64]shared.PartialPlayer)
-	players[42] = shared.PartialPlayer{ID: 42, FirstName: "Old", TeamID: 1}
-
-	skater := nhlapi.SkaterStats{
-		PlayerID: nhlapi.PlayerID(42),
-		Name:     nhlapi.LocalizedString{Default: "New Name"},
-		Position: "LW",
-	}
-	addSkaterPlayer(players, skater, 7)
-
-	p := players[42]
-	assert.Equal(t, "New", p.FirstName)
-	assert.Equal(t, "Name", p.LastName)
-	assert.Equal(t, int64(7), p.TeamID)
-}
-
-// --- addGoaliePlayer ---
-
-func TestAddGoaliePlayer(t *testing.T) {
-	t.Parallel()
-
-	players := make(map[int64]shared.PartialPlayer)
-	goalie := nhlapi.GoalieStats{
-		PlayerID:      nhlapi.PlayerID(8479394),
-		Name:          nhlapi.LocalizedString{Default: "Connor Hellebuyck"},
-		Position:      "G",
-		SweaterNumber: 37,
-	}
-
-	addGoaliePlayer(players, goalie, 52)
-
-	require.Len(t, players, 1)
-	p := players[8479394]
-	assert.Equal(t, int64(8479394), p.ID)
-	assert.Equal(t, "Connor", p.FirstName)
-	assert.Equal(t, "Hellebuyck", p.LastName)
-	assert.Equal(t, "G", p.Position)
-	assert.Equal(t, 37, p.SweaterNumber)
-	assert.Equal(t, int64(52), p.TeamID)
-	assert.True(t, p.HasBoxscoreData)
-}
-
-func TestAddGoaliePlayer_SingleToken(t *testing.T) {
-	t.Parallel()
-
-	players := make(map[int64]shared.PartialPlayer)
-	goalie := nhlapi.GoalieStats{
-		PlayerID: nhlapi.PlayerID(9),
-		Name:     nhlapi.LocalizedString{Default: "Fleury"},
-	}
-
-	addGoaliePlayer(players, goalie, 0)
-
-	p := players[9]
-	assert.Equal(t, "Fleury", p.FirstName)
-	assert.Equal(t, "", p.LastName)
 }
 
 // --- playEventToParams ---
@@ -554,7 +450,7 @@ func TestPI32(t *testing.T) {
 // shouldInvalidate passes RefreshCurrent through unchanged: the workflow
 // decides which seasons to refresh (explicit range or the latest season),
 // and the activity must not re-gate it on the wall clock. The old
-// IsCurrentSeason gate made the flag a silent no-op after nhl.Current()'s
+// calendar gate made the flag a silent no-op after nhl.Current()'s
 // July-1 rollover for a season whose playoffs had just ended.
 func TestFetchEdgeInput_ShouldInvalidate(t *testing.T) {
 	t.Parallel()

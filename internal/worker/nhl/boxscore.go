@@ -3,7 +3,6 @@ package nhl
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/go-redis/redis/v8"
@@ -242,45 +241,4 @@ func extractTeamPlayers(stats *nhlapi.TeamPlayerStats) []store.BoxscorePlayer {
 	}
 
 	return players
-}
-
-// addSkaterPlayer adds a skater to the players map.
-func addSkaterPlayer(players map[int64]shared.PartialPlayer, s nhlapi.SkaterStats, teamID int64) {
-	id := s.PlayerID.Int64()
-	firstName, lastName := parseLocalizedName(s.Name)
-
-	players[id] = shared.PartialPlayer{
-		ID:              id,
-		FirstName:       firstName,
-		LastName:        lastName,
-		Position:        string(s.Position),
-		SweaterNumber:   s.SweaterNumber,
-		TeamID:          teamID,
-		HasBoxscoreData: true,
-	}
-}
-
-// addGoaliePlayer adds a goalie to the players map.
-func addGoaliePlayer(players map[int64]shared.PartialPlayer, g nhlapi.GoalieStats, teamID int64) {
-	id := g.PlayerID.Int64()
-	firstName, lastName := parseLocalizedName(g.Name)
-
-	players[id] = shared.PartialPlayer{
-		ID:              id,
-		FirstName:       firstName,
-		LastName:        lastName,
-		Position:        string(g.Position),
-		SweaterNumber:   g.SweaterNumber,
-		TeamID:          teamID,
-		HasBoxscoreData: true,
-	}
-}
-
-// parseLocalizedName splits "FirstName LastName" from nhlapi.LocalizedString.
-func parseLocalizedName(name nhlapi.LocalizedString) (first, last string) {
-	parts := strings.SplitN(name.Default, " ", 2)
-	if len(parts) >= 2 {
-		return parts[0], parts[1]
-	}
-	return name.Default, ""
 }

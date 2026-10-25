@@ -121,7 +121,6 @@ func TestReportTrackerMethods_PanicDescriptively(t *testing.T) {
 		{"CompleteBar", func(tr *ReportTracker) { tr.CompleteBar(ctx, bad) }, badBar},
 		{"ResizeBar", func(tr *ReportTracker) { tr.ResizeBar(ctx, bad, 1) }, badBar},
 		{"SetBarTotal", func(tr *ReportTracker) { tr.SetBarTotal(bad, 1) }, badBar},
-		{"SetBarLabel", func(tr *ReportTracker) { tr.SetBarLabel(bad, "x") }, badBar},
 		{"Bar", func(tr *ReportTracker) { tr.Bar(bad) }, badBar},
 		{"IncrementBars bad bar", func(tr *ReportTracker) { tr.IncrementBars(ctx, 0, []int{0, 2}) }, badBar},
 		{"IncrementBars bad group", func(tr *ReportTracker) { tr.IncrementBars(ctx, 3, nil) }, badGroup},

@@ -33,7 +33,7 @@ const aggregateSettleDelay = 48 * time.Hour
 // mid-season snapshot and the database (a 2025-26 rebuild re-imported
 // club stats fetched on April 1 for a season that ended April 16).
 //
-// A calendar gate (IsCurrentSeason) is deliberately not used: nhl.Current()
+// A calendar gate on nhl.Current() is deliberately not used: nhl.Current()
 // rolls over on July 1, which froze mid-playoff caches once the next sync
 // ran in the offseason. See FetchTeamPlayoffGames for the same reasoning.
 func seasonAggregateStale(schedule *nhlapi.TeamScheduleResponse, cachedAt time.Time, gameTypes ...nhlapi.GameType) bool {
