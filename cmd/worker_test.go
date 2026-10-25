@@ -111,6 +111,11 @@ func importsPath(file *ast.File, path string) bool {
 	return false
 }
 
+// collectReferencedNames adds every non-call selector name and string literal
+// in file. It does not check that a name reaches workflow.ExecuteActivity, so
+// it only proves a registration is not stale: an unrelated field, method value
+// or string sharing a dead activity's name in a workflow file keeps that
+// activity passing the test.
 func collectReferencedNames(file *ast.File, names map[string]bool) {
 	called := make(map[*ast.SelectorExpr]bool)
 	ast.Inspect(file, func(n ast.Node) bool {
