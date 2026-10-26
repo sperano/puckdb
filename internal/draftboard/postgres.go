@@ -29,7 +29,7 @@ type RankingReader interface {
 func NewPGService(pool *pgxpool.Pool, rankings RankingReader, refresher Refresher,
 	watchFactory func() WatchRunner, watchOptions draftwatch.WatchOptions, options Options) *Service {
 	data := NewPGDataSource(pool, rankings)
-	options.Watch = NewWatchController(data, watchFactory, watchOptions)
+	options.Watch = NewWatchController(data, watchFactory, watchOptions, options.Now)
 	return NewService(data, draftrecommend.NewService(draftrecommend.NewRepository(pool)), refresher, options)
 }
 
@@ -228,9 +228,12 @@ func (s *PGDataSource) ListShortlist(ctx context.Context, leagueKey string) ([]s
 }
 
 // SetShortlist adds or removes a shortlisted player while the session is
-// still at expectedVersion (ErrVersionConflict otherwise). A change advances
-// the session's sync version, not its state version.
-func (s *PGDataSource) SetShortlist(ctx context.Context, leagueKey, playerKey string, expectedVersion uint64, selected bool) error {
+// still at expectedVersion (ErrVersionConflict otherwise; a league without a
+// session fails with draftwatch.ErrSessionNotFound). A change advances
+// the session's sync version, not its state version; at becomes an added
+// player's created_at and the session's updated_at.
+func (s *PGDataSource) SetShortlist(ctx context.Context, leagueKey, playerKey string, expectedVersion uint64,
+	selected bool, at time.Time) error {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("begin draft shortlist update: %w", err)
@@ -239,6 +242,9 @@ func (s *PGDataSource) SetShortlist(ctx context.Context, leagueKey, playerKey st
 	const versionQuery = `SELECT state_version FROM draft_sessions WHERE league_key=$1 FOR UPDATE`
 	var current int64
 	if err := tx.QueryRow(ctx, versionQuery, leagueKey).Scan(&current); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return fmt.Errorf("read draft session %s for shortlist: %w", leagueKey, draftwatch.ErrSessionNotFound)
+		}
 		return fmt.Errorf("read draft session version for shortlist: %w", err)
 	}
 	if current < 0 {
@@ -247,13 +253,13 @@ func (s *PGDataSource) SetShortlist(ctx context.Context, leagueKey, playerKey st
 	if uint64(current) != expectedVersion {
 		return versionConflict(&draftwatch.StaleStateVersionError{Expected: expectedVersion, Actual: uint64(current)})
 	}
-	changed, err := updateShortlist(ctx, tx, leagueKey, playerKey, selected)
+	changed, err := updateShortlist(ctx, tx, leagueKey, playerKey, selected, at)
 	if err != nil {
 		return err
 	}
 	if changed {
-		const bump = `UPDATE draft_sessions SET sync_version=sync_version+1, updated_at=now() WHERE league_key=$1`
-		if _, err := tx.Exec(ctx, bump, leagueKey); err != nil {
+		const bump = `UPDATE draft_sessions SET sync_version=sync_version+1, updated_at=$2 WHERE league_key=$1`
+		if _, err := tx.Exec(ctx, bump, leagueKey, at); err != nil {
 			return fmt.Errorf("advance draft sync version for shortlist: %w", err)
 		}
 	}
@@ -263,10 +269,10 @@ func (s *PGDataSource) SetShortlist(ctx context.Context, leagueKey, playerKey st
 	return nil
 }
 
-func updateShortlist(ctx context.Context, tx pgx.Tx, leagueKey, playerKey string, selected bool) (bool, error) {
+func updateShortlist(ctx context.Context, tx pgx.Tx, leagueKey, playerKey string, selected bool, at time.Time) (bool, error) {
 	if selected {
 		const insert = `INSERT INTO draft_shortlist (league_key, player_key, created_at) VALUES ($1,$2,$3) ON CONFLICT (league_key, player_key) DO NOTHING`
-		result, err := tx.Exec(ctx, insert, leagueKey, playerKey, time.Now().UTC())
+		result, err := tx.Exec(ctx, insert, leagueKey, playerKey, at)
 		if err != nil {
 			return false, fmt.Errorf("save draft shortlist player: %w", err)
 		}

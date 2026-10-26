@@ -2,9 +2,10 @@ package draftsession
 
 import (
 	"bytes"
+	"cmp"
 	"encoding/json"
 	"fmt"
-	"sort"
+	"slices"
 )
 
 type persistedState struct {
@@ -44,13 +45,11 @@ func (state State) MarshalJSON() ([]byte, error) {
 	for playerID := range state.UpstreamPlayers {
 		persisted.UpstreamPlayers = append(persisted.UpstreamPlayers, playerID)
 	}
-	sort.Slice(persisted.Upstream, func(i, j int) bool {
-		return lessPickKey(persisted.Upstream[i].Key, persisted.Upstream[j].Key)
+	slices.SortFunc(persisted.Upstream, func(left, right Pick) int { return comparePickKeys(left.Key, right.Key) })
+	slices.SortFunc(persisted.Manual, func(left, right persistedManual) int {
+		return comparePickKeys(left.Key, right.Key)
 	})
-	sort.Slice(persisted.Manual, func(i, j int) bool {
-		return lessPickKey(persisted.Manual[i].Key, persisted.Manual[j].Key)
-	})
-	sort.Ints(persisted.UpstreamPlayers)
+	slices.Sort(persisted.UpstreamPlayers)
 	return json.Marshal(persisted)
 }
 
@@ -101,9 +100,7 @@ func emptyState() State {
 	}
 }
 
-func lessPickKey(left, right PickKey) bool {
-	if left.Round == right.Round {
-		return left.Pick < right.Pick
-	}
-	return left.Round < right.Round
+// comparePickKeys orders slots by round, then pick.
+func comparePickKeys(left, right PickKey) int {
+	return cmp.Or(cmp.Compare(left.Round, right.Round), cmp.Compare(left.Pick, right.Pick))
 }

@@ -1,9 +1,9 @@
 package draftboard
 
 import (
+	"cmp"
 	"fmt"
 	"slices"
-	"sort"
 
 	"github.com/sperano/puckdb/internal/draft"
 	"github.com/sperano/puckdb/internal/draftrank"
@@ -52,7 +52,9 @@ func picksOf(state draftsession.State, ranking *draftrank.Snapshot) []Pick {
 		row.Name = yahooPlayerDisplayName(player.Name, pick.PlayerID)
 		picks = append(picks, row)
 	}
-	sort.Slice(picks, func(left, right int) bool { return picks[left].Pick < picks[right].Pick })
+	slices.SortFunc(picks, func(left, right Pick) int {
+		return cmp.Or(cmp.Compare(left.Pick, right.Pick), cmp.Compare(left.Round, right.Round))
+	})
 	return picks
 }
 

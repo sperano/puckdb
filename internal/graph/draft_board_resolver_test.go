@@ -158,7 +158,7 @@ func newDraftRefreshTestServer(t *testing.T, refresher draftboard.Refresher, wat
 		Season: draftfixtures.Season, LeagueID: draftfixtures.LeagueID, GameKey: 465}}
 	options := draftboard.Options{}
 	if watch != nil {
-		options.Watch = draftboard.NewWatchController(data, watch, draftwatch.WatchOptions{FinalTimeout: time.Second})
+		options.Watch = draftboard.NewWatchController(data, watch, draftwatch.WatchOptions{FinalTimeout: time.Second}, nil)
 		_, err := options.Watch.Start(t.Context(), draftfixtures.LeagueKey, draftfixtures.Season)
 		require.NoError(t, err)
 		t.Cleanup(func() { _ = options.Watch.Close(context.Background()) })
@@ -340,7 +340,7 @@ func (d *graphBoardData) LeagueData(context.Context, draftwatch.Identity) (draft
 func (d *graphBoardData) ListShortlist(context.Context, string) ([]string, error) {
 	return d.shortlist, nil
 }
-func (d *graphBoardData) SetShortlist(context.Context, string, string, uint64, bool) error {
+func (d *graphBoardData) SetShortlist(context.Context, string, string, uint64, bool, time.Time) error {
 	return nil
 }
 func (d *graphBoardData) ApplyManual(_ context.Context, _ draftwatch.Identity, operation draftsession.ManualOperation,

@@ -1,10 +1,10 @@
 package draftrecommend
 
 import (
+	"cmp"
 	"fmt"
 	"math"
 	"slices"
-	"sort"
 
 	"github.com/sperano/puckdb/internal/draft"
 	"github.com/sperano/puckdb/internal/draftrank"
@@ -110,14 +110,12 @@ func categoryReasons(contributions []draftrank.Contribution, strongest bool) []C
 	for _, contribution := range contributions {
 		rows = append(rows, CategoryReason{StatID: contribution.StatID, Name: contribution.Abbr, Value: contribution.Adjusted})
 	}
-	sort.Slice(rows, func(i, j int) bool {
-		if rows[i].Value == rows[j].Value {
-			return rows[i].StatID < rows[j].StatID
-		}
+	slices.SortFunc(rows, func(left, right CategoryReason) int {
+		byValue := cmp.Compare(left.Value, right.Value)
 		if strongest {
-			return rows[i].Value > rows[j].Value
+			byValue = -byValue
 		}
-		return rows[i].Value < rows[j].Value
+		return cmp.Or(byValue, cmp.Compare(left.StatID, right.StatID))
 	})
 	if len(rows) > maxCategoryReasons {
 		rows = rows[:maxCategoryReasons]
