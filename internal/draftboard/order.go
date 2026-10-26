@@ -46,37 +46,6 @@ func estimatedSnakeOrder(numTeams int, slots []draft.RosterSlot, teams []teamDra
 	return order
 }
 
-func estimatedTurn(state draftsession.State, order []draftrecommend.PickSlot,
-	teamID int) (*draftrecommend.PickSlot, *int) {
-	drafted := make(map[draftsession.PickKey]bool, len(state.Upstream)+len(state.Manual))
-	for _, entry := range draftsession.EffectiveBoard(state) {
-		drafted[entry.Pick.Key] = true
-	}
-	for index, slot := range order {
-		if drafted[slot.Key] {
-			continue
-		}
-		until := picksUntilTeam(order[index:], drafted, teamID)
-		return clonePickSlot(&slot), until
-	}
-	return nil, nil
-}
-
-func picksUntilTeam(order []draftrecommend.PickSlot, drafted map[draftsession.PickKey]bool,
-	teamID int) *int {
-	pending := 0
-	for _, slot := range order {
-		if drafted[slot.Key] {
-			continue
-		}
-		if slot.TeamID == teamID {
-			return new(pending)
-		}
-		pending++
-	}
-	return nil
-}
-
 func teamsByDraftPosition(numTeams int, teams []teamDraftPosition) ([]int, bool) {
 	if numTeams <= 0 || len(teams) != numTeams {
 		return nil, false
