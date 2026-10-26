@@ -599,7 +599,7 @@ type EdgeTeamZoneTimeByStrength struct {
 type FetchAssetsInput struct {
 	// How many asset batches run in parallel inside each class workflow. Falls back to the worker's configured default when unset.
 	ClassConcurrency *int `json:"classConcurrency,omitempty"`
-	// How many of the nine class workflows run in parallel. Falls back to the worker's configured default when unset.
+	// How many of the seven class workflows run in parallel. Falls back to the worker's configured default when unset.
 	MaxClassConcurrency *int `json:"maxClassConcurrency,omitempty"`
 	// Re-download every asset, ignoring already-cached files.
 	RefreshCurrent *bool `json:"refreshCurrent,omitempty"`

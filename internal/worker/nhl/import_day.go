@@ -22,8 +22,10 @@ type ImportDayInput struct {
 	TotalDays int              `json:"totalDays"` // total days in season for progress tracking
 }
 
-// ImportDay chains per-day import operations: boxscores, game stories, and Yahoo data.
-// Player game logs are handled separately as a per-season batched activity.
+// ImportDay chains per-day import operations in order: boxscores, game
+// stories, play-by-play, shift charts, season series, standings, and Yahoo
+// data (when the day has Yahoo teams configured). Player game logs are
+// handled separately as a per-season batched activity.
 func (a *ImportActivities) ImportDay(ctx context.Context, input ImportDayInput) (core.OriginCounts, error) {
 	defer metrics.TrackActivityDuration("ImportDay")()
 	result, err := a.importDay(ctx, input)
