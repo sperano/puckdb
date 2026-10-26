@@ -29,7 +29,7 @@ func TestRefreshRoutesThroughInProcessWatch(t *testing.T) {
 	identity := draftwatch.Identity{LeagueKey: "500.l.5621", Season: 2026, LeagueID: 5621, GameKey: 500}
 	refresher := &fakeRefresher{err: errors.New("one-shot poll must not run while this process watches")}
 	controller := NewWatchController(staticIdentityResolver{identity: identity},
-		func() WatchRunner { return answeringWatchRunner{} }, draftwatch.WatchOptions{FinalTimeout: watchTestTimeout})
+		func() WatchRunner { return answeringWatchRunner{} }, draftwatch.WatchOptions{FinalTimeout: watchTestTimeout}, nil)
 	service := NewService(&fakeDataSource{identity: identity}, nil, refresher, Options{Watch: controller})
 	_, err := controller.Start(t.Context(), identity.LeagueKey, identity.Season)
 	require.NoError(t, err)
@@ -74,7 +74,7 @@ func TestRefreshWhileWatchHoldsPostgresLock(t *testing.T) {
 	source := newSignalingSource()
 	runner := draftwatch.Runner{Pool: pool, Repository: draftwatch.NewRepository(pool), Source: source}
 	controller := NewWatchController(staticIdentityResolver{identity: identity},
-		func() WatchRunner { return runner }, idleRefreshWatchOptions())
+		func() WatchRunner { return runner }, idleRefreshWatchOptions(), nil)
 	service := NewService(&fakeDataSource{identity: identity}, nil, runner, Options{Watch: controller})
 	// Runs before pool.Close, which would wait forever for a watch's connection.
 	t.Cleanup(func() { _ = controller.Close(context.Background()) })

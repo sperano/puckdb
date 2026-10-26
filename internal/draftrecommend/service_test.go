@@ -306,6 +306,65 @@ func TestEvaluate_IsStableAndUpdatesAfterBoardCorrection(t *testing.T) {
 	}
 }
 
+// evaluationClockStep is how far steppingClock advances per reading.
+const evaluationClockStep = 7 * time.Millisecond
+
+func TestEvaluateRecordsLatencyOnEverySuccessfulReturn(t *testing.T) {
+	for name, tc := range map[string]struct {
+		edit   func(*Input)
+		status string
+		// noTurn: every slot of the input's order is already taken.
+		noTurn bool
+	}{
+		"ranked candidates": {edit: func(*Input) {}, status: BoardStatusReady},
+		"stale board":       {edit: func(in *Input) { in.SessionStale = true }, status: BoardStatusStale},
+		"order exhausted": {edit: func(in *Input) { in.Order = in.Order[:1] },
+			status: BoardStatusReady, noTurn: true},
+		"incomplete ranking": {edit: func(in *Input) { in.Ranking.Meta.PoolSize++ },
+			status: BoardStatusIncomplete},
+	} {
+		t.Run(name, func(t *testing.T) {
+			in := recommendationInput(t)
+			tc.edit(&in)
+			clock := steppingClock{at: in.GeneratedAt}
+			result, err := evaluateTimed(in, clock.now)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if result.BoardStatus != tc.status {
+				t.Fatalf("board status = %q, want %q", result.BoardStatus, tc.status)
+			}
+			if tc.noTurn && (result.CurrentPick != nil || len(result.Candidates) != 0) {
+				t.Fatalf("exhausted order evaluated a turn: %+v", result)
+			}
+			if want := evaluationClockStep.Milliseconds(); result.LatencyMillis != want {
+				t.Fatalf("latency = %dms, want %dms", result.LatencyMillis, want)
+			}
+		})
+	}
+}
+
+func TestEvaluateLeavesLatencyUnsetOnFailure(t *testing.T) {
+	in := recommendationInput(t)
+	in.Roster = append(in.Roster, in.Roster[0])
+	clock := steppingClock{at: in.GeneratedAt}
+	result, err := evaluateTimed(in, clock.now)
+	if err == nil {
+		t.Fatal("expected duplicate roster player error")
+	}
+	if result.LatencyMillis != 0 {
+		t.Fatalf("failed evaluation latency = %dms, want 0", result.LatencyMillis)
+	}
+}
+
+// steppingClock advances evaluationClockStep on each reading.
+type steppingClock struct{ at time.Time }
+
+func (c *steppingClock) now() time.Time {
+	c.at = c.at.Add(evaluationClockStep)
+	return c.at
+}
+
 func recommendationInput(t *testing.T) Input {
 	t.Helper()
 	now, err := time.Parse(testTimeLayout, "2026-10-04T12:00:00Z")

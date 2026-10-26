@@ -2,6 +2,8 @@ package draftboard
 
 import (
 	"context"
+	"errors"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -17,7 +19,7 @@ func TestWatchControllerStartIsIdempotentAndStopWaits(t *testing.T) {
 	identity := draftwatch.Identity{LeagueKey: "500.l.5621", Season: 2026, LeagueID: 5621, GameKey: 500}
 	runner := &blockingWatchRunner{started: make(chan struct{}, 1)}
 	controller := NewWatchController(staticIdentityResolver{identity: identity},
-		func() WatchRunner { return runner }, draftwatch.WatchOptions{FinalTimeout: watchTestTimeout})
+		func() WatchRunner { return runner }, draftwatch.WatchOptions{FinalTimeout: watchTestTimeout}, nil)
 
 	first, err := controller.Start(t.Context(), identity.LeagueKey, identity.Season)
 	require.NoError(t, err)
@@ -39,10 +41,53 @@ func TestWatchControllerStartIsIdempotentAndStopWaits(t *testing.T) {
 	require.NotNil(t, stopped.StoppedAt)
 }
 
+func TestWatchControllerStampsStartAndStopWithItsClock(t *testing.T) {
+	identity := draftwatch.Identity{LeagueKey: "500.l.5621", Season: 2026, LeagueID: 5621, GameKey: 500}
+	zone := time.FixedZone("EDT", -4*60*60)
+	startedAt := time.Date(2026, 10, 4, 20, 0, 0, 0, zone)
+	stoppedAt := startedAt.Add(90 * time.Minute)
+	clock := &sequenceClock{times: []time.Time{startedAt, stoppedAt}}
+	runner := &blockingWatchRunner{started: make(chan struct{}, 1)}
+	controller := NewWatchController(staticIdentityResolver{identity: identity},
+		func() WatchRunner { return runner }, draftwatch.WatchOptions{FinalTimeout: watchTestTimeout}, clock.now)
+
+	started, err := controller.Start(t.Context(), identity.LeagueKey, identity.Season)
+	require.NoError(t, err)
+	assert.Equal(t, startedAt.UTC(), started.StartedAt)
+	<-runner.started
+	stopped, err := controller.Stop(t.Context(), identity.LeagueKey)
+	require.NoError(t, err)
+	assert.Equal(t, startedAt.UTC(), stopped.StartedAt)
+	require.NotNil(t, stopped.StoppedAt)
+	assert.Equal(t, stoppedAt.UTC(), *stopped.StoppedAt)
+	assert.Empty(t, stopped.LastError, "cancellation by Stop is not an error")
+	assert.Equal(t, 2, clock.calls(), "one reading for the start, one for the stop")
+}
+
+func TestWatchControllerRecordsWatchFailureWithStopTime(t *testing.T) {
+	identity := draftwatch.Identity{LeagueKey: "500.l.5621", Season: 2026, LeagueID: 5621, GameKey: 500}
+	startedAt := time.Date(2026, 10, 4, 20, 0, 0, 0, time.UTC)
+	failedAt := startedAt.Add(time.Minute)
+	clock := &sequenceClock{times: []time.Time{startedAt, failedAt}}
+	failure := errors.New("yahoo refused the session")
+	controller := NewWatchController(staticIdentityResolver{identity: identity},
+		func() WatchRunner { return failingWatchRunner{err: failure} },
+		draftwatch.WatchOptions{FinalTimeout: watchTestTimeout}, clock.now)
+
+	_, err := controller.Start(t.Context(), identity.LeagueKey, identity.Season)
+	require.NoError(t, err)
+	status, err := controller.Stop(t.Context(), identity.LeagueKey)
+	require.NoError(t, err)
+	assert.False(t, status.Running)
+	require.NotNil(t, status.StoppedAt)
+	assert.Equal(t, failedAt, *status.StoppedAt)
+	assert.Equal(t, failure.Error(), status.LastError)
+}
+
 func TestWatchControllerRefreshRoutesToRunningWatchOnly(t *testing.T) {
 	identity := draftwatch.Identity{LeagueKey: "500.l.5621", Season: 2026, LeagueID: 5621, GameKey: 500}
 	controller := NewWatchController(staticIdentityResolver{identity: identity},
-		func() WatchRunner { return answeringWatchRunner{} }, draftwatch.WatchOptions{FinalTimeout: watchTestTimeout})
+		func() WatchRunner { return answeringWatchRunner{} }, draftwatch.WatchOptions{FinalTimeout: watchTestTimeout}, nil)
 
 	_, routed, err := controller.Refresh(t.Context(), identity.LeagueKey)
 	require.NoError(t, err)
@@ -66,7 +111,7 @@ func TestWatchControllerRefreshIsNotRoutedWhenWatchStopsFirst(t *testing.T) {
 	identity := draftwatch.Identity{LeagueKey: "500.l.5621", Season: 2026, LeagueID: 5621, GameKey: 500}
 	runner := &blockingWatchRunner{started: make(chan struct{}, 1)}
 	controller := NewWatchController(staticIdentityResolver{identity: identity},
-		func() WatchRunner { return runner }, draftwatch.WatchOptions{FinalTimeout: watchTestTimeout})
+		func() WatchRunner { return runner }, draftwatch.WatchOptions{FinalTimeout: watchTestTimeout}, nil)
 	_, err := controller.Start(t.Context(), identity.LeagueKey, identity.Season)
 	require.NoError(t, err)
 	<-runner.started
@@ -106,6 +151,34 @@ func (answeringWatchRunner) Watch(ctx context.Context, _ draftwatch.Identity, op
 			request.Reply <- draftwatch.Outcome{Session: draftwatch.Session{SyncVersion: answeredSyncVersion}}
 		}
 	}
+}
+
+// sequenceClock returns its times in order, then repeats the last one.
+type sequenceClock struct {
+	mu    sync.Mutex
+	times []time.Time
+	read  int
+}
+
+func (c *sequenceClock) now() time.Time {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	at := c.times[min(c.read, len(c.times)-1)]
+	c.read++
+	return at
+}
+
+func (c *sequenceClock) calls() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.read
+}
+
+// failingWatchRunner ends its watch at once with err.
+type failingWatchRunner struct{ err error }
+
+func (r failingWatchRunner) Watch(context.Context, draftwatch.Identity, draftwatch.WatchOptions) error {
+	return r.err
 }
 
 type staticIdentityResolver struct{ identity draftwatch.Identity }

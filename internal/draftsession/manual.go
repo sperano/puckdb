@@ -1,6 +1,9 @@
 package draftsession
 
-import "fmt"
+import (
+	"fmt"
+	"slices"
+)
 
 // ApplyManual applies one explicit local board edit. A change remains marked
 // manual until a Yahoo snapshot confirms it or the user resolves a conflict.
@@ -106,7 +109,7 @@ func EffectiveBoard(state State) []BoardEntry {
 			keys = append(keys, key)
 		}
 	}
-	sortKeys(keys)
+	slices.SortFunc(keys, comparePickKeys)
 	board := make([]BoardEntry, 0, len(keys))
 	for _, key := range keys {
 		pick, exists := effectiveAt(state, key)

@@ -304,6 +304,7 @@ type fakeDataSource struct {
 	leagueData       LeagueData
 	applyErr         error
 	shortlistChanged bool
+	shortlistAt      time.Time
 	events           []draftwatch.Event
 }
 
@@ -321,8 +322,8 @@ func (f *fakeDataSource) LeagueData(context.Context, draftwatch.Identity) (Leagu
 	return f.leagueData, nil
 }
 func (f *fakeDataSource) ListShortlist(context.Context, string) ([]string, error) { return nil, nil }
-func (f *fakeDataSource) SetShortlist(context.Context, string, string, uint64, bool) error {
-	f.shortlistChanged = true
+func (f *fakeDataSource) SetShortlist(_ context.Context, _, _ string, _ uint64, _ bool, at time.Time) error {
+	f.shortlistChanged, f.shortlistAt = true, at
 	return nil
 }
 func (f *fakeDataSource) ApplyManual(context.Context, draftwatch.Identity, draftsession.ManualOperation,
@@ -352,9 +353,11 @@ func (f *fakeRecommendationEngine) Recommend(_ context.Context, input draftrecom
 func TestSetShortlistVersionCheckAllowsCurrentVersion(t *testing.T) {
 	data := &fakeDataSource{identity: draftwatch.Identity{LeagueKey: "500.l.5621"},
 		session: draftwatch.Session{State: draftsession.State{Version: 4}}}
-	service := NewService(data, nil, nil, Options{})
+	now := time.Date(2026, 10, 4, 12, 0, 0, 0, time.FixedZone("EDT", -4*60*60))
+	service := NewService(data, nil, nil, Options{Now: func() time.Time { return now }})
 	require.NoError(t, service.SetShortlist(context.Background(), "500.l.5621", 2026, "500.p.103", 4, true))
 	assert.True(t, data.shortlistChanged)
+	assert.Equal(t, now.UTC(), data.shortlistAt, "the store is stamped with the service clock, in UTC")
 }
 
 func TestBoardRejectsUnavailableOwnedTeam(t *testing.T) {

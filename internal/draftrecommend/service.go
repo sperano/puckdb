@@ -1,10 +1,11 @@
 package draftrecommend
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"slices"
-	"sort"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -48,7 +49,22 @@ type playerRef struct {
 // Evaluate computes recommendations from one immutable ranking and session
 // version. It returns labeled output without candidates for an unsafe board.
 func Evaluate(in Input) (Result, error) {
-	started := time.Now()
+	return evaluateTimed(in, time.Now)
+}
+
+// evaluateTimed records the latency of a successful evaluation, read from
+// now, in one place for every return path; a failed one keeps zero.
+func evaluateTimed(in Input, now func() time.Time) (Result, error) {
+	started := now()
+	result, err := evaluate(in)
+	if err != nil {
+		return result, err
+	}
+	result.LatencyMillis = now().Sub(started).Milliseconds()
+	return result, nil
+}
+
+func evaluate(in Input) (Result, error) {
 	if err := validateInput(in); err != nil {
 		return Result{}, err
 	}
@@ -58,12 +74,10 @@ func Evaluate(in Input) (Result, error) {
 		return result, err
 	}
 	if withoutCandidates(&result, in) {
-		result.LatencyMillis = time.Since(started).Milliseconds()
 		return result, nil
 	}
 	if result.CurrentPick == nil {
 		if len(in.Order) > 0 {
-			result.LatencyMillis = time.Since(started).Milliseconds()
 			return result, nil
 		}
 		result.Issues = append(result.Issues, issueTurnEstimateOmitted)
@@ -73,7 +87,6 @@ func Evaluate(in Input) (Result, error) {
 	}
 	refs := availablePlayers(in, scenario, &result)
 	if result.BoardStatus == BoardStatusIncomplete {
-		result.LatencyMillis = time.Since(started).Milliseconds()
 		return result, nil
 	}
 	result.Candidates = evaluateCandidates(in, refs, &result)
@@ -82,7 +95,6 @@ func Evaluate(in Input) (Result, error) {
 	}
 	rankCandidates(result.Candidates)
 	selectRecommendations(&result)
-	result.LatencyMillis = time.Since(started).Milliseconds()
 	return result, nil
 }
 
@@ -264,7 +276,7 @@ func availablePlayers(in Input, scenario draftrank.Scenario, result *Result) []p
 		result.Issues = append(result.Issues, issueMissingRosterEligibility)
 		result.BoardStatus = BoardStatusIncomplete
 	}
-	sort.Slice(refs, func(i, j int) bool { return refs[i].player.PlayerKey < refs[j].player.PlayerKey })
+	slices.SortFunc(refs, func(left, right playerRef) int { return strings.Compare(left.player.PlayerKey, right.player.PlayerKey) })
 	return refs
 }
 
@@ -355,18 +367,15 @@ func assignedSlot(assignments []draft.SlotAssignment, playerID int) string {
 }
 
 func rankCandidates(candidates []Candidate) {
-	sort.Slice(candidates, func(i, j int) bool {
-		left, right := candidates[i], candidates[j]
-		if left.Reasons.MarginalValue == right.Reasons.MarginalValue {
-			return left.PlayerKey < right.PlayerKey
-		}
-		return left.Reasons.MarginalValue > right.Reasons.MarginalValue
+	slices.SortFunc(candidates, func(left, right Candidate) int {
+		return cmp.Or(cmp.Compare(right.Reasons.MarginalValue, left.Reasons.MarginalValue),
+			strings.Compare(left.PlayerKey, right.PlayerKey))
 	})
 	for i := range candidates {
 		candidates[i].ValueRank = i + 1
 	}
 	fitOrder := slices.Clone(candidates)
-	sort.Slice(fitOrder, func(i, j int) bool { return rosterFitLess(fitOrder[i], fitOrder[j]) })
+	slices.SortFunc(fitOrder, compareRosterFit)
 	ranks := make(map[string]int, len(fitOrder))
 	for index, candidate := range fitOrder {
 		ranks[candidate.PlayerKey] = index + 1
@@ -376,21 +385,17 @@ func rankCandidates(candidates []Candidate) {
 	}
 }
 
-func rosterFitLess(a, b Candidate) bool {
-	if a.Reasons.AdditionalStarts != b.Reasons.AdditionalStarts {
-		return a.Reasons.AdditionalStarts > b.Reasons.AdditionalStarts
-	}
-	aKind, bKind := slotPriority(a.Reasons.AssignedSlot), slotPriority(b.Reasons.AssignedSlot)
-	if aKind != bKind {
-		return aKind < bKind
-	}
-	if a.Reasons.ScarcityCount != b.Reasons.ScarcityCount {
-		return a.Reasons.ScarcityCount < b.Reasons.ScarcityCount
-	}
-	if a.Reasons.MarginalValue != b.Reasons.MarginalValue {
-		return a.Reasons.MarginalValue > b.Reasons.MarginalValue
-	}
-	return a.PlayerKey < b.PlayerKey
+// compareRosterFit orders candidates by roster fit: more additional starts,
+// then slot priority, fewer scarce alternatives, more marginal value, and
+// player key.
+func compareRosterFit(a, b Candidate) int {
+	return cmp.Or(
+		cmp.Compare(b.Reasons.AdditionalStarts, a.Reasons.AdditionalStarts),
+		cmp.Compare(slotPriority(a.Reasons.AssignedSlot), slotPriority(b.Reasons.AssignedSlot)),
+		cmp.Compare(a.Reasons.ScarcityCount, b.Reasons.ScarcityCount),
+		cmp.Compare(b.Reasons.MarginalValue, a.Reasons.MarginalValue),
+		strings.Compare(a.PlayerKey, b.PlayerKey),
+	)
 }
 
 func slotPriority(slot string) int {

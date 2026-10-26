@@ -2,7 +2,7 @@ package draftsession
 
 import (
 	"fmt"
-	"sort"
+	"slices"
 )
 
 // Reconcile applies resolved positive observations. Only an authoritative,
@@ -126,7 +126,7 @@ func makeReport(state State, changed bool, skipped []SkippedPick, applied, remov
 			conflicts = append(conflicts, key)
 		}
 	}
-	sortKeys(conflicts)
+	slices.SortFunc(conflicts, comparePickKeys)
 	return Report{
 		Changed: changed, Complete: state.UpstreamComplete,
 		SafeToRecommend: SafeToRecommend(state), Applied: applied, Removed: removed,
@@ -167,13 +167,4 @@ func countRemoved(before, after State) int {
 		}
 	}
 	return count
-}
-
-func sortKeys(keys []PickKey) {
-	sort.Slice(keys, func(i, j int) bool {
-		if keys[i].Round == keys[j].Round {
-			return keys[i].Pick < keys[j].Pick
-		}
-		return keys[i].Round < keys[j].Round
-	})
 }

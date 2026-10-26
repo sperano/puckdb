@@ -42,14 +42,20 @@ type WatchController struct {
 	resolver IdentityResolver
 	factory  func() WatchRunner
 	options  draftwatch.WatchOptions
+	now      func() time.Time
 	mu       sync.Mutex
 	entries  map[string]*watchEntry
 }
 
 // NewWatchController returns a controller that resolves leagues with
-// resolver and runs each watch on a fresh runner from factory.
-func NewWatchController(resolver IdentityResolver, factory func() WatchRunner, options draftwatch.WatchOptions) *WatchController {
-	return &WatchController{resolver: resolver, factory: factory, options: options,
+// resolver and runs each watch on a fresh runner from factory. now stamps
+// each watch's start and stop times; nil means time.Now.
+func NewWatchController(resolver IdentityResolver, factory func() WatchRunner, options draftwatch.WatchOptions,
+	now func() time.Time) *WatchController {
+	if now == nil {
+		now = time.Now
+	}
+	return &WatchController{resolver: resolver, factory: factory, options: options, now: now,
 		entries: make(map[string]*watchEntry)}
 }
 
@@ -70,7 +76,7 @@ func (c *WatchController) Start(ctx context.Context, league string, season int) 
 		return status, nil
 	}
 	watchCtx, cancel := context.WithCancel(context.Background())
-	entry := &watchEntry{status: WatchStatus{LeagueKey: identity.LeagueKey, Running: true, StartedAt: time.Now().UTC()},
+	entry := &watchEntry{status: WatchStatus{LeagueKey: identity.LeagueKey, Running: true, StartedAt: c.now().UTC()},
 		cancel: cancel, done: make(chan struct{}), refresh: make(chan draftwatch.RefreshRequest)}
 	c.entries[identity.LeagueKey] = entry
 	status := entry.status
@@ -85,7 +91,7 @@ func (c *WatchController) run(ctx context.Context, identity draftwatch.Identity,
 	err := c.factory().Watch(ctx, identity, options)
 	c.mu.Lock()
 	entry.status.Running = false
-	stopped := time.Now().UTC()
+	stopped := c.now().UTC()
 	entry.status.StoppedAt = &stopped
 	if err != nil && !errors.Is(err, context.Canceled) {
 		entry.status.LastError = err.Error()

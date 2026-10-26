@@ -3,7 +3,7 @@ package draftrecommend
 import (
 	"errors"
 	"math"
-	"sort"
+	"slices"
 )
 
 const (
@@ -32,7 +32,7 @@ func EvaluateReplay(cases []ReplayCase) (ReplayMetrics, error) {
 			metrics.Correct++
 		}
 	}
-	sort.Slice(latencies, func(i, j int) bool { return latencies[i] < latencies[j] })
+	slices.Sort(latencies)
 	metrics.Correctness = float64(metrics.Correct) / float64(metrics.Cases)
 	metrics.P50LatencyMS = quantile(latencies, p50Quantile)
 	metrics.P95LatencyMS = quantile(latencies, p95Quantile)

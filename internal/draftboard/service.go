@@ -46,7 +46,7 @@ type DataSource interface {
 	Ranking(context.Context, draftwatch.Identity) (draftrank.Read, error)
 	LeagueData(context.Context, draftwatch.Identity) (LeagueData, error)
 	ListShortlist(context.Context, string) ([]string, error)
-	SetShortlist(context.Context, string, string, uint64, bool) error
+	SetShortlist(context.Context, string, string, uint64, bool, time.Time) error
 	ApplyManual(context.Context, draftwatch.Identity, draftsession.ManualOperation, uint64, time.Time) (draftwatch.Session, draftsession.Report, error)
 	ResolveConflict(context.Context, draftwatch.Identity, draftsession.PickKey, draftsession.ConflictChoice, uint64, time.Time) (draftwatch.Session, draftsession.Report, error)
 	ListEvents(context.Context, string, uint64, int) ([]draftwatch.Event, error)
@@ -384,7 +384,8 @@ func (s *Service) Close(ctx context.Context) error {
 }
 
 // SetShortlist changes one player only when the caller's board version is
-// still current. The store repeats this check while locking the session row.
+// still current, stamping the change with the service clock. The store
+// repeats this check while locking the session row.
 func (s *Service) SetShortlist(ctx context.Context, league string, season int, playerKey string, expectedVersion uint64, selected bool) error {
 	identity, err := s.data.ResolveIdentity(ctx, league, season)
 	if err != nil {
@@ -400,7 +401,7 @@ func (s *Service) SetShortlist(ctx context.Context, league string, season int, p
 	if playerKey == "" {
 		return errors.New("shortlist player key is required")
 	}
-	return s.data.SetShortlist(ctx, identity.LeagueKey, playerKey, expectedVersion, selected)
+	return s.data.SetShortlist(ctx, identity.LeagueKey, playerKey, expectedVersion, selected, s.now().UTC())
 }
 
 // ApplyManual records an add, correction or undo against an expected reducer version.
