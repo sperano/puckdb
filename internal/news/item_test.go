@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/sperano/puckdb/internal/canonhash"
 	"github.com/sperano/puckdb/internal/matching"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -203,7 +204,7 @@ func TestContentHashWithoutBodyIsUnchanged(t *testing.T) {
 		Subjects: it.Subjects, TeamHints: it.TeamHints, CategoryHint: it.CategoryHint,
 	})
 	require.NoError(t, err)
-	assert.Equal(t, hashHex(data), mustHash(t, it))
+	assert.Equal(t, canonhash.Bytes(data), mustHash(t, it))
 }
 
 func TestCleanBodyKeepsParagraphsAndDropsCode(t *testing.T) {
@@ -231,3 +232,18 @@ func TestNormalizeItemDropsABodyThatRepeatsTheSummary(t *testing.T) {
 	longer := normalizeItem(Item{Title: "T", Text: "Short summary.", Body: "<p>Short summary.</p><p>More.</p>"})
 	assert.Equal(t, "Short summary.\n\nMore.", longer.Body)
 }
+
+// TestItemHashesGolden pins news_article_versions' stored content hash and
+// fingerprints: a change makes every stored story look new.
+func TestItemHashesGolden(t *testing.T) {
+	it := baseItem()
+	hash, err := it.ContentHash()
+	require.NoError(t, err)
+	assert.Equal(t, goldenContentHash, hash)
+	assert.Equal(t, goldenTitleFingerprint, it.TitleFingerprint())
+}
+
+const (
+	goldenContentHash      = "01e35727e05b2839fbb1bd1fdf416ff47c52a25157ad3b49db30a15848d4cb55"
+	goldenTitleFingerprint = "9149135172c3adc97a75e49e04053157c34f8f6050eeb939d5683c9505e193fa"
+)

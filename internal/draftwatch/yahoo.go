@@ -2,9 +2,6 @@ package draftwatch
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -12,6 +9,7 @@ import (
 	"time"
 
 	"github.com/sperano/puckdb/internal/cache"
+	"github.com/sperano/puckdb/internal/canonhash"
 	"github.com/sperano/puckdb/internal/draftsession"
 	"github.com/sperano/puckdb/internal/httpx"
 	"github.com/sperano/puckdb/internal/resource"
@@ -121,12 +119,11 @@ func normalizeDraftStatus(status string) string {
 }
 
 func hashSnapshot(snapshot draftsession.Snapshot) (string, error) {
-	raw, err := json.Marshal(snapshot)
+	hash, err := canonhash.JSON(snapshot)
 	if err != nil {
-		return "", fmt.Errorf("marshal Yahoo draft snapshot: %w", err)
+		return "", fmt.Errorf("hash Yahoo draft snapshot: %w", err)
 	}
-	sum := sha256.Sum256(raw)
-	return hex.EncodeToString(sum[:]), nil
+	return hash, nil
 }
 
 // ErrorClass is a stable capability-report class for a failed Yahoo poll,

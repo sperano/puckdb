@@ -21,7 +21,7 @@ const (
 // The playoff bar starts with Total 0; it is sized to the season's team count
 // (one unit per club-schedule fetch) once ListSeasonTeams has run.
 func NewFetchSeasonProgressReport(ctx workflow.Context, season nhl.SeasonInfo) *shared.ProgressReport {
-	days, _ := shared.CountDaysInSeason(ctx, season)
+	days := shared.CountDaysInSeason(ctx, season)
 	return &shared.ProgressReport{
 		Total: days,
 		Groups: []shared.ProgressGroup{

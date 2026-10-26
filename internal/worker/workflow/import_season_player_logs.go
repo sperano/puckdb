@@ -28,7 +28,8 @@ func NewImportSeasonPlayerLogsReport(season nhl.SeasonInfo, playerCount int) *sh
 }
 
 // ImportSeasonPlayerLogsWorkflow imports player game logs for all players in a season.
-// Player IDs are loaded from Redis (populated by ExtractBoxscorePlayersWorkflow).
+// Player IDs are collected by scanning the season's cached schedule and
+// boxscore files (CollectSeasonPlayerIDs), not loaded from Redis.
 func ImportSeasonPlayerLogsWorkflow(ctx workflow.Context, season nhl.SeasonInfo) (core.OriginCounts, error) {
 	logger := workflow.GetLogger(ctx)
 

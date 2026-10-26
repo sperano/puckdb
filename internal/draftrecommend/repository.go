@@ -10,13 +10,12 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/sperano/puckdb/internal/draftsession"
 )
 
 // ErrRunNotFound is returned when no stored run matches the requested ID or
 // league session version.
 var ErrRunNotFound = errors.New("draft recommendation run not found")
-
-const maxDatabaseVersion = uint64(^uint64(0) >> 1)
 
 // StoredRun is one replayable recommendation input and its persisted result.
 type StoredRun struct {
@@ -38,7 +37,7 @@ func (r *Repository) Save(ctx context.Context, input Input, result Result) (uuid
 	if err := validateStoredRun(input, result); err != nil {
 		return uuid.Nil, err
 	}
-	version, err := databaseVersion(input.Session.Version)
+	version, err := draftsession.DatabaseVersion(input.Session.Version)
 	if err != nil {
 		return uuid.Nil, err
 	}
@@ -96,7 +95,7 @@ WHERE league_key=$1 AND session_version=$2
 ORDER BY generated_at DESC, id DESC LIMIT 1`
 	var id uuid.UUID
 	var inputRaw, resultRaw []byte
-	version, err := databaseVersion(sessionVersion)
+	version, err := draftsession.DatabaseVersion(sessionVersion)
 	if err != nil {
 		return StoredRun{}, err
 	}
@@ -120,7 +119,7 @@ func validateStoredRun(input Input, result Result) error {
 	if result.SessionVersion != input.Session.Version {
 		return errors.New("store draft recommendation: session version mismatch")
 	}
-	if _, err := databaseVersion(input.Session.Version); err != nil {
+	if _, err := draftsession.DatabaseVersion(input.Session.Version); err != nil {
 		return err
 	}
 	if result.RankingSnapshotID != input.Ranking.ID.String() || result.RankingIdentity != input.Ranking.Identity ||
@@ -167,11 +166,4 @@ func decodeStoredRun(id uuid.UUID, inputRaw, resultRaw []byte) (StoredRun, error
 		return StoredRun{}, fmt.Errorf("decode recommendation %s: %w", id, err)
 	}
 	return run, nil
-}
-
-func databaseVersion(version uint64) (int64, error) {
-	if version > maxDatabaseVersion {
-		return 0, errors.New("draft recommendation session version exceeds PostgreSQL bigint")
-	}
-	return int64(version), nil
 }

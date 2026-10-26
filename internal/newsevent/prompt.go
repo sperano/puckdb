@@ -1,12 +1,11 @@
 package newsevent
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 	"strings"
 	"time"
 
+	"github.com/sperano/puckdb/internal/canonhash"
 	"github.com/sperano/puckdb/internal/news"
 )
 
@@ -181,6 +180,5 @@ func sanitize(s string) string {
 // InputHash identifies what the model sees under this prompt and schema: two
 // versions with identical rendered input share one output.
 func InputHash(in Input) string {
-	sum := sha256.Sum256([]byte(PromptVersion + "\x00" + SchemaVersion + "\x00" + systemPrompt + "\x00" + UserMessage(in)))
-	return hex.EncodeToString(sum[:])
+	return canonhash.Bytes([]byte(PromptVersion + "\x00" + SchemaVersion + "\x00" + systemPrompt + "\x00" + UserMessage(in)))
 }

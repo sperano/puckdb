@@ -366,7 +366,11 @@ func (r *Repository) storeSnapshot(ctx context.Context, snapshot Snapshot) (uuid
 // identity. Callers that store a snapshot together with other records use it
 // to keep both in one transaction.
 func StoreSnapshotWith(ctx context.Context, queries *sqlcdb.Queries, snapshot Snapshot) (uuid.UUID, error) {
-	row, err := queries.CreateProjectionSnapshot(ctx, snapshotParams(snapshot))
+	params, err := snapshotParams(snapshot)
+	if err != nil {
+		return uuid.Nil, err
+	}
+	row, err := queries.CreateProjectionSnapshot(ctx, params)
 	if err != nil {
 		return uuid.Nil, fmt.Errorf("create projection snapshot: %w", err)
 	}
@@ -448,20 +452,24 @@ func storePlayers(
 	return nil
 }
 
-func snapshotParams(snapshot Snapshot) sqlcdb.CreateProjectionSnapshotParams {
+func snapshotParams(snapshot Snapshot) (sqlcdb.CreateProjectionSnapshotParams, error) {
 	cfg := snapshot.Config
 	var agingCurve []byte
 	if cfg.AgingCurve != nil {
 		var err error
 		agingCurve, err = json.Marshal(cfg.AgingCurve)
 		if err != nil {
-			panic(fmt.Sprintf("marshal aging curve: %v", err))
+			return sqlcdb.CreateProjectionSnapshotParams{}, fmt.Errorf("encode aging curve: %w", err)
 		}
+	}
+	cfgHash, err := configHash(cfg)
+	if err != nil {
+		return sqlcdb.CreateProjectionSnapshotParams{}, err
 	}
 	return sqlcdb.CreateProjectionSnapshotParams{
 		TargetSeason: int32(snapshot.TargetSeason), AsOf: timestampValue(snapshot.AsOf),
 		SourceMaxGameDate: dateValue(snapshot.SourceMaxGameDate), ModelVersion: cfg.ModelVersion,
-		ConfigHash: configHash(cfg), SourceDataHash: snapshot.SourceDataHash,
+		ConfigHash: cfgHash, SourceDataHash: snapshot.SourceDataHash,
 		LookbackSeasons: int32(cfg.LookbackSeasons),
 		SeasonDecay:     cfg.SeasonDecay, SkaterPriorToiSeconds: cfg.SkaterPriorTOISeconds,
 		GoaliePriorShots: cfg.GoaliePriorShots, MaxGames: cfg.MaxGames, IntervalZ: cfg.IntervalZ,
@@ -476,7 +484,7 @@ func snapshotParams(snapshot Snapshot) sqlcdb.CreateProjectionSnapshotParams {
 		GoalieShareHalfLifeGames:   cfg.GoalieShareHalfLifeGames,
 		GoaliePlayoffWeight:        cfg.GoaliePlayoffWeight,
 		GoalieShareBlend:           cfg.GoalieShareBlend,
-	}
+	}, nil
 }
 
 func projectionLoadFloor(cfg Config, targetSeason int) int {

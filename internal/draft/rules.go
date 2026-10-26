@@ -6,8 +6,6 @@
 package draft
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"slices"
@@ -15,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/sperano/puckdb/internal/canonhash"
 	"github.com/sperano/puckdb/internal/store"
 )
 
@@ -176,8 +175,7 @@ func (r Rules) Hash() (string, []byte, error) {
 	if err != nil {
 		return "", nil, fmt.Errorf("encode rules for league %s: %w", r.LeagueKey, err)
 	}
-	sum := sha256.Sum256(data)
-	return hex.EncodeToString(sum[:]), data, nil
+	return canonhash.Bytes(data), data, nil
 }
 
 func statCategories(settings store.Settings) ([]StatCategory, []string) {

@@ -229,8 +229,8 @@ func TestSourceHashIncludesTeamEnvironmentInputs(t *testing.T) {
 	changedTeam.TeamSeasons = envTeams(envLastSeason)
 	changedTeam.TeamSeasons[0].GoalsFor++
 
-	require.NotEqual(t, sourceDataHash(cfg, input), sourceDataHash(cfg, withTarget))
-	require.NotEqual(t, sourceDataHash(cfg, input), sourceDataHash(cfg, changedTeam))
+	require.NotEqual(t, mustSourceDataHash(t, cfg, input), mustSourceDataHash(t, cfg, withTarget))
+	require.NotEqual(t, mustSourceDataHash(t, cfg, input), mustSourceDataHash(t, cfg, changedTeam))
 }
 
 // Models before nhl-baseline-v5 do not read team-environment inputs, so
@@ -250,8 +250,8 @@ func TestPreTeamEnvironmentModelsIgnoreTeamInputs(t *testing.T) {
 		if !supportsLinemateContext(version) {
 			cfg.LinemateRegressionStrength = 0
 		}
-		require.Equal(t, sourceDataHash(cfg, input), sourceDataHash(cfg, withTeams), version)
-		require.Equal(t, evaluationDataHash(cfg, input), evaluationDataHash(cfg, withTeams), version)
+		require.Equal(t, mustSourceDataHash(t, cfg, input), mustSourceDataHash(t, cfg, withTeams), version)
+		require.Equal(t, mustEvaluationDataHash(t, cfg, input), mustEvaluationDataHash(t, cfg, withTeams), version)
 		without, err := Generate(cfg, input)
 		require.NoError(t, err, version)
 		with, err := Generate(cfg, withTeams)

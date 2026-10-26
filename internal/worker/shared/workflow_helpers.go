@@ -93,7 +93,9 @@ func EffectiveEndDate(ctx workflow.Context, end time.Time) time.Time {
 }
 
 // CountDaysInSeason returns the number of days from season start to min(season end, today).
-// Uses workflow.Now(ctx) to ensure determinism on workflow replay.
-func CountDaysInSeason(ctx workflow.Context, season nhl.SeasonInfo) (int, error) {
-	return core.CountDays(season.StandingsStart.Time, EffectiveEndDate(ctx, season.StandingsEnd.Time)), nil
+// Uses workflow.Now(ctx) to ensure determinism on workflow replay. It never
+// fails; wrap it (see daysWithPlayoffTeamsCounter) where a SeasonCounterFunc
+// is required.
+func CountDaysInSeason(ctx workflow.Context, season nhl.SeasonInfo) int {
+	return core.CountDays(season.StandingsStart.Time, EffectiveEndDate(ctx, season.StandingsEnd.Time))
 }

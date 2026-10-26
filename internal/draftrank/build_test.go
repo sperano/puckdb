@@ -187,3 +187,29 @@ func TestLeagueOf_UnsupportedScoringStillDescribesLeague(t *testing.T) {
 	assert.Empty(t, league.Format)
 	assert.Equal(t, time.Date(2026, time.September, 20, 6, 0, 0, 0, time.UTC), league.FetchedAt)
 }
+
+// TestBuild_IdentitiesGolden pins every identity a ranking snapshot stores
+// (draft_ranking_snapshots.identity, meta.versions, the adjustment ID and
+// the rules hash), so consolidating the hashing cannot change them.
+func TestBuild_IdentitiesGolden(t *testing.T) {
+	snapshot, err := draftrank.Build(fixtureInput(t))
+	require.NoError(t, err)
+	assert.Equal(t, goldenSnapshotIdentity, snapshot.Identity)
+	assert.Equal(t, goldenRulesHash, snapshot.Meta.League.RulesHash)
+	require.NotNil(t, snapshot.Meta.Adjustment)
+	assert.Equal(t, goldenAdjustmentID, snapshot.Meta.Adjustment.ID)
+	assert.Equal(t, goldenScenarioVersions, snapshot.Meta.Versions)
+}
+
+const (
+	goldenSnapshotIdentity = "draft-rankings-v1:1fe8243efd435187ca551a8d64cc2a3e32a464c0ca3eff1a994f6d00f15305b7"
+	goldenRulesHash        = "4da859d940c6d0bc17cda449fa2fd74d4108d91307397e07b1126ff724e73b2e"
+	goldenAdjustmentID     = "news-adjust-v2:c6377268c0204526a5fda52146ba7b855d470a483f8acfc30ffbb17a1a1b0a32"
+)
+
+var goldenScenarioVersions = map[draftrank.Scenario]string{
+	draftrank.ScenarioBaseline:     "league-replacement-v2:e4f224953afdbc2792b24990abccc2108ea15e09b757750e0180a0e10510d2f3",
+	draftrank.ScenarioConservative: "league-replacement-v2:85209d510249a0f9f7e02ed0ed20393f2b6c8d6c337a6ad76d2b4a4ff9949ef4",
+	draftrank.ScenarioBase:         "league-replacement-v2:db8339a03b7762acabff6c913a4195ae113e681ebe9ce2e2f9e803af3d070259",
+	draftrank.ScenarioOptimistic:   "league-replacement-v2:67b46d83d559959bd010f5d38c45a6fa247d17abe0ec0b08f8885f7da9b6f42f",
+}

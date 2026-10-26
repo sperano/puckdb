@@ -215,7 +215,7 @@ func TestListEventsValidatesCursorAndLimitBeforeDatabaseAccess(t *testing.T) {
 	_, err := repo.ListEvents(context.Background(), "league", 0, 0)
 	assert.ErrorContains(t, err, "limit must be positive")
 	_, err = repo.ListEvents(context.Background(), "league", uint64(^uint64(0)>>1)+1, 1)
-	assert.ErrorContains(t, err, "cursor exceeds PostgreSQL bigint")
+	assert.ErrorIs(t, err, draftsession.ErrDatabaseVersionOverflow)
 }
 
 type repositoryTestFixture struct {

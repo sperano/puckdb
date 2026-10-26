@@ -108,3 +108,11 @@ func TestSystemPromptMapsWeeksToDays(t *testing.T) {
 	require.Equal(t, 7, daysPerWeek, "update the prompt's week conversion with daysPerWeek")
 	assert.Contains(t, SystemPrompt(), "days = 7 x weeks")
 }
+
+// TestInputHashGolden pins news_extractions.input_hash, the extraction
+// cache key.
+func TestInputHashGolden(t *testing.T) {
+	assert.Equal(t, goldenInputHash, InputHash(promptTestInput()))
+}
+
+const goldenInputHash = "5a7d24d2979cd2fdf32d4cae6b1616f334451762239b2ed339e8a469396149bb"

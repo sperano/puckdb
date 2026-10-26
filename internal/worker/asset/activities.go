@@ -88,14 +88,14 @@ type assetQueries interface {
 // Activities holds the dependencies for asset download activities.
 type Activities struct {
 	Storage  store.Storage
-	Download shared.Downloader // function type, not httpx.Client (delta 6)
+	Download shared.Downloader // function type, not httpx.Client, so tests can stub it
 	Queries  assetQueries
 }
 
 // FetchAssetBatchInput is the input to the FetchAssetBatch activity.
 type FetchAssetBatchInput struct {
 	Assets         []Asset
-	RefreshCurrent bool // when true, skip the Storage.Exists short-circuit (delta 10)
+	RefreshCurrent bool // when true, skip the Storage.Exists short-circuit and re-download
 }
 
 // FetchAssetResult is the per-row outcome for a single Asset in a batch.
@@ -175,7 +175,8 @@ func (a *Activities) fetchAssetBatch(ctx context.Context, in FetchAssetBatchInpu
 // failures, non-context storage write errors — are encoded in
 // FetchAssetResult.Err with a nil error so the batch keeps running.
 func (a *Activities) processAsset(ctx context.Context, ast Asset, refreshCurrent bool) (FetchAssetResult, error) {
-	// Step 1: empty URL — defensive no-op; Phase 3 SQL filters before dispatch.
+	// Step 1: empty URL — defensive no-op; the loader queries already exclude
+	// empty-URL rows before dispatch (see e.g. LoadPlayerHeadshotAssets).
 	if ast.URL == "" {
 		return FetchAssetResult{Origin: core.OriginUnknown}, nil
 	}

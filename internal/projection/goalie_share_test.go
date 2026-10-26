@@ -126,7 +126,7 @@ func TestGoalieStartShareFollowsRecentStarter(t *testing.T) {
 	without := input
 	without.GoalieStarts = nil
 	v6Without := mustGenerate(t, benchConfig(GoalieAppearancesModelVersion), without)
-	require.Equal(t, hashValue(v6Without.Players), hashValue(v6.Players))
+	require.Equal(t, mustHashJSON(t, v6Without.Players), mustHashJSON(t, v6.Players))
 	require.Equal(t, v6Without.SourceDataHash, v6.SourceDataHash)
-	require.NotEqual(t, sourceDataHash(benchConfig(ModelVersion), without), v7.SourceDataHash)
+	require.NotEqual(t, mustSourceDataHash(t, benchConfig(ModelVersion), without), v7.SourceDataHash)
 }

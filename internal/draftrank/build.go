@@ -1,16 +1,13 @@
 package draftrank
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
-	"encoding/json"
-	"errors"
 	"fmt"
 	"slices"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/sperano/puckdb/internal/canonhash"
 	"github.com/sperano/puckdb/internal/draft"
 	"github.com/sperano/puckdb/internal/news"
 	"github.com/sperano/puckdb/internal/newsadjust"
@@ -272,14 +269,13 @@ func snapshotIdentity(meta Meta) (string, error) {
 	if meta.Adjustment != nil {
 		adjustmentID = meta.Adjustment.ID
 	}
-	data, err := json.Marshal(struct {
+	identity, err := canonhash.Versioned(SnapshotVersion, struct {
 		Version      string
 		Versions     map[Scenario]string
 		AdjustmentID string
 	}{SnapshotVersion, meta.Versions, adjustmentID})
 	if err != nil {
-		return "", errors.Join(errors.New("encode snapshot identity"), err)
+		return "", fmt.Errorf("hash snapshot identity: %w", err)
 	}
-	digest := sha256.Sum256(data)
-	return SnapshotVersion + ":" + hex.EncodeToString(digest[:]), nil
+	return identity, nil
 }

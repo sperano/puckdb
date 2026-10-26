@@ -68,3 +68,20 @@ func TestErrorClassStoredValuesAreStable(t *testing.T) {
 		assert.Equal(t, want, string(class))
 	}
 }
+
+// TestHashSnapshotGolden pins the stored Yahoo snapshot hash, which decides
+// whether a poll changed the board.
+func TestHashSnapshotGolden(t *testing.T) {
+	content := &store.FantasyContent{League: store.League{DraftResults: store.DraftResultList{
+		HasCount: true, Count: 2,
+		Slice: []store.DraftResult{
+			{Round: 1, Pick: 1, TeamKey: "500.l.5621.t.2", PlayerKey: "500.p.101"},
+			{Round: 1, Pick: 2, TeamKey: "500.l.5621.t.3", PlayerKey: "500.p.102"},
+		},
+	}}}
+	hash, err := hashSnapshot(buildSnapshot(testDraftIdentity, content, "drafting"))
+	require.NoError(t, err)
+	assert.Equal(t, goldenSnapshotHash, hash)
+}
+
+const goldenSnapshotHash = "a2ffe460f7aef4d2a3f6ed0623319d84c1615a5521c5a31e68b9e2ca41393b8b"

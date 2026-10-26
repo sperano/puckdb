@@ -38,7 +38,10 @@ func EvaluateTeamChanges(cfg Config, input Input) ([]Evaluation, error) {
 	previous := onlyPlayers(aggregateSkaterValues(input.Skaters, historyFloorSeason(input.TargetSeason, 1)), movers)
 	actual := onlyPlayers(aggregateSkaterValues(input.Skaters, input.TargetSeason), previous)
 	unadjustedValues := onlyPlayers(snapshotMeans(unadjusted), previous)
-	hash := evaluationDataHash(cfg, input)
+	hash, err := evaluationDataHash(cfg, input)
+	if err != nil {
+		return nil, err
+	}
 	result := make([]Evaluation, 0, 2)
 	for _, comparison := range []struct {
 		model  string
@@ -47,8 +50,11 @@ func EvaluateTeamChanges(cfg Config, input Input) ([]Evaluation, error) {
 		{NoTeamEnvironmentComparison, unadjustedValues},
 		{PreviousSeasonComparison, previous},
 	} {
-		evaluation := evaluateKind(adjusted, input.ObservedAt, hash, PlayerKindSkater,
+		evaluation, err := evaluateKind(adjusted, input.ObservedAt, hash, PlayerKindSkater,
 			actual, comparison.values, teamDependentStats, comparison.model)
+		if err != nil {
+			return nil, err
+		}
 		if len(evaluation.Metrics) == 0 {
 			return nil, fmt.Errorf("no skaters changed teams with outcomes in season %d", input.TargetSeason)
 		}

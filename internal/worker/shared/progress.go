@@ -45,7 +45,9 @@ type ProgressGroup struct {
 	CompletedAt  int64         `json:"completedAt"`
 }
 
-// ProgressReport is the new group-based progress structure.
+// ProgressReport is the group-based progress structure workflows publish and
+// the GraphQL resolvers read: a Total/Completed/Message summary plus the
+// per-group Groups detail.
 type ProgressReport struct {
 	Total     int             `json:"total"`
 	Completed int             `json:"completed"`

@@ -16,8 +16,8 @@ func TestConfigHashChangesWithModelInputs(t *testing.T) {
 	first := DefaultConfig()
 	second := first
 	second.SeasonDecay = 0.5
-	require.Equal(t, configHash(first), configHash(first))
-	require.NotEqual(t, configHash(first), configHash(second))
+	require.Equal(t, mustConfigHash(t, first), mustConfigHash(t, first))
+	require.NotEqual(t, mustConfigHash(t, first), mustConfigHash(t, second))
 }
 
 func TestConfigHashPreservesLegacySnapshotIdentity(t *testing.T) {
@@ -25,7 +25,7 @@ func TestConfigHashPreservesLegacySnapshotIdentity(t *testing.T) {
 
 	cfg := versionConfig(LegacyModelVersion)
 	cfg.LinemateRegressionStrength = 0
-	require.Equal(t, "f65181e5f3856e50f4f71442d0aef10f2c69d37daf77f96476d1a3c81eebdcc6", configHash(cfg))
+	require.Equal(t, "f65181e5f3856e50f4f71442d0aef10f2c69d37daf77f96476d1a3c81eebdcc6", mustConfigHash(t, cfg))
 }
 
 func TestConfigHashPreservesFaceoffSnapshotIdentity(t *testing.T) {
@@ -33,7 +33,7 @@ func TestConfigHashPreservesFaceoffSnapshotIdentity(t *testing.T) {
 
 	cfg := versionConfig(FaceoffModelVersion)
 	cfg.LinemateRegressionStrength = 0
-	require.Equal(t, "bdddb53fe417d350d27bc40bd6aba04188b752e5a5c74c1ae021bafab4567870", configHash(cfg))
+	require.Equal(t, "bdddb53fe417d350d27bc40bd6aba04188b752e5a5c74c1ae021bafab4567870", mustConfigHash(t, cfg))
 }
 
 func TestPublishedV3ConfigHashRetainsLinemateParameters(t *testing.T) {
@@ -56,7 +56,7 @@ func TestPublishedV3ConfigHashRetainsLinemateParameters(t *testing.T) {
 		cfg.LinemateRegressionStrength, cfg.GoaliePriorShots, cfg.GoalieShutoutMinTOI,
 		cfg.MaxGames, cfg.IntervalZ, cfg.MinimumUncertainty, cfg.MaximumUncertainty,
 		cfg.MinimumHistoryGames}
-	require.Equal(t, hashValue(historical), configHash(cfg))
+	require.Equal(t, mustHashJSON(t, historical), mustConfigHash(t, cfg))
 }
 
 func TestHistoryFloorSeason(t *testing.T) {
@@ -100,7 +100,7 @@ func TestSourceHashChangesWhenHistoricalDataChanges(t *testing.T) {
 	second.Skaters = []SkaterSeason{{
 		PlayerID: 1, Season: 20252026, GamesPlayed: 10, TOISeconds: 10, Goals: 11,
 	}}
-	require.NotEqual(t, sourceDataHash(DefaultConfig(), first), sourceDataHash(DefaultConfig(), second))
+	require.NotEqual(t, mustSourceDataHash(t, DefaultConfig(), first), mustSourceDataHash(t, DefaultConfig(), second))
 }
 
 func TestSourceHashPreservesLegacySkaterShape(t *testing.T) {
@@ -114,7 +114,7 @@ func TestSourceHashPreservesLegacySkaterShape(t *testing.T) {
 		LinematePointsPer60: 3.5, LinemateTOISeconds: 1_800,
 	}}}
 
-	require.Equal(t, "765b917af52dfea010f88cac6269cbbbf599cdfc384c18202ca3613efeafb6af", sourceDataHash(cfg, input))
+	require.Equal(t, "765b917af52dfea010f88cac6269cbbbf599cdfc384c18202ca3613efeafb6af", mustSourceDataHash(t, cfg, input))
 }
 
 func TestSourceHashPreservesFaceoffSkaterShape(t *testing.T) {
@@ -127,13 +127,13 @@ func TestSourceHashPreservesFaceoffSkaterShape(t *testing.T) {
 		TOISeconds: 900, Goals: 1, Assists: 2, FaceoffsWon: 8, FaceoffsLost: 7,
 	}}}
 
-	withoutContext := sourceDataHash(cfg, input)
+	withoutContext := mustSourceDataHash(t, cfg, input)
 	input.Skaters[0].LinematePointsPer60 = 3.5
 	input.Skaters[0].LinemateTOISeconds = 1_800
-	require.Equal(t, withoutContext, sourceDataHash(cfg, input))
+	require.Equal(t, withoutContext, mustSourceDataHash(t, cfg, input))
 
 	input.Skaters[0].FaceoffsWon++
-	require.NotEqual(t, withoutContext, sourceDataHash(cfg, input))
+	require.NotEqual(t, withoutContext, mustSourceDataHash(t, cfg, input))
 }
 
 func TestSourceHashIgnoresInputOrder(t *testing.T) {
@@ -147,7 +147,7 @@ func TestSourceHashIgnoresInputOrder(t *testing.T) {
 		{PlayerID: 2, Season: 20252026, GamesPlayed: 1, TOISeconds: 1},
 		{PlayerID: 1, Season: 20252026, GamesPlayed: 1, TOISeconds: 1},
 	}}
-	require.Equal(t, sourceDataHash(DefaultConfig(), first), sourceDataHash(DefaultConfig(), second))
+	require.Equal(t, mustSourceDataHash(t, DefaultConfig(), first), mustSourceDataHash(t, DefaultConfig(), second))
 }
 
 func TestSourceHashIgnoresRowsOutsideModelWindow(t *testing.T) {
@@ -158,7 +158,7 @@ func TestSourceHashIgnoresRowsOutsideModelWindow(t *testing.T) {
 	second.Skaters = append(slices.Clone(first.Skaters), SkaterSeason{
 		PlayerID: 1, Season: 20262027, GamesPlayed: 82, TOISeconds: 82, Goals: 100,
 	})
-	require.Equal(t, sourceDataHash(DefaultConfig(), first), sourceDataHash(DefaultConfig(), second))
+	require.Equal(t, mustSourceDataHash(t, DefaultConfig(), first), mustSourceDataHash(t, DefaultConfig(), second))
 }
 
 func TestSourceHashIncludesAgingTrainingRowsOnlyForV4(t *testing.T) {
@@ -170,9 +170,9 @@ func TestSourceHashIncludesAgingTrainingRowsOnlyForV4(t *testing.T) {
 	second.Skaters = append(slices.Clone(first.Skaters), SkaterSeason{
 		PlayerID: 1, Season: 20102011, GamesPlayed: 10, TOISeconds: 10,
 	})
-	require.NotEqual(t, sourceDataHash(DefaultConfig(), first), sourceDataHash(DefaultConfig(), second))
+	require.NotEqual(t, mustSourceDataHash(t, DefaultConfig(), first), mustSourceDataHash(t, DefaultConfig(), second))
 	legacy := versionConfig(LegacyModelVersion)
-	require.Equal(t, sourceDataHash(legacy, first), sourceDataHash(legacy, second))
+	require.Equal(t, mustSourceDataHash(t, legacy, first), mustSourceDataHash(t, legacy, second))
 }
 
 func TestSourceHashIncludesZeroGameAgingRows(t *testing.T) {
@@ -182,7 +182,7 @@ func TestSourceHashIncludesZeroGameAgingRows(t *testing.T) {
 		PlayerID: 1, BirthDate: time.Date(2000, time.January, 1, 0, 0, 0, 0, time.UTC),
 		Season: 20202021, TOISeconds: 100,
 	}}}
-	require.NotEqual(t, sourceDataHash(DefaultConfig(), first), sourceDataHash(DefaultConfig(), second))
+	require.NotEqual(t, mustSourceDataHash(t, DefaultConfig(), first), mustSourceDataHash(t, DefaultConfig(), second))
 }
 
 func TestPreAgingInputHashesKeepVersionedSerialization(t *testing.T) {
@@ -203,9 +203,9 @@ func TestPreAgingInputHashesKeepVersionedSerialization(t *testing.T) {
 	}
 	const legacyHash = "b658f9737d99e86f1fc3256e27c95ec3e2a1a5633fd605fefc83980feae00310"
 	const faceoffHash = "c9011420d645e7fc6cdbae1c9456dfb9ff9331c7943af1d04078640523321bf6"
-	require.Equal(t, legacyHash, inputDataHash(input, LegacyModelVersion))
-	require.Equal(t, faceoffHash, inputDataHash(input, FaceoffModelVersion))
-	require.NotEqual(t, legacyHash, inputDataHash(input, ModelVersion))
+	require.Equal(t, legacyHash, mustInputDataHash(t, input, LegacyModelVersion))
+	require.Equal(t, faceoffHash, mustInputDataHash(t, input, FaceoffModelVersion))
+	require.NotEqual(t, legacyHash, mustInputDataHash(t, input, ModelVersion))
 }
 
 func TestFaceoffModelHashIncludesFaceoffsAndOmitsBirthDates(t *testing.T) {
@@ -221,8 +221,8 @@ func TestFaceoffModelHashIncludesFaceoffsAndOmitsBirthDates(t *testing.T) {
 	changedFaceoffs.Skaters = slices.Clone(first.Skaters)
 	changedFaceoffs.Skaters[0].FaceoffsWon++
 
-	require.Equal(t, inputDataHash(first, FaceoffModelVersion), inputDataHash(changedBirthDate, FaceoffModelVersion))
-	require.NotEqual(t, inputDataHash(first, FaceoffModelVersion), inputDataHash(changedFaceoffs, FaceoffModelVersion))
+	require.Equal(t, mustInputDataHash(t, first, FaceoffModelVersion), mustInputDataHash(t, changedBirthDate, FaceoffModelVersion))
+	require.NotEqual(t, mustInputDataHash(t, first, FaceoffModelVersion), mustInputDataHash(t, changedFaceoffs, FaceoffModelVersion))
 }
 
 func TestPublishedV3HashIncludesLinemateContextAndOmitsBirthDates(t *testing.T) {
@@ -259,14 +259,17 @@ func TestPublishedV3HashIncludesLinemateContextAndOmitsBirthDates(t *testing.T) 
 	changedLinemate.Skaters = slices.Clone(first.Skaters)
 	changedLinemate.Skaters[0].LinematePointsPer60++
 
-	require.Equal(t, inputDataHash(first, LinemateModelVersion), inputDataHash(changedBirthDate, LinemateModelVersion))
-	require.NotEqual(t, inputDataHash(first, LinemateModelVersion), inputDataHash(changedLinemate, LinemateModelVersion))
+	require.Equal(t, mustInputDataHash(t, first, LinemateModelVersion), mustInputDataHash(t, changedBirthDate, LinemateModelVersion))
+	require.NotEqual(t, mustInputDataHash(t, first, LinemateModelVersion), mustInputDataHash(t, changedLinemate, LinemateModelVersion))
 	historical := publishedV3Skater{
 		PlayerID: 1, Season: 20252026, GamesPlayed: 10, TOISeconds: 10,
 		FaceoffsWon: 4, LinematePointsPer60: 2.5, LinemateTOISeconds: 1200,
 	}
-	require.Equal(t, encodedValues([]publishedV3Skater{historical}),
-		encodedSkaterHashRows(first.Skaters, LinemateModelVersion))
+	want, err := encodedValues([]publishedV3Skater{historical})
+	require.NoError(t, err)
+	got, err := encodedSkaterHashRows(first.Skaters, LinemateModelVersion)
+	require.NoError(t, err)
+	require.Equal(t, want, got)
 }
 
 func TestApplyLinemateContextWeightsTeammateProductionBySharedTOI(t *testing.T) {

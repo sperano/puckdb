@@ -301,10 +301,10 @@ func registerPlayerActivities(w worker.Worker, d taskActivityDeps) {
 // registerAssetWorkflows registers all asset download workflows on the given
 // worker (expected to be polling shared.TaskQueueAssets). The generic
 // FetchAssetsClassWorkflow is intentionally not registered: it is invoked as a
-// regular Go function from the nine entry-point wrappers, never via
+// regular Go function from the seven entry-point wrappers below, never via
 // ExecuteChildWorkflow, so Temporal does not need to resolve it by name.
 func registerAssetWorkflows(w worker.Worker) {
-	// Parent: orchestrates the nine class children
+	// Parent: orchestrates the seven class children
 	w.RegisterWorkflow(workflow.FetchAssetsWorkflow)
 
 	// Per-class entry-point wrappers — each is a distinct workflow type in the Temporal UI

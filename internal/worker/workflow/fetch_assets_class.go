@@ -48,8 +48,8 @@ func assetRetryPolicy() *temporal.RetryPolicy {
 
 // assetActivityOptions returns Temporal activity options for FetchAssetBatch
 // invocations. Uses puckdb-asset-tasks so asset downloads cannot starve the
-// main puckdb-tasks queue (architectural delta 4 / 5). Returned as a fresh
-// value rather than a package-level var so workflows can't mutate it.
+// main puckdb-tasks queue. Returned as a fresh value rather than a
+// package-level var so workflows can't mutate it.
 func assetActivityOptions() workflow.ActivityOptions {
 	return workflow.ActivityOptions{
 		StartToCloseTimeout: assetActivityStartToClose,
@@ -131,9 +131,10 @@ var (
 // three knobs while entry-point invocations only consult RefreshCurrent.
 //
 // Mirrors the pattern of model.SeasonsInput (gqlgen-generated nullable fields
-// → Go pointers). The Phase 5 GraphQL schema will emit a structurally
-// identical model.FetchAssetsInput; the two are intended to be interchangeable
-// across the workflow boundary.
+// → Go pointers): the GraphQL schema's FetchAssetsInput (ClassConcurrency,
+// MaxClassConcurrency, RefreshCurrent) maps field-for-field onto this type in
+// Resolver.fetchAssets. AssetBatchSize has no GraphQL equivalent; it is set
+// only by the parent workflow itself before dispatching children.
 type FetchAssetsInput struct {
 	// RefreshCurrent forces re-download even when the local cache file exists.
 	// nil is treated as false.
@@ -207,7 +208,10 @@ const (
 
 // FetchAssetsClassWorkflow is the generic per-class child workflow that:
 //  1. Executes the loader activity to retrieve all assets for the class.
-//  2. Splits them into batches of DefaultAssetBatchSize.
+//  2. Splits them into batches sized by the snapshotted configuration
+//     (FlagAssetBatchSize, or the parent's own batch size when spawned by
+//     FetchAssetsWorkflow; config.DefaultAssetBatchSize only when that
+//     resolves to zero or less).
 //  3. Dispatches FetchAssetBatch activities concurrently via RunWorkerPool.
 //  4. Aggregates per-row origins into an OriginCounts result.
 //  5. Logs per-row errors but does not fail the workflow for them.
@@ -240,7 +244,7 @@ func FetchAssetsClassWorkflow(ctx workflow.Context, input FetchAssetsClassInput)
 	numBatches := len(batches)
 
 	// Step 3: initialise the progress tracker. The bar tracks batches (not rows)
-	// to keep history-event counts small (see plan v2 §Phase 3).
+	// to keep history-event counts small.
 	tracker, err := shared.InitTracker(ctx, &shared.ProgressReport{
 		Total: numBatches,
 		Groups: []shared.ProgressGroup{
