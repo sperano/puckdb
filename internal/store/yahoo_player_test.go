@@ -243,3 +243,21 @@ func TestParsePositions(t *testing.T) {
 		})
 	}
 }
+
+func TestParseYahooPlayerHTMLName(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range combinedNameCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			html := []byte("<html><head><title>" + tc.fullName +
+				" (C) Stats, News... - NY Rangers - Yahoo Sports</title></head></html>")
+
+			player, err := ParseYahooPlayerHTML(YahooPlayerID(1), html)
+			require.NoError(t, err)
+			assert.Equal(t, tc.wantFirst, player.FirstName)
+			assert.Equal(t, tc.wantLast, player.LastName)
+		})
+	}
+}
