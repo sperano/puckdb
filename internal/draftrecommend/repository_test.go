@@ -2,9 +2,12 @@ package draftrecommend
 
 import (
 	"encoding/json"
+	"errors"
+	"math"
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/sperano/puckdb/internal/draftsession"
 )
 
 func TestStoredRunAcceptsResolvedDefaultScenarioAndReplays(t *testing.T) {
@@ -46,7 +49,14 @@ func TestStoredRunRejectsVersionMismatch(t *testing.T) {
 }
 
 func TestDatabaseVersionRejectsOverflow(t *testing.T) {
-	if _, err := databaseVersion(maxDatabaseVersion + 1); err == nil {
-		t.Fatal("expected PostgreSQL bigint overflow error")
+	input := recommendationInput(t)
+	input.Session.Version = uint64(math.MaxInt64) + 1
+	result, err := Evaluate(input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = validateStoredRun(input, result)
+	if !errors.Is(err, draftsession.ErrDatabaseVersionOverflow) {
+		t.Fatalf("error = %v, want %v", err, draftsession.ErrDatabaseVersionOverflow)
 	}
 }
