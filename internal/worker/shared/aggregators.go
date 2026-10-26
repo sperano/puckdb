@@ -34,29 +34,6 @@ func AggregateInto[T any](acc Adder[T]) ResultHandler {
 	}
 }
 
-// CollectInto returns a ResultHandler that decodes each activity result
-// and appends it to the target slice. Use for collecting individual items.
-//
-// Example:
-//
-//	var players []Player
-//	err := tracker.RunWorkerPool(ctx, PoolOptions{
-//	    Total: total, Concurrency: concurrency,
-//	    Progress: SingleBar{Bar: BarRef{Group: group}},
-//	    Start:    starter,
-//	    Handle:   CollectInto(&players),
-//	})
-func CollectInto[T any](target *[]T) ResultHandler {
-	return func(ctx workflow.Context, _ int, f workflow.Future) error {
-		var result T
-		if err := f.Get(ctx, &result); err != nil {
-			return err
-		}
-		*target = append(*target, result)
-		return nil
-	}
-}
-
 // CollectSlicesInto returns a ResultHandler that decodes each activity result
 // (which must be a slice) and appends all elements to the target slice.
 //

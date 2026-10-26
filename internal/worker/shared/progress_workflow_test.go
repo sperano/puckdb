@@ -347,7 +347,7 @@ func (s *LoadReportTrackerSuite) TestRoundTrip() {
 		s.Require().NoError(err)
 		s.Require().NotNil(tracker)
 		// Mutate via tracker; the report inside must be the decoded one.
-		tracker.SetBarLabel(BarRef{Group: 0}, "after-load")
+		tracker.SetBarTotal(BarRef{Group: 0}, 1)
 		return nil
 	})
 	s.NoError(env.GetWorkflowError())

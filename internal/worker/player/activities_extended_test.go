@@ -788,68 +788,6 @@ func (s *VerifyUnmatchedBatchSuite) TestPlayerNotFoundInNHL() {
 // redis_cache.go — remaining uncovered function paths
 // ////////////////////////////////////////////////////////////////////////////
 
-func TestLoadAvailableYahooIDs_Success(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.Background()
-	redisClient, mockRedis := redismock.NewClientMock()
-	mockRedis.ExpectSMembers(YahooIDAvailableKey).SetVal([]string{"1", "2", "42"})
-
-	result, err := LoadAvailableYahooIDs(ctx, redisClient)
-
-	require.NoError(t, err)
-	assert.Len(t, result, 3)
-	assert.Contains(t, result, store.YahooPlayerID(1))
-	assert.Contains(t, result, store.YahooPlayerID(42))
-	assert.NoError(t, mockRedis.ExpectationsWereMet())
-}
-
-func TestLoadAvailableYahooIDs_Empty(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.Background()
-	redisClient, mockRedis := redismock.NewClientMock()
-	mockRedis.ExpectSMembers(YahooIDAvailableKey).SetVal([]string{})
-
-	result, err := LoadAvailableYahooIDs(ctx, redisClient)
-
-	require.NoError(t, err)
-	assert.Empty(t, result)
-	assert.NoError(t, mockRedis.ExpectationsWereMet())
-}
-
-func TestLoadAvailableYahooIDs_RedisError(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.Background()
-	redisClient, mockRedis := redismock.NewClientMock()
-	mockRedis.ExpectSMembers(YahooIDAvailableKey).SetErr(errors.New("timeout"))
-
-	result, err := LoadAvailableYahooIDs(ctx, redisClient)
-
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "load available yahoo ids from redis")
-	assert.Nil(t, result)
-	assert.NoError(t, mockRedis.ExpectationsWereMet())
-}
-
-func TestLoadAvailableYahooIDs_SkipsInvalidIDs(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.Background()
-	redisClient, mockRedis := redismock.NewClientMock()
-	// "abc" is not a valid integer and should be skipped.
-	mockRedis.ExpectSMembers(YahooIDAvailableKey).SetVal([]string{"1", "abc", "42"})
-
-	result, err := LoadAvailableYahooIDs(ctx, redisClient)
-
-	require.NoError(t, err)
-	assert.Len(t, result, 2)
-	assert.Contains(t, result, store.YahooPlayerID(1))
-	assert.Contains(t, result, store.YahooPlayerID(42))
-	assert.NoError(t, mockRedis.ExpectationsWereMet())
-}
-
 func TestRemoveFromYahooIDPool_Empty(t *testing.T) {
 	t.Parallel()
 
@@ -1137,45 +1075,6 @@ func TestSaveVerifiedNonNHLIDs_Success(t *testing.T) {
 }
 
 // ////////////////////////////////////////////////////////////////////////////
-// CountPlayersForSeason (package-level function)
-// ////////////////////////////////////////////////////////////////////////////
-
-func TestCountPlayersForSeason_Success(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.Background()
-	redisClient, mockRedis := redismock.NewClientMock()
-
-	season := nhl.NewSeason(2024)
-	players := []store.BoxscorePlayer{{ID: 1}, {ID: 2}, {ID: 3}}
-	encoded := gobEncodeBoxscorePlayers(t, players)
-	mockRedis.ExpectGet(cache.BoxscorePlayersKey(season)).SetVal(string(encoded))
-
-	count, err := CountPlayersForSeason(ctx, redisClient, season)
-
-	require.NoError(t, err)
-	assert.Equal(t, 3, count)
-	assert.NoError(t, mockRedis.ExpectationsWereMet())
-}
-
-func TestCountPlayersForSeason_RedisError(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.Background()
-	redisClient, mockRedis := redismock.NewClientMock()
-
-	season := nhl.NewSeason(2024)
-	mockRedis.ExpectGet(cache.BoxscorePlayersKey(season)).SetErr(errors.New("redis error"))
-
-	count, err := CountPlayersForSeason(ctx, redisClient, season)
-
-	require.Error(t, err)
-	assert.Equal(t, 0, count)
-	assert.Contains(t, err.Error(), "load boxscore players for 20242025")
-	assert.NoError(t, mockRedis.ExpectationsWereMet())
-}
-
-// ////////////////////////////////////////////////////////////////////////////
 // CleanupYahooIDPoolData (activity wrapper via Temporal)
 // ////////////////////////////////////////////////////////////////////////////
 
@@ -1259,19 +1158,4 @@ func (s *DownloadGameLogStorageErrorSuite) TestStorageWriteError() {
 	require.Len(s.T(), result.Errors, 1)
 	assert.Contains(s.T(), result.Errors[0], "save:")
 	client.AssertExpectations(s.T())
-}
-
-// ////////////////////////////////////////////////////////////////////////////
-// IsCurrentSeason — moved to shared package
-// ////////////////////////////////////////////////////////////////////////////
-
-func TestIsCurrentSeason_OctoberStartYear(t *testing.T) {
-	t.Parallel()
-
-	// Assert relative to the library's current season rather than a
-	// hardcoded year, so the test does not rot as the calendar advances.
-	current := nhl.Current().StartYear()
-	assert.True(t, shared.IsCurrentSeason(current))
-	assert.False(t, shared.IsCurrentSeason(current-1))
-	assert.False(t, shared.IsCurrentSeason(current+1))
 }

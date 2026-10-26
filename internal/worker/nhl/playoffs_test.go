@@ -43,7 +43,7 @@ func TestHomePlayoffGames_FiltersToFinalHomePlayoffGames(t *testing.T) {
 // TestScheduleIncomplete pins the cache-staleness predicate: a schedule with
 // any non-final game must be refetched (mid-season, mid-playoffs), while a
 // fully final schedule is complete and cacheable forever. This replaced the
-// IsCurrentSeason calendar gate, which froze mid-playoff caches once
+// calendar gate on nhl.Current(), which froze mid-playoff caches once
 // nhl.Current() rolled over on July 1.
 func TestScheduleIncomplete(t *testing.T) {
 	t.Parallel()

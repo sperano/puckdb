@@ -214,8 +214,7 @@ func cmdWorker() *cobra.Command {
 				})
 				queries := sqlcdb.New(pool)
 				registerAssetWorkflows(aw)
-				registerAssetActivities(aw, queries)
-				registerProgressActivities(aw, redisClient)
+				registerAssetQueueActivities(aw, queries, redisClient)
 
 				go func() {
 					errCh <- aw.Run(worker.InterruptCh())
@@ -312,17 +311,30 @@ func registerTasksActivities(w worker.Worker, pool *pgxpool.Pool, redisClient *r
 		boxscorePlayerCacheTTL: boxscorePlayerCacheTTLFrom(viper.GetViper()),
 	}
 
-	registerSimulationActivities(w, pool, d.queries)
-	registerProgressActivities(w, redisClient)
+	registerTaskQueueActivities(w, d)
+	return nil
+}
+
+// registerTaskQueueActivities registers every activity of the tasks queue.
+// TestRegisteredActivitiesAreScheduledOrRecorded calls it with zero deps, so
+// it must only register, never use, the dependencies.
+func registerTaskQueueActivities(w worker.Worker, d taskActivityDeps) {
+	registerSimulationActivities(w, d.pool, d.queries)
+	registerProgressActivities(w, d.redisClient)
 	registerYahooFetchActivities(w, d)
 
 	importYahooActivities := registerYahooImportActivities(w, d)
 	registerNHLActivities(w, d, importYahooActivities)
 	registerPlayerActivities(w, d)
-	registerNewsActivities(w, pool, d.queries)
-	registerDraftRankingActivities(w, pool)
+	registerNewsActivities(w, d.pool, d.queries)
+	registerDraftRankingActivities(w, d.pool)
+}
 
-	return nil
+// registerAssetQueueActivities registers every activity of the asset queue;
+// like registerTaskQueueActivities, the test calls it with nil dependencies.
+func registerAssetQueueActivities(w worker.Worker, queries *sqlcdb.Queries, redisClient *redis.Client) {
+	registerAssetActivities(w, queries)
+	registerProgressActivities(w, redisClient)
 }
 
 // registerSimulationActivities registers the simulation pool activities.
@@ -370,7 +382,6 @@ func registerYahooImportActivities(w worker.Worker, d taskActivityDeps) *yahoo.I
 	w.RegisterActivity(importYahooActivities.ImportYahooLeague)
 	w.RegisterActivity(importYahooActivities.ImportYahooStandInLeague) // TEMPORARY: see config.LeagueMetadataSource
 	w.RegisterActivity(importYahooActivities.ImportYahooTeams)
-	w.RegisterActivity(importYahooActivities.ImportYahooDataForDate)
 	w.RegisterActivity(importYahooActivities.ImportYahooLeagueData)
 	w.RegisterActivity(importYahooActivities.ImportYahooLeaguePlayers)
 	return importYahooActivities
@@ -416,6 +427,9 @@ func registerNHLActivities(w worker.Worker, d taskActivityDeps, importYahooActiv
 	w.RegisterActivity(seasonsActivities.FetchEdgeTeam)
 	w.RegisterActivity(seasonsActivities.FetchEdgeTeamSkaters)
 	w.RegisterActivity(seasonsActivities.FetchEdgeTeamGoalies)
+	// Season-wide Edge imports: no workflow schedules them since the
+	// per-team activities below replaced them; ImportEdgeWorkflow histories
+	// from before that change recorded these names.
 	w.RegisterActivity(seasonsActivities.ImportEdgeSkaters)
 	w.RegisterActivity(seasonsActivities.ImportEdgeGoalies)
 	w.RegisterActivity(seasonsActivities.ImportEdgeTeams)
@@ -432,13 +446,11 @@ func registerNHLActivities(w worker.Worker, d taskActivityDeps, importYahooActiv
 		DayImports: d.queries,
 		Yahoo:      importYahooActivities,
 	}
+	// The per-file day imports (ImportBoxscoresForDate, ...) and
+	// Yahoo.ImportYahooDataForDate run in-process inside ImportDay; no
+	// workflow ever scheduled them by name, so they are not registered.
 	w.RegisterActivity(importActivities.ImportDay)
 	w.RegisterActivity(importActivities.ImportDayIfChanged)
-	w.RegisterActivity(importActivities.ImportBoxscoresForDate)
-	w.RegisterActivity(importActivities.ImportGameStoryForDate)
-	w.RegisterActivity(importActivities.ImportPlayByPlayForDate)
-	w.RegisterActivity(importActivities.ImportShiftChartForDate)
-	w.RegisterActivity(importActivities.ImportStandingsForDate)
 	w.RegisterActivity(importActivities.ImportPlayerGameLogsBatch)
 	w.RegisterActivity(importActivities.CollectSeasonPlayerIDs)
 
@@ -449,7 +461,9 @@ func registerNHLActivities(w worker.Worker, d taskActivityDeps, importYahooActiv
 		RedisClient: d.redisClient,
 		Download:    d.yahooDownloader,
 	}
-	w.RegisterActivity(dailyScheduleActivities.FetchDailySchedule)
+	// FetchDay calls FetchDailySchedule in-process. The only workflow that
+	// scheduled FetchDailySchedule by name, FetchDayWorkflow, is gone, so no
+	// history this worker can run refers to it.
 	w.RegisterActivity(dailyScheduleActivities.FetchDay)
 
 	playoffActivities := &worknhl.PlayoffActivities{
@@ -469,7 +483,8 @@ func registerNHLActivities(w worker.Worker, d taskActivityDeps, importYahooActiv
 		RedisClient:            d.redisClient,
 		BoxscorePlayerCacheTTL: d.boxscorePlayerCacheTTL,
 	}
-	w.RegisterActivity(boxscoreActivities.ExtractBoxscoreDataForSeason)
+	// ExtractAndSaveBoxscorePlayers calls ExtractBoxscoreDataForSeason
+	// in-process; no workflow scheduled the latter by name.
 	w.RegisterActivity(boxscoreActivities.ExtractAndSaveBoxscorePlayers)
 }
 

@@ -97,10 +97,3 @@ func EffectiveEndDate(ctx workflow.Context, end time.Time) time.Time {
 func CountDaysInSeason(ctx workflow.Context, season nhl.SeasonInfo) (int, error) {
 	return core.CountDays(season.StandingsStart.Time, EffectiveEndDate(ctx, season.StandingsEnd.Time)), nil
 }
-
-// IsCurrentSeason returns true if the given start year represents the current NHL season.
-// TODO: add IsCurrentSeasonInProgress = IsCurrentSeason && no Stanley Cup winner yet.
-// That would let us skip cache invalidation once the season is truly over.
-func IsCurrentSeason(startYear int) bool {
-	return nhl.Current().StartYear() == startYear
-}

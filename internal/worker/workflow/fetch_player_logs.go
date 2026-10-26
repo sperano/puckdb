@@ -35,8 +35,8 @@ func FetchPlayerLogsWorkflow(ctx workflow.Context, input *model.SeasonsInput) er
 	var playerAct *workplayer.Activities
 	// Same refresh scoping as FetchEdgeSeasonsWorkflow: an explicit season
 	// range applies the flag to every season in it; without a range it applies
-	// to the latest season only. Deliberately not IsCurrentSeason — see the
-	// July-1 rollover note there.
+	// to the latest season only. Deliberately not a calendar gate on
+	// nhl.Current() — see the July-1 rollover note there.
 	refreshFlag := input.RefreshCurrentPlayerLogs != nil && *input.RefreshCurrentPlayerLogs
 	rangeGiven := input.StartSeason != nil || input.EndSeason != nil
 	return iterateSeasons(ctx, input, NewFetchPlayerLogsProgressReport(), GroupFetchPlayerLogs,

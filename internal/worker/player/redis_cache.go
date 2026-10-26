@@ -71,20 +71,6 @@ func LoadYahooIDPool(ctx context.Context, client *redis.Client) (map[store.Yahoo
 	return pool, nil
 }
 
-// LoadAvailableYahooIDs loads only the available (unmatched) Yahoo IDs from Redis.
-func LoadAvailableYahooIDs(ctx context.Context, client *redis.Client) (map[store.YahooPlayerID]struct{}, error) {
-	available, err := loadYahooIDSet(ctx, client, YahooIDAvailableKey)
-	if err != nil {
-		return nil, fmt.Errorf("load available yahoo ids from redis: %w", err)
-	}
-
-	log.Debug().
-		Int("available", len(available)).
-		Msg("Loaded available YahooIDs from Redis")
-
-	return available, nil
-}
-
 // RemoveFromYahooIDPool removes matched Yahoo IDs from the available set.
 func RemoveFromYahooIDPool(ctx context.Context, client *redis.Client, ids []store.YahooPlayerID) error {
 	if len(ids) == 0 {

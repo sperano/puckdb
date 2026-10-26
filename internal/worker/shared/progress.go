@@ -283,11 +283,6 @@ func (t *ReportTracker) RecalcTotal() {
 	t.report.Total = t.totalFromBars()
 }
 
-// SetBarLabel sets the label for a specific bar.
-func (t *ReportTracker) SetBarLabel(ref BarRef, label string) {
-	t.bar(ref).Label = label
-}
-
 // StartBar marks a bar as started and saves to Redis.
 func (t *ReportTracker) StartBar(ctx workflow.Context, ref BarRef) {
 	t.startBarNoSave(ref)
