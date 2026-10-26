@@ -37,6 +37,8 @@ const (
 	MaxUploadSize = 1 << 32 // 8GB
 	MaxMemory     = 1 << 28 // 256MB
 	graphQLPath   = "/graphql"
+	// draftBoardPath is where the API mounts the embedded live draft board.
+	draftBoardPath = "/draft"
 )
 
 // apiFlagGroups lists every flag group the api command exposes. Defined
@@ -245,7 +247,7 @@ func setupAPIRouter(redisClient *redis.Client, resolver *graph.Resolver, session
 	})
 	r.Handle("/metrics", metrics.HandlerFor(metrics.APIRegistry))
 	r.Get("/", homeHandler)
-	r.Mount("/draft", draftboardui.Handler())
+	r.Mount(draftBoardPath, draftboardui.Handler(draftBoardPath))
 	// GraphQL
 	r.Route(graphQLPath, func(r chi.Router) {
 		r.Get("/", playgroundHandler().ServeHTTP)
