@@ -1,12 +1,11 @@
 package newsadjust
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"math"
 	"slices"
+
+	"github.com/sperano/puckdb/internal/canonhash"
 )
 
 // MethodVersion identifies the adjustment method independently of policy.
@@ -205,16 +204,13 @@ func orderedRange(r Range, ascending bool) bool {
 	return r.Conservative >= r.Base && r.Base >= r.Optimistic
 }
 
-// Hash identifies the policy's content.
-func (p Policy) Hash() string {
-	return hashJSON(p)
-}
-
-func hashJSON(value any) string {
-	data, err := json.Marshal(value)
+// Hash identifies the policy's content (news_adjustment_runs.policy_hash).
+// It fails on a value JSON cannot encode (a NaN or infinite float), which a
+// policy that passed Validate does not hold.
+func (p Policy) Hash() (string, error) {
+	hash, err := canonhash.JSON(p)
 	if err != nil {
-		panic(fmt.Sprintf("marshal adjustment hash input: %v", err))
+		return "", fmt.Errorf("hash adjustment policy: %w", err)
 	}
-	digest := sha256.Sum256(data)
-	return hex.EncodeToString(digest[:])
+	return hash, nil
 }

@@ -58,7 +58,11 @@ func snapshotFromRows(row sqlcdb.ProjectionSnapshot, players []sqlcdb.Projection
 	if err := cfg.Validate(); err != nil {
 		return Snapshot{}, fmt.Errorf("invalid projection snapshot config: %w", err)
 	}
-	if configHash(cfg) != row.ConfigHash {
+	hash, err := configHash(cfg)
+	if err != nil {
+		return Snapshot{}, err
+	}
+	if hash != row.ConfigHash {
 		return Snapshot{}, fmt.Errorf("projection snapshot config no longer matches its stored hash")
 	}
 	snapshot := Snapshot{

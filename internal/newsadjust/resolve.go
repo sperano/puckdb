@@ -6,6 +6,7 @@ import (
 	"slices"
 	"time"
 
+	"github.com/sperano/puckdb/internal/canonhash"
 	"github.com/sperano/puckdb/internal/projection"
 )
 
@@ -82,10 +83,14 @@ func visibleEvents(events []Event, asOf time.Time) ([]Event, error) {
 			return nil, err
 		}
 		versionKey := fmt.Sprintf("%s#%d", e.ID, e.Version)
-		if previous, exists := contents[versionKey]; exists && previous != hashJSON(e) {
+		content, err := canonhash.JSON(e)
+		if err != nil {
+			return nil, fmt.Errorf("hash event %q v%d: %w", e.ID, e.Version, err)
+		}
+		if previous, exists := contents[versionKey]; exists && previous != content {
 			return nil, fmt.Errorf("event %q v%d has two different contents", e.ID, e.Version)
 		}
-		contents[versionKey] = hashJSON(e)
+		contents[versionKey] = content
 		if prior, exists := latest[e.ID]; exists && prior.PlayerKey != e.PlayerKey {
 			return nil, fmt.Errorf("event %q names two players", e.ID)
 		}

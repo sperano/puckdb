@@ -1,14 +1,12 @@
 package draft
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"math"
 	"slices"
 	"strings"
 
+	"github.com/sperano/puckdb/internal/canonhash"
 	"github.com/sperano/puckdb/internal/projection"
 )
 
@@ -244,12 +242,11 @@ func rankingIdentity(ruleHash string, projected projection.Snapshot, pool []Pool
 		Scoring        Scoring
 		Options        RankingOptions
 	}{RankingVersion, ruleHash, projected.SourceDataHash, projected.Config.ModelVersion, projected.Config, projectionPlayers, poolIdentity, scoring, options}
-	data, err := json.Marshal(identity)
+	version, err := canonhash.Versioned(RankingVersion, identity)
 	if err != nil {
-		return "", fmt.Errorf("encode ranking identity: %w", err)
+		return "", fmt.Errorf("hash ranking identity: %w", err)
 	}
-	digest := sha256.Sum256(data)
-	return RankingVersion + ":" + hex.EncodeToString(digest[:]), nil
+	return version, nil
 }
 
 func sameHockeySeason(leagueSeason, projectionSeason int) bool {

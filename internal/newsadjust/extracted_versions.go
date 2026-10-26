@@ -6,6 +6,7 @@ import (
 	"slices"
 	"time"
 
+	"github.com/sperano/puckdb/internal/canonhash"
 	"github.com/sperano/puckdb/internal/newsevent"
 )
 
@@ -158,7 +159,12 @@ func (c *converter) versions(src ExtractedEvent) ([]Event, string) {
 		ev := c.mapVersion(&src, st)
 		content := ev
 		content.RecordedAt = time.Time{}
-		if hash := hashJSON(content.normalized()); hash != previous {
+		hash, err := canonhash.JSON(content.normalized())
+		if err != nil {
+			invalid = append(invalid, err.Error())
+			continue
+		}
+		if hash != previous {
 			previous = hash
 			ev.Version = len(out) + 1
 			if err := ev.Validate(); err != nil {

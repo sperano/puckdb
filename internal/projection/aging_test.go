@@ -170,7 +170,7 @@ func TestPreAgingConfigHashesOmitAgingCurve(t *testing.T) {
 		}{cfg.ModelVersion, cfg.LookbackSeasons, cfg.SeasonDecay, cfg.SkaterPriorTOISeconds,
 			cfg.GoaliePriorShots, cfg.GoalieShutoutMinTOI, cfg.MaxGames, cfg.IntervalZ,
 			cfg.MinimumUncertainty, cfg.MaximumUncertainty, cfg.MinimumHistoryGames}
-		require.Equal(t, hashValue(legacy), configHash(cfg), version)
+		require.Equal(t, mustHashJSON(t, legacy), mustConfigHash(t, cfg), version)
 	}
 }
 

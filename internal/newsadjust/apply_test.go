@@ -239,3 +239,25 @@ func containsText(values []string, fragment string) bool {
 	}
 	return false
 }
+
+// TestApply_IdentitiesGolden pins the stored adjustment identities: the run
+// ID and each scenario snapshot's source hash.
+func TestApply_IdentitiesGolden(t *testing.T) {
+	suspension := testEvent("susp", testGoalieKey, EventSuspension, Duration{Kind: DurationIndefinite})
+	result := mustApply(t, testRequest(testBaseline(testGoalie(testGoalieKey, testGoalieStarts)), suspension))
+	assert.Equal(t, goldenAdjustmentID, result.ID)
+	assert.Equal(t, goldenDefaultPolicyHash, result.PolicyHash)
+	hashes := make(map[Scenario]string, len(Scenarios))
+	for _, s := range Scenarios {
+		hashes[s] = result.Snapshots[s].SourceDataHash
+	}
+	assert.Equal(t, goldenScenarioSourceHashes, hashes)
+}
+
+const goldenAdjustmentID = "news-adjust-v2:9f8ed9641a77b8ee0e08386e1b14b038ab47d299ec93141fd0a6bcdf3d738399"
+
+var goldenScenarioSourceHashes = map[Scenario]string{
+	ScenarioConservative: "4c68b017d245645665cefb67df3a4173589553abbe8bbe1988573e4f52a065ab",
+	ScenarioBase:         "43ef6d00dae590a5c7bd7c06dd6799a9795137e0925cd0289900379ca2a91848",
+	ScenarioOptimistic:   "f645bc5c9eb4e567ba14980619993df75b18549a48f677d4e0c254bd5ab0b97a",
+}
