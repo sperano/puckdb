@@ -2,10 +2,12 @@ package cmd
 
 import (
 	"context"
+	"io"
 	"time"
 
 	"github.com/go-redis/redis/v8"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/rs/zerolog/log"
 	"github.com/sperano/puckdb/internal/cache"
 	"github.com/sperano/puckdb/internal/config"
 	"github.com/sperano/puckdb/internal/database"
@@ -120,6 +122,15 @@ func newTemporalClient(metricsHandler client.MetricsHandler) (client.Client, err
 // newRedisClient opens a Redis client with the configured settings.
 func newRedisClient() *redis.Client {
 	return cache.NewClient(redisOptionsFrom(viper.GetViper()))
+}
+
+// closeOrWarn closes c and logs a failure as a warning naming what. Commands
+// defer it for clients whose close error cannot change their outcome (Redis,
+// the Temporal metrics reporter), so every such close is reported the same way.
+func closeOrWarn(c io.Closer, what string) {
+	if err := c.Close(); err != nil {
+		log.Warn().Err(err).Msgf("failed to close %s", what)
+	}
 }
 
 // newYahooRateLimiter builds the process's Yahoo request limiter from the

@@ -139,7 +139,7 @@ Defined in `internal/worker/admin/`:
 
 Task queue: `puckdb-tasks`
 
-Every activity the worker registers must be scheduled by workflow code or listed in `historyOnlyActivities` (`cmd/worker_test.go`) with the still-registered workflow whose histories recorded its name (`TestRegisteredActivitiesAreScheduledOrRecorded`); a method that only runs inside another activity (`ImportDay`'s per-file imports, `FetchDailySchedule`, `ExtractBoxscoreDataForSeason`) is not registered. Never unregister a name only because current code no longer schedules it: check the history first (see wiki `puckdb/worker-activity-registrations.md`)
+Every activity the worker registers must be scheduled by workflow code or listed in `historyOnlyActivities` (`cmd/worker_registrations_test.go`) with the still-registered workflow whose histories recorded its name (`TestRegisteredActivitiesAreScheduledOrRecorded`); a method that only runs inside another activity (`ImportDay`'s per-file imports, `FetchDailySchedule`, `ExtractBoxscoreDataForSeason`) is not registered. Never unregister a name only because current code no longer schedules it: check the history first (see wiki `puckdb/worker-activity-registrations.md`)
 
 ### Progress Tracking Pattern for Child Workflows
 

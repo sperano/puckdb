@@ -163,6 +163,7 @@ func TestRenderASCIIProgressBar(t *testing.T) {
 		{100, 10, "[##########]"},
 		{150, 10, "[##########]"},
 		{-10, 10, "[          ]"},
+		{50, -1, "[]"}, // negative width → empty bar (not panic)
 	}
 	for _, tc := range cases {
 		got := renderProgressBar(tc.pct, tc.width, progressBarASCII)

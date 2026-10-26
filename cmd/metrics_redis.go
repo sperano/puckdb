@@ -16,7 +16,7 @@ func runRedisCollector(ctx context.Context, interval time.Duration) {
 	log.Info().Dur("interval", interval).Msg("Starting Redis collector")
 
 	redisClient := newRedisClient()
-	defer redisClient.Close()
+	defer closeOrWarn(redisClient, "redis client")
 
 	// Collect immediately on startup
 	collectRedisMetrics(ctx, redisClient)

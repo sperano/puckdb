@@ -56,7 +56,7 @@ func (t narrowedTx[S, Q]) InTx(ctx context.Context, fn func(Q) error) error {
 var _ SimQueries = (*sqlcdb.Queries)(nil)
 
 // PgxTransactor is the production Transactor backed by a *pgxpool.Pool.
-// Constructed at worker startup in cmd/worker.go and injected into
+// Constructed at worker startup in cmd/worker_registrations.go and injected into
 // the Activities struct.
 type PgxTransactor struct {
 	Pool *pgxpool.Pool

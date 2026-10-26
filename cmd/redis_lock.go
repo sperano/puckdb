@@ -14,7 +14,7 @@ import (
 // Returns nil without calling fn if lock is not obtained (another process holds it).
 func withRedisLock(ctx context.Context, lockName string, timeout time.Duration, fn func() error) error {
 	redisClient := newRedisClient()
-	defer func() { _ = redisClient.Close() }()
+	defer closeOrWarn(redisClient, "redis client")
 
 	locker := redislock.New(redisClient)
 	lock, err := locker.Obtain(ctx, lockName, timeout, nil)
