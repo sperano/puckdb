@@ -231,7 +231,7 @@ func TestSelectAvailableByPosition_GoaliesPopulateGSlot(t *testing.T) {
 }
 
 func TestSelectAvailableByPosition_BestAvailableOverallSkatersOnly(t *testing.T) {
-	// PLAN.md leaves BPA across position categories under-specified.
+	// Best-available-overall across position categories is unspecified.
 	// Pin the V1 simplification (top-N skaters by G+A) so a future
 	// "compute a unified composite" change is an explicit decision.
 	skaters := []SkaterDraftCandidate{
@@ -350,7 +350,8 @@ func TestFallbackDraftPick_OccupiedPositionsShiftPick(t *testing.T) {
 }
 
 func TestFallbackDraftPick_EmptyPositionBeatsPartiallyFilled(t *testing.T) {
-	// PLAN.md: "prioritize positions with 0 filled slots". C has one
+	// The fallback prioritizes positions with 0 filled slots (wiki puckdb/simulation.md
+	// > "Draft"). C has one
 	// of two slots left, LW both.
 	need := map[string]int{"C": 1, "LW": 2}
 	skaters := RankSkaters([]SkaterDraftCandidate{

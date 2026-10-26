@@ -59,8 +59,8 @@ func derefStopAfterOrDefault(p *string) string {
 // workflow ID is simulation.WorkflowIDForPool):
 //
 //   1. sqlcdb → model.* type adapters
-//   2. Player-name lookup (N+1 over GetPlayer; acceptable for V1
-//      pool sizes — see assemblePlayerNameMap)
+//   2. Player-name lookup (one batched GetPlayersByIDs per call — see
+//      assemblePlayerNameMap)
 //   3. Roto-points aggregation (SUM(roto_points) per agent for the
 //      latest standings snapshot)
 // ============================================================================
@@ -298,7 +298,7 @@ func currentDraftAction(pool sqlcdb.SimPool, agents []sqlcdb.SimAgent, completed
 
 // assemblePlayerNameMap loads display data for every player_id in
 // the set and returns id → playerSummary. Batched into one
-// GetPlayersByIDs call (was one GetPlayer per id).
+// GetPlayersByIDs call.
 //
 // Empty input → empty map (no DB calls).
 func (r *Resolver) assemblePlayerNameMap(ctx context.Context, ids map[int64]struct{}) (map[int64]playerSummary, error) {

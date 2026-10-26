@@ -79,6 +79,16 @@ func NewGraphQLClient(endpoint string) *GraphQLClient {
 	}
 }
 
+// getGraphQLClient returns a client for --api-server-addr, the address every
+// command that drives the API through GraphQL requires.
+func getGraphQLClient() (*GraphQLClient, error) {
+	apiAddr := viper.GetString(config.FlagAPIServerAddr)
+	if apiAddr == "" {
+		return nil, fmt.Errorf("api-server-addr is required")
+	}
+	return NewGraphQLClient(apiAddr), nil
+}
+
 // executeBoolMutation handles mutations that return a single boolean field.
 func (c *GraphQLClient) executeBoolMutation(ctx context.Context, mutation, field string, variables map[string]any) (bool, error) {
 	resp, err := c.execute(ctx, mutation, variables)

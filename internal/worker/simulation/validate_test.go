@@ -28,7 +28,7 @@ func (c stubCatalog) Position(playerID int64) (sqlcdb.PlayerPosition, error) {
 	return p, nil
 }
 
-// defaultLimits returns the V1 roster sizes from PLAN.md > "Roster Slots".
+// defaultLimits returns the default roster sizes.
 func defaultLimits() map[RosterSlot]int {
 	return map[RosterSlot]int{
 		SlotC: 2, SlotLW: 2, SlotRW: 2, SlotD: 3, SlotG: 2, SlotUtil: 1,
@@ -369,11 +369,11 @@ func TestValidateAndResolveLineup_DisplacementIsDeterministic(t *testing.T) {
 	}
 }
 
-// Sequential application: PLAN.md's "swap via displacement" pattern.
+// Sequential application: the "swap via displacement" pattern.
 // Setup uses two C-position players sharing C-slot + Util-slot
 // because Util is the only single-capacity active slot, so it
 // exercises the unambiguous "single occupant displaced" path the
-// PLAN's example assumes.
+// pattern assumes.
 func TestValidateAndResolveLineup_SwapViaSequentialMoves(t *testing.T) {
 	// Player 1 in C (capacity 2; lone occupant), player 2 in Util
 	// (capacity 1). Both are C position, so both are eligible for
@@ -649,7 +649,7 @@ func TestValidateAndResolveLineup_BatchDisplacementByOrigin(t *testing.T) {
 	}
 }
 
-// The legit swap (PLAN.md pattern) still works after the fix: the displaced
+// The legit swap (displacement pattern) still works after the fix: the displaced
 // player in move[0] is an ORIGINAL occupant, so it is a valid eviction target.
 func TestValidateAndResolveLineup_BatchSwapStillDisplacesOriginal(t *testing.T) {
 	roster := lineupState(

@@ -18,7 +18,7 @@ func cmdSignout() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := context.Background()
 			redisClient := newRedisClient()
-			defer redisClient.Close()
+			defer closeOrWarn(redisClient, "redis client")
 
 			err := cache.DeleteTokenForUser(ctx, redisClient, config.DefaultUser)
 			if err != nil {

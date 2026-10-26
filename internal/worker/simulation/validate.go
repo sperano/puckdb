@@ -84,9 +84,8 @@ type PlayerCatalog interface {
 //   - The roster after removing the drop and adding the player to BN
 //     keeps BN within its limit (checkAcquisitionCapacity).
 //
-// Per PLAN.md "Free agents", waiver-window players are NOT free
-// agents; the LLM must use claim_player for those. This validator
-// rejects them rather than silently letting an add slip past — a real
+// Waiver-window players are NOT free agents; the LLM must use
+// claim_player for those. This validator rejects them rather than silently letting an add slip past — a real
 // bug surfaces as a clean tool_use_failure.
 func ValidateAddPlayer(args AddPlayerArgs, roster RosterState, fa PoolFreeAgentState) error {
 	if _, isFA := fa.FreeAgents[args.PlayerID]; !isFA {
@@ -185,7 +184,8 @@ type ResolvedLineupMove struct {
 // Behavior:
 //   - Each move's PlayerID must be on the roster.
 //   - Each move's Slot must be eligible for the player's NHL position
-//     (uses IsEligibleSlot — the 5-position table from PLAN.md).
+//     (uses IsEligibleSlot — the five-position table, wiki puckdb/simulation.md
+//     > "Roster and positions").
 //   - If the player is already in the target slot, the move is a no-op
 //     (no row emitted, no displacement).
 //   - If the target slot has free capacity, the player moves in.

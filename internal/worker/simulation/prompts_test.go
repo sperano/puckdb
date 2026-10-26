@@ -318,7 +318,7 @@ func TestRankFreeAgentGoalies_DescendingByW(t *testing.T) {
 	assert.Equal(t, "g1", got[2].Player)
 }
 
-// Ties on W → lower GA wins. PLAN.md spec: "tie-break by lower GA".
+// Ties on W → lower GA wins (wiki puckdb/simulation.md > "Daily context").
 func TestRankFreeAgentGoalies_TieOnW_BreaksByLowerGA(t *testing.T) {
 	input := []FreeAgentGoalieCandidate{
 		{Player: "leaky", ID: 1, Last7: GoalieStats{W: 3, GA: 12}},
@@ -388,8 +388,9 @@ func TestFreeAgentGoalieCandidate_ExposesRecentTOI(t *testing.T) {
 	assert.Contains(t, got, `"recent_toi":3600`, "played goalie must expose its recent ice time")
 }
 
-// Spec sizes: PLAN.md mandates 20 skaters / 5 goalies in the daily
-// prompt. Pin these so a future tuning change is explicit.
+// Spec sizes: 20 skaters / 5 goalies in the daily prompt (wiki
+// puckdb/simulation.md > "Daily context"). Pin these so a future
+// tuning change is explicit.
 func TestMaxFreeAgentSizes(t *testing.T) {
 	assert.Equal(t, 20, MaxTopFreeAgentSkaters)
 	assert.Equal(t, 5, MaxTopFreeAgentGoalies)

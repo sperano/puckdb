@@ -8200,19 +8200,9 @@ type Mutation {
 `, BuiltIn: false},
 	{Name: "../simulation.graphqls", Input: `# Simulation pool — GraphQL schema.
 #
-# See worker/simulation/PLAN.md > "GraphQL API" for the canonical
-# spec and the resolver-to-Temporal-query mapping. The split is:
-#
-#   SimPool.{id,name,season,status,simDate,totalLlmCostUsd}
-#       → workflow ` + "`" + `summary` + "`" + ` query (cheap, always called)
-#   SimPool.standings
-#       → workflow ` + "`" + `latest_standings` + "`" + ` query (only if requested)
-#   SimPool.agents[].roster
-#       → workflow ` + "`" + `rosters` + "`" + ` query
-#   simStandingsHistory
-#       → workflow ` + "`" + `standings_for_date` + "`" + ` per date
-#   simTransactions
-#       → DB read (sim_transactions / sim_lineup_moves are durable)
+# Every field reads PostgreSQL; simPoolProgress reads the workflow's
+# progress report from Redis. Nothing queries the running workflow (see
+# wiki puckdb/simulation.md > "Surfaces").
 #
 # This separate file lives alongside graph/data.graphqls so gqlgen's
 # follow-schema layout generates simulation.resolvers.go in
@@ -8282,7 +8272,7 @@ type SimStandingEntry {
   rotoPoints: Float!
 }
 
-# Per-type column population (PLAN.md > "sim_transactions"):
+# Per-type column population (wiki puckdb/simulation.md > "Persistence"):
 #   draft_pick        → playerName, reasoning, round, pick
 #   add / claim       → playerName, reasoning, dropPlayerName
 #   drop              → playerName, reasoning
@@ -8401,7 +8391,7 @@ input CreateSimPoolInput {
   waiverDays: Int!
   """Number of draft rounds (typically 18 for an NHL roster)."""
   draftRounds: Int!
-  """Per-pool cumulative LLM spend cap in USD. <= 0 disables the cap (PLAN.md > "Cost cap")."""
+  """Per-pool cumulative LLM spend cap in USD. <= 0 disables the cap; reaching it pauses the pool."""
   maxLlmCostUsdPerPool: Float!
   """Agent definitions — one per fantasy team. Pool size = len(agents)."""
   agents: [CreateSimAgentInput!]!
@@ -8497,8 +8487,7 @@ extend type Query {
 #
 # There is intentionally no editSimPool / updateSimAgent — pool and
 # agent config are immutable after creation. To change settings,
-# cancel and create a new pool (PLAN.md > "Configuration > Config is
-# immutable").
+# cancel and create a new pool (wiki puckdb/simulation.md > "Lifecycle").
 
 extend type Mutation {
   """

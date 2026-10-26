@@ -152,8 +152,8 @@ func (s *BuildContextTestSuite) TestContext_TopFreeAgentsSkipsUnslottablePositio
 }
 
 // Finding SIM-U3 follow-up — a free agent with zero regular-season games
-// before sim_date has no stats row, and by PLAN.md "Free-agent ranking"
-// (top N by recent composite) is intentionally excluded from top_free_agents
+// before sim_date has no stats row, and by the top-N-by-recent-composite rule
+// (wiki puckdb/simulation.md > "Daily context") is intentionally excluded from top_free_agents
 // rather than ranked last with zero stats. This test pins that exclusion so
 // a future "show the pool's depth" change to the loaders is a conscious
 // decision, not an accident.

@@ -13,8 +13,8 @@ import (
 //
 // The simulation activities have a hard requirement that a roster
 // mutation, a sim_transactions audit row, and the sim_pools cost
-// increment land together or not at all (PLAN.md > "Idempotency >
-// Atomic commit"). A Temporal retry must observe either the full set
+// increment land together or not at all (wiki puckdb/simulation.md
+// > "Idempotency"). A Temporal retry must observe either the full set
 // or the empty set — partial state would corrupt the idempotency
 // pre-flight check on the next attempt.
 //
@@ -56,7 +56,7 @@ func (t narrowedTx[S, Q]) InTx(ctx context.Context, fn func(Q) error) error {
 var _ SimQueries = (*sqlcdb.Queries)(nil)
 
 // PgxTransactor is the production Transactor backed by a *pgxpool.Pool.
-// Constructed at worker startup in cmd/worker.go and injected into
+// Constructed at worker startup in cmd/worker_registrations.go and injected into
 // the Activities struct.
 type PgxTransactor struct {
 	Pool *pgxpool.Pool

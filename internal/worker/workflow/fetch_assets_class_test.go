@@ -74,7 +74,7 @@ func (s *FetchAssetsClassWorkflowTestSuite) SetupTest() {
 	s.env.RegisterActivity(s.stub.LoadYahooManagerImageAssets)
 
 	// Register FetchAssetBatch via a nil-receiver pointer (Temporal resolves the
-	// method name for registration purposes, matching how cmd/worker.go does it).
+	// method name for registration purposes, matching how cmd/worker_registrations.go does it).
 	var act *asset.Activities
 	s.env.RegisterActivity(act.FetchAssetBatch)
 }

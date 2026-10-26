@@ -37,7 +37,7 @@ func pointsByID(rankings []CategoryRanking) map[int32]CategoryRanking {
 	return m
 }
 
-// PLAN.md worked example #1: G values 50, 45, 30, 30, 20.
+// Worked example (wiki puckdb/simulation.md > "Scoring"): G values 50, 45, 30, 30, 20.
 // Tied pair at sorted positions 3,4 → each gets (3+2)/2 = 2.5.
 // Final points: 5, 4, 2.5, 2.5, 1.
 func TestRankCategory_TwoWayTieAtThird_HigherIsBetter(t *testing.T) {
@@ -68,7 +68,7 @@ func TestRankCategory_TwoWayTieAtThird_HigherIsBetter(t *testing.T) {
 	assertConservation(t, 5, got)
 }
 
-// PLAN.md worked example #2: PPP values 25, 18, 18, 18, 10.
+// Worked example: PPP values 25, 18, 18, 18, 10.
 // Tied trio at sorted positions 2,3,4 → each gets (4+3+2)/3 = 3.
 // Final points: 5, 3, 3, 3, 1.
 func TestRankCategory_ThreeWayTieAtSecond_HigherIsBetter(t *testing.T) {
@@ -98,7 +98,7 @@ func TestRankCategory_ThreeWayTieAtSecond_HigherIsBetter(t *testing.T) {
 	assertConservation(t, 5, got)
 }
 
-// PLAN.md worked example #3: all five tied — day-1 zero-state.
+// Worked example: all five tied — day-1 zero-state.
 // All share position 1, K=5 → each gets (5+4+3+2+1)/5 = 3.
 // This is the steady state until the first game day produces non-zero values.
 func TestRankCategory_AllFiveTied_DayOneSteadyState(t *testing.T) {
@@ -119,7 +119,7 @@ func TestRankCategory_AllFiveTied_DayOneSteadyState(t *testing.T) {
 	assertConservation(t, 5, got)
 }
 
-// PLAN.md worked example #4: GA values 20, 20, 30, 35, 40 (lower is better).
+// Worked example: GA values 20, 20, 30, 35, 40 (lower is better).
 // Tied pair at sorted positions 1,2 → each gets (5+4)/2 = 4.5.
 // Final points: 4.5, 4.5, 3, 2, 1.
 func TestRankCategory_TwoWayTieAtFirst_LowerIsBetter(t *testing.T) {
@@ -149,7 +149,7 @@ func TestRankCategory_TwoWayTieAtFirst_LowerIsBetter(t *testing.T) {
 	assertConservation(t, 5, got)
 }
 
-// PLAN.md worked example #5: zero-TOI agent receives worst rank in GAA
+// Zero-TOI rule: zero-TOI agent receives worst rank in GAA
 // regardless of value. Even a hypothetical agent with the best raw value
 // must lose to every agent that actually had goalie minutes.
 func TestRankGAA_ZeroTOI_GetsWorstRank(t *testing.T) {

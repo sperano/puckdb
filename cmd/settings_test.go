@@ -1,9 +1,14 @@
 package cmd
 
 import (
+	"bytes"
+	"encoding/json"
+	"errors"
 	"testing"
 	"time"
 
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 	"github.com/sperano/puckdb/internal/cache"
 	"github.com/sperano/puckdb/internal/config"
 	"github.com/sperano/puckdb/internal/database"
@@ -132,4 +137,29 @@ func TestBoxscorePlayerCacheTTLFrom(t *testing.T) {
 	assert.Equal(t, time.Hour, boxscorePlayerCacheTTLFrom(boundViper(t, nil, &config.GobCacheFlags)))
 	assert.Equal(t, 17*time.Minute, boxscorePlayerCacheTTLFrom(boundViper(t,
 		[]string{"--boxscore-player-cache-ttl=17"}, &config.GobCacheFlags)))
+}
+
+type stubCloser struct{ err error }
+
+func (c stubCloser) Close() error { return c.err }
+
+// closeOrWarn logs through zerolog's global logger, which this test
+// replaces, so it must not run in parallel.
+func TestCloseOrWarn(t *testing.T) {
+	var buf bytes.Buffer
+	previous := log.Logger
+	log.Logger = zerolog.New(&buf)
+	t.Cleanup(func() { log.Logger = previous })
+
+	closeOrWarn(stubCloser{}, "redis client")
+	assert.Empty(t, buf.String(), "a clean close logs nothing")
+
+	closeOrWarn(stubCloser{err: errors.New("connection reset")}, "redis client")
+	var entry map[string]string
+	require.NoError(t, json.Unmarshal(buf.Bytes(), &entry))
+	assert.Equal(t, map[string]string{
+		"level":   "warn",
+		"error":   "connection reset",
+		"message": "failed to close redis client",
+	}, entry)
 }

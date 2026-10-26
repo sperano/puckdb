@@ -463,7 +463,7 @@ func buildStandingRows(t require.TestingT, entries []struct {
 // ----------------------------------------------------------------------------
 
 // TestBuildManageRosterContext_BatchesRosterPlayerLookups guards the
-// T3-B N+1 fix in loadRosterAndPositions: every roster player's name
+// batching in loadRosterAndPositions: every roster player's name
 // + position is resolved with one GetPlayersByIDs call, not one
 // GetPlayer per roster row. FreeAgents/OnWaivers are left empty so
 // the only batch call in this invocation is the roster one.

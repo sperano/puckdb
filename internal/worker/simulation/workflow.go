@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
-	"github.com/sperano/puckdb/internal/sqlcdb"
 	"github.com/sperano/puckdb/internal/worker/shared"
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/workflow"
@@ -16,27 +15,34 @@ import (
 // ============================================================================
 // SimPoolWorkflow — orchestrator for one simulation pool's lifetime.
 //
-// Phases:
+// Phases (wiki puckdb/simulation.md > "Lifecycle"):
 //
-//	1. Draft: snake-order draft of every roster spot. Skipped on
-//	   ContinueAsNew resume (input.SimDate is already set).
+//	0. Team names: one PickTeamName per agent, in parallel.
+//	1. Draft: snake-order draft of every roster spot.
+//	   Phases 0 and 1 are skipped on ContinueAsNew resume (input.SimDate
+//	   is already set).
 //	2. Season: day loop. Each iteration processes one CALENDAR day:
 //	     ProcessWaivers → BuildFreeAgentPool → ManageRoster (per agent)
 //	     → if FINAL games: CollectDayStats → UpdateStandings
-//	   The loop runs until the season ends, the MaxSeasonDays cap,
-//	   or a ManageRoster result reporting the cost cap reached.
-//	   Every 30 days the workflow returns ContinueAsNewError to keep
-//	   the Temporal event history bounded.
-//	3. Complete: when sim_date passes the season's standings_end,
-//	   sim_pools.status flips to 'complete' and the workflow exits.
+//	   The loop runs until the window's end date, the MaxSeasonDays
+//	   cap, or a ManageRoster result reporting the cost cap reached.
+//	   Every ContinueAsNewDayThreshold days the workflow returns
+//	   ContinueAsNewError to keep the Temporal event history bounded.
+//	3. Complete: sim_pools.status flips to 'complete'.
 //
-// Determinism discipline (PLAN.md > "Determinism"):
+// How far a pool runs is configuration, not run-time control:
+// PoolConfig.StopAfter ends it cleanly (status 'complete') after the
+// team-name or draft phase, and MaxSeasonDays caps the day loop. The
+// only pause is the cost cap: an LLM activity that finds it reached
+// pauses the pool in the DB and returns SkipReasonCostCapReached, and the
+// workflow exits without completing. There are no signals, and the only
+// query is the shared progress report.
+//
+// Determinism discipline (wiki puckdb/simulation-replay.md):
 //   - All randomness threads through workflow.SideEffect to capture
 //     a seed once at the relevant decision point; math/rand on top of
 //     that seed is replay-safe (the seed itself is recorded in event
-//     history). PLAN.md mentions a workflow.NewRandom helper — that
-//     API doesn't exist in the SDK; SideEffect is the canonical
-//     primitive.
+//     history).
 //   - All wall-clock reads via workflow.Now(ctx). NEVER time.Now().
 //   - All side-effecting reads/writes go through activities.
 //   - Maps are NOT iterated for ordered work — the iteration order
@@ -48,18 +54,9 @@ import (
 // records the workflow as Cancelled (not Failed).
 // ============================================================================
 
-// Query names. Each handler is registered via workflow.SetQueryHandler.
-const (
-	QuerySummary          = "summary"
-	QueryLatestStandings  = "latest_standings"
-	QueryStandingsForDate = "standings_for_date"
-	QueryRosters          = "rosters"
-	QueryLog              = "log"
-)
-
 // ContinueAsNewDayThreshold is the calendar-day count at which the
-// workflow rolls over via ContinueAsNew. PLAN.md > "ContinueAsNew
-// every 30 days" — keeps Temporal's event history bounded.
+// workflow rolls over via ContinueAsNew, keeping Temporal's event
+// history bounded.
 const ContinueAsNewDayThreshold = 30
 
 // hoursPerDay converts an elapsed duration to whole calendar days for
@@ -75,15 +72,6 @@ type SimPoolWorkflowInput struct {
 	PoolID   int32       `json:"pool_id"`
 	SimDate  pgtype.Date `json:"sim_date"`
 	DayCount int         `json:"day_count"`
-}
-
-// PoolSummary is the polled-often query payload. Fixed-size, cheap
-// to serialize, exposes the user-visible state of the pool.
-type PoolSummary struct {
-	Status          string      `json:"status"`
-	SimDate         pgtype.Date `json:"sim_date"`
-	DayCount        int         `json:"day_count"`
-	TotalLLMCostUsd float64     `json:"total_llm_cost_usd"`
 }
 
 // SimPoolWorkflow is the top-level workflow function.
@@ -128,16 +116,12 @@ func SimPoolWorkflow(ctx workflow.Context, in SimPoolWorkflowInput) (retErr erro
 		return fmt.Errorf("setup progress tracker: %w", err)
 	}
 
-	if err := registerQueryHandlers(ctx, &state, &in); err != nil {
-		return fmt.Errorf("register query handlers: %w", err)
-	}
-
 	// Cost-cap pause: an LLM activity that finds the cap reached flips
 	// the pool to 'paused' in the DB (pauseForCostCap) and returns
 	// SkipReasonCostCapReached. That result, recorded in history, is the
-	// only signal the workflow acts on: the phase that saw it stops and
-	// the workflow exits at the same boundary as before, without
-	// completing the pool. The team-name phase never checks the cap.
+	// only pause input the workflow acts on: the phase that saw it stops
+	// and the workflow exits without completing the pool. The team-name
+	// phase never checks the cap.
 
 	// Phase 0: each agent picks its team name. Runs once per workflow
 	// execution (skipped on CAN resume since SimDate.Valid means we're
@@ -148,32 +132,27 @@ func SimPoolWorkflow(ctx workflow.Context, in SimPoolWorkflowInput) (retErr erro
 		}
 		if state.PoolConfig.StopAfter == StopAfterTeamName {
 			logger.Info("SimPoolWorkflow exit (StopAfterTeamName)", "pool_id", in.PoolID)
-			state.CurrentStatus = PoolStatusComplete
 			return completePoolStatusOnly(ctx, in.PoolID)
 		}
 	}
 
 	// Phase 1: Draft. Skipped on CAN resume.
 	if !in.SimDate.Valid {
-		state.CurrentStatus = PoolStatusDraft
 		paused, err := runDraftPhase(ctx, &state, tracker)
 		if err != nil {
 			return fmt.Errorf("draft phase: %w", err)
 		}
 		if paused {
-			state.CurrentStatus = PoolStatusPaused
 			logger.Info("SimPoolWorkflow exit (cost cap reached after draft)", "pool_id", in.PoolID)
 			return nil
 		}
 		if state.PoolConfig.StopAfter == StopAfterDraft {
 			logger.Info("SimPoolWorkflow exit (StopAfterDraft)", "pool_id", in.PoolID)
-			state.CurrentStatus = PoolStatusComplete
 			return completePoolStatusOnly(ctx, in.PoolID)
 		}
 		in.SimDate = state.SeasonStartDate
 	}
 
-	state.CurrentStatus = PoolStatusRunning
 	// Phase 2: Season day loop.
 	paused, err := runSeasonPhase(ctx, &in, &state, tracker)
 	if err != nil {
@@ -186,13 +165,11 @@ func SimPoolWorkflow(ctx workflow.Context, in SimPoolWorkflowInput) (retErr erro
 		// flipped the pool to 'paused'. Do NOT fall through to
 		// completePool, which would overwrite that status with
 		// 'complete'.
-		state.CurrentStatus = PoolStatusPaused
 		logger.Info("SimPoolWorkflow exit (cost cap reached during season)", "pool_id", in.PoolID)
 		return nil
 	}
 
 	// Phase 3: Complete.
-	state.CurrentStatus = PoolStatusComplete
 	if err := completePool(ctx, in.PoolID, tracker); err != nil {
 		return fmt.Errorf("complete phase: %w", err)
 	}
@@ -220,12 +197,8 @@ func shouldMarkCancelled(retErr error) bool {
 	return temporal.IsCanceledError(retErr)
 }
 
-// simState is the workflow's view of the pool. Built once from
-// LoadPoolStateActivity; immutable across the workflow's lifetime
-// EXCEPT for CurrentStatus and TotalLLMCostUsd, which are updated
-// in-place as the workflow transitions through phases and the LLM
-// activities report costs. These mutable fields are closed over by
-// the QuerySummary handler so it can answer without scheduling work.
+// simState is the workflow's view of the pool, built once from
+// LoadPoolStateActivity and read-only afterwards.
 type simState struct {
 	PoolID     int32
 	PoolConfig PoolConfig
@@ -244,17 +217,6 @@ type simState struct {
 	SeasonStartDate pgtype.Date
 	SeasonEndDate   pgtype.Date
 	TotalDays       int
-	// CurrentStatus mirrors sim_pools.status for QuerySummary.
-	// Updated whenever the workflow writes a new status to the DB.
-	CurrentStatus PoolStatus
-	// TotalLLMCostUsd mirrors sim_pools.total_llm_cost_usd. Seeded
-	// at workflow start from the DB row; updated by each activity
-	// result that reports a cost. This is an approximation — it may
-	// lag the DB by one activity completion if a worker crashes
-	// between the activity commit and the workflow updating this
-	// field. That's acceptable for the query path; cost-cap logic
-	// still reads the DB directly.
-	TotalLLMCostUsd float64
 }
 
 // loadSimState calls LoadPoolStateActivity and computes derived
@@ -288,8 +250,6 @@ func loadSimState(ctx workflow.Context, in SimPoolWorkflowInput) (simState, erro
 		SeasonStartDate: res.SeasonStartDate,
 		SeasonEndDate:   res.SeasonEndDate,
 		TotalDays:       totalDays,
-		CurrentStatus:   res.PoolStatus,
-		TotalLLMCostUsd: res.TotalLLMCostUsd,
 	}, nil
 }
 
@@ -338,64 +298,13 @@ func NewProgressReport(state simState) *shared.ProgressReport {
 	}
 }
 
-// registerQueryHandlers wires the workflow's read-side query API.
-// The handlers close over &state and &in so they reflect the current
-// state without us having to re-register on mutation.
-func registerQueryHandlers(ctx workflow.Context, state *simState, in *SimPoolWorkflowInput) error {
-	if err := workflow.SetQueryHandler(ctx, QuerySummary, func() (PoolSummary, error) {
-		return PoolSummary{
-			Status:          string(state.CurrentStatus),
-			SimDate:         in.SimDate,
-			DayCount:        in.DayCount,
-			TotalLLMCostUsd: state.TotalLLMCostUsd,
-		}, nil
-	}); err != nil {
-		return err
-	}
-	// V1: latest_standings, standings_for_date, rosters, log are
-	// implemented as activity-backed queries through GraphQL
-	// resolvers reading sim_standings / sim_rosters / sim_transactions
-	// directly. Registering empty placeholders here so the query
-	// surface is contract-stable; resolvers query Postgres directly.
-	if err := workflow.SetQueryHandler(ctx, QueryLatestStandings, func() ([]sqlcdb.SimStanding, error) {
-		return nil, nil
-	}); err != nil {
-		return err
-	}
-	if err := workflow.SetQueryHandler(ctx, QueryStandingsForDate, func(date pgtype.Date) ([]sqlcdb.SimStanding, error) {
-		return nil, nil
-	}); err != nil {
-		return err
-	}
-	if err := workflow.SetQueryHandler(ctx, QueryRosters, func() ([]sqlcdb.SimRoster, error) {
-		return nil, nil
-	}); err != nil {
-		return err
-	}
-	if err := workflow.SetQueryHandler(ctx, QueryLog, func(limit int) ([]sqlcdb.SimTransaction, error) {
-		return nil, nil
-	}); err != nil {
-		return err
-	}
-	return nil
-}
-
 // ============================================================================
-// Phase 1 — Draft
+// Phase 0 — Team names
 // ============================================================================
 
 // runTeamNamePhase fires PickTeamName for every agent in parallel
-// and waits for all to complete. Per-agent pauses honor
-// PoolConfig.PauseAfterEachTeamName; a post-phase pause honors
-// PauseAfterTeamNamePhase. Failures bubble up — without a committed
-// team name we don't proceed to the draft.
-//
-// "After each team name selection" is interpreted as per-agent, but
-// since activities fan out in parallel the gate fires as each future
-// resolves (in completion order, not dispatch order). Operators get
-// one advance per agent; the order is whichever agent's LLM responded
-// first, second, etc. Determinism note: replay sees the same Future
-// completion order as the original run (Temporal records it).
+// and waits for all to complete, in dispatch order. Failures bubble
+// up — without a committed team name we don't proceed to the draft.
 func runTeamNamePhase(ctx workflow.Context, state *simState) error {
 	ctx = workflow.WithActivityOptions(ctx, llmActivityOptions())
 	futures := make([]workflow.Future, len(state.AgentIDs))
@@ -412,13 +321,16 @@ func runTeamNamePhase(ctx workflow.Context, state *simState) error {
 		if err := f.Get(ctx, &res); err != nil {
 			return fmt.Errorf("pick team name for agent %d: %w", state.AgentIDs[i], err)
 		}
-		state.TotalLLMCostUsd += res.CostUsd
 		if err := ctx.Err(); err != nil {
 			return err
 		}
 	}
 	return nil
 }
+
+// ============================================================================
+// Phase 1 — Draft
+// ============================================================================
 
 // runDraftPhase runs the snake-order draft for every roster spot.
 // Sequential per-pick (LLM agents take turns, snake order); cancel
@@ -499,7 +411,6 @@ func runDraftPhase(
 		if res.NotesUpdated {
 			notesByAgent[agentID] = res.Notes
 		}
-		state.TotalLLMCostUsd += res.CostUsd
 		tracker.IncrementBar(ctx, shared.BarRef{Group: 0})
 
 		// Cost-cap exit: the tripped pick already paused the pool.
@@ -515,9 +426,8 @@ func runDraftPhase(
 	return false, nil
 }
 
-// loadDraftCandidates fetches the V1-stub candidate lists. See
-// state_activity.go's LoadDraftCandidates note for the production
-// gap.
+// loadDraftCandidates fetches the prior-season ranked skater and
+// goalie candidates (LoadDraftCandidatesActivity).
 func loadDraftCandidates(ctx workflow.Context, state simState) (LoadDraftCandidatesResult, error) {
 	ctx = workflow.WithActivityOptions(ctx, defaultActivityOptions())
 	var res LoadDraftCandidatesResult
@@ -708,9 +618,8 @@ func runSeasonPhase(
 		tracker.IncrementBar(ctx, shared.BarRef{Group: 1})
 
 		// Cost-cap exit between days, after the day's telemetry and
-		// progress, the same point the old pause-signal check used, so
-		// histories recorded before this change replay with the same
-		// commands. The cost-cap activity already flipped
+		// progress: the check's position is part of the command sequence,
+		// so recorded histories replay with the same commands. The cost-cap activity already flipped
 		// sim_pools.status to 'paused' in the DB; we just need to stop
 		// running — and tell the caller NOT to complete the pool (which
 		// would clobber 'paused').
@@ -744,16 +653,14 @@ func daysElapsed(start, current pgtype.Date) int {
 }
 
 // processOneDay runs the activity sequence for one calendar day.
-// Order matches PLAN.md > "Day Loop":
+// Order (wiki puckdb/simulation.md > "Day loop"):
 //
 //  1. ProcessWaiversActivity (claims due today)
 //  2. BuildFreeAgentPoolActivity (one query, shared across agents)
-//  3. ManageRosterActivity per agent (in randomized order)
-//  4. CollectDayStatsActivity (only if FINAL games on date)
-//  5. UpdateStandingsActivity (only if step 4 ran)
-//
-// V1 simplification: ManageRosterActivity inputs are stubbed
-// minimally; the full daily-context builder is a follow-up commit.
+//  3. BuildManageRosterContextActivity then ManageRosterActivity per
+//     agent, sequentially in randomized order
+//  4. CollectDayStatsActivity (skipped result when no FINAL games)
+//  5. UpdateStandingsActivity (only if step 4 scored the day)
 //
 // The bool return is true when an agent's ManageRoster reported the
 // cost cap reached: the day stops right there (steps 4-5 are skipped)
@@ -803,7 +710,6 @@ func processOneDay(
 		if err := workflow.ExecuteActivity(llmCtx, activityNameManageRoster, input).Get(ctx, &res); err != nil {
 			return false, fmt.Errorf("manage roster (agent %d): %w", agentID, err)
 		}
-		state.TotalLLMCostUsd += res.CostUsd
 
 		// Cost-cap exit: the first agent to trip the cap already paused
 		// the pool (pauseForCostCap). Mirror the draft loop — stop
@@ -842,11 +748,6 @@ func processOneDay(
 	}
 	return false, nil
 }
-
-// assembleManageRosterInput was the V1 in-memory stub; replaced by
-// BuildManageRosterContextActivity, which assembles the same input
-// from DB state (standings, roster, agent notes). Removed per the
-// production-gating follow-up that landed alongside the activity.
 
 // shuffleAgents Fisher-Yates-shuffles ids in place using a seed
 // captured via workflow.SideEffect. Each call to SideEffect records
@@ -927,7 +828,8 @@ func defaultActivityOptions() workflow.ActivityOptions {
 // StartToClose so the activity has room to retry internally before
 // Temporal gives up. Retries here are reduced to 2 because LLM
 // failures are usually persistent (rate limits, model outage); the
-// activity already has its own 1x retry + fallback.
+// activity's agent loop already lets the model retry a rejected tool
+// call within the turn.
 //
 // WaitForCancellation=true makes a workflow-level cancel propagate
 // into the activity's context.Done(), so an in-flight LLM call can

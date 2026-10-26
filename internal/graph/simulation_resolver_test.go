@@ -19,15 +19,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// SignalWorkflow extends the existing MockTemporalClient (defined in
-// resolver_test.go) with the signal interface the simulation
-// mutations need. Each test that exercises a signal mutation calls
-// .On("SignalWorkflow", ...) to set an expectation.
-func (m *MockTemporalClient) SignalWorkflow(ctx context.Context, workflowID, runID, signalName string, arg any) error {
-	args := m.Called(ctx, workflowID, runID, signalName, arg)
-	return args.Error(0)
-}
-
 // ============================================================================
 // Pure-function helper tests
 // ============================================================================
@@ -128,21 +119,7 @@ func TestGroupStandingsByDate(t *testing.T) {
 }
 
 // optionalString (used above via decodeSimTransactions/decodeLineupMoves)
-// is covered by TestOptionalString in convert_helpers_test.go — it used to have
-// a graph/simulation_helpers.go-local twin named stringPtrIfNotEmpty with an
-// identical body and identical test coverage; the twin was removed as part
-// of the T3-A dedup pass.
-
-// ============================================================================
-// Mutation resolver — signal flow via mock Temporal client.
-//
-// loadSimPool requires a Queries handle, so each signal test stops
-// at the SignalWorkflow assertion: we make loadSimPool fail by
-// nil-Queries (a ListSimPools call would panic) and assert the
-// signal fired with the right workflow ID and signal name. The
-// post-signal pool reload is exercised end-to-end in the integration
-// test layer.
-// ============================================================================
+// is covered by TestOptionalString in convert_helpers_test.go.
 
 // numericFromFloatForTest constructs a pgtype.Numeric from a float64
 // for fixture rows, as the write path encodes it.

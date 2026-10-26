@@ -129,3 +129,80 @@ func TestGraphQLClientNon200Errors(t *testing.T) {
 		})
 	}
 }
+
+func TestGraphQLClient_Execute(t *testing.T) {
+	tests := []struct {
+		name           string
+		responseBody   string
+		responseStatus int
+		wantErr        bool
+	}{
+		{
+			name:           "successful response",
+			responseBody:   `{"data": {"test": "value"}}`,
+			responseStatus: http.StatusOK,
+			wantErr:        false,
+		},
+		{
+			name:           "bad json response",
+			responseBody:   `not json`,
+			responseStatus: http.StatusOK,
+			wantErr:        true,
+		},
+		{
+			name:           "non-200 status",
+			responseBody:   `{"error": "bad request"}`,
+			responseStatus: http.StatusBadRequest,
+			wantErr:        true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(tt.responseStatus)
+				w.Write([]byte(tt.responseBody))
+			}))
+			defer server.Close()
+
+			client := NewGraphQLClient(server.URL)
+			_, err := client.execute(context.Background(), "query { test }", nil)
+
+			if (err != nil) != tt.wantErr {
+				t.Errorf("execute() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestNewGraphQLClient(t *testing.T) {
+	client := NewGraphQLClient("http://localhost:8080")
+
+	if client.endpoint != "http://localhost:8080/graphql/query" {
+		t.Errorf("expected endpoint http://localhost:8080/graphql/query, got %s", client.endpoint)
+	}
+	if client.httpClient == nil {
+		t.Error("expected httpClient to be set")
+	}
+}
+
+func TestNewGraphQLClient_WithTrailingSlash(t *testing.T) {
+	client := NewGraphQLClient("http://localhost:8080/")
+
+	if client.endpoint != "http://localhost:8080/graphql/query" {
+		t.Errorf("expected endpoint http://localhost:8080/graphql/query, got %s", client.endpoint)
+	}
+}
+
+func TestGetGraphQLClient(t *testing.T) {
+	viper.Reset()
+	t.Cleanup(viper.Reset)
+
+	_, err := getGraphQLClient()
+	require.EqualError(t, err, "api-server-addr is required")
+
+	viper.Set(config.FlagAPIServerAddr, "http://localhost:8787")
+	client, err := getGraphQLClient()
+	require.NoError(t, err)
+	assert.Equal(t, "http://localhost:8787/graphql/query", client.endpoint)
+}
