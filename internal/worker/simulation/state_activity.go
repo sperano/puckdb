@@ -125,11 +125,6 @@ type LoadPoolStateResult struct {
 	// SeasonEndDate; MaxSeasonDays caps the window on top.
 	SeasonStartDate pgtype.Date `json:"season_start_date"`
 	SeasonEndDate   pgtype.Date `json:"season_end_date"`
-	// PoolStatus and TotalLLMCostUsd seed the workflow's in-memory
-	// tracking so QuerySummary can report current values without
-	// scheduling an activity call inside the query handler.
-	PoolStatus      PoolStatus `json:"pool_status"`
-	TotalLLMCostUsd float64    `json:"total_llm_cost_usd"`
 }
 
 // LoadPoolState reads sim_pools, sim_agents, and seasons in three
@@ -205,11 +200,6 @@ func (p poolStateActivity) LoadPoolState(ctx context.Context, in LoadPoolStateIn
 		return LoadPoolStateResult{}, fmt.Errorf("simulation: get season %d: %w", cfg.Season, err)
 	}
 
-	totalCost, err := pgconv.NumericToFloat(pool.TotalLLMCostUSD)
-	if err != nil {
-		return LoadPoolStateResult{}, fmt.Errorf("simulation: decode total_llm_cost_usd: %w", err)
-	}
-
 	// Effective window: the pool's own start/end dates override the
 	// season bounds when set (createSimPoolImpl validated they lie
 	// within the season's standings range).
@@ -235,15 +225,13 @@ func (p poolStateActivity) LoadPoolState(ctx context.Context, in LoadPoolStateIn
 		AgentNotes:      agentNotes,
 		SeasonStartDate: windowStart,
 		SeasonEndDate:   windowEnd,
-		PoolStatus:      PoolStatus(pool.Status),
-		TotalLLMCostUsd: totalCost,
 	}, nil
 }
 
 // ============================================================================
 // LoadDraftCandidatesActivity — prior-season ranking.
 //
-// PLAN.md > "Draft Ranking for Available Players": rank candidates
+// Draft ranking (wiki puckdb/simulation.md > "Draft"): rank candidates
 // by PRIOR-season stats only (G+A for skaters, W for goalies).
 // "Always prior season, never current" — using current-season stats
 // would leak future information into the draft and silently bias
@@ -258,10 +246,9 @@ func (p poolStateActivity) LoadPoolState(ctx context.Context, in LoadPoolStateIn
 //      a player's stats per (player, team), so a traded player has
 //      multiple rows that we sum in Go.
 //   3. Look up each player's position via one batched
-//      GetPlayersByIDs call (was one GetPlayer per player).
-//      Skaters with position outside C/LW/RW/D and goalies
-//      whose Position isn't G are dropped — V1 doesn't draft "F"
-//      players (PLAN.md "5-position table only").
+//      GetPlayersByIDs call. Skaters with position outside
+//      C/LW/RW/D and goalies whose Position isn't G are dropped —
+//      V1 doesn't draft "F" players (five strict positions).
 //   4. Skip zero-score players (G+A == 0 for skaters, W == 0 for
 //      goalies) — they're below the noise floor and would clog the
 //      ~600-row top of the list.
@@ -271,7 +258,7 @@ func (p poolStateActivity) LoadPoolState(ctx context.Context, in LoadPoolStateIn
 
 // LoadDraftCandidatesInput is the payload — just the season number
 // the draft is FOR (the activity internally uses prior season for
-// "prior-season stats only" per PLAN.md > "Draft Ranking").
+// "prior-season stats only"; wiki puckdb/simulation.md > "Draft").
 type LoadDraftCandidatesInput struct {
 	Season int32 `json:"season"`
 }

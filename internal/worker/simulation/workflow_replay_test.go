@@ -104,7 +104,6 @@ func simReplayLoadPoolState(context.Context, LoadPoolStateInput) (LoadPoolStateR
 		AgentNotes:      []string{"", "", ""},
 		SeasonStartDate: date,
 		SeasonEndDate:   date,
-		PoolStatus:      PoolStatusDraft,
 	}, nil
 }
 

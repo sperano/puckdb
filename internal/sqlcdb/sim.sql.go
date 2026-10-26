@@ -105,7 +105,7 @@ type CountSimGamesNext7DaysParams struct {
 }
 
 // CountSimGamesNext7Days counts regular-season games between sim_date and
-// sim_date+7 (exclusive of sim_date itself per PLAN.md "games_next_7_days":
+// sim_date+7 (exclusive of sim_date itself:
 // the count is forward-looking from the next calendar day). Counts FUT/LIVE
 // and FINAL alike — replays are deterministic against historical data, so
 // "scheduled" and "played" both indicate a game on the team's calendar.
@@ -273,8 +273,8 @@ type GetPlayerCurrentTeamRow struct {
 // Player-team and schedule lookups (read-only against shared NHL tables)
 // =============================================================================
 // GetPlayerCurrentTeam derives the player's team from their most recent
-// (skater or goalie) game stats row up to sim_date — see PLAN.md "Player Team
-// Assignment" for the rationale and the V1 limitation around day-1/trade-gap/
+// (skater or goalie) game stats row up to sim_date — see wiki
+// puckdb/simulation.md > "Player team" for the rationale and the known gaps around day-1/trade-gap/
 // pre-debut boundary cases (returns NULL for affected players).
 func (q *Queries) GetPlayerCurrentTeam(ctx context.Context, arg GetPlayerCurrentTeamParams) (GetPlayerCurrentTeamRow, error) {
 	row := q.db.QueryRow(ctx, getPlayerCurrentTeam, arg.PlayerID, arg.Season, arg.GameDate)
@@ -581,8 +581,8 @@ WHERE a.pool_id = $1
 `
 
 // InitSimWaiverPriority gives every agent of a pool one priority row in reverse
-// draft order (the last round-1 pick gets priority 1, PLAN.md > "Waivers"). It
-// inserts nothing when the pool already has priority rows (a retry, or a pool
+// draft order (the last round-1 pick gets priority 1; wiki
+// puckdb/simulation.md > "Free agents and waivers"). It inserts nothing when the pool already has priority rows (a retry, or a pool
 // whose order has since rotated) or when any agent has no recorded
 // draft_position yet, so it never duplicates, reorders or half-initializes.
 // The caller holds LockSimPool, which makes the NOT EXISTS check race-free,
@@ -933,8 +933,7 @@ type InsertSimPoolParams struct {
 
 // =============================================================================
 // Hockey Pool Simulator queries
-// See worker/simulation/PLAN.md for the design and worker/simulation/CHECKLIST.md
-// for which Phase 1.3 bullet each block satisfies.
+// See wiki puckdb/simulation.md for the design.
 // =============================================================================
 // =============================================================================
 // sim_pools
@@ -1170,8 +1169,8 @@ type InsertSimTransactionDraftPickParams struct {
 // =============================================================================
 // sim_transactions — full audit log
 // =============================================================================
-// Per-type insert helpers populate exactly the columns named in PLAN.md
-// "Per-type column population". Helpers RETURN the row so the caller can chain
+// Per-type insert helpers populate exactly the columns listed in wiki puckdb/simulation.md
+// > "Persistence". Helpers RETURN the row so the caller can chain
 // sim_lineup_moves inserts using the new transaction id (lineup_set only).
 func (q *Queries) InsertSimTransactionDraftPick(ctx context.Context, arg InsertSimTransactionDraftPickParams) (SimTransaction, error) {
 	row := q.db.QueryRow(ctx, insertSimTransactionDraftPick,
@@ -1976,8 +1975,10 @@ type ListSimFreeAgentCandidatesParams struct {
 
 // =============================================================================
 // Free-agent pool — runs once per (pool_id, sim_date), shared across agents
-// See PLAN.md > "Free Agent Pool" > "Query shape" for the bounded-scan
-// performance characterization.
+// Bounded scans, not whole-table ones: games is filtered through
+// idx_games_season_game_type and the stats tables join on their
+// (game_id, player_id) primary key, so one season touches about 49K skater
+// and 7K goalie rows (wiki puckdb/simulation.md > "Free agents and waivers").
 // =============================================================================
 func (q *Queries) ListSimFreeAgentCandidates(ctx context.Context, arg ListSimFreeAgentCandidatesParams) ([]int64, error) {
 	rows, err := q.db.Query(ctx, listSimFreeAgentCandidates,
@@ -2120,8 +2121,8 @@ type ListSimFreeAgentSkaterStatsRow struct {
 // season-to-date and last-7-day counting categories in one pass. The
 // information horizon is everything BEFORE sim_date: the daily turn runs
 // before CollectDayStats scores today's games, so today's boxscores must
-// not leak into the agent's decision (PLAN.md > "Draft Ranking for
-// Available Players" no-future-info rationale). "Last 7 days" is the
+// not leak into the agent's decision (the same no-future-info rule as the
+// draft ranking). "Last 7 days" is the
 // 7-day window ending the day before sim_date.
 func (q *Queries) ListSimFreeAgentSkaterStats(ctx context.Context, arg ListSimFreeAgentSkaterStatsParams) ([]ListSimFreeAgentSkaterStatsRow, error) {
 	rows, err := q.db.Query(ctx, listSimFreeAgentSkaterStats, arg.GameDate, arg.PlayerIds, arg.Season)
@@ -2541,8 +2542,8 @@ type ListSimTransactionsParams struct {
 	Limit   int32       `json:"limit"`
 }
 
-// ListSimTransactions is the paginated audit log (powers the `log` workflow
-// query and the simTransactions GraphQL query). agent_id is optional: pass 0
+// ListSimTransactions is the paginated audit log (powers the simTransactions
+// GraphQL query). agent_id is optional: pass 0
 // to omit the agent filter.
 func (q *Queries) ListSimTransactions(ctx context.Context, arg ListSimTransactionsParams) ([]SimTransaction, error) {
 	rows, err := q.db.Query(ctx, listSimTransactions,
@@ -3071,7 +3072,8 @@ ON CONFLICT (pool_id, agent_id, category) DO UPDATE SET
     goalie_toi_seconds = EXCLUDED.goalie_toi_seconds
 `
 
-// RecomputeSimAgentTotalsGAA computes GAA from raw components per PLAN.md:
+// RecomputeSimAgentTotalsGAA computes GAA from raw components
+// (wiki puckdb/simulation.md > "Scoring"):
 // season GAA = SUM(goalie_ga) / SUM(goalie_toi_seconds) * 3600.
 //
 // goalie_ga is COALESCEd: the daily rollup stores NULL for a zero GA
@@ -3263,7 +3265,7 @@ type UpsertSimAgentDailyPlayerStatParams struct {
 // sim_agent_daily_player_stats — per-player attribution layer (source of truth)
 // =============================================================================
 // Idempotent rerun: row set is deterministic across retries because the day's
-// roster locks before scoring runs (PLAN.md Day Loop step 4).
+// roster locks before scoring runs (wiki puckdb/simulation.md > "Day loop" step 4).
 func (q *Queries) UpsertSimAgentDailyPlayerStat(ctx context.Context, arg UpsertSimAgentDailyPlayerStatParams) error {
 	_, err := q.db.Exec(ctx, upsertSimAgentDailyPlayerStat,
 		arg.PoolID,

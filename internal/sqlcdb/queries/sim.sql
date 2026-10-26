@@ -1,7 +1,6 @@
 -- =============================================================================
 -- Hockey Pool Simulator queries
--- See worker/simulation/PLAN.md for the design and worker/simulation/CHECKLIST.md
--- for which Phase 1.3 bullet each block satisfies.
+-- See wiki puckdb/simulation.md for the design.
 -- =============================================================================
 
 -- =============================================================================
@@ -180,7 +179,7 @@ ORDER BY agent_id, slot, player_id;
 -- =============================================================================
 
 -- Idempotent rerun: row set is deterministic across retries because the day's
--- roster locks before scoring runs (PLAN.md Day Loop step 4).
+-- roster locks before scoring runs (wiki puckdb/simulation.md > "Day loop" step 4).
 -- name: UpsertSimAgentDailyPlayerStat :exec
 INSERT INTO sim_agent_daily_player_stats (
     pool_id, agent_id, date, player_id, category, value, goalie_ga, goalie_toi_seconds
@@ -238,7 +237,8 @@ GROUP BY d.pool_id, d.agent_id, d.category
 ON CONFLICT (pool_id, agent_id, category) DO UPDATE SET
     value = EXCLUDED.value;
 
--- RecomputeSimAgentTotalsGAA computes GAA from raw components per PLAN.md:
+-- RecomputeSimAgentTotalsGAA computes GAA from raw components
+-- (wiki puckdb/simulation.md > "Scoring"):
 -- season GAA = SUM(goalie_ga) / SUM(goalie_toi_seconds) * 3600.
 --
 -- goalie_ga is COALESCEd: the daily rollup stores NULL for a zero GA
@@ -305,8 +305,8 @@ ORDER BY date, agent_id, category;
 -- sim_transactions — full audit log
 -- =============================================================================
 
--- Per-type insert helpers populate exactly the columns named in PLAN.md
--- "Per-type column population". Helpers RETURN the row so the caller can chain
+-- Per-type insert helpers populate exactly the columns listed in wiki puckdb/simulation.md
+-- > "Persistence". Helpers RETURN the row so the caller can chain
 -- sim_lineup_moves inserts using the new transaction id (lineup_set only).
 
 -- name: InsertSimTransactionDraftPick :one
@@ -402,8 +402,8 @@ FROM paused;
 INSERT INTO sim_transactions (pool_id, agent_id, date, type)
 VALUES ($1, $2, $3, 'daily_turn_done');
 
--- ListSimTransactions is the paginated audit log (powers the `log` workflow
--- query and the simTransactions GraphQL query). agent_id is optional: pass 0
+-- ListSimTransactions is the paginated audit log (powers the simTransactions
+-- GraphQL query). agent_id is optional: pass 0
 -- to omit the agent filter.
 -- name: ListSimTransactions :many
 SELECT id, pool_id, agent_id, date, type, player_id, reasoning,
@@ -457,8 +457,10 @@ ORDER BY sequence;
 
 -- =============================================================================
 -- Free-agent pool — runs once per (pool_id, sim_date), shared across agents
--- See PLAN.md > "Free Agent Pool" > "Query shape" for the bounded-scan
--- performance characterization.
+-- Bounded scans, not whole-table ones: games is filtered through
+-- idx_games_season_game_type and the stats tables join on their
+-- (game_id, player_id) primary key, so one season touches about 49K skater
+-- and 7K goalie rows (wiki puckdb/simulation.md > "Free agents and waivers").
 -- =============================================================================
 
 -- name: ListSimFreeAgentCandidates :many
@@ -490,8 +492,8 @@ INSERT INTO sim_waiver_priority (pool_id, agent_id, priority)
 VALUES ($1, $2, $3);
 
 -- InitSimWaiverPriority gives every agent of a pool one priority row in reverse
--- draft order (the last round-1 pick gets priority 1, PLAN.md > "Waivers"). It
--- inserts nothing when the pool already has priority rows (a retry, or a pool
+-- draft order (the last round-1 pick gets priority 1; wiki
+-- puckdb/simulation.md > "Free agents and waivers"). It inserts nothing when the pool already has priority rows (a retry, or a pool
 -- whose order has since rotated) or when any agent has no recorded
 -- draft_position yet, so it never duplicates, reorders or half-initializes.
 -- The caller holds LockSimPool, which makes the NOT EXISTS check race-free,
@@ -644,8 +646,8 @@ ORDER BY t.player_id, t.date DESC;
 -- =============================================================================
 
 -- GetPlayerCurrentTeam derives the player's team from their most recent
--- (skater or goalie) game stats row up to sim_date — see PLAN.md "Player Team
--- Assignment" for the rationale and the V1 limitation around day-1/trade-gap/
+-- (skater or goalie) game stats row up to sim_date — see wiki
+-- puckdb/simulation.md > "Player team" for the rationale and the known gaps around day-1/trade-gap/
 -- pre-debut boundary cases (returns NULL for affected players).
 -- name: GetPlayerCurrentTeam :one
 SELECT team_id, last_game_date FROM (
@@ -680,7 +682,7 @@ WHERE season = $1
 ORDER BY id;
 
 -- CountSimGamesNext7Days counts regular-season games between sim_date and
--- sim_date+7 (exclusive of sim_date itself per PLAN.md "games_next_7_days":
+-- sim_date+7 (exclusive of sim_date itself:
 -- the count is forward-looking from the next calendar day). Counts FUT/LIVE
 -- and FINAL alike — replays are deterministic against historical data, so
 -- "scheduled" and "played" both indicate a game on the team's calendar.
@@ -697,8 +699,8 @@ WHERE season = $1
 -- season-to-date and last-7-day counting categories in one pass. The
 -- information horizon is everything BEFORE sim_date: the daily turn runs
 -- before CollectDayStats scores today's games, so today's boxscores must
--- not leak into the agent's decision (PLAN.md > "Draft Ranking for
--- Available Players" no-future-info rationale). "Last 7 days" is the
+-- not leak into the agent's decision (the same no-future-info rule as the
+-- draft ranking). "Last 7 days" is the
 -- 7-day window ending the day before sim_date.
 -- name: ListSimFreeAgentSkaterStats :many
 SELECT

@@ -15,25 +15,21 @@ import (
 )
 
 // ============================================================================
-// `puckdb sim` — simulation pool CLI.
+// `puckdb sim` — simulation pool CLI: create, cancel, status, tail and
+// draft (wiki puckdb/simulation.md > "Surfaces"). How far a pool runs is
+// set in its config (stopAfter, maxSeasonDays), not driven at run time.
 //
-// Per PLAN.md > "CLI Commands" — V1 scope is bootstrap + observe:
-// create, advance, run (= auto_advance), pause, cancel, status.
-// `list`, `destroy`, `agent-log` are out of V1 scope (use the
-// GraphQL playground until friction warrants them).
-//
-// All commands, tail and draft included, talk to the API server via
-// the existing GraphQL client — same pattern as `puckdb db init` and friends. The CLI
-// itself is thin: argument parsing, YAML-config reading, output
-// formatting. The actual behavior lives in the resolvers (Phase
-// 4.2) and the workflow (Phase 3.2).
+// Every command talks to the API server through the GraphQL client, the
+// same pattern as `puckdb db init` and friends. The CLI itself is thin:
+// argument parsing, YAML-config reading, output formatting; the behavior
+// lives in the resolvers and SimPoolWorkflow.
 // ============================================================================
 
 func cmdSim() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "sim",
 		Short: "Hockey pool simulator",
-		Long:  `Create and drive the puckdb simulation. Operates against the API server's GraphQL endpoint.`,
+		Long:  `Create, inspect and cancel simulation pools. Operates against the API server's GraphQL endpoint.`,
 	}
 	cmd.AddCommand(
 		cmdSimCreate(),
@@ -60,6 +56,14 @@ agents, categories, etc., because pool config is immutable after
 creation and lining up an inline-flag schema with the config schema
 isn't worth the friction.
 
+How far the pool runs is part of the config too; a running pool
+cannot be stepped or paused by hand, only cancelled:
+
+  stopAfter       never (default) | team_name | draft | season
+  maxSeasonDays   cap on the season day loop (0 = none)
+  startDate       window start, YYYY-MM-DD (default: season start)
+  endDate         window end, YYYY-MM-DD (default: season end)
+
 Example config:
 
   name: Crapettes Sonnet vs Haiku vs Llama
@@ -75,6 +79,8 @@ Example config:
   waiverDays: 2
   draftRounds: 18
   maxLlmCostUsdPerPool: 200.0
+  stopAfter: never
+  maxSeasonDays: 0
   agents:
     - name: Sonnet
       provider: anthropic
@@ -186,7 +192,7 @@ func cmdSimCancel() *cobra.Command {
 }
 
 // parsePoolID converts the positional arg to an int — extracted so
-// every signal command shares one error message, and the parsing
+// every pool-id command shares one error message, and the parsing
 // logic is unit-testable without a Cobra context.
 func parsePoolID(s string) (int, error) {
 	id, err := strconv.Atoi(s)

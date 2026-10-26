@@ -13,13 +13,13 @@ import (
 // BuildFreeAgentPoolActivity
 //
 // Runs ONCE per (pool, sim_date), result shared across every agent's
-// ManageRosterActivity for that day. The day loop in Phase 3.2 makes
-// this call before fanning out to per-agent activities — collapsing
+// ManageRosterActivity for that day. The day loop makes this call
+// before the per-agent activities — collapsing
 // what would be N agent-side queries into 1 day-side query.
 //
-// PLAN.md > "Free Agent Pool" specifies the SQL contract; the
-// returned []int64 is the player_id list, NOT a richer struct. The
-// activity that NEEDS richer state (positions, recent stats) joins
+// ListSimFreeAgentCandidates is the SQL contract (wiki
+// puckdb/simulation.md > "Free agents and waivers"); the returned
+// []int64 is the player_id list, NOT a richer struct. The activity that NEEDS richer state (positions, recent stats) joins
 // against players + recent_skater_stats / recent_goalie_stats on its
 // own — this activity's job is just "who's eligible for add_player".
 // ============================================================================
@@ -36,7 +36,7 @@ type BuildFreeAgentPoolInput struct {
 }
 
 // BuildFreeAgentPoolResult holds the FA pool for one (pool, sim_date)
-// pair. Phase 3.2 passes it as input to each agent's
+// pair. The day loop passes it as input to each agent's
 // ManageRosterActivity.
 type BuildFreeAgentPoolResult struct {
 	PlayerIDs []int64 `json:"player_ids"`
@@ -50,8 +50,8 @@ type BuildFreeAgentPoolResult struct {
 // find every player who has appeared in a regular-season game up to
 // sim_date, EXCEPT players currently on any pool roster, EXCEPT
 // players with a pending waiver claim, EXCEPT players dropped within
-// the last waiver_days. See PLAN.md > "Free Agent Pool" > "Query
-// shape" for the full predicate.
+// the last waiver_days. See ListSimFreeAgentCandidates in
+// internal/sqlcdb/queries/sim.sql for the full predicate.
 func (a *Activities) BuildFreeAgentPool(ctx context.Context, in BuildFreeAgentPoolInput) (BuildFreeAgentPoolResult, error) {
 	return freeAgentActivity{q: a.Queries}.BuildFreeAgentPool(ctx, in)
 }

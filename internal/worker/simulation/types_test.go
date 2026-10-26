@@ -31,7 +31,7 @@ func TestEligibleSlots(t *testing.T) {
 }
 
 func TestEligibleSlots_RejectsForward(t *testing.T) {
-	// PLAN.md V1 simplification: F is a valid Postgres enum value but
+	// Current simplification: F is a valid Postgres enum value but
 	// explicitly unsupported by the simulator — must surface as a loud error.
 	_, err := EligibleSlots(sqlcdb.PlayerPositionF)
 	require.Error(t, err)

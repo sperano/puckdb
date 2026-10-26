@@ -57,8 +57,8 @@ var (
 		Help: "Total Valkey-backed cache reads by cache and result",
 	}, []string{"cache", "result"})
 
-	// Simulation-specific worker metrics. PLAN.md > "Phase 3.3
-	// Prometheus Metrics" — three metrics covering the LLM cost
+	// Simulation-specific worker metrics (wiki puckdb/simulation.md
+	// > "Telemetry and metrics") — three metrics covering the LLM cost
 	// surface (call latency, failure rate by classifier) and the
 	// per-pool day-loop pacing.
 	simLLMCallDuration = prometheus.NewHistogramVec(prometheus.HistogramOpts{

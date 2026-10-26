@@ -10,7 +10,7 @@ package simulation
 //
 // These tests are NOT compiled by `go test ./...`. To run them:
 //
-//   go test -tags=integration ./worker/simulation/...
+//   go test -tags=integration ./internal/worker/simulation/...
 //
 // Suite-level setup (TestMain, env vars, seed helpers, worker
 // bootstrap) lives in integration_helpers_test.go, shared with the

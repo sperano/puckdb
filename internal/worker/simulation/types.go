@@ -1,5 +1,5 @@
 // Package simulation runs the AI-agent fantasy hockey roto pool simulator.
-// See worker/simulation/PLAN.md for the design.
+// See wiki puckdb/simulation.md for the design.
 package simulation
 
 import (
@@ -43,7 +43,7 @@ func (s PoolStatus) ended() bool {
 }
 
 // TransactionType is the value stored in sim_transactions.type.
-// See PLAN.md "Per-type column population" for which other columns each
+// See wiki puckdb/simulation.md > "Persistence" for which other columns each
 // type populates.
 type TransactionType string
 
@@ -137,8 +137,8 @@ type AgentConfig struct {
 // not part of this struct — the workflow's LoadPoolStateResult
 // carries them in its own Agents slice.
 //
-// "Immutable after creation" per PLAN.md > "Configuration > Config
-// is immutable" — to change settings, cancel and create a new pool.
+// Immutable after creation (wiki puckdb/simulation.md > "Lifecycle") —
+// to change settings, cancel and create a new pool.
 type PoolConfig struct {
 	Season   int `json:"season"`
 	NumTeams int `json:"num_teams"`
@@ -174,9 +174,9 @@ type PoolConfig struct {
 }
 
 // StopAfter enumerates the config-time stop points for the workflow.
-// Replaces the pre-000022 pause_at/controlState runtime-navigation
-// machinery: instead of pausing-and-resuming mid-execution, the
-// workflow runs to a configured boundary and exits.
+// The workflow runs to a configured boundary and exits; there is no
+// pausing and resuming mid-execution (wiki puckdb/simulation.md
+// > "Why there is no stepping").
 //
 // In Go this is a typed int with iota — the DB column is TEXT (the
 // String() method serializes to the same labels as the
@@ -243,11 +243,11 @@ func ParseStopAfter(s string) (StopAfter, error) {
 //	D  → D, Util, BN, IR
 //	G  → G, BN, IR     (goalies cannot fill Util)
 //
-// Returns an error for sqlcdb.PlayerPositionF (PLAN.md V1 simplification —
+// Returns an error for sqlcdb.PlayerPositionF (current simplification —
 // no F → C/LW/RW mapping) or any unrecognized value. Callers must surface
-// the error rather than silently filtering the player; per PLAN.md
-// "Position Eligibility" a non-conforming player is a loud validation
-// failure, not a silent drop.
+// the error rather than silently filtering the player: a non-conforming
+// player is a loud validation failure, not a silent drop (wiki puckdb/simulation.md
+// > "Roster and positions").
 func EligibleSlots(position sqlcdb.PlayerPosition) ([]RosterSlot, error) {
 	switch position {
 	case sqlcdb.PlayerPositionC:

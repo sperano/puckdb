@@ -15,7 +15,7 @@ import (
 //
 // Both DraftPickActivity and ManageRosterActivity must consult
 // sim_pools.total_llm_cost_usd before billing the operator's account
-// for an LLM call (PLAN.md > "Cost cap > Enforcement"). The check
+// for an LLM call (wiki puckdb/simulation.md > "Cost cap"). The check
 // (cap reached?) and the tripped-branch action (the durable pause
 // transition) are identical across activities, so they live here as
 // functions over costCapQueries rather than duplicated per-activity
@@ -40,7 +40,7 @@ type costCapQueries interface {
 //
 // capUsd <= 0 short-circuits to "no cap" — a missing-field config
 // (JSON zero value) must NOT lock the pool out forever. The intent
-// of the cap field is "set high to disable" per PLAN.md; honoring
+// of the cap field is "set high to disable" (wiki puckdb/simulation.md > "Cost cap"); honoring
 // that for both "high" and "missing" is the safe interpretation.
 //
 // The `current >= capUsd` comparison is a cumulative post-hoc soft

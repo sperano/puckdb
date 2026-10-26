@@ -276,8 +276,8 @@ func (s *CollectDayStatsTestSuite) TestGoalie_DecisionSemantics_W() {
 	assert.Equal(t, int32(3600), gaa.GoalieTOISeconds.Int32)
 }
 
-// L / OTL / T / NULL decisions all contribute 0 to W (PLAN.md
-// "Goalie decision semantics"). GA still accumulates from the
+// L / OTL / T / NULL decisions all contribute 0 to W (wiki puckdb/simulation.md
+// > "Scoring"). GA still accumulates from the
 // pulled starter's goals_against — the row's NULL decision means
 // "didn't get the W", not "didn't allow goals".
 func (s *CollectDayStatsTestSuite) TestGoalie_NullDecisionGivesZeroW_ButGAStillAccumulates() {

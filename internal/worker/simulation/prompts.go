@@ -7,11 +7,10 @@ import (
 	"strings"
 )
 
-// systemPromptTemplate is the exact text from PLAN.md > "System Prompt".
-// Two placeholders — {strategy}, {N}. We use plain string substitution
-// rather than text/template so this prompt is one `git blame` away
-// from the spec and a casual reader doesn't have to learn template
-// syntax to verify it matches.
+// systemPromptTemplate is the agents' system prompt (wiki puckdb/simulation.md
+// > "Agent turns"). Two placeholders — {strategy}, {N}. We use plain
+// string substitution rather than text/template so a casual reader
+// doesn't have to learn template syntax to verify the rendered text.
 //
 // No {name} placeholder: the agent's identity is its strategy, not a
 // self-referential label. (An earlier version of this prompt opened
@@ -27,10 +26,10 @@ import (
 // (the non-cacheable suffix).
 // v1FixedCategories / v1FixedRoster pin the "9 roto categories" line and
 // the "Roster: ..." line hard-coded into systemPromptTemplate below.
-// V1 supports exactly one scoring/roster shape per PLAN.md — these are
+// V1 supports exactly one scoring/roster shape (current simplification) — these are
 // NOT read from PoolConfig.Categories / PoolConfig.RosterPositions at
-// runtime (wiring the prompt to per-pool config is out of scope for
-// this pass: it's correctness-adjacent, since a mismatch between what
+// runtime (wiring the prompt to per-pool config is a known
+// follow-up: it's correctness-adjacent, since a mismatch between what
 // the prompt claims and what the validators enforce would silently
 // mislead the LLM). TestV1FixedRosterMatchesPrompt below fails if
 // either constant is edited without updating systemPromptTemplate (or
@@ -168,10 +167,8 @@ type GoalieStats struct {
 //     differently within the same array"). A generic parameter is
 //     per-slice, not per-element, so RosterRow[T] can't express this
 //     without splitting into two slices — which cascades into every
-//     construction site: context_activity.go (this pass's file) AND
-//     draft.go / workflow.go (DraftablePlayer.LastSeason has the same
-//     shape, same reason — both out of scope for this pass; see
-//     workflow.go/draft.go ownership for the current wave).
+//     construction site: context_activity.go AND draft.go / workflow.go
+//     (DraftablePlayer.LastSeason has the same shape, same reason).
 //   - Concrete strengthening was safe for CategoryStanding.Value above
 //     (single homogeneous field, one producer) but does not apply here.
 type RosterRow struct {
@@ -273,8 +270,8 @@ type WaiverPlayerRow struct {
 
 // DailyPromptInput is the full set of fields rendered into the
 // per-day context message. Keep field order matching the JSON example
-// in PLAN.md > "What the Agent Sees" so the rendered prompt and the
-// spec stay visually aligned.
+// in the rendered prompt (wiki puckdb/simulation.md > "Daily context"
+// lists the blocks).
 type DailyPromptInput struct {
 	Day            string            `json:"day"`
 	Standings      []StandingRow     `json:"standings"`
@@ -330,12 +327,11 @@ type DraftRosterRow struct {
 // DraftablePlayer is one row in available_by_position / best_available.
 // LastSeason carries the prior-season stats — V1 ranks by prior season
 // only to avoid leaking current-season stats into draft decisions
-// (PLAN.md "Draft ranking uses prior-season stats only").
+// (wiki puckdb/simulation.md > "Draft").
 //
 // LastSeason is `any` for the same reason as RosterRow.Last7/Season
 // above (heterogeneous skater/goalie rows share one slice); it's
-// constructed in draft.go and workflow.go, both out of scope for this
-// pass, so no change was made here.
+// constructed in draft.go and workflow.go.
 type DraftablePlayer struct {
 	Player     string `json:"player"`
 	ID         int64  `json:"id"`
@@ -378,7 +374,7 @@ func BuildDraftPrompt(input DraftPromptInput) (string, error) {
 // Free-agent ranking — pure functions, no IO.
 // ============================================================================
 
-// MaxTopFreeAgentSkaters / MaxTopFreeAgentGoalies are the per-PLAN.md
+// MaxTopFreeAgentSkaters / MaxTopFreeAgentGoalies are the
 // sizes of the two sub-arrays in `top_free_agents`. The full FA pool
 // can be 700+ players mid-season; truncating to these counts keeps the
 // daily prompt under control while still showing enough breadth for
@@ -389,8 +385,8 @@ const (
 )
 
 // skaterCompositeScore computes the ranking key for a free-agent
-// skater: G + A + PPP over the last_7 window. PLAN.md > "Free-agent
-// ranking" > "Skater composite". Other categories (+/-, PIM, SOG) are
+// skater: G + A + PPP over the last_7 window. (wiki puckdb/simulation.md
+// > "Daily context"). Other categories (+/-, PIM, SOG) are
 // intentionally excluded — they're either neutral (PIM is dual-edged)
 // or already correlated with G/A (SOG).
 func skaterCompositeScore(s SkaterStats) int {

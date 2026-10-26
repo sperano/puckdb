@@ -13,8 +13,8 @@ import (
 //
 // The simulation activities have a hard requirement that a roster
 // mutation, a sim_transactions audit row, and the sim_pools cost
-// increment land together or not at all (PLAN.md > "Idempotency >
-// Atomic commit"). A Temporal retry must observe either the full set
+// increment land together or not at all (wiki puckdb/simulation.md
+// > "Idempotency"). A Temporal retry must observe either the full set
 // or the empty set — partial state would corrupt the idempotency
 // pre-flight check on the next attempt.
 //

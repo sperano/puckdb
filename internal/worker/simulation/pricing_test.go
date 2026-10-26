@@ -8,10 +8,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Pin the headline rate for the "default sim model" assumption in
-// PLAN.md > Cost Estimate (Sonnet ~$3/M in, $15/M out, $0.30/M cache
-// read). If a quarterly review changes Anthropic's rates, this test
-// fails — that is the *signal* to update the table, not a bug.
+// Pin the headline rate for the "default sim model" assumption
+// (Sonnet ~$3/M in, $15/M out, $0.30/M cache read). If a quarterly
+// review changes Anthropic's rates, this test fails — that is the *signal* to update the table, not a bug.
 func TestLookupPricing_AnthropicSonnet46(t *testing.T) {
 	p, ok := LookupPricing(PricingProviderAnthropic, "claude-sonnet-4-6")
 	require.True(t, ok)
@@ -100,7 +99,7 @@ func TestComputeCost_SonnetWithoutCache(t *testing.T) {
 
 // Cache-read discount: a call with most input served from cache should
 // cost dramatically less than the same call un-cached. This is the
-// invariant PLAN.md is asking for ("~30–40% net savings on input
+// prompt-caching invariant ("~30–40% net savings on input
 // cost"). Magic numbers are the four rates from the table — using them
 // as named values would just be aliasing.
 func TestComputeCost_SonnetCacheReadDiscount(t *testing.T) {

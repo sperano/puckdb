@@ -122,8 +122,7 @@ func setTeamNameToolCall(name, summary string) *llm.Response {
 
 // A successful turn must increment the DURABLE pool cost exactly once,
 // in the same tx as the team_name write. Without the increment the
-// team-name spend is invisible to the cost cap and is lost outright
-// when the workflow reloads TotalLLMCostUsd after a ContinueAsNew.
+// team-name spend is invisible to the cost cap.
 func (s *PickTeamNameTestSuite) TestSuccess_IncrementsPoolCostOnceInSameTx() {
 	t := s.T()
 	s.llm.responses = []*llm.Response{setTeamNameToolCall("Rink Rats", "balanced")}

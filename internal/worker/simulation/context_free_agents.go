@@ -159,9 +159,10 @@ func partitionFreeAgentIDs(ids []int64, players map[int64]sqlcdb.Player) (skater
 // loadFreeAgentSkaters builds one FreeAgentSkaterCandidate per FA
 // skater with a stats row. A skater with zero regular-season games
 // before sim_date has no stats row and is intentionally excluded:
-// PLAN.md "Free-agent ranking" shows the top N by recent composite,
-// and a zero-production skater has no composite to rank (it would only
-// add noise below the top-20 cutoff). Iteration order of the stats
+// the daily context shows the top N by recent composite (wiki
+// puckdb/simulation.md > "Daily context"), and a zero-production
+// skater has no composite to rank (it would only add noise below the
+// top-20 cutoff). Iteration order of the stats
 // rows doesn't matter: RankFreeAgentSkaters re-sorts by composite then
 // id, so the final output is deterministic regardless of the query's
 // return order.
