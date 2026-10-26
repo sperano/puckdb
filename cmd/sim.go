@@ -323,12 +323,13 @@ func renderProgressGroups(w io.Writer, p *model.ProgressReport) {
 		if g.StartedAt == 0 {
 			continue
 		}
-		current, total := 0, 0
-		for _, b := range g.Bars {
-			current += b.Current
-			total += b.Total
+		current, total := progressGroupTotals(g)
+		pct := 0.0
+		if total > 0 {
+			pct = float64(current) / float64(total) * 100
 		}
-		fmt.Fprintf(w, "  %-7s %s %d/%d\n", g.Header, asciiBar(current, total, simBarWidth), current, total)
+		bar := renderProgressBar(pct, simBarWidth, progressBarASCII)
+		fmt.Fprintf(w, "  %-7s %s %d/%d\n", g.Header, bar, current, total)
 	}
 }
 
@@ -382,36 +383,6 @@ func agentDisplayName(agents []*model.SimAgent, agentID int) string {
 // at least one character at 90% completion, narrow enough to fit on
 // a typical terminal alongside the count text.
 const simBarWidth = 20
-
-// asciiBar renders a fixed-width "[#####     ]" bar. width-clamped
-// to never exceed the configured width even with rounding.
-func asciiBar(current, total, width int) string {
-	if total <= 0 {
-		return "[" + repeatRune(' ', width) + "]"
-	}
-	filled := current * width / total
-	if filled > width {
-		filled = width
-	}
-	if filled < 0 {
-		filled = 0
-	}
-	return "[" + repeatRune('#', filled) + repeatRune(' ', width-filled) + "]"
-}
-
-// repeatRune returns a string of n copies of r. Avoids strings.Repeat
-// to keep the import surface small — this is the only place we
-// build a fixed-rune string in this file.
-func repeatRune(r rune, n int) string {
-	if n <= 0 {
-		return ""
-	}
-	out := make([]rune, n)
-	for i := range out {
-		out[i] = r
-	}
-	return string(out)
-}
 
 // printCreatedSimPool prints pool_id and workflow_id lines for scripts to
 // capture. The workflow ID is the one the API started for the pool.

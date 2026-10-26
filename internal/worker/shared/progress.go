@@ -11,6 +11,7 @@ import (
 	"github.com/sperano/nhl-api-go/nhl"
 	"github.com/sperano/puckdb/internal/cache"
 	"github.com/sperano/puckdb/internal/config"
+	"github.com/sperano/puckdb/internal/core"
 	"go.temporal.io/sdk/workflow"
 )
 
@@ -410,25 +411,13 @@ func (t *ReportTracker) GetElapsed(ctx workflow.Context, groupIdx int) string {
 // FormatElapsedMilli formats milliseconds as a human-readable duration.
 func FormatElapsedMilli(ms int64) string {
 	d := time.Duration(ms) * time.Millisecond
-	return FormatDuration(d)
+	return core.FormatDuration(d)
 }
 
-// FormatDuration formats a duration in a human-readable way.
+// FormatDuration keeps workflow callers on the shared progress API while the
+// formatting rule itself lives in the core time helpers used by the CLI.
 func FormatDuration(d time.Duration) string {
-	if d < time.Second {
-		return fmt.Sprintf("%dms", d.Milliseconds())
-	}
-	if d < time.Minute {
-		return fmt.Sprintf("%.1fs", d.Seconds())
-	}
-	if d < time.Hour {
-		minutes := int(d.Minutes())
-		seconds := int(d.Seconds()) % 60
-		return fmt.Sprintf("%dm%ds", minutes, seconds)
-	}
-	hours := int(d.Hours())
-	minutes := int(d.Minutes()) % 60
-	return fmt.Sprintf("%dh%dm", hours, minutes)
+	return core.FormatDuration(d)
 }
 
 // SaveActivityProgress saves a simple current/total ProgressReport to Redis from an activity.
