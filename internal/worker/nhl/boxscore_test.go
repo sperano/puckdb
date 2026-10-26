@@ -330,3 +330,31 @@ func TestExtractAndSaveBoxscorePlayers_EmptySeason(t *testing.T) {
 	require.NoError(t, future.Get(&counts))
 	require.NoError(t, mockRedis.ExpectationsWereMet())
 }
+
+// TestExtractTeamPlayersSplitsNames pins the boxscore path's name split
+// (store.ParseCombinedName, shared with the Yahoo player pages) for each
+// player group.
+func TestExtractTeamPlayersSplitsNames(t *testing.T) {
+	t.Parallel()
+
+	name := func(s string) nhlapi.LocalizedString { return nhlapi.LocalizedString{Default: s} }
+	stats := &nhlapi.TeamPlayerStats{
+		Forwards: []nhlapi.SkaterStats{
+			{PlayerID: 1, Name: name("J. van Riemsdyk"), Position: nhlapi.PositionLeftWing},
+			{PlayerID: 2, Name: name("Sedin"), Position: nhlapi.PositionCenter},
+		},
+		Defense: []nhlapi.SkaterStats{
+			{PlayerID: 3, Name: name("  Q. Hughes \t"), Position: nhlapi.PositionDefense},
+		},
+		Goalies: []nhlapi.GoalieStats{
+			{PlayerID: 4, Name: name(" "), Position: nhlapi.PositionGoalie},
+		},
+	}
+
+	assert.Equal(t, []store.BoxscorePlayer{
+		{ID: 1, FirstName: "J.", LastName: "van Riemsdyk", Position: string(nhlapi.PositionLeftWing)},
+		{ID: 2, FirstName: "Sedin", LastName: "", Position: string(nhlapi.PositionCenter)},
+		{ID: 3, FirstName: "Q.", LastName: "Hughes", Position: string(nhlapi.PositionDefense)},
+		{ID: 4, FirstName: "", LastName: "", Position: string(nhlapi.PositionGoalie)},
+	}, extractTeamPlayers(stats))
+}

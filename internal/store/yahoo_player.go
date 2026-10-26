@@ -65,15 +65,7 @@ func ParseYahooPlayerHTML(yahooID YahooPlayerID, html []byte) (*YahooPlayer, err
 		return nil, fmt.Errorf("could not parse player title from HTML")
 	}
 
-	// Parse name (trim whitespace)
-	fullName := strings.TrimSpace(titleMatch[1])
-	parts := strings.SplitN(fullName, " ", 2)
-	if len(parts) >= 1 {
-		player.FirstName = parts[0]
-	}
-	if len(parts) >= 2 {
-		player.LastName = parts[1]
-	}
+	player.FirstName, player.LastName = ParseCombinedName(titleMatch[1])
 
 	// Parse positions (e.g., "C" or "C, F, RW")
 	positionsStr := strings.TrimSpace(titleMatch[2])
