@@ -724,9 +724,9 @@ Recipe (executed inside the activity, in order):
 
 1. **Pre-flight check.** Open a short DB read: query `sim_transactions` for any row with the idempotency-key columns set. If one exists, return success immediately — the previous attempt already landed and a retry would be a wasted LLM call.
 2. **LLM call.** No DB transaction held during this call (would starve the pgx pool for ~60s).
-3. **Atomic commit.** Open a single DB transaction. Within it, write all roster mutations (`sim_rosters` upsert/delete) AND insert the corresponding `sim_transactions` row(s) including the idempotency-key columns. Commit. If any step fails the whole batch rolls back, leaving the pre-flight check accurate for any subsequent retry.
+3. **Atomic commit.** Open a single DB transaction. Within it, first insert the turn's marker (the `draft_pick` row, or the `daily_turn_done` row), then write all roster mutations (`sim_rosters` upsert/delete), the other `sim_transactions` rows, the pool spend and the turn telemetry. Commit. If any step fails the whole batch rolls back, leaving the pre-flight check accurate for any subsequent retry.
 
-The pre-flight is racy in theory (two concurrent retries could both pass it before either commits), but Temporal's activity-ID deduplication makes true concurrency vanishingly rare in practice, and the worst case is one duplicate LLM call rather than corrupted state.
+The pre-flight alone is racy: an attempt still running after its StartToClose timeout overlaps Temporal's retry, and both can pass it before either commits. The partial unique indexes `ux_sim_transactions_draft_pick` (`(pool_id, agent_id, round, pick) WHERE type = 'draft_pick'`) and `ux_sim_transactions_daily_turn_done` (`(pool_id, agent_id, date) WHERE type = 'daily_turn_done'`) make the commit the guard: the losing attempt waits on the winner's marker, fails with a unique violation and rolls back before any other write (so its turn telemetry never replaces the winner's), records its spend like an aborted turn, and returns the skipped result of the committed turn. The worst case is one duplicate LLM call, never a second pick or day (`turn_markers.go`).
 
 ---
 

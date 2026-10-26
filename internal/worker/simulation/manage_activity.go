@@ -228,6 +228,9 @@ func (m manageActivity) ManageRoster(ctx context.Context, in ManageRosterInput) 
 	}
 
 	if err := m.commitDailyTurn(ctx, in, outcome, recordMessages); err != nil {
+		if isMarkerConflict(err, dailyTurnMarkerIndex) {
+			return m.lostDailyTurn(ctx, in, outcome, recordMessages)
+		}
 		return ManageRosterResult{}, err
 	}
 
@@ -591,17 +594,20 @@ func applyLineupToWorkingState(work *dailyWorkingState, resolved []ResolvedLineu
 // one transaction.
 //
 // Order of operations within the tx:
-//  1. Per-action inserts/updates. SetLineup → InsertSimTransactionLineupSet
+//  1. InsertSimTransactionDailyTurnDone, the day's marker: an
+//     overlapping attempt that committed the day first makes it fail
+//     (ux_sim_transactions_daily_turn_done) before any other write.
+//  2. Per-action inserts/updates. SetLineup → InsertSimTransactionLineupSet
 //     first (returns the parent ID), then sim_lineup_moves children.
 //     Add/Drop/Claim → mutate sim_rosters, then insert their tx row.
-//  2. UpdateSimAgentNotes if notes were set.
-//  3. InsertSimTransactionPass / InsertSimTransactionError if no
+//  3. UpdateSimAgentNotes if notes were set.
+//  4. InsertSimTransactionPass / InsertSimTransactionError if no
 //     actions ran.
-//  4. IncrementSimPoolLLMCost.
+//  5. IncrementSimPoolLLMCost, then the turn telemetry.
 //
-// At least one of {actions, pass, error, notes-only} writes a tx row
-// — the idempotency probe for the next attempt depends on it. Notes-
-// only turns ALSO write a `pass` row to mark the day processed.
+// At least one of {actions, pass, error, notes-only} writes an audit
+// row for the log; notes-only turns ALSO write a `pass` row. The
+// idempotency probe reads only the marker.
 // commitDailyTurn takes recordMessages (the sim_pools.record_full_messages
 // flag) as a parameter rather than reading it here: the read happens
 // up-front in ManageRoster, before the LLM runs, so a flaky read can't
@@ -613,6 +619,20 @@ func (m manageActivity) commitDailyTurn(ctx context.Context, in ManageRosterInpu
 	}
 
 	return m.tx.InTx(ctx, func(q manageRosterQueries) error {
+		// Dedicated idempotency marker — written on every turn so
+		// ExistsSimDailyTurnMarker fires on retry. Decoupled from the
+		// audit rows below so an unrelated transaction at this coordinate
+		// can't spuriously skip a future turn. It goes first so an
+		// overlapping attempt's commit stops here, before its actions or
+		// its turn telemetry (see turn_markers.go).
+		if err := q.InsertSimTransactionDailyTurnDone(ctx, sqlcdb.InsertSimTransactionDailyTurnDoneParams{
+			PoolID:  in.PoolID,
+			AgentID: in.AgentID,
+			Date:    in.SimDate,
+		}); err != nil {
+			return fmt.Errorf("insert daily turn marker: %w", err)
+		}
+
 		// Commit-time revalidation: an add validated against the morning
 		// FA snapshot can lose to another agent who took the same player
 		// earlier today. Re-check claimability now and drop conflicting
@@ -656,18 +676,6 @@ func (m manageActivity) commitDailyTurn(ctx context.Context, in ManageRosterInpu
 			}
 		}
 
-		// Dedicated idempotency marker — written on every turn so
-		// ExistsSimDailyTurnMarker fires on retry. Decoupled from the
-		// audit rows above so an unrelated transaction at this coordinate
-		// can't spuriously skip a future turn.
-		if err := q.InsertSimTransactionDailyTurnDone(ctx, sqlcdb.InsertSimTransactionDailyTurnDoneParams{
-			PoolID:  in.PoolID,
-			AgentID: in.AgentID,
-			Date:    in.SimDate,
-		}); err != nil {
-			return fmt.Errorf("insert daily turn marker: %w", err)
-		}
-
 		if _, err := q.IncrementSimPoolLLMCost(ctx, sqlcdb.IncrementSimPoolLLMCostParams{
 			ID:              in.PoolID,
 			TotalLLMCostUSD: costNum,
@@ -682,6 +690,25 @@ func (m manageActivity) commitDailyTurn(ctx context.Context, in ManageRosterInpu
 		}
 		return nil
 	})
+}
+
+// lostDailyTurn is ManageRoster's result when an overlapping attempt
+// committed this day's turn while this one ran the model (see
+// turn_markers.go): this attempt's spend still counts, its actions are
+// dropped, and the result is the idempotency hit's plus that spend.
+func (m manageActivity) lostDailyTurn(ctx context.Context, in ManageRosterInput, outcome dailyOutcome, recordMessages bool) (ManageRosterResult, error) {
+	if err := recordLostTurn(ctx, abortedTurnTx(m.tx), dailyTurnTelemetry(in, outcome, recordMessages)); err != nil {
+		return ManageRosterResult{}, err
+	}
+	activity.GetLogger(ctx).Warn("ManageRoster lost to an overlapping attempt",
+		"discarded_actions", len(outcome.actions),
+		"cost_usd", outcome.spend.CostUsd,
+	)
+	return ManageRosterResult{
+		Skipped:    true,
+		SkipReason: SkipReasonAlreadyManaged,
+		CostUsd:    outcome.spend.CostUsd,
+	}, nil
 }
 
 // dailyTurnTelemetry is the telemetry of one daily turn, shared by the

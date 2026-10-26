@@ -78,8 +78,27 @@ func abortIfDone(ctx context.Context, tx Transactor[abortedTurnQueries], t TurnT
 // return its result directly. Temporal drops that error after a
 // deadline, so a failed write is also logged.
 func recordAbortedTurn(ctx context.Context, tx Transactor[abortedTurnQueries], t TurnTelemetry, cause error) error {
+	if err := recordErroredTurn(ctx, tx, t, cause); err != nil {
+		return errors.Join(cause, err)
+	}
+	return cause
+}
+
+// recordLostTurn persists the spend of a turn whose commit lost its
+// marker to an overlapping attempt (see turn_markers.go), like
+// recordAbortedTurn: the commit rolled back, so the spend cannot be
+// counted twice, and the winner's turn row holds the coordinate, so only
+// the pool total changes. It returns the write's error alone.
+func recordLostTurn(ctx context.Context, tx Transactor[abortedTurnQueries], t TurnTelemetry) error {
+	return recordErroredTurn(ctx, tx, t, errTurnCommittedConcurrently)
+}
+
+// recordErroredTurn is the write of recordAbortedTurn and recordLostTurn:
+// t marked errored with cause, its spend and (if its coordinate is free)
+// its turn row. It returns the write's error, logged, or nil.
+func recordErroredTurn(ctx context.Context, tx Transactor[abortedTurnQueries], t TurnTelemetry, cause error) error {
 	if len(t.Captures) == 0 {
-		return cause
+		return nil
 	}
 	if t.Header.Status != TurnStatusErrored {
 		t.Header.Status = TurnStatusErrored
@@ -88,7 +107,7 @@ func recordAbortedTurn(ctx context.Context, tx Transactor[abortedTurnQueries], t
 	}
 	err := writeAbortedTurn(ctx, tx, t)
 	if err == nil {
-		return cause
+		return nil
 	}
 	err = fmt.Errorf("simulation: record aborted turn spend: %w", err)
 	if activity.IsActivity(ctx) {
@@ -96,7 +115,7 @@ func recordAbortedTurn(ctx context.Context, tx Transactor[abortedTurnQueries], t
 			"pool_id", t.Header.PoolID, "agent_id", t.Header.AgentID,
 			"cost_usd", t.Header.Spend.CostUsd, "err", err)
 	}
-	return errors.Join(cause, err)
+	return err
 }
 
 // writeAbortedTurn is recordAbortedTurn's transaction.
