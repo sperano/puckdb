@@ -7,18 +7,13 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"strconv"
 	"strings"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/sperano/puckdb/internal/draft"
 	"github.com/sperano/puckdb/internal/sqlcdb"
-)
-
-const (
-	teamKeyParts   = 5
-	playerKeyParts = 3
+	"github.com/sperano/puckdb/internal/yahookey"
 )
 
 // ErrLeagueNotImported means no imported league-rule snapshot matches the
@@ -79,39 +74,26 @@ func ResolveIdentity(ctx context.Context, pool *pgxpool.Pool, ref string, season
 
 // ParseTeamKey validates that key belongs to id and returns its numeric team.
 func ParseTeamKey(key string, id Identity) (int, error) {
-	parts := strings.Split(key, ".")
-	if len(parts) != teamKeyParts || parts[1] != "l" || parts[3] != "t" {
+	parsed, err := yahookey.ParseTeamKey(key)
+	if err != nil {
 		return 0, fmt.Errorf("invalid Yahoo team key %q", key)
 	}
-	gameKey, gameErr := positiveInt(parts[0])
-	leagueID, leagueErr := positiveInt(parts[2])
-	teamID, teamErr := positiveInt(parts[4])
-	if gameErr != nil || leagueErr != nil || teamErr != nil || gameKey != id.GameKey || leagueID != id.LeagueID {
+	if parsed.League.GameKey != id.GameKey || parsed.League.LeagueID != id.LeagueID {
 		return 0, fmt.Errorf("yahoo team key %q does not belong to league %s", key, id.LeagueKey)
 	}
-	return teamID, nil
+	return parsed.TeamID, nil
 }
 
 // ParsePlayerKey validates that key belongs to the league's game.
 func ParsePlayerKey(key string, id Identity) (int, error) {
-	parts := strings.Split(key, ".")
-	if len(parts) != playerKeyParts || parts[1] != "p" {
+	parsed, err := yahookey.ParsePlayerKey(key)
+	if err != nil {
 		return 0, fmt.Errorf("invalid Yahoo player key %q", key)
 	}
-	gameKey, gameErr := positiveInt(parts[0])
-	playerID, playerErr := positiveInt(parts[2])
-	if gameErr != nil || playerErr != nil || gameKey != id.GameKey {
+	if parsed.GameKey != id.GameKey {
 		return 0, fmt.Errorf("yahoo player key %q does not belong to game %d", key, id.GameKey)
 	}
-	return playerID, nil
-}
-
-func positiveInt(value string) (int, error) {
-	parsed, err := strconv.Atoi(value)
-	if err != nil || parsed <= 0 {
-		return 0, errors.New("not a positive integer")
-	}
-	return parsed, nil
+	return parsed.PlayerID, nil
 }
 
 func findSeasonForKey(ctx context.Context, queries *sqlcdb.Queries, key string, requested int) (int, error) {

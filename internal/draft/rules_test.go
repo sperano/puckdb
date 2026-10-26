@@ -184,6 +184,7 @@ func TestGameKeyOf(t *testing.T) {
 	}{
 		{"numeric game key", "453.l.1003", 453},
 		{"non-numeric stand-in prefix", "temporary-stand-in.l.1001", 0},
+		{"malformed game key", "abc.l.5", 0},
 		{"empty key", "", 0},
 	}
 	for _, tt := range tests {

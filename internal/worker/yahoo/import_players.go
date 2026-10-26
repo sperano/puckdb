@@ -15,6 +15,7 @@ import (
 	"github.com/sperano/puckdb/internal/sqlcdb"
 	"github.com/sperano/puckdb/internal/store"
 	"github.com/sperano/puckdb/internal/worker/shared"
+	"github.com/sperano/puckdb/internal/yahookey"
 	"go.temporal.io/sdk/activity"
 	"go.temporal.io/sdk/temporal"
 )
@@ -22,9 +23,6 @@ import (
 // invalidPlayerPoolErrorType tags pool snapshots whose pages do not belong
 // to the league and season of the manifest; retrying cannot fix them.
 const invalidPlayerPoolErrorType = "InvalidYahooPlayerPool"
-
-// playerKeySeparator splits "<game_key>.p.<player_id>".
-const playerKeySeparator = ".p."
 
 // ImportYahooLeaguePlayersInput names the league whose pool to import.
 type ImportYahooLeaguePlayersInput struct {
@@ -126,8 +124,9 @@ func (a *ImportActivities) collectPoolPlayers(ctx context.Context, input ImportY
 // checkPlayerKey makes sure a player's key carries the snapshot's game key,
 // so a page from another season can never relabel a player.
 func checkPlayerKey(player store.Player, gameKey int) error {
-	want := fmt.Sprintf("%d%s%d", gameKey, playerKeySeparator, player.ID)
-	if player.ID <= 0 || player.Key != want {
+	want := (yahookey.PlayerKey{GameKey: gameKey, PlayerID: player.ID}).String()
+	_, err := yahookey.ParsePlayerKey(player.Key)
+	if player.ID <= 0 || err != nil || player.Key != want {
 		return fmt.Errorf("player key %q does not match game %d player %d", player.Key, gameKey, player.ID)
 	}
 	return nil

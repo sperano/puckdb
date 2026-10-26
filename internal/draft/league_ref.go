@@ -5,14 +5,9 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+
+	"github.com/sperano/puckdb/internal/yahookey"
 )
-
-// leagueKeyParts is the number of dot-separated parts of a full Yahoo league
-// key: game key, the "l" marker and the league ID.
-const leagueKeyParts = 3
-
-// leagueKeyMarker is the middle part of a full Yahoo league key.
-const leagueKeyMarker = "l"
 
 // leagueIDBits bounds parsed game keys and league IDs to the integer columns
 // that store them.
@@ -37,16 +32,11 @@ func IsLeagueKey(ref string) bool {
 // into its positive game key and league ID. A key names one league in one
 // season by itself; a numeric ID is unique only within a season.
 func ParseLeagueKey(key string) (gameKey, leagueID int, err error) {
-	parts := strings.Split(key, ".")
-	if len(parts) != leagueKeyParts || parts[1] != leagueKeyMarker {
+	parsed, parseErr := yahookey.ParseLeagueKey(key)
+	if parseErr != nil {
 		return 0, 0, fmt.Errorf("%w: invalid Yahoo league key %q", ErrMalformedLeagueRef, key)
 	}
-	gameKey, gameErr := positiveID(parts[0])
-	leagueID, leagueErr := positiveID(parts[2])
-	if gameErr != nil || leagueErr != nil {
-		return 0, 0, fmt.Errorf("%w: invalid Yahoo league key %q", ErrMalformedLeagueRef, key)
-	}
-	return gameKey, leagueID, nil
+	return parsed.GameKey, parsed.LeagueID, nil
 }
 
 // ParseLeagueID parses a positive numeric Yahoo league ID.

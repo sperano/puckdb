@@ -20,6 +20,8 @@ func TestParseYahooTeamKey(t *testing.T) {
 		{"no .t. separator", "423.l.12345", 0, true},
 		{"empty string", "", 0, true},
 		{"non-numeric team ID", "423.l.12345.t.abc", 0, true},
+		{"non-numeric game key", "abc.l.12345.t.1", 0, true},
+		{"non-canonical league ID", "423.l.012345.t.1", 0, true},
 		{"multiple .t. separators", "423.t.1.t.2", 0, true},
 	}
 
@@ -50,6 +52,8 @@ func TestParseYahooPlayerKey(t *testing.T) {
 		{"no .p. separator", "423.6616", 0, true},
 		{"empty string", "", 0, true},
 		{"non-numeric player ID", "423.p.abc", 0, true},
+		{"non-numeric game key", "abc.p.6616", 0, true},
+		{"non-canonical player ID", "423.p.06616", 0, true},
 		{"multiple .p. separators", "423.p.1.p.2", 0, true},
 	}
 

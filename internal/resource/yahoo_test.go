@@ -250,6 +250,7 @@ func TestLeague_ParseURL(t *testing.T) {
 		"wrong_sport":      strings.Replace(validLeagueXML, "nhl</game_code>", "nfl</game_code>", 1),
 		"wrong_game_key":   strings.Replace(validLeagueXML, "453.l.12345", "999.l.12345", 1),
 		"malformed_key":    strings.Replace(validLeagueXML, "453.l.12345", "league-12345", 1),
+		"non_numeric_game": strings.Replace(validLeagueXML, "453.l.12345", "abc.l.5", 1),
 	} {
 		t.Run(name, func(t *testing.T) {
 			_, err := r.Parse([]byte(xmlData))

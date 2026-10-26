@@ -197,7 +197,7 @@ func TestDraftOverridesRejectsInvalidArgumentsBeforeReading(t *testing.T) {
 		want  string
 	}{
 		{"player key of another game", map[string]any{draftPlayerKeyArg: "453.p.1"}, `invalid player_key "453.p.1"`},
-		{"non-canonical player key", map[string]any{draftPlayerKeyArg: "465.p.01"}, "is not canonical"},
+		{"non-canonical player key", map[string]any{draftPlayerKeyArg: "465.p.01"}, "invalid Yahoo player key"},
 		{"player key not a string", map[string]any{draftPlayerKeyArg: float64(1)}, "invalid player_key 1: want a string"},
 		{"include_inactive not a boolean", map[string]any{draftIncludeInactiveArg: "maybe"}, `invalid include_inactive "maybe"`},
 		{"zero limit", map[string]any{draftOverridesLimitParam.name: float64(0)}, "invalid limit 0"},

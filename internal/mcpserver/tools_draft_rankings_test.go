@@ -2,7 +2,6 @@ package mcpserver
 
 import (
 	"errors"
-	"fmt"
 	"math"
 	"slices"
 	"strconv"
@@ -14,6 +13,7 @@ import (
 	"github.com/sperano/puckdb/internal/draft"
 	"github.com/sperano/puckdb/internal/draftrank"
 	"github.com/sperano/puckdb/internal/fixtures/draftfixtures"
+	"github.com/sperano/puckdb/internal/yahookey"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -365,7 +365,7 @@ func fullPoolRow(i int) draftrank.Row {
 	}
 	row := draftrank.Row{
 		Player: draftrank.Player{
-			PlayerKey: fmt.Sprintf(yahooDraftPlayerKeyFormat, fullPoolGameKey, fullPoolFirstID+i),
+			PlayerKey: (yahookey.PlayerKey{GameKey: fullPoolGameKey, PlayerID: fullPoolFirstID + i}).String(),
 			Name:      fullPoolNames[i%len(fullPoolNames)], Team: "TOR", EligiblePositions: positions,
 		},
 		Placement: draftrank.Placement{OverallRank: i + 1, Tier: 1 + i/100, Value: 12.3456 * scale, AdjustedValue: 11.789 * scale,

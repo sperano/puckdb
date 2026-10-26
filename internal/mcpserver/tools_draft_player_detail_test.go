@@ -165,11 +165,11 @@ func TestDraftPlayerDetailValidatesPlayerKeysBeforeRanking(t *testing.T) {
 		"non string":    {[]any{float64(1)}, "want a non-empty string"},
 		"wrong marker":  {[]any{"465.x.2"}, "invalid Yahoo player key"},
 		"foreign game":  {[]any{"464.p.2"}, "does not belong to game 465"},
-		"zero player":   {[]any{"465.p.0"}, "does not belong to game 465"},
+		"zero player":   {[]any{"465.p.0"}, "invalid Yahoo player key"},
 		"extra part":    {[]any{"465.p.2.extra"}, "invalid Yahoo player key"},
-		"padded game":   {[]any{"0465.p.2"}, "not canonical"},
-		"signed player": {[]any{"465.p.+2"}, "not canonical"},
-		"padded player": {[]any{"465.p.0002"}, "not canonical"},
+		"padded game":   {[]any{"0465.p.2"}, "invalid Yahoo player key"},
+		"signed player": {[]any{"465.p.+2"}, "invalid Yahoo player key"},
+		"padded player": {[]any{"465.p.0002"}, "invalid Yahoo player key"},
 		"above maximum": {repeatPlayerKeys(maxDraftPlayerDetailPlayers + 1), "want 1 to 10 player keys"},
 	}
 	for name, test := range tests {

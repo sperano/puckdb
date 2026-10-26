@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/sperano/puckdb/internal/store"
+	"github.com/sperano/puckdb/internal/yahookey"
 )
 
 // Source says where a rules snapshot's settings came from.
@@ -46,9 +47,6 @@ const (
 	yahooSortOrderHigher = "1"
 	yahooSortOrderLower  = "0"
 )
-
-// leagueKeySeparator splits "<game_key>.l.<league_id>".
-const leagueKeySeparator = ".l."
 
 // Settings that are URLs or chat handles, not rules; they are left out of
 // the rules so they cannot create new rule versions.
@@ -158,15 +156,11 @@ func FromLeague(league store.League) Rules {
 // GameKeyOf returns the Yahoo game key of a "<game_key>.l.<league_id>"
 // league key, or 0 when the key has no numeric game key (a stand-in).
 func GameKeyOf(leagueKey string) int {
-	prefix, _, found := strings.Cut(leagueKey, leagueKeySeparator)
-	if !found {
-		return 0
-	}
-	gameKey, err := strconv.Atoi(prefix)
+	key, err := yahookey.ParseLeagueKey(leagueKey)
 	if err != nil {
 		return 0
 	}
-	return gameKey
+	return key.GameKey
 }
 
 // Hash returns the rules' canonical JSON and its SHA-256, which identifies

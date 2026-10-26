@@ -13,6 +13,7 @@ import (
 
 	"github.com/sperano/puckdb/internal/core"
 	"github.com/sperano/puckdb/internal/store"
+	"github.com/sperano/puckdb/internal/yahookey"
 )
 
 // YahooFantasyDayZone is the time zone whose calendar date labels a
@@ -65,7 +66,7 @@ func (l LeagueStandings) Path() string {
 }
 
 func (l LeagueStandings) URL() string {
-	return fmt.Sprintf("%s/league/%d.l.%d/standings", baseYahooAPIURL, l.GameKey, l.LeagueID)
+	return fmt.Sprintf("%s/league/%s/standings", baseYahooAPIURL, leagueKey(l.GameKey, l.LeagueID))
 }
 
 func (l LeagueStandings) Type() core.FileType { return core.YahooLeagueStandings }
@@ -131,10 +132,14 @@ func TeamStandingRecords(league store.League) ([]TeamStandingRecord, error) {
 	if teams.HasCount && teams.Count != len(teams.Slice) {
 		return nil, fmt.Errorf("standings list %d teams but count says %d", len(teams.Slice), teams.Count)
 	}
+	parsedLeague, err := yahookey.ParseLeagueKey(league.Key)
+	if err != nil {
+		return nil, fmt.Errorf("invalid league key %q", league.Key)
+	}
 	records := make([]TeamStandingRecord, 0, len(teams.Slice))
 	seen := make(map[int]struct{}, len(teams.Slice))
 	for i, team := range teams.Slice {
-		record, err := teamStandingRecord(league.Key, team)
+		record, err := teamStandingRecord(parsedLeague, team)
 		if err != nil {
 			return nil, fmt.Errorf("standings entry %d: %w", i+1, err)
 		}
@@ -150,11 +155,13 @@ func TeamStandingRecords(league store.League) ([]TeamStandingRecord, error) {
 // teamStandingRecord converts one team of the league whose key is leagueKey.
 // The team's key must be <league key>.t.<team ID>, so a row from another
 // league or game cannot pass under a validated league envelope.
-func teamStandingRecord(leagueKey string, team store.Team) (TeamStandingRecord, error) {
+func teamStandingRecord(leagueKey yahookey.LeagueKey, team store.Team) (TeamStandingRecord, error) {
 	if team.ID <= 0 {
 		return TeamStandingRecord{}, fmt.Errorf("team %q has no team_id", team.Key)
 	}
-	if want := yahooTeamKey(leagueKey, team.ID); team.Key != want {
+	want := (yahookey.TeamKey{League: leagueKey, TeamID: team.ID}).String()
+	parsed, err := yahookey.ParseTeamKey(team.Key)
+	if err != nil || parsed.League != leagueKey || parsed.TeamID != team.ID {
 		return TeamStandingRecord{}, fmt.Errorf("team %d has key %q, not %q", team.ID, team.Key, want)
 	}
 	if team.TeamStandings == nil {
@@ -211,11 +218,6 @@ func outcomeRecord(field string, totals *store.OutcomeTotals) (*OutcomeRecord, e
 		record.Percentage = &percentage
 	}
 	return record, nil
-}
-
-// yahooTeamKey is the key of team teamID of the league whose key is leagueKey.
-func yahooTeamKey(leagueKey string, teamID int) string {
-	return fmt.Sprintf("%s.t.%d", leagueKey, teamID)
 }
 
 // optionalCount converts a non-negative integer Yahoo may leave empty (0).

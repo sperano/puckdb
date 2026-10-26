@@ -3,24 +3,18 @@ package resource
 import (
 	"encoding/xml"
 	"fmt"
-	"strconv"
 	"strings"
 	"time"
 
 	"github.com/sperano/puckdb/internal/core"
 	"github.com/sperano/puckdb/internal/store"
+	"github.com/sperano/puckdb/internal/yahookey"
 )
 
 const (
 	baseYahooAPIURL    = "https://fantasysports.yahooapis.com/fantasy/v2"
 	baseYahooSportsURL = "https://sports.yahoo.com"
 	yahooNHLGameCode   = "nhl"
-	yahooLeagueKeyType = "l"
-
-	yahooLeagueKeyPartCount = 3
-	yahooLeagueKeyGamePart  = 0
-	yahooLeagueKeyTypePart  = 1
-	yahooLeagueKeyIDPart    = 2
 
 	// YahooPlayersDir is the directory containing Yahoo player HTML files.
 	YahooPlayersDir = "yahoo-players"
@@ -44,7 +38,7 @@ func (l League) Path() string {
 }
 
 func (l League) URL() string {
-	return fmt.Sprintf("%s/league/%d.l.%d/settings", baseYahooAPIURL, l.GameKey, l.LeagueID)
+	return fmt.Sprintf("%s/league/%s/settings", baseYahooAPIURL, leagueKey(l.GameKey, l.LeagueID))
 }
 
 func (l League) Type() core.FileType { return core.League }
@@ -77,32 +71,30 @@ func validateYahooLeagueIdentity(league store.League, season, leagueID, gameKey 
 	if !strings.EqualFold(league.GameCode, yahooNHLGameCode) {
 		return fmt.Errorf("response game code %q is not NHL", league.GameCode)
 	}
-	keyGame, keyLeague, err := parseYahooLeagueKey(league.Key)
+	key, err := yahookey.ParseLeagueKey(league.Key)
 	if err != nil {
-		return err
+		return fmt.Errorf("response league key %q is not <game-key>.l.<league-id>", league.Key)
 	}
-	if keyLeague != leagueID {
+	if key.LeagueID != leagueID {
 		return fmt.Errorf("response league key %q names league %d, requested league %d",
-			league.Key, keyLeague, leagueID)
+			league.Key, key.LeagueID, leagueID)
 	}
-	if gameKey > 0 && keyGame != gameKey {
+	if gameKey > 0 && key.GameKey != gameKey {
 		return fmt.Errorf("response league key %q uses game key %d, verified game key is %d",
-			league.Key, keyGame, gameKey)
+			league.Key, key.GameKey, gameKey)
 	}
 	return nil
 }
 
-func parseYahooLeagueKey(key string) (int, int, error) {
-	parts := strings.Split(key, ".")
-	if len(parts) != yahooLeagueKeyPartCount || parts[yahooLeagueKeyTypePart] != yahooLeagueKeyType {
-		return 0, 0, fmt.Errorf("response league key %q is not <game-key>.l.<league-id>", key)
-	}
-	gameKey, gameErr := strconv.Atoi(parts[yahooLeagueKeyGamePart])
-	leagueID, leagueErr := strconv.Atoi(parts[yahooLeagueKeyIDPart])
-	if gameErr != nil || leagueErr != nil || gameKey <= 0 || leagueID <= 0 {
-		return 0, 0, fmt.Errorf("response league key %q is not <game-key>.l.<league-id>", key)
-	}
-	return gameKey, leagueID, nil
+func leagueKey(gameKey, leagueID int) string {
+	return (yahookey.LeagueKey{GameKey: gameKey, LeagueID: leagueID}).String()
+}
+
+func teamKey(gameKey, leagueID, teamID int) string {
+	return (yahookey.TeamKey{
+		League: yahookey.LeagueKey{GameKey: gameKey, LeagueID: leagueID},
+		TeamID: teamID,
+	}).String()
 }
 
 // Team represents a Yahoo Fantasy team resource.
@@ -119,7 +111,7 @@ func (t Team) Path() string {
 }
 
 func (t Team) URL() string {
-	return fmt.Sprintf("%s/team/%d.l.%d.t.%d", baseYahooAPIURL, t.GameKey, t.LeagueID, t.TeamID)
+	return fmt.Sprintf("%s/team/%s", baseYahooAPIURL, teamKey(t.GameKey, t.LeagueID, t.TeamID))
 }
 
 func (t Team) Type() core.FileType { return core.Team }
@@ -147,8 +139,8 @@ func (r Roster) Path() string {
 }
 
 func (r Roster) URL() string {
-	return fmt.Sprintf("%s/team/%d.l.%d.t.%d/roster;date=%d-%02d-%02d/players",
-		baseYahooAPIURL, r.GameKey, r.LeagueID, r.TeamID,
+	return fmt.Sprintf("%s/team/%s/roster;date=%d-%02d-%02d/players",
+		baseYahooAPIURL, teamKey(r.GameKey, r.LeagueID, r.TeamID),
 		r.Date.Year(), r.Date.Month(), r.Date.Day())
 }
 
@@ -178,8 +170,8 @@ func (t TeamSummary) Path() string {
 }
 
 func (t TeamSummary) URL() string {
-	return fmt.Sprintf("%s/team/%d.l.%d.t.%d/stats;type=date;date=%d-%02d-%02d",
-		baseYahooAPIURL, t.GameKey, t.LeagueID, t.TeamID,
+	return fmt.Sprintf("%s/team/%s/stats;type=date;date=%d-%02d-%02d",
+		baseYahooAPIURL, teamKey(t.GameKey, t.LeagueID, t.TeamID),
 		t.Date.Year(), t.Date.Month(), t.Date.Day())
 }
 
@@ -305,7 +297,7 @@ func (t Transactions) Path() string {
 }
 
 func (t Transactions) URL() string {
-	return fmt.Sprintf("%s/league/%d.l.%d/transactions", baseYahooAPIURL, t.GameKey, t.LeagueID)
+	return fmt.Sprintf("%s/league/%s/transactions", baseYahooAPIURL, leagueKey(t.GameKey, t.LeagueID))
 }
 
 func (t Transactions) Type() core.FileType { return core.YahooTransactions }
@@ -330,7 +322,7 @@ func (d DraftResults) Path() string {
 }
 
 func (d DraftResults) URL() string {
-	return fmt.Sprintf("%s/league/%d.l.%d/draftresults", baseYahooAPIURL, d.GameKey, d.LeagueID)
+	return fmt.Sprintf("%s/league/%s/draftresults", baseYahooAPIURL, leagueKey(d.GameKey, d.LeagueID))
 }
 
 func (d DraftResults) Type() core.FileType { return core.YahooDraftResults }
@@ -356,8 +348,8 @@ func (m Matchups) Path() string {
 }
 
 func (m Matchups) URL() string {
-	return fmt.Sprintf("%s/league/%d.l.%d/scoreboard;week=%d",
-		baseYahooAPIURL, m.GameKey, m.LeagueID, m.Week)
+	return fmt.Sprintf("%s/league/%s/scoreboard;week=%d",
+		baseYahooAPIURL, leagueKey(m.GameKey, m.LeagueID), m.Week)
 }
 
 func (m Matchups) Type() core.FileType { return core.YahooMatchups }

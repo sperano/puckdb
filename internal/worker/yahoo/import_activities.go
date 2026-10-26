@@ -3,8 +3,6 @@ package yahoo
 import (
 	"context"
 	"fmt"
-	"strconv"
-	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
@@ -17,6 +15,7 @@ import (
 	"github.com/sperano/puckdb/internal/sqlcdb"
 	"github.com/sperano/puckdb/internal/store"
 	"github.com/sperano/puckdb/internal/worker/shared"
+	"github.com/sperano/puckdb/internal/yahookey"
 	"go.temporal.io/sdk/activity"
 )
 
@@ -418,21 +417,21 @@ func (a *ImportActivities) importYahooDraftResults(ctx context.Context, input Im
 // parseYahooTeamKey extracts the numeric team ID from a Yahoo team key.
 // Format: "gamekey.l.leagueid.t.teamid" (e.g., "423.l.12345.t.1" → 1)
 func parseYahooTeamKey(key string) (int, error) {
-	parts := strings.Split(key, ".t.")
-	if len(parts) != 2 {
-		return 0, fmt.Errorf("invalid team key: %s", key)
+	parsed, err := yahookey.ParseTeamKey(key)
+	if err != nil {
+		return 0, fmt.Errorf("invalid team key %q: %w", key, err)
 	}
-	return strconv.Atoi(parts[1])
+	return parsed.TeamID, nil
 }
 
 // parseYahooPlayerKey extracts the numeric player ID from a Yahoo player key.
 // Format: "gamekey.p.playerid" (e.g., "423.p.6616" → 6616)
 func parseYahooPlayerKey(key string) (int, error) {
-	parts := strings.Split(key, ".p.")
-	if len(parts) != 2 {
-		return 0, fmt.Errorf("invalid player key: %s", key)
+	parsed, err := yahookey.ParsePlayerKey(key)
+	if err != nil {
+		return 0, fmt.Errorf("invalid player key %q: %w", key, err)
 	}
-	return strconv.Atoi(parts[1])
+	return parsed.PlayerID, nil
 }
 
 // importYahooMatchups reads cached matchup data for all weeks and upserts to the database.

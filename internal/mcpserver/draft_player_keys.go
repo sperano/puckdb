@@ -8,11 +8,11 @@ import (
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/sperano/puckdb/internal/draft"
 	"github.com/sperano/puckdb/internal/draftwatch"
+	"github.com/sperano/puckdb/internal/yahookey"
 )
 
 const (
 	standInDraftPlayerKeyPrefix = "nhl.p."
-	yahooDraftPlayerKeyFormat   = "%d.p.%d"
 	draftPlayerKeyIDBitSize     = 64
 )
 
@@ -54,7 +54,7 @@ func validateDraftPlayerKey(playerKey, leagueKey string) error {
 		if err != nil {
 			return err
 		}
-		canonical := fmt.Sprintf(yahooDraftPlayerKeyFormat, gameKey, playerID)
+		canonical := (yahookey.PlayerKey{GameKey: gameKey, PlayerID: playerID}).String()
 		if playerKey != canonical {
 			return fmt.Errorf("yahoo player key %q is not canonical; use %q", playerKey, canonical)
 		}
