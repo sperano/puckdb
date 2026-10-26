@@ -66,7 +66,7 @@ func FetchEdgeSeasonsWorkflow(ctx workflow.Context, input *model.SeasonsInput) e
 	// With an explicit season range the operator scoped the refresh
 	// deliberately, so the flag applies to every season in it. Without a
 	// range it applies to the latest season only — the one still accruing
-	// data. This intentionally avoids IsCurrentSeason: nhl.Current() rolls
+	// data. This intentionally avoids a calendar gate: nhl.Current() rolls
 	// over on July 1, which made the flag a silent no-op for a season whose
 	// playoffs had just ended.
 	refreshFlag := input.RefreshCurrentEdge != nil && *input.RefreshCurrentEdge

@@ -158,25 +158,6 @@ func TestSetBarTotal(t *testing.T) {
 	assert.Equal(t, 7, report.Groups[0].Bars[1].Total)
 }
 
-func TestSetBarLabel(t *testing.T) {
-	t.Parallel()
-
-	report := &ProgressReport{
-		Groups: []ProgressGroup{
-			{
-				Bars: []ProgressBar{
-					{Label: "original", Total: 10},
-				},
-			},
-		},
-	}
-	tracker := &ReportTracker{report: report}
-
-	tracker.SetBarLabel(BarRef{Group: 0}, "updated label")
-
-	assert.Equal(t, "updated label", report.Groups[0].Bars[0].Label)
-}
-
 const (
 	concurrentSaveCoroutines = 2
 	concurrentSaveRounds     = 3

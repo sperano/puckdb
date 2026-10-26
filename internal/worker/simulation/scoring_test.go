@@ -29,8 +29,8 @@ func assertConservation(t *testing.T, n int, rankings []CategoryRanking) {
 
 // pointsByID returns a map from agentID → RotoPoints for ergonomic
 // out-of-order lookup in assertions.
-func pointsByID(rankings []CategoryRanking) map[int64]CategoryRanking {
-	m := make(map[int64]CategoryRanking, len(rankings))
+func pointsByID(rankings []CategoryRanking) map[int32]CategoryRanking {
+	m := make(map[int32]CategoryRanking, len(rankings))
 	for _, r := range rankings {
 		m[r.AgentID] = r
 	}
@@ -276,9 +276,9 @@ func TestRankCategory_PreservesInputOrder(t *testing.T) {
 	}
 	got := RankCategory(stats, false)
 	require.Len(t, got, 3)
-	assert.Equal(t, int64(100), got[0].AgentID)
-	assert.Equal(t, int64(200), got[1].AgentID)
-	assert.Equal(t, int64(300), got[2].AgentID)
+	assert.Equal(t, int32(100), got[0].AgentID)
+	assert.Equal(t, int32(200), got[1].AgentID)
+	assert.Equal(t, int32(300), got[2].AgentID)
 }
 
 func TestCategory_IsLowerBetter(t *testing.T) {
@@ -352,14 +352,22 @@ func TestAgentRotoTotals_SumsAcrossCategoriesAndSortsDescending(t *testing.T) {
 	require.Len(t, totals, 5)
 
 	// Sorted by total descending; ties broken by AgentID ascending.
-	assert.Equal(t, int64(1), totals[0].AgentID, "agent 1 wins the 7-point tie by lower ID")
+	assert.Equal(t, int32(1), totals[0].AgentID, "agent 1 wins the 7-point tie by lower ID")
 	assert.Equal(t, 7.0, totals[0].TotalRotoPoints)
-	assert.Equal(t, int64(2), totals[1].AgentID)
+	assert.Equal(t, int32(2), totals[1].AgentID)
 	assert.Equal(t, 7.0, totals[1].TotalRotoPoints)
-	assert.Equal(t, int64(3), totals[2].AgentID, "agent 3 wins the 6-point tie by lower ID")
+	assert.Equal(t, int32(3), totals[2].AgentID, "agent 3 wins the 6-point tie by lower ID")
 	assert.Equal(t, 6.0, totals[2].TotalRotoPoints)
-	assert.Equal(t, int64(5), totals[3].AgentID)
+	assert.Equal(t, int32(5), totals[3].AgentID)
 	assert.Equal(t, 6.0, totals[3].TotalRotoPoints)
-	assert.Equal(t, int64(4), totals[4].AgentID)
+	assert.Equal(t, int32(4), totals[4].AgentID)
 	assert.Equal(t, 4.0, totals[4].TotalRotoPoints)
+}
+
+// goalsAgainstAverage: zero TOI yields 0 (no games), otherwise GA/TOI*3600.
+func TestGoalsAgainstAverage(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, 0.0, goalsAgainstAverage(3, 0))
+	assert.InDelta(t, 6.0, goalsAgainstAverage(2, 1200), 0.0001)
+	assert.InDelta(t, 0.0, goalsAgainstAverage(0, 3600), 0.0001)
 }

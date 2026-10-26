@@ -78,7 +78,7 @@ func TestTotalFromBars_Empty(t *testing.T) {
 	assert.Equal(t, 0, tracker.totalFromBars())
 }
 
-// --- SetBarTotal and SetBarLabel (already partially tested, extend for multi-group) ---
+// --- SetBarTotal (already partially tested, extend for multi-group) ---
 
 func TestSetBarTotal_MultiGroup(t *testing.T) {
 	t.Parallel()

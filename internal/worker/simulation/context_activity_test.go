@@ -38,10 +38,24 @@ type rosterContextQueriesFake struct {
 	listPlayersOnWaiversReturn []sqlcdb.ListSimPlayersOnWaiversRow
 	listPlayersOnWaiversErr    error
 
+	// ListSimFreeAgentSkaterStats / ListSimFreeAgentGoalieStats
+	listFreeAgentSkaterStatsArgs   []sqlcdb.ListSimFreeAgentSkaterStatsParams
+	listFreeAgentSkaterStatsReturn []sqlcdb.ListSimFreeAgentSkaterStatsRow
+	listFreeAgentSkaterStatsErr    error
+	listFreeAgentGoalieStatsArgs   []sqlcdb.ListSimFreeAgentGoalieStatsParams
+	listFreeAgentGoalieStatsReturn []sqlcdb.ListSimFreeAgentGoalieStatsRow
+	listFreeAgentGoalieStatsErr    error
+
 	// ListSimWaiverClaimsPendingByAgent — agent_id → pending claims.
 	listPendingByAgentArgs []sqlcdb.ListSimWaiverClaimsPendingByAgentParams
 	listPendingByAgentRows map[int32][]sqlcdb.SimWaiverClaim
 	listPendingByAgentErr  error
+
+	// ListSimRosterByPool — pool-wide roster used to drop free agents
+	// another agent rostered after BuildFreeAgentPool snapshotted the pool.
+	listRosterByPoolArgs   []int32
+	listRosterByPoolReturn []sqlcdb.SimRoster
+	listRosterByPoolErr    error
 }
 
 var _ rosterContextQueries = (*rosterContextQueriesFake)(nil)
@@ -72,12 +86,36 @@ func (s *rosterContextQueriesFake) ListSimPlayersOnWaivers(_ context.Context, ar
 	return s.listPlayersOnWaiversReturn, nil
 }
 
+func (s *rosterContextQueriesFake) ListSimFreeAgentSkaterStats(_ context.Context, arg sqlcdb.ListSimFreeAgentSkaterStatsParams) ([]sqlcdb.ListSimFreeAgentSkaterStatsRow, error) {
+	s.listFreeAgentSkaterStatsArgs = append(s.listFreeAgentSkaterStatsArgs, arg)
+	if s.listFreeAgentSkaterStatsErr != nil {
+		return nil, s.listFreeAgentSkaterStatsErr
+	}
+	return s.listFreeAgentSkaterStatsReturn, nil
+}
+
+func (s *rosterContextQueriesFake) ListSimFreeAgentGoalieStats(_ context.Context, arg sqlcdb.ListSimFreeAgentGoalieStatsParams) ([]sqlcdb.ListSimFreeAgentGoalieStatsRow, error) {
+	s.listFreeAgentGoalieStatsArgs = append(s.listFreeAgentGoalieStatsArgs, arg)
+	if s.listFreeAgentGoalieStatsErr != nil {
+		return nil, s.listFreeAgentGoalieStatsErr
+	}
+	return s.listFreeAgentGoalieStatsReturn, nil
+}
+
 func (s *rosterContextQueriesFake) ListSimWaiverClaimsPendingByAgent(_ context.Context, arg sqlcdb.ListSimWaiverClaimsPendingByAgentParams) ([]sqlcdb.SimWaiverClaim, error) {
 	s.listPendingByAgentArgs = append(s.listPendingByAgentArgs, arg)
 	if s.listPendingByAgentErr != nil {
 		return nil, s.listPendingByAgentErr
 	}
 	return s.listPendingByAgentRows[arg.AgentID], nil
+}
+
+func (s *rosterContextQueriesFake) ListSimRosterByPool(_ context.Context, poolID int32) ([]sqlcdb.SimRoster, error) {
+	s.listRosterByPoolArgs = append(s.listRosterByPoolArgs, poolID)
+	if s.listRosterByPoolErr != nil {
+		return nil, s.listRosterByPoolErr
+	}
+	return s.listRosterByPoolReturn, nil
 }
 
 // TestLoadRosterAndPositionsRendersPlayerColumns pins the prompt's roster

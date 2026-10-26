@@ -13,6 +13,14 @@ package simulation
 // This file builds under EITHER tag so both layers share one TestMain,
 // one seeding vocabulary, and one worker-bootstrap path.
 //
+// The build tag and PUCKDB_TEST_PG_URL are intentionally separate gates.
+// TestMain migrates the named database down before and after the suite, and
+// workflow cases also require Redis plus Temporal. The tag prevents that
+// destructive, multi-service harness from joining an ordinary `go test ./...`;
+// the environment variable confirms that the selected database is disposable.
+// Untagged replay coverage belongs in workflow_replay_test.go because it needs
+// neither PostgreSQL nor Redis and can start its own Temporal dev server.
+//
 // Required environment variables:
 //
 //   PUCKDB_TEST_PG_URL   Postgres connection URL for the integration
@@ -214,20 +222,8 @@ func setupWorkerWithActivities(t *testing.T, tc client.Client, pgPool *pgxpool.P
 	progressActs := &shared.ProgressActivities{RedisClient: redisClient}
 
 	w := worker.New(tc, "puckdb-tasks", worker.Options{})
-	w.RegisterWorkflow(SimPoolWorkflow)
-	w.RegisterActivity(acts.LoadPoolState)
-	w.RegisterActivity(acts.LoadDraftCandidates)
-	w.RegisterActivity(acts.RecordDraftOrder)
-	w.RegisterActivity(acts.PickTeamName)
-	w.RegisterActivity(acts.DraftPick)
-	w.RegisterActivity(acts.ProcessWaivers)
-	w.RegisterActivity(acts.BuildFreeAgentPool)
-	w.RegisterActivity(acts.BuildManageRosterContext)
-	w.RegisterActivity(acts.ManageRoster)
-	w.RegisterActivity(acts.CollectDayStats)
-	w.RegisterActivity(acts.UpdateStandings)
-	w.RegisterActivity(acts.SetPoolStatus)
-	w.RegisterActivity(acts.RecordDayDuration)
+	RegisterSimPoolWorkflow(w)
+	RegisterActivities(w, acts)
 	w.RegisterActivity(progressActs.Save)
 	w.RegisterActivity(progressActs.Load)
 	w.RegisterActivity(progressActs.DeleteBatch)
@@ -246,7 +242,7 @@ func runWorkflowToCompletion(t *testing.T, ctx context.Context, tc client.Client
 	wfID := WorkflowIDForPool(poolID)
 	run, err := tc.ExecuteWorkflow(ctx,
 		client.StartWorkflowOptions{ID: wfID, TaskQueue: "puckdb-tasks"},
-		SimPoolWorkflow,
+		SimPoolWorkflowName,
 		SimPoolWorkflowInput{PoolID: poolID},
 	)
 	require.NoError(t, err)

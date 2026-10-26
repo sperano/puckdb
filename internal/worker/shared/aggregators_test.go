@@ -106,41 +106,6 @@ func TestCollectSlicesInto(t *testing.T) {
 	assert.Equal(t, []string{"a", "b", "c", "d", "e", "f"}, result)
 }
 
-func TestCollectInto(t *testing.T) {
-	t.Parallel()
-
-	var suite testsuite.WorkflowTestSuite
-	env := suite.NewTestWorkflowEnvironment()
-
-	testWorkflow := func(ctx workflow.Context) ([]int, error) {
-		ctx = workflow.WithActivityOptions(ctx, workflow.ActivityOptions{
-			StartToCloseTimeout: time.Second,
-		})
-
-		var collected []int
-		handler := CollectInto(&collected)
-
-		for _, val := range []int{1, 2, 3} {
-			future := workflow.ExecuteActivity(ctx, returnInt, val)
-			if err := handler(ctx, 0, future); err != nil {
-				return nil, err
-			}
-		}
-		return collected, nil
-	}
-
-	env.RegisterWorkflow(testWorkflow)
-	env.RegisterActivity(returnInt)
-	env.ExecuteWorkflow(testWorkflow)
-
-	require.True(t, env.IsWorkflowCompleted())
-	require.NoError(t, env.GetWorkflowError())
-
-	var result []int
-	require.NoError(t, env.GetWorkflowResult(&result))
-	assert.Equal(t, []int{1, 2, 3}, result)
-}
-
 func failingActivity(_ context.Context) (int, error) {
 	return 0, assert.AnError
 }

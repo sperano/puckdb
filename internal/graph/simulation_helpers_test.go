@@ -131,9 +131,13 @@ func TestCreateSimPoolStartsTheStoredWorkflowID(t *testing.T) {
 		VALUES ($1, DATE '2024-10-04', DATE '2025-04-17')`, helperFixtureSeason)
 
 	var started client.StartWorkflowOptions
+	var startedWorkflow any
 	mc := &MockTemporalClient{}
 	mc.On("ExecuteWorkflow", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
-		Run(func(args mock.Arguments) { started = args.Get(1).(client.StartWorkflowOptions) }).
+		Run(func(args mock.Arguments) {
+			started = args.Get(1).(client.StartWorkflowOptions)
+			startedWorkflow = args.Get(2)
+		}).
 		Return(&MockWorkflowRun{}, nil)
 	r := &Resolver{DB: pool, Queries: sqlcdb.New(pool), TemporalClient: mc}
 
@@ -149,4 +153,5 @@ func TestCreateSimPoolStartsTheStoredWorkflowID(t *testing.T) {
 		`SELECT workflow_id FROM sim_pools WHERE id = $1`, created.ID).Scan(&stored))
 	assert.Equal(t, stored, started.ID)
 	assert.Equal(t, simulation.WorkflowIDForPool(int32(created.ID)), started.ID)
+	assert.Equal(t, simulation.SimPoolWorkflowName, startedWorkflow)
 }

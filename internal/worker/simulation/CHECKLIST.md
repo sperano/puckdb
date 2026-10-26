@@ -289,9 +289,10 @@ Tests (`cmd/sim_test.go`, ~25 sub-cases):
 Items called out as deferred during V1 implementation. Each is non-blocking — V1 ships without them and the simulation works end-to-end — but each has a real cost (incomplete prompt context, N+1 query patterns, missing dashboard fields) that becomes visible once a sim has been running for a few days.
 
 ### Prompt context (BuildManageRosterContextActivity)
-The activity currently leaves three rich blocks empty. The LLM still works without them, but each removal lowers decision quality.
+The activity now populates the load-bearing blocks plus the ranked free-agent and waiver lists; the remaining empty blocks lower decision quality but are not load-bearing.
 - [ ] **TodaysSchedule** — list of regular-season games on `sim_date` with home/away GF/GA averages. Needs `ListSimDayGames` + `GetTeamGoalsPerGame` + a season-team-name lookup (join `season_teams` for the abbrev). The agent uses this to decide whether to start a goalie facing a weak offense.
-- [ ] **TopFreeAgents** — half-done already. `RankFreeAgentSkaters` / `RankFreeAgentGoalies` exist as pure functions (Phase 2.1, CHECKLIST line 96) but aren't called from the context builder. The remaining work is: query last-7-day stats for the FA-pool players (or season totals as a coarser proxy), build `[]FreeAgentSkaterCandidate` / `[]FreeAgentGoalieCandidate`, run them through the existing rankers. **The hard part (ranking) is done; only the wire-through is missing.**
+- [x] **TopFreeAgents** — wired through (SIM-U3). `loadTopFreeAgents` partitions the FA pool into skaters/goalies, batches last-7-day + season-to-date stats via `ListSimFreeAgentSkaterStats` / `ListSimFreeAgentGoalieStats`, then runs the existing `RankFreeAgentSkaters` / `RankFreeAgentGoalies`. Each row carries the player id `add_player` validates against. F / NULL-position players are dropped (not slottable). The row's `team` / `plays_today` / `games_next_7_days` display fields remain empty until the team-abbrev and schedule follow-ups below land.
+- [x] **OnWaivers** — wired through (SIM-U3). `loadOnWaivers` now also renders the daily prompt's `on_waivers` block (player, id, position, clears_on) so `claim_player` has real ids to target, in addition to the working-state id list.
 - [ ] **DailyAnalysis** — strong/weak categories, bench-vs-active mismatches, open-spot count. The LLM can derive these itself from standings + roster, but pre-computing saves ~50 prompt tokens per turn. Not load-bearing.
 
 ### Per-player roster stats (RosterRow)

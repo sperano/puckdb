@@ -39,7 +39,7 @@ func (c Category) IsLowerBetter() bool {
 // an agent with GoalieTOISeconds == 0 receives the worst rank in that category
 // per PLAN.md "Rate stats" (no goalie minutes ever accrued, so GAA is undefined).
 type AgentCategoryStat struct {
-	AgentID          int64
+	AgentID          int32
 	Value            float64
 	GoalieGA         int
 	GoalieTOISeconds int
@@ -52,7 +52,7 @@ type AgentCategoryStat struct {
 // RotoPoints is fractional under ties (e.g. 2.5 for a 2-way tie at 3rd
 // in a 5-team pool).
 type CategoryRanking struct {
-	AgentID    int64
+	AgentID    int32
 	Value      float64
 	Rank       int
 	RotoPoints float64
@@ -60,7 +60,7 @@ type CategoryRanking struct {
 
 // AgentRotoTotal is one agent's roto total summed across every category.
 type AgentRotoTotal struct {
-	AgentID         int64
+	AgentID         int32
 	TotalRotoPoints float64
 }
 
@@ -128,8 +128,21 @@ func RankCategory(stats []AgentCategoryStat, lowerIsBetter bool) []CategoryRanki
 	return out
 }
 
+// secondsPerHour converts TOI seconds to the per-60-minutes basis every
+// rate stat (GAA) is expressed in.
+const secondsPerHour = 3600
+
+// goalsAgainstAverage returns GAA = GA / TOI * 3600, or 0 when the
+// goalie has no recorded ice time (no games in the window).
+func goalsAgainstAverage(ga, toiSeconds int) float64 {
+	if toiSeconds <= 0 {
+		return 0
+	}
+	return float64(ga) / float64(toiSeconds) * secondsPerHour
+}
+
 // RankGAA ranks agents in the GAA category. The displayed GAA is derived
-// from cumulative components: GAA = (GoalieGA / GoalieTOISeconds) * 3600.
+// from cumulative components via goalsAgainstAverage.
 //
 // Agents with GoalieTOISeconds == 0 are forced to the worst sorted position
 // regardless of value (PLAN.md "Rate stats"); their reported Value is 0
@@ -151,7 +164,7 @@ func RankGAA(stats []AgentCategoryStat) []CategoryRanking {
 			// Replaced with 0 in the output below.
 			derived[i].Value = math.Inf(1)
 		} else {
-			derived[i].Value = float64(s.GoalieGA) / float64(s.GoalieTOISeconds) * 3600.0
+			derived[i].Value = goalsAgainstAverage(s.GoalieGA, s.GoalieTOISeconds)
 		}
 	}
 	rankings := RankCategory(derived, true)
@@ -181,7 +194,7 @@ func RankAllCategories(cats []CategoryStats) map[Category][]CategoryRanking {
 // AgentRotoTotals sums each agent's roto points across all category rankings,
 // returning rows sorted by total descending (AgentID ascending breaks ties).
 func AgentRotoTotals(rankings map[Category][]CategoryRanking) []AgentRotoTotal {
-	totals := make(map[int64]float64)
+	totals := make(map[int32]float64)
 	for _, rows := range rankings {
 		for _, r := range rows {
 			totals[r.AgentID] += r.RotoPoints

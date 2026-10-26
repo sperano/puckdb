@@ -3,6 +3,7 @@ package simulation
 import (
 	"fmt"
 	"math/rand"
+	"slices"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
@@ -260,9 +261,8 @@ type simState struct {
 // quantities (TotalDays).
 func loadSimState(ctx workflow.Context, in SimPoolWorkflowInput) (simState, error) {
 	ctx = workflow.WithActivityOptions(ctx, defaultActivityOptions())
-	var acts *Activities
 	var res LoadPoolStateResult
-	if err := workflow.ExecuteActivity(ctx, acts.LoadPoolState, LoadPoolStateInput{PoolID: in.PoolID}).Get(ctx, &res); err != nil {
+	if err := workflow.ExecuteActivity(ctx, activityNameLoadPoolState, LoadPoolStateInput{PoolID: in.PoolID}).Get(ctx, &res); err != nil {
 		return simState{}, err
 	}
 	totalDays := 0
@@ -398,10 +398,9 @@ func registerQueryHandlers(ctx workflow.Context, state *simState, in *SimPoolWor
 // completion order as the original run (Temporal records it).
 func runTeamNamePhase(ctx workflow.Context, state *simState) error {
 	ctx = workflow.WithActivityOptions(ctx, llmActivityOptions())
-	var acts *Activities
 	futures := make([]workflow.Future, len(state.AgentIDs))
 	for i, agentID := range state.AgentIDs {
-		futures[i] = workflow.ExecuteActivity(ctx, acts.PickTeamName, PickTeamNameInput{
+		futures[i] = workflow.ExecuteActivity(ctx, activityNamePickTeamName, PickTeamNameInput{
 			PoolID:      state.PoolID,
 			AgentID:     agentID,
 			AgentConfig: state.Agents[i],
@@ -448,9 +447,8 @@ func runDraftPhase(
 	}
 	// Persist the shuffled order to sim_agents.draft_position so the
 	// API/CLI can show "currently picking" without querying the workflow.
-	var actsForOrder *Activities
 	recordCtx := workflow.WithActivityOptions(ctx, defaultActivityOptions())
-	if err := workflow.ExecuteActivity(recordCtx, actsForOrder.RecordDraftOrder, RecordDraftOrderInput{AgentIDs: round1}).Get(ctx, nil); err != nil {
+	if err := workflow.ExecuteActivity(recordCtx, activityNameRecordDraftOrder, RecordDraftOrderInput{AgentIDs: round1}).Get(ctx, nil); err != nil {
 		return false, fmt.Errorf("record draft order: %w", err)
 	}
 
@@ -475,14 +473,9 @@ func runDraftPhase(
 	pickNumber := 0
 
 	// Snake order built from round1 ordering.
-	round1Int64 := make([]int64, len(round1))
-	for i, id := range round1 {
-		round1Int64[i] = int64(id)
-	}
-	pickOrder := SnakeDraftOrder(round1Int64, rounds)
+	pickOrder := SnakeDraftOrder(round1, rounds)
 
-	var acts *Activities
-	for _, agentID64 := range pickOrder {
+	for _, agentID := range pickOrder {
 		if err := ctx.Err(); err != nil {
 			return false, err
 		}
@@ -490,13 +483,11 @@ func runDraftPhase(
 		pickNumber++
 		round := ((pickNumber - 1) / state.PoolConfig.NumTeams) + 1
 		pick := ((pickNumber - 1) % state.PoolConfig.NumTeams) + 1
-		agentID := int32(agentID64)
-
 		input := assembleDraftPickInput(*state, agentID, int32(round), int32(pick), candidates, taken, picksByAgent[agentID], notesByAgent[agentID], candidateByID)
 		ctx2 := workflow.WithActivityOptions(ctx, llmActivityOptions())
 		var res DraftPickResult
-		if err := workflow.ExecuteActivity(ctx2, acts.DraftPick, input).Get(ctx, &res); err != nil {
-			return false, fmt.Errorf("draft pick %d (agent %d): %w", pickNumber, agentID64, err)
+		if err := workflow.ExecuteActivity(ctx2, activityNameDraftPick, input).Get(ctx, &res); err != nil {
+			return false, fmt.Errorf("draft pick %d (agent %d): %w", pickNumber, agentID, err)
 		}
 		if res.PlayerID > 0 {
 			taken[res.PlayerID] = struct{}{}
@@ -529,9 +520,8 @@ func runDraftPhase(
 // gap.
 func loadDraftCandidates(ctx workflow.Context, state simState) (LoadDraftCandidatesResult, error) {
 	ctx = workflow.WithActivityOptions(ctx, defaultActivityOptions())
-	var acts *Activities
 	var res LoadDraftCandidatesResult
-	if err := workflow.ExecuteActivity(ctx, acts.LoadDraftCandidates, LoadDraftCandidatesInput{
+	if err := workflow.ExecuteActivity(ctx, activityNameLoadDraftCandidates, LoadDraftCandidatesInput{
 		Season: int32(state.PoolConfig.Season),
 	}).Get(ctx, &res); err != nil {
 		return LoadDraftCandidatesResult{}, err
@@ -545,20 +535,10 @@ func loadDraftCandidates(ctx workflow.Context, state simState) (LoadDraftCandida
 func buildCandidateLookup(candidates LoadDraftCandidatesResult) map[int64]DraftablePlayer {
 	out := make(map[int64]DraftablePlayer, len(candidates.Skaters)+len(candidates.Goalies))
 	for _, s := range candidates.Skaters {
-		out[s.PlayerID] = DraftablePlayer{
-			Player:     s.Name,
-			ID:         s.PlayerID,
-			Position:   s.Position,
-			LastSeason: SkaterStats{G: s.PriorG, A: s.PriorA},
-		}
+		out[s.PlayerID] = s.draftable()
 	}
 	for _, g := range candidates.Goalies {
-		out[g.PlayerID] = DraftablePlayer{
-			Player:     g.Name,
-			ID:         g.PlayerID,
-			Position:   "G",
-			LastSeason: GoalieStats{W: g.PriorW, GA: g.PriorGA},
-		}
+		out[g.PlayerID] = g.draftable()
 	}
 	return out
 }
@@ -593,10 +573,7 @@ func assembleDraftPickInput(
 	for id := range taken {
 		takenSlice = append(takenSlice, id)
 	}
-
-	// Locate AgentConfig for this agent_id via the precomputed lookup
-	// (built once in loadSimState) rather than scanning AgentIDs.
-	agentCfg := state.AgentConfigByID[agentID]
+	slices.Sort(takenSlice)
 
 	byPosition, bestAvailable := SelectAvailableByPosition(candidates.Skaters, candidates.Goalies, taken)
 	yourRoster := make([]DraftRosterRow, 0, len(agentPicks))
@@ -617,13 +594,9 @@ func assembleDraftPickInput(
 	}
 
 	return DraftPickInput{
-		PoolID:      state.PoolID,
-		AgentID:     agentID,
-		Round:       round,
-		Pick:        pick,
-		SimDate:     state.SeasonStartDate,
-		PoolConfig:  state.PoolConfig,
-		AgentConfig: agentCfg,
+		TurnScope: state.turnScope(agentID, state.SeasonStartDate),
+		Round:     round,
+		Pick:      pick,
 		DraftPrompt: DraftPromptInput{
 			DraftInfo: DraftInfo{
 				Round:          int(round),
@@ -721,8 +694,7 @@ func runSeasonPhase(
 		// ctx.Err() immediately after and stop before mutating one more
 		// day of state (simDate/DayCount/progress bar).
 		recordCtx := workflow.WithActivityOptions(ctx, defaultActivityOptions())
-		var telemActs *Activities
-		_ = workflow.ExecuteActivity(recordCtx, telemActs.RecordDayDuration, RecordDayDurationInput{
+		_ = workflow.ExecuteActivity(recordCtx, activityNameRecordDayDuration, RecordDayDurationInput{
 			PoolID:          in.PoolID,
 			DurationSeconds: dayDuration.Seconds(),
 		}).Get(ctx, nil)
@@ -731,7 +703,7 @@ func runSeasonPhase(
 			return false, err
 		}
 
-		in.SimDate = addOneDay(in.SimDate)
+		in.SimDate = addDays(in.SimDate, 1)
 		in.DayCount++
 		tracker.IncrementBar(ctx, shared.BarRef{Group: 1})
 
@@ -754,7 +726,7 @@ func runSeasonPhase(
 				DayCount: 0,
 			}
 			logger.Info("Phase 2 ContinueAsNew", "sim_date", next.SimDate.Time)
-			return false, workflow.NewContinueAsNewError(ctx, SimPoolWorkflow, next)
+			return false, workflow.NewContinueAsNewError(ctx, SimPoolWorkflowName, next)
 		}
 	}
 }
@@ -791,11 +763,10 @@ func processOneDay(
 	state *simState,
 	simDate pgtype.Date,
 ) (bool, error) {
-	var acts *Activities
 	dbCtx := workflow.WithActivityOptions(ctx, defaultActivityOptions())
 	llmCtx := workflow.WithActivityOptions(ctx, llmActivityOptions())
 
-	if err := workflow.ExecuteActivity(dbCtx, acts.ProcessWaivers, ProcessWaiversInput{
+	if err := workflow.ExecuteActivity(dbCtx, activityNameProcessWaivers, ProcessWaiversInput{
 		PoolID:  state.PoolID,
 		SimDate: simDate,
 	}).Get(ctx, nil); err != nil {
@@ -803,7 +774,7 @@ func processOneDay(
 	}
 
 	var faRes BuildFreeAgentPoolResult
-	if err := workflow.ExecuteActivity(dbCtx, acts.BuildFreeAgentPool, BuildFreeAgentPoolInput{
+	if err := workflow.ExecuteActivity(dbCtx, activityNameBuildFreeAgentPool, BuildFreeAgentPoolInput{
 		PoolID:     state.PoolID,
 		Season:     int32(state.PoolConfig.Season),
 		SimDate:    simDate,
@@ -821,20 +792,15 @@ func processOneDay(
 	}
 
 	for _, agentID := range order {
-		agentCfg := state.AgentConfigByID[agentID]
 		var input ManageRosterInput
-		if err := workflow.ExecuteActivity(dbCtx, acts.BuildManageRosterContext, BuildManageRosterContextInput{
-			PoolID:      state.PoolID,
-			AgentID:     agentID,
-			SimDate:     simDate,
-			PoolConfig:  state.PoolConfig,
-			AgentConfig: agentCfg,
-			FreeAgents:  faRes.PlayerIDs,
+		if err := workflow.ExecuteActivity(dbCtx, activityNameBuildManageRosterContext, BuildManageRosterContextInput{
+			TurnScope:  state.turnScope(agentID, simDate),
+			FreeAgents: faRes.PlayerIDs,
 		}).Get(ctx, &input); err != nil {
 			return false, fmt.Errorf("build daily context (agent %d): %w", agentID, err)
 		}
 		var res ManageRosterResult
-		if err := workflow.ExecuteActivity(llmCtx, acts.ManageRoster, input).Get(ctx, &res); err != nil {
+		if err := workflow.ExecuteActivity(llmCtx, activityNameManageRoster, input).Get(ctx, &res); err != nil {
 			return false, fmt.Errorf("manage roster (agent %d): %w", agentID, err)
 		}
 		state.TotalLLMCostUsd += res.CostUsd
@@ -857,7 +823,7 @@ func processOneDay(
 	// per-agent loop. Avoid both by leaning on CollectDayStats's
 	// SkipReasonNoGames result.
 	var collectRes CollectDayStatsResult
-	if err := workflow.ExecuteActivity(dbCtx, acts.CollectDayStats, CollectDayStatsInput{
+	if err := workflow.ExecuteActivity(dbCtx, activityNameCollectDayStats, CollectDayStatsInput{
 		PoolID:   state.PoolID,
 		Season:   int32(state.PoolConfig.Season),
 		SimDate:  simDate,
@@ -866,7 +832,7 @@ func processOneDay(
 		return false, fmt.Errorf("collect day stats: %w", err)
 	}
 	if !collectRes.Skipped {
-		if err := workflow.ExecuteActivity(dbCtx, acts.UpdateStandings, UpdateStandingsInput{
+		if err := workflow.ExecuteActivity(dbCtx, activityNameUpdateStandings, UpdateStandingsInput{
 			PoolID:   state.PoolID,
 			SimDate:  simDate,
 			AgentIDs: state.AgentIDs,
@@ -904,16 +870,6 @@ func shuffleAgents(ctx workflow.Context, ids []int32, kind string) error {
 	return nil
 }
 
-// addOneDay returns a pgtype.Date one calendar day after base. Used
-// by the day loop's simDate progression — a thin wrapper so the day
-// arithmetic is one obvious place to look for off-by-one bugs.
-func addOneDay(base pgtype.Date) pgtype.Date {
-	if !base.Valid {
-		return base
-	}
-	return pgtype.Date{Time: base.Time.AddDate(0, 0, 1), Valid: true}
-}
-
 // ============================================================================
 // Phase 3 — Complete
 // ============================================================================
@@ -941,8 +897,7 @@ func completePoolStatusOnly(ctx workflow.Context, poolID int32) error {
 // on cancel, and on completion all hop through the activity layer.
 func writePoolStatus(ctx workflow.Context, poolID int32, status PoolStatus) error {
 	ctx = workflow.WithActivityOptions(ctx, defaultActivityOptions())
-	var acts *Activities
-	return workflow.ExecuteActivity(ctx, acts.SetPoolStatus, SetPoolStatusInput{
+	return workflow.ExecuteActivity(ctx, activityNameSetPoolStatus, SetPoolStatusInput{
 		PoolID: poolID,
 		Status: status,
 	}).Get(ctx, nil)

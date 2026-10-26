@@ -219,16 +219,6 @@ func (a *Activities) CountPlayersForAllSeasons(ctx context.Context, seasonStartY
 	return counts, nil
 }
 
-// CountPlayersForSeason reads the cached boxscore player list from Redis
-// and returns the count.
-func CountPlayersForSeason(ctx context.Context, client *redis.Client, season nhl.Season) (int, error) {
-	players, err := cache.LoadBoxscorePlayers(ctx, client, season)
-	if err != nil {
-		return 0, fmt.Errorf("load boxscore players for %d: %w", season.ID(), err)
-	}
-	return len(players), nil
-}
-
 // --- Player game log activities ---
 
 // DownloadPlayerGameLogsInput specifies which player game logs to download.
@@ -239,7 +229,7 @@ type DownloadPlayerGameLogsInput struct {
 	// RefreshCurrent overwrites cached files for this season. The workflow
 	// decides which seasons get it (explicit season range, or the latest
 	// season) — see FetchPlayerLogsWorkflow; activities must not gate it on
-	// IsCurrentSeason, whose July-1 rollover froze just-ended seasons.
+	// nhl.Current(), whose July-1 rollover froze just-ended seasons.
 	RefreshCurrent bool
 	TotalPlayers   int // Total players across all batches (for Redis progress reporting)
 }

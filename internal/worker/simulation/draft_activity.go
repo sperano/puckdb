@@ -50,26 +50,18 @@ import (
 // ============================================================================
 
 // DraftPickInput is the per-pick payload assembled by the workflow.
-//
-// PoolConfig + AgentConfig are static for the pool's lifetime — the
-// workflow loads them once at start (or after a ContinueAsNew) and
-// passes the same value into every pick. They live on the input
-// rather than as Activities-struct fields because the activity worker
-// may host multiple pools simultaneously.
+// TurnScope (flattened on the wire) names the pool, agent and draft day
+// and carries the configs the workflow loaded once for every pick.
 //
 // AvailableIDs / RankedSkaters / RankedGoalies / Taken come from the
 // workflow's draft-state machine. The activity does NOT re-query
 // them — picks are serialized in the workflow goroutine, so what the
 // workflow knows about availability IS the truth at this pick.
 type DraftPickInput struct {
-	PoolID  int32       `json:"pool_id"`
-	AgentID int32       `json:"agent_id"`
-	Round   int32       `json:"round"`
-	Pick    int32       `json:"pick"`
-	SimDate pgtype.Date `json:"sim_date"`
+	TurnScope
 
-	PoolConfig  PoolConfig  `json:"pool_config"`
-	AgentConfig AgentConfig `json:"agent_config"`
+	Round int32 `json:"round"`
+	Pick  int32 `json:"pick"`
 
 	DraftPrompt  DraftPromptInput `json:"draft_prompt"`
 	AvailableIDs []int64          `json:"available_ids"`

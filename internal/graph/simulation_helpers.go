@@ -747,7 +747,7 @@ func (r *Resolver) createSimPoolImpl(ctx context.Context, input model.CreateSimP
 		TaskQueue:             temporal.QueueTasks,
 		WorkflowIDReusePolicy: enumspb.WORKFLOW_ID_REUSE_POLICY_REJECT_DUPLICATE,
 	}
-	if _, err := r.TemporalClient.ExecuteWorkflow(ctx, opts, simulation.SimPoolWorkflow,
+	if _, err := r.TemporalClient.ExecuteWorkflow(ctx, opts, simulation.SimPoolWorkflowName,
 		simulation.SimPoolWorkflowInput{PoolID: pool.ID}); err != nil {
 		// The pool row is already committed. Mark it cancelled (best
 		// effort, outside the now-committed tx) so it doesn't linger in

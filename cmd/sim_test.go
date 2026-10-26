@@ -13,9 +13,12 @@ import (
 	"testing"
 
 	"github.com/sperano/puckdb/internal/graph/model"
+	"github.com/sperano/puckdb/internal/worker/simulation"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+const unknownPoolStatus = simulation.PoolStatus("unknown")
 
 // ----------------------------------------------------------------------------
 // parsePoolID
@@ -259,6 +262,24 @@ func TestRenderSimPoolStatus_HidesUnstartedGroups(t *testing.T) {
 	assert.Contains(t, out, "Draft")
 	assert.NotContains(t, out, "Season",
 		"unstarted groups must not render — the user shouldn't see Phase 2 progress before draft completes")
+}
+
+func TestNextStepHintUsesPoolStatuses(t *testing.T) {
+	tests := map[simulation.PoolStatus]string{
+		simulation.PoolStatusDraft:     "watch live",
+		simulation.PoolStatusRunning:   "watch live",
+		simulation.PoolStatusPaused:    "paused",
+		simulation.PoolStatusComplete:  "complete",
+		simulation.PoolStatusCancelled: "cancelled",
+		unknownPoolStatus:              "",
+	}
+	for status, want := range tests {
+		if want == "" {
+			assert.Empty(t, nextStepHint(7, status), "status %q", status)
+			continue
+		}
+		assert.Contains(t, nextStepHint(7, status), want, "status %q", status)
+	}
 }
 
 func TestRenderSimPoolStatus_StandingsTieBreaker(t *testing.T) {

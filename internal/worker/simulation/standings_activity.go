@@ -130,7 +130,7 @@ func (s standingsActivity) UpdateStandings(ctx context.Context, in UpdateStandin
 			err = s.q.UpsertSimStanding(ctx, sqlcdb.UpsertSimStandingParams{
 				PoolID:     in.PoolID,
 				Date:       in.SimDate,
-				AgentID:    int32(r.AgentID),
+				AgentID:    r.AgentID,
 				Category:   string(cat),
 				Value:      value,
 				RotoPoints: rotoPts,
@@ -177,7 +177,7 @@ func groupTotalsByCategory(totals []sqlcdb.SimAgentTotal, agentIDs []int32) ([]C
 			return nil, fmt.Errorf("decode totals value (agent=%d, cat=%s): %w", t.AgentID, t.Category, err)
 		}
 		stat := AgentCategoryStat{
-			AgentID:          int64(t.AgentID),
+			AgentID:          t.AgentID,
 			Value:            val,
 			GoalieGA:         int(t.GoalieGA.Int32), // .Int32 is 0 when !Valid
 			GoalieTOISeconds: int(t.GoalieTOISeconds.Int32),
@@ -192,13 +192,13 @@ func groupTotalsByCategory(totals []sqlcdb.SimAgentTotal, agentIDs []int32) ([]C
 	// totals become incomparable (a 3-agent ranking one day and a
 	// 5-agent ranking the next inflate early-game leaders).
 	for cat, stats := range byCat {
-		present := make(map[int64]struct{}, len(stats))
+		present := make(map[int32]struct{}, len(stats))
 		for _, s := range stats {
 			present[s.AgentID] = struct{}{}
 		}
 		for _, id := range agentIDs {
-			if _, ok := present[int64(id)]; !ok {
-				byCat[cat] = append(byCat[cat], AgentCategoryStat{AgentID: int64(id)})
+			if _, ok := present[id]; !ok {
+				byCat[cat] = append(byCat[cat], AgentCategoryStat{AgentID: id})
 			}
 		}
 	}

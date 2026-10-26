@@ -102,7 +102,7 @@ func (a *PlayoffActivities) FetchTeamPlayoffGames(ctx context.Context, input Fet
 	// definition — those games will change state, and playoff games are
 	// appended as rounds get scheduled. Refetch it regardless of the calendar;
 	// completed schedules (all games FINAL/OFF) stay cached forever. A
-	// calendar-based gate (IsCurrentSeason) is wrong here: nhl.Current() rolls
+	// calendar-based gate on nhl.Current() is wrong here: nhl.Current() rolls
 	// over on July 1, which froze mid-playoff caches fetched in May once the
 	// next sync ran in the offseason.
 	if cached, _, err := a.GobCache.ReadParsedCached(ctx, a.Storage, res); err == nil && scheduleIncomplete(cached) {

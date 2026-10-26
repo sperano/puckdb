@@ -1,20 +1,61 @@
 package simulation
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
+func TestDraftCandidatesPreserveHistoricalJSONNames(t *testing.T) {
+	skater := SkaterDraftCandidate{PlayerID: 11, Name: "Skater", Position: "C", PriorG: 20, PriorA: 30}
+	goalie := GoalieDraftCandidate{PlayerID: 22, Name: "Goalie", Position: "G", PriorW: 31, PriorGA: 99}
+
+	skaterJSON, err := json.Marshal(skater)
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"PlayerID":11,"Name":"Skater","Position":"C","PriorG":20,"PriorA":30}`, string(skaterJSON))
+	goalieJSON, err := json.Marshal(goalie)
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"PlayerID":22,"Name":"Goalie","Position":"G","PriorW":31,"PriorGA":99}`, string(goalieJSON))
+
+	var oldSkater struct {
+		PlayerID int64
+		Name     string
+		Position string
+		PriorG   int
+		PriorA   int
+	}
+	require.NoError(t, json.Unmarshal(skaterJSON, &oldSkater))
+	assert.Equal(t, skater.PlayerID, oldSkater.PlayerID)
+	assert.Equal(t, skater.Name, oldSkater.Name)
+	assert.Equal(t, skater.Position, oldSkater.Position)
+	assert.Equal(t, skater.PriorG, oldSkater.PriorG)
+	assert.Equal(t, skater.PriorA, oldSkater.PriorA)
+
+	var oldGoalie struct {
+		PlayerID int64
+		Name     string
+		Position string
+		PriorW   int
+		PriorGA  int
+	}
+	require.NoError(t, json.Unmarshal(goalieJSON, &oldGoalie))
+	assert.Equal(t, goalie.PlayerID, oldGoalie.PlayerID)
+	assert.Equal(t, goalie.Name, oldGoalie.Name)
+	assert.Equal(t, goalie.Position, oldGoalie.Position)
+	assert.Equal(t, goalie.PriorW, oldGoalie.PriorW)
+	assert.Equal(t, goalie.PriorGA, oldGoalie.PriorGA)
+}
+
 // ============================================================================
 // SnakeDraftOrder / SnakeDirection
 // ============================================================================
 
 func TestSnakeDraftOrder_FiveTeamsThreeRounds(t *testing.T) {
-	order := []int64{1, 2, 3, 4, 5}
+	order := []int32{1, 2, 3, 4, 5}
 	got := SnakeDraftOrder(order, 3)
-	want := []int64{
+	want := []int32{
 		1, 2, 3, 4, 5, // round 1: ascending
 		5, 4, 3, 2, 1, // round 2: descending
 		1, 2, 3, 4, 5, // round 3: ascending again
@@ -23,7 +64,7 @@ func TestSnakeDraftOrder_FiveTeamsThreeRounds(t *testing.T) {
 }
 
 func TestSnakeDraftOrder_DoesNotMutateInput(t *testing.T) {
-	order := []int64{10, 20, 30}
+	order := []int32{10, 20, 30}
 	original := slicesClone(order)
 	_ = SnakeDraftOrder(order, 4)
 	assert.Equal(t, original, order, "agentOrder must not be mutated")
@@ -31,22 +72,22 @@ func TestSnakeDraftOrder_DoesNotMutateInput(t *testing.T) {
 
 func TestSnakeDraftOrder_EdgeCases(t *testing.T) {
 	assert.Nil(t, SnakeDraftOrder(nil, 5))
-	assert.Nil(t, SnakeDraftOrder([]int64{1, 2}, 0))
-	assert.Nil(t, SnakeDraftOrder([]int64{1, 2}, -1))
-	assert.Nil(t, SnakeDraftOrder([]int64{}, 5),
+	assert.Nil(t, SnakeDraftOrder([]int32{1, 2}, 0))
+	assert.Nil(t, SnakeDraftOrder([]int32{1, 2}, -1))
+	assert.Nil(t, SnakeDraftOrder([]int32{}, 5),
 		"both empty inputs (zero-length agentOrder OR nonpositive rounds) → nil; consistent shape simplifies caller checks")
 }
 
 func TestSnakeDraftOrder_SinglePick(t *testing.T) {
-	assert.Equal(t, []int64{42}, SnakeDraftOrder([]int64{42}, 1))
+	assert.Equal(t, []int32{42}, SnakeDraftOrder([]int32{42}, 1))
 }
 
 // 18 rounds × 5 teams = 90 picks. The last round (18, even) descends.
 func TestSnakeDraftOrder_LastRoundIsDescendingOnEvenRoundCount(t *testing.T) {
-	got := SnakeDraftOrder([]int64{1, 2, 3, 4, 5}, 18)
+	got := SnakeDraftOrder([]int32{1, 2, 3, 4, 5}, 18)
 	assert.Len(t, got, 90)
 	// Round 18 starts at index 85 (5 * 17).
-	assert.Equal(t, []int64{5, 4, 3, 2, 1}, got[85:])
+	assert.Equal(t, []int32{5, 4, 3, 2, 1}, got[85:])
 }
 
 func TestSnakeDirection(t *testing.T) {
@@ -365,4 +406,46 @@ func TestFallbackDraftPick_NoNeedLeftPicksBPA(t *testing.T) {
 func TestFallbackDraftPick_NoCandidatesReturnsZero(t *testing.T) {
 	got := FallbackDraftPick(v1Need(), nil, nil, nil)
 	assert.Equal(t, int64(0), got, "no candidates anywhere → 0 (caller treats as draft-cannot-proceed)")
+}
+
+// ============================================================================
+// Candidate → DraftablePlayer
+// ============================================================================
+
+func TestSkaterDraftable_KeepsOwnPositionAndPriorGA(t *testing.T) {
+	got := SkaterDraftCandidate{PlayerID: 8478402, Name: "Connor McDavid", Position: "C", PriorG: 32, PriorA: 100}.draftable()
+	assert.Equal(t, DraftablePlayer{
+		Player: "Connor McDavid", ID: 8478402, Position: "C",
+		LastSeason: SkaterStats{G: 32, A: 100},
+	}, got)
+}
+
+// A goalie is always shown at G, even when the candidate's Position is
+// unset, which is what both the prompt lists and the workflow's lookup
+// did before sharing the conversion.
+func TestGoalieDraftable_AlwaysAtG(t *testing.T) {
+	for _, pos := range []string{"G", ""} {
+		got := GoalieDraftCandidate{PlayerID: 8476945, Name: "Connor Hellebuyck", Position: pos, PriorW: 47, PriorGA: 157}.draftable()
+		assert.Equal(t, DraftablePlayer{
+			Player: "Connor Hellebuyck", ID: 8476945, Position: "G",
+			LastSeason: GoalieStats{W: 47, GA: 157},
+		}, got)
+	}
+}
+
+// The workflow's candidate lookup (roster rows, positional need) and the
+// prompt's available lists must describe a candidate the same way.
+func TestBuildCandidateLookup_MatchesPromptLists(t *testing.T) {
+	skaters := []SkaterDraftCandidate{{PlayerID: 1, Name: "S", Position: "LW", PriorG: 10, PriorA: 5}}
+	goalies := []GoalieDraftCandidate{{PlayerID: 2, Name: "G", PriorW: 30, PriorGA: 90}}
+
+	lookup := buildCandidateLookup(LoadDraftCandidatesResult{Skaters: skaters, Goalies: goalies})
+	byPosition, best := SelectAvailableByPosition(skaters, goalies, nil)
+
+	require.Len(t, byPosition["LW"], 1)
+	require.Len(t, byPosition["G"], 1)
+	require.Len(t, best, 1)
+	assert.Equal(t, byPosition["LW"][0], lookup[1])
+	assert.Equal(t, best[0], lookup[1])
+	assert.Equal(t, byPosition["G"][0], lookup[2])
 }

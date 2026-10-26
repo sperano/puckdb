@@ -60,21 +60,16 @@ import (
 // ============================================================================
 
 // ManageRosterInput is the per-day, per-agent payload assembled by
-// the workflow. Like DraftPickInput, the static-per-pool fields
-// (PoolConfig, AgentConfig) are workflow-loaded once; the per-day
-// fields are workflow-prepared.
+// BuildManageRosterContext. Like DraftPickInput, it embeds the turn's
+// TurnScope (flattened on the wire); the per-day fields are prepared
+// from the database state at turn start.
 //
 // Roster + FreeAgents + OnWaivers + Positions describe the working
 // state at TURN START. The activity copies them before running the
 // agent loop so each tool call validates against a state that
 // reflects prior accepted actions in the same turn.
 type ManageRosterInput struct {
-	PoolID  int32       `json:"pool_id"`
-	AgentID int32       `json:"agent_id"`
-	SimDate pgtype.Date `json:"sim_date"`
-
-	PoolConfig  PoolConfig  `json:"pool_config"`
-	AgentConfig AgentConfig `json:"agent_config"`
+	TurnScope
 
 	DailyPrompt DailyPromptInput `json:"daily_prompt"`
 
@@ -926,13 +921,4 @@ func claimProcessOffset(waiverDays int) int {
 		return 1
 	}
 	return waiverDays
-}
-
-// addDays returns base + n calendar days. pgtype.Date wraps a
-// time.Time; AddDate handles month/year rollover correctly.
-func addDays(base pgtype.Date, n int) pgtype.Date {
-	if !base.Valid {
-		return base
-	}
-	return pgtype.Date{Time: base.Time.AddDate(0, 0, n), Valid: true}
 }
