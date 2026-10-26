@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"slices"
-	"sync"
 	"time"
 
 	"github.com/sperano/puckdb/internal/canonhash"
@@ -14,6 +13,7 @@ import (
 	"github.com/sperano/puckdb/internal/draftrecommend"
 	"github.com/sperano/puckdb/internal/draftsession"
 	"github.com/sperano/puckdb/internal/draftwatch"
+	"golang.org/x/sync/singleflight"
 )
 
 var (
@@ -64,9 +64,10 @@ type Refresher interface {
 
 // Options control stale presentation and the service clock.
 type Options struct {
-	StaleAfter time.Duration
-	Now        func() time.Time
-	Watch      *WatchController
+	StaleAfter              time.Duration
+	Now                     func() time.Time
+	Watch                   *WatchController
+	RecommendationCacheSize int
 }
 
 // Service is the application boundary for a composed live draft board.
@@ -77,8 +78,8 @@ type Service struct {
 	watch               *WatchController
 	staleAfter          time.Duration
 	now                 func() time.Time
-	recommendationMu    sync.Mutex
-	recommendationCache map[string]draftrecommend.StoredRun
+	recommendationCache *recommendationCache
+	recommendationGroup singleflight.Group
 }
 
 // NewService composes a board service. Options.Now defaults to time.Now; a
@@ -87,9 +88,12 @@ func NewService(data DataSource, recommendations RecommendationEngine, refresher
 	if options.Now == nil {
 		options.Now = time.Now
 	}
+	if options.RecommendationCacheSize <= 0 {
+		options.RecommendationCacheSize = DefaultRecommendationCacheSize
+	}
 	return &Service{data: data, recommendations: recommendations, refresher: refresher,
 		watch: options.Watch, staleAfter: options.StaleAfter, now: options.Now,
-		recommendationCache: make(map[string]draftrecommend.StoredRun)}
+		recommendationCache: newRecommendationCache(options.RecommendationCacheSize)}
 }
 
 // ResolveIdentity returns the season-safe identity used to validate Yahoo
@@ -291,16 +295,23 @@ func (s *Service) recommend(ctx context.Context, input draftrecommend.Input) (dr
 	if err != nil {
 		return draftrecommend.StoredRun{}, err
 	}
-	s.recommendationMu.Lock()
-	defer s.recommendationMu.Unlock()
-	if cached, exists := s.recommendationCache[key]; exists {
+	if cached, exists := s.recommendationCache.get(key); exists {
 		return cached, nil
 	}
-	run, err := s.recommendations.Recommend(ctx, input)
-	if err == nil {
-		s.recommendationCache[key] = run
+	value, err, _ := s.recommendationGroup.Do(key, func() (any, error) {
+		if cached, exists := s.recommendationCache.get(key); exists {
+			return cached, nil
+		}
+		run, err := s.recommendations.Recommend(ctx, input)
+		if err == nil {
+			s.recommendationCache.put(key, run)
+		}
+		return run, err
+	})
+	if err != nil {
+		return draftrecommend.StoredRun{}, err
 	}
-	return run, err
+	return value.(draftrecommend.StoredRun), nil
 }
 
 func recommendationCacheKey(input draftrecommend.Input) (string, error) {
