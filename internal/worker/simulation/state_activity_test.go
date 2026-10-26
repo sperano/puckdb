@@ -14,8 +14,7 @@ import (
 )
 
 // ============================================================================
-// State + telemetry activities — tests for the production-gating
-// follow-ups that turn the simulation runnable end-to-end:
+// State + telemetry activities — tests for:
 //
 //   SetPoolStatusActivity        — workflow status writes
 //   LoadDraftCandidatesActivity  — prior-season ranking
@@ -356,7 +355,7 @@ func (s *DraftCandidatesTestSuite) TestLoadDraftCandidates_NullPositionDropped()
 	assert.Empty(t, got.Skaters)
 }
 
-// TestLoadDraftCandidates_BatchesPlayerLookups guards the T3-B N+1 fix:
+// TestLoadDraftCandidates_BatchesPlayerLookups guards the batching:
 // position lookups for the (up to ~600) draft candidates must collapse
 // to one GetPlayersByIDs call per candidate list (skaters, goalies),
 // not one GetPlayer call per candidate. Also asserts zero-score/zero-W

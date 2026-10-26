@@ -55,7 +55,7 @@ type Activities struct {
 
 	// AgentFactory builds an *Agent from the per-pool config. Tests
 	// override it to inject a mock LLM client; the production wiring
-	// in cmd/worker.go uses defaultAgentFactory which calls NewAgent.
+	// in cmd/worker_registrations.go uses defaultAgentFactory which calls NewAgent.
 	//
 	// Nil means "use defaultAgentFactory" — letting the zero-value
 	// struct still work for read-only activities that never need an

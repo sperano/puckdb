@@ -65,7 +65,7 @@ func SnakeDirection(round int) string {
 // must come from the PRIOR season's `player_season_totals` row
 // (game_type = regular season). Using current-season stats would leak
 // future information into the draft and invalidate the simulation as a
-// model-vs-model comparison. PLAN.md > "Draft Fallback".
+// model-vs-model comparison (wiki puckdb/simulation.md > "Draft").
 type SkaterDraftCandidate struct {
 	PlayerID int64  `json:"PlayerID"`
 	Name     string `json:"Name"`
@@ -76,8 +76,8 @@ type SkaterDraftCandidate struct {
 
 // Score returns the skater's ranking value: prior-season G + A.
 // Other categories (PPP, SOG, +/-, PIM) are intentionally excluded —
-// G + A is the well-understood headline draft metric and matches what
-// PLAN.md > "Draft Fallback" calls for.
+// G + A is the well-understood headline draft metric and matches the
+// draft ranking (wiki puckdb/simulation.md > "Draft").
 func (s SkaterDraftCandidate) Score() int { return s.PriorG + s.PriorA }
 
 // draftable is the candidate as the draft prompt and the workflow's
@@ -165,9 +165,10 @@ func cmpInt64(a, b int64) int {
 // ============================================================================
 
 // MaxAvailablePerPosition / MaxBestAvailableOverall are the V1 sizes
-// of the corresponding sub-blocks in the draft prompt. PLAN.md >
-// "Draft Context" implies "top 10 per unfilled position + top 5 BPA";
-// pinning here as named constants so a future tuning is explicit.
+// of the corresponding sub-blocks in the draft prompt. The prompt
+// shows the top 10 per unfilled position plus the top 5 best available
+// overall (wiki puckdb/simulation.md > "Draft"); pinned here
+// as named constants so a future tuning is explicit.
 const (
 	MaxAvailablePerPosition = 10
 	MaxBestAvailableOverall = 5
@@ -282,7 +283,7 @@ var fallbackPositionOrder = []string{string(SlotC), string(SlotLW), string(SlotR
 
 // FallbackDraftPick returns a deterministic player_id when the LLM has
 // failed and the activity needs to advance the draft. Strategy
-// (PLAN.md > "Draft Fallback"):
+// (wiki puckdb/simulation.md > "Draft"):
 //
 //  1. Determine the agent's most-needed position — the position with
 //     the most starter slots still to fill. Ties broken by a fixed

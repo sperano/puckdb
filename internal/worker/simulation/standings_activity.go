@@ -16,8 +16,8 @@ import (
 // Wraps the pure-function scoring engine (RankAllCategories) with two
 // DB calls: read all current sim_agent_totals rows for the pool, write
 // per-(agent, category) rows back to sim_standings via UpsertSimStanding.
-// PLAN.md > "Day Loop" calls this after CollectDayStatsActivity so
-// the standings reflect the day's just-completed games.
+// The day loop (wiki puckdb/simulation.md > "Day loop") calls this after
+// CollectDayStatsActivity so the standings reflect the day's just-completed games.
 //
 // Idempotent under retry: UpsertSimStanding uses ON CONFLICT DO UPDATE,
 // and the rankings are a deterministic function of the totals (totals

@@ -38,8 +38,8 @@ const missingWaiverPriority int32 = math.MaxInt32
 //	   with no waiver activity.
 //	4. Group by player_id. Single-claim groups are uncontested and the
 //	   lone claimant wins. Multi-claim groups are contested; the agent
-//	   with the lowest priority NUMBER wins (PLAN.md > "Waivers" — Yahoo
-//	   convention: priority 1 = first dibs).
+//	   with the lowest priority NUMBER wins (Yahoo convention: priority
+//	   1 = first dibs).
 //	5. For each (player, claims) group:
 //	     - commit-time revalidation (read-only): player still free,
 //	       winner's bench fits the add after any still-valid drop
@@ -63,8 +63,8 @@ const missingWaiverPriority int32 = math.MaxInt32
 // without a winning claim, they reappear in the FA pool naturally —
 // no active step here.
 //
-// PLAN.md > "Waivers" and PLAN.md > "Day Loop" step 1 are the
-// canonical specs.
+// wiki puckdb/simulation.md > "Free agents and waivers" and
+// > "Day loop" step 1 are the canonical specs.
 // ============================================================================
 
 // ProcessWaiversInput is the per-day payload. SimDate is "today" —

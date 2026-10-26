@@ -415,10 +415,9 @@ func teamNameTurnHeader(in PickTeamNameInput, turn teamNameTurn) TurnHeader {
 // spent this much and got this name". A crash between them would leave
 // sim_agents.team_name set without its telemetry row, or — the reason
 // the increment moved in here — a name committed whose LLM spend never
-// reached sim_pools.total_llm_cost_usd. That total feeds the cost cap
-// AND is what the workflow reloads into TotalLLMCostUsd after a
-// ContinueAsNew, so a missing increment silently drops the spend for
-// the remainder of the run. Same structure as commitDraftPick and the
+// reached sim_pools.total_llm_cost_usd. That total is what the
+// activities' cost-cap probe reads, so a missing increment lets the pool
+// spend past its cap. Same structure as commitDraftPick and the
 // daily-turn commit.
 //
 // Accounting policy for errored turns: an attempt that consumed tokens

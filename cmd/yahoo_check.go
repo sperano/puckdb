@@ -100,7 +100,7 @@ func checkYahooAccess(ctx context.Context) yahooaccess.Report {
 		return yahooaccess.FailedReport(checkedAt, err)
 	}
 	redisClient := newRedisClient()
-	defer redisClient.Close()
+	defer closeOrWarn(redisClient, "redis client")
 	if err := cache.WaitReady(ctx, redisClient, config.DefaultRedisReadyRetries, config.DefaultRedisReadyRetryDelay); err != nil {
 		return yahooaccess.FailedReport(checkedAt, err)
 	}

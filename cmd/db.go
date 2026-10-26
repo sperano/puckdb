@@ -14,14 +14,6 @@ import (
 	"github.com/spf13/viper"
 )
 
-func getGraphQLClient() (*GraphQLClient, error) {
-	apiAddr := viper.GetString(config.FlagAPIServerAddr)
-	if apiAddr == "" {
-		return nil, fmt.Errorf("api-server-addr is required")
-	}
-	return NewGraphQLClient(apiAddr), nil
-}
-
 func cmdDB() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "db",

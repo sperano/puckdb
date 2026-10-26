@@ -78,7 +78,7 @@ func cmdAPI() *cobra.Command {
 
 			// the oauth2 token for yahoo authentication is cached in redis
 			redisClient := newRedisClient()
-			defer func() { _ = redisClient.Close() }()
+			defer closeOrWarn(redisClient, "redis client")
 
 			// create temporal client for GraphQL resolver. The API process
 			// starts no Temporal workers, so there is nothing worth reporting

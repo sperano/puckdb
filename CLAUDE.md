@@ -64,6 +64,7 @@ go tool gqlgen generate   # GraphQL (from puckdb root dir; gqlgen is pinned via 
 | `yahoo signout` | Clear OAuth2 token from Redis |
 | `yahoo check-access` | Check whether the Yahoo API serves a season's leagues (AUTHORIZED / NOT AUTHORIZED / ERROR), optionally emailing the report over SMTP; meant for a daily CronJob (see https://wiki.spe.quebec/en/puckdb/yahoo-access-check) |
 | `maurice` | Interactive AI hockey chat REPL |
+| `sim` | Hockey pool simulator, all through GraphQL: `create --config <yaml>`, `cancel <pool-id>`, `status <pool-id>`, `tail` (turns and tool calls), `draft <pool-id>`; how far a pool runs is set in its config (`stopAfter`, `maxSeasonDays`, `startDate`/`endDate`), a running pool is never stepped or paused by hand (see wiki `puckdb/simulation.md`) |
 
 ## Package Structure
 
@@ -72,7 +73,8 @@ Only `main.go` and `cmd/` live at the module root; every library package sits un
 | Package | Purpose |
 |---------|---------|
 | `cmd/` | CLI commands (Cobra + Viper) |
-| `internal/worker/` | Temporal workflows and activities, split into `workflow/` (top-level workflows), `nhl/`, `yahoo/`, `player/`, `newsfeed/` (player news refresh), `draftranking/` (draft ranking refresh), `admin/`, `shared/` |
+| `internal/worker/` | Temporal workflows and activities, split into `workflow/` (top-level workflows), `nhl/`, `yahoo/`, `player/`, `newsfeed/` (player news refresh), `draftranking/` (draft ranking refresh), `asset/` (image asset downloads: headshots, hero images, logos, on the `puckdb-asset-tasks` queue), `simulation/` (the hockey pool simulator, below), `admin/`, `shared/` |
+| `internal/worker/simulation/` | Hockey pool simulator: `SimPoolWorkflow` and its activities run a rotisserie pool of LLM-managed teams over a past regular season (team names, snake draft, daily waivers/roster turns/scoring/standings), with the roto scoring engine, tool validators, fuzzy tool-call recovery, prompts and pricing; serialized names pinned in `registration.go`. Rules, lifecycle, idempotency and cost cap on wiki `puckdb/simulation.md`, replay contract on `puckdb/simulation-replay.md`, query groups on `puckdb/simulation-query-groups.md` |
 | `internal/graph/` | GraphQL resolvers and schema (gqlgen) |
 | `internal/database/` | PostgreSQL connection (pgx), migrations |
 | `internal/sqlcdb/` | sqlc-generated type-safe queries |
@@ -107,7 +109,7 @@ Only `main.go` and `cmd/` live at the module root; every library package sits un
 | `internal/fixtures/draftfixtures/` | Synthetic draft ranking snapshot and in-memory store shared by the draftrank, GraphQL and CLI tests (test-only import) |
 | `internal/fixtures/projectionfixtures/` | Default projection config with the aging curve the aging model versions must store, for tests that hand-build projection snapshots (test-only import) |
 | `internal/fixtures/simfixtures/` | A private, migrated PostgreSQL database per test (created next to `PUCKDB_TEST_PG_URL`, dropped at cleanup) and typed inserts for sim pools, agents, turns, tool calls, players and draft picks, shared by the GraphQL sim feed and `sim tail`/`sim draft` tests (test-only import) |
-| `internal/llm/` | LLM client (used by player enrichment / Maurice) |
+| `internal/llm/` | LLM client and the shared `agentloop` tool loop (used by player enrichment, Maurice and the simulation) |
 | `internal/maurice/` | Prompt + service layer built on top of `internal/llm/` |
 | `internal/mcp/` | MCP client (used by Maurice to call tool servers) |
 | `internal/mcpserver/` | MCP server exposing curated read-only data tools (`mcp-server` command), split into the `nhl`, `yahoo` and `news` toolsets; the `news` toolset (`get_news_coverage`, `get_player_news`, `get_recent_news_events`; `get_player_news` reads through `newsevent.LoadPlayerEvents`, no new SQL) is not scoped to a Yahoo league, and bounds the quoted article text (reports per event, quotes per report, runes per quote); the `yahoo` toolset's draft ranking and override tools (`get_draft_leagues`, `get_draft_rankings`, `get_draft_player_detail`, the read-only `get_draft_overrides`; creating and resetting overrides stay in GraphQL) read through the `draftrank.Service` the command passes in `Options.Draft` (required with `yahoo`), never new SQL, while its draft report tools (`get_draft_pool_coverage`, `get_draft_rules_report`) build `draft.LoadLeagueReport` reports from `draft.Queries`; `get_draft_rankings` returns a league's whole ranked pool (up to `maxDraftRankingsLimit` rows) as one header plus CSV sections, numbers rounded (`compactFloat`), a players table with one projected-total column per category (labels from `draftrank.CategoryLabels`, shared with the CSV export), and refuses output above `maxDraftRankingsOutputBytes`; `league_guard.go` refuses Yahoo leagues outside `--mcp-yahoo-leagues` (refusal = unknown league), and every league-scoped Yahoo tool must go through `leagueGuard.scoped` (numeric `league_id`) or, for the draft tools taking `season` plus `league` (key or ID), `leagueGuard.scopedKey`/`resolveKey` (enforced by `TestYahooToolsAreLeagueGuarded`); integer arguments go only through the strict helpers in `tools_common.go` (`requireInt`/`optionalInt`/`optionalInt4Filter`/..., bounds per argument, checked before any narrowing cast; never the SDK's truncating `GetInt`/`RequireInt`, enforced by `TestToolsReadIntegersOnlyThroughStrictHelpers`), and `TestNHLToolsRejectMalformedIntegersBeforeSQL` / `TestNewsToolsRejectMalformedIntegersBeforeSQL` sweep every NHL / news tool's number arguments |
@@ -137,9 +139,12 @@ Defined in `internal/worker/workflow/`:
 Defined in `internal/worker/admin/`:
 - `DropDatabaseWorkflow`, `MigrateDatabaseWorkflow`, `ResetDatabaseWorkflow`, `FlushRedisWorkflow`
 
+Defined in `internal/worker/simulation/`:
+- `SimPoolWorkflow` — one simulation pool, workflow ID `sim-pool-<pool id>`, started by `createSimPool`: team names, snake draft, then one iteration per calendar day of the window (`ProcessWaivers`, `BuildFreeAgentPool`, per agent `BuildManageRosterContext` + `ManageRoster` in a shuffled order, `CollectDayStats`, `UpdateStandings`), Continue-As-New every 30 days, then `status = 'complete'`. `PoolConfig.StopAfter` (`never`/`team_name`/`draft`/`season`) ends it early as complete and `MaxSeasonDays` caps the day loop; the only pause is the cost cap (the LLM activity marks the pool `paused` and returns `SkipReasonCostCapReached`; nothing resumes it); `cancelSimPool` cancels it (`cancelled`). No signals; the only query is the shared progress report (see wiki `puckdb/simulation.md`)
+
 Task queue: `puckdb-tasks`
 
-Every activity the worker registers must be scheduled by workflow code or listed in `historyOnlyActivities` (`cmd/worker_test.go`) with the still-registered workflow whose histories recorded its name (`TestRegisteredActivitiesAreScheduledOrRecorded`); a method that only runs inside another activity (`ImportDay`'s per-file imports, `FetchDailySchedule`, `ExtractBoxscoreDataForSeason`) is not registered. Never unregister a name only because current code no longer schedules it: check the history first (see wiki `puckdb/worker-activity-registrations.md`)
+Every activity the worker registers must be scheduled by workflow code or listed in `historyOnlyActivities` (`cmd/worker_registrations_test.go`) with the still-registered workflow whose histories recorded its name (`TestRegisteredActivitiesAreScheduledOrRecorded`); a method that only runs inside another activity (`ImportDay`'s per-file imports, `FetchDailySchedule`, `ExtractBoxscoreDataForSeason`) is not registered. Never unregister a name only because current code no longer schedules it: check the history first (see wiki `puckdb/worker-activity-registrations.md`)
 
 ### Progress Tracking Pattern for Child Workflows
 
@@ -257,6 +262,8 @@ Schema lives in `internal/graph/schema.graphqls`. Each long-running workflow fol
 
 **Draft rankings** (in `internal/graph/draft.graphqls`, see wiki `puckdb/draft/rankings-api.md`): `draftLeagues`, `draftRankings`, `draftPlayerComparison`, `draftOverrides`; mutations `createDraftOverride`, `resetDraftOverride`.
 
+**Simulation** (in `internal/graph/simulation.graphqls`, see wiki `puckdb/simulation.md`): `simPool`, `simPools`, `simTransactions`, `simStandingsHistory`, `simPoolProgress`, `simTurnFeed`, `simDraftPicks`; mutations `createSimPool`, `cancelSimPool`. Every field reads PostgreSQL (progress: the Redis report), never the running workflow.
+
 **Other queries:** `buildNumber`, `yahooTokenStatus`, `mauriceConversations(limit)`, `mauriceConversation(id)`
 
 ## Metrics
@@ -279,6 +286,9 @@ The Prometheus registry is split in three (see `internal/metrics/metrics.go`):
 | `puckdb_db_pool_connections` | Gauge | `state` | pgx pool connections (`acquired`, `constructing`, `idle`, `max`, `total`) |
 | `puckdb_db_pool_*` | Counter | optional `reason` | pgx acquire/wait/create/destroy totals and durations from `pgxpool.Stat()` |
 | `puckdb_valkey_cache_requests_total` | Counter | `cache`, `result` | Valkey-backed GobCache reads by bounded cache name (file type or `gob`) and hit/miss/error result |
+| `puckdb_sim_llm_call_duration_seconds` | Histogram | `provider`, `model`, `agent_name` | Simulation LLM call latency (the `instrumentedLLMClient` around every agent) |
+| `puckdb_sim_llm_failures_total` | Counter | `provider`, `model`, `reason` | Simulation LLM call failures |
+| `puckdb_sim_day_duration_seconds` | Histogram | `pool_id` | Wall time of one simulated day (measured with `workflow.Now`, observed by `RecordDayDuration`) |
 
 The worker's `/metrics` also serves the Temporal Go SDK's own `temporal_*`
 series (`internal/temporal/metrics.go`, via `go.temporal.io/sdk/contrib/tally`),
@@ -464,6 +474,28 @@ PostgreSQL database storing NHL game data and Yahoo Fantasy league data. Two mai
 
 A turn's messages, calls, call-message links and tool calls commit in one transaction after the tool loop (`FinishTurn`); no transaction stays open across model calls. Prompts and tool payloads are kept forever (deleting a conversation only hides it); legacy conversations without an owner were deleted by migration 000022. There is no analytics API, export or erase capability.
 
+### Simulation tables
+
+All created by migration 000001 (window columns by 000002); per-type `sim_transactions` columns and the rules behind them on wiki `puckdb/simulation.md`.
+
+| Table | Purpose | Key Columns |
+|-------|---------|-------------|
+| `sim_pools` | One simulation pool and its immutable config; `workflow_id` is generated as `'sim-pool-' \|\| id` | `season`, `status` (`draft` until the workflow ends, then `complete`/`paused`/`cancelled`; `running` is allowed but never written), `sim_date`, `num_teams`, `roster_c` … `roster_ir`, `categories`, `waiver_days`, `draft_rounds`, `max_llm_cost_usd_per_pool`, `total_llm_cost_usd`, `stop_after`, `max_season_days`, `start_date`/`end_date` (NULL = season bounds), `record_full_messages` |
+| `sim_agents` | One LLM-managed team per row | `pool_id`, `draft_position`, `provider`, `model`, `strategy`, `timeout_seconds`, `temperature`, `api_base`, `max_tokens`, `team_name`, `notes` (≤ 50,000 bytes) |
+| `sim_rosters` | Current roster (PK `(pool_id, agent_id, player_id)`, UNIQUE `(pool_id, player_id)`) | `slot`, `acquired_at`, `acquired_via` (`draft`/`free_agent`) |
+| `sim_waiver_priority` | Waiver order (PK `(pool_id, agent_id)`; 1 = first) | `priority` |
+| `sim_waiver_claims` | Waiver claims (one pending claim per pool, agent and player) | `player_id`, `drop_player_id`, `filed_date`, `process_date`, `status` (`pending`/`won`/`lost`/`cancelled`), `resolved_at` |
+| `sim_transactions` | Audit log of every decision; typed columns filled per `type` (`draft_pick`, `add`, `claim`, `drop`, `lineup_set`, `pass`, `error`, `cost_cap_reached`, and the `daily_turn_done` idempotency marker) | `pool_id`, `agent_id`, `date`, `type`, `player_id`, `reasoning`, `round`, `pick`, `drop_player_id`, `error_kind`, `error_detail`, `cost_usd`, `cap_usd` |
+| `sim_lineup_moves` | Moves of a `lineup_set` transaction (PK `(transaction_id, sequence)`) | `player_id`, `from_slot`, `to_slot`, `displaced_player_id` |
+| `sim_agent_daily_player_stats` | Per-player daily contribution (source of truth; PK `(pool_id, agent_id, date, player_id, category)`) | `value`, `goalie_ga`, `goalie_toi_seconds` |
+| `sim_agent_daily_stats` | Per-agent daily rollup (PK `(pool_id, agent_id, date, category)`) | `value`, `goalie_ga`, `goalie_toi_seconds` |
+| `sim_agent_totals` | Season totals (PK `(pool_id, agent_id, category)`) | `value`, `goalie_ga`, `goalie_toi_seconds` |
+| `sim_standings` | Daily roto standings (PK `(pool_id, date, agent_id, category)`) | `value`, `roto_points` (fractional on ties) |
+| `sim_agent_turns` | One team-name, draft or daily LLM turn (unique per pool, agent, phase, date and pick) | `phase` (`team_name`/`draft`/`daily`), `sim_date`, `pick_number`, `status` (`ok`/`errored`/`skipped`), `skip_reason`, `provider`, `model`, `rounds`, token counts, `cost_usd`, `latency_ms`, `final_text` |
+| `sim_agent_turn_rounds` | Per-round usage of a turn (PK `(turn_id, round_index)`) | `assistant_text`, token counts, `latency_ms` |
+| `sim_agent_turn_messages` | Full transcript of a turn, written only when `record_full_messages` is on (PK `(turn_id, ordinal)`) | `role`, `content`, `tool_call_id`, `tool_calls` |
+| `sim_agent_tool_calls` | Every tool call of a turn (PK `(turn_id, round_index, sequence)`) | `tool_name`, `recovered_name`, `arguments_raw`, `arguments`, `result`, `outcome` (`accepted`/`parse_error`/`validation_rejected`/`unknown_tool`/`unhandled`), `failure_reason`, `applied_transaction_id` |
+
 ### Views
 
 Reporting views (definitions in migrations): `skater_season_stats`, `skater_recent_stats`, `goalie_season_stats`, `goalie_recent_stats`, `yahoo_roster_players`, `yahoo_roto_standings`, `yahoo_season_team_totals`, `app_user_usage` (per user: `puckdb_session_count`, last session, turns, LLM calls, token sums including title generation, `active_seconds` = turn durations + title calls, i.e. time spent processing prompts).
@@ -572,6 +604,8 @@ docker run -d --rm --name puckdb-test-pg -e POSTGRES_USER=puckdb -e POSTGRES_PAS
   -e POSTGRES_DB=puckdb_test -p 15433:5432 postgres:16-alpine
 PUCKDB_TEST_PG_URL='postgres://puckdb:foo@localhost:15433/puckdb_test?sslmode=disable' go test ./internal/maurice/
 ```
+
+The simulation's `integration` (mocked LLM; PostgreSQL, Redis, Temporal dev server) and `livellm` (real Ollama models) tests in `internal/worker/simulation/` are not compiled by `go test ./...`; their `TestMain` migrates the `PUCKDB_TEST_PG_URL` database down before and after the suite. Commands and variables: wiki `puckdb/simulation.md` > "Tests".
 
 `internal/maurice/dbcontract_test.go` is the shared persistence contract for the Maurice `DB` implementations; SQLite runs it in-memory on every `go test`, PostgreSQL runs it only with the env var set. Any behaviour change to one adapter must keep both passing.
 

@@ -172,7 +172,7 @@ func (s *UpdateStandingsTestSuite) TestUpdateStandings_GAARoutesThroughGoalieCom
 	t := s.T()
 	// Two agents tied on raw GAA value but with different goalie
 	// components. Agent 1: 60 GA / 18000 TOI = 12 GAA. Agent 2: zero TOI.
-	// Per PLAN.md, zero-TOI agent gets the worst rank in GAA.
+	// Per wiki puckdb/simulation.md > "Scoring", zero-TOI agent gets the worst rank in GAA.
 	s.queries.listTotalsRows = []sqlcdb.SimAgentTotal{
 		{
 			PoolID: 1, AgentID: 1, Category: string(CategoryGAA),

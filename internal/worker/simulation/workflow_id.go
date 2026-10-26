@@ -7,7 +7,7 @@ import "strconv"
 const workflowIDPrefix = "sim-pool-"
 
 // WorkflowIDForPool returns the Temporal workflow ID of a pool's simulation,
-// "sim-pool-<id>": the ID the API starts, signals and cancels, the key of
+// "sim-pool-<id>": the ID the API starts and cancels, the key of
 // its progress report, and the value of sim_pools.workflow_id. poolID is
 // sim_pools.id, an int4.
 func WorkflowIDForPool(poolID int32) string {

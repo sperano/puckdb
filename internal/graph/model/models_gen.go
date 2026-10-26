@@ -46,7 +46,7 @@ type CreateSimPoolInput struct {
 	WaiverDays int `json:"waiverDays"`
 	// Number of draft rounds (typically 18 for an NHL roster).
 	DraftRounds int `json:"draftRounds"`
-	// Per-pool cumulative LLM spend cap in USD. <= 0 disables the cap (PLAN.md > "Cost cap").
+	// Per-pool cumulative LLM spend cap in USD. <= 0 disables the cap; reaching it pauses the pool.
 	MaxLlmCostUsdPerPool float64 `json:"maxLlmCostUsdPerPool"`
 	// Agent definitions — one per fantasy team. Pool size = len(agents).
 	Agents []*CreateSimAgentInput `json:"agents"`

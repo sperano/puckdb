@@ -51,11 +51,7 @@ func runSyncDraft(cmd *cobra.Command, _ []string) error {
 	}
 	defer pool.Close()
 	redisClient := newRedisClient()
-	defer func() {
-		if err := redisClient.Close(); err != nil {
-			log.Warn().Err(err).Msg("close Redis after draft sync")
-		}
-	}()
+	defer closeOrWarn(redisClient, "redis client")
 	gobCache, err := newGobCache(redisClient)
 	if err != nil {
 		return fmt.Errorf("create draft cache: %w", err)

@@ -10,12 +10,12 @@ package simulation
 // a small model, timeout handling, and the validation feedback loop
 // with genuinely erratic output.
 //
-// Run it (from ws/puckdb or a worktree):
+// Run it from the module root:
 //
 //	PUCKDB_TEST_PG_URL=postgres://puckdb:foo@localhost:15432/puckdb_integration_test?sslmode=disable \
 //	PUCKDB_TEST_REDIS_ADDR=localhost:16379 \
 //	PUCKDB_TEST_OLLAMA_URL=http://ollama.local:11434 \
-//	go test -tags=livellm -count=1 -timeout 45m -v ./worker/simulation/ -run TestLiveSmallSeasonOllama
+//	go test -tags=livellm -count=1 -timeout 45m -v ./internal/worker/simulation/ -run TestLiveSmallSeasonOllama
 //
 // Extra gates on top of the shared suite env:
 //
