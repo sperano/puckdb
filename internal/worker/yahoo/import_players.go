@@ -125,8 +125,7 @@ func (a *ImportActivities) collectPoolPlayers(ctx context.Context, input ImportY
 // so a page from another season can never relabel a player.
 func checkPlayerKey(player store.Player, gameKey int) error {
 	want := (yahookey.PlayerKey{GameKey: gameKey, PlayerID: player.ID}).String()
-	_, err := yahookey.ParsePlayerKey(player.Key)
-	if player.ID <= 0 || err != nil || player.Key != want {
+	if player.ID <= 0 || player.Key != want {
 		return fmt.Errorf("player key %q does not match game %d player %d", player.Key, gameKey, player.ID)
 	}
 	return nil
