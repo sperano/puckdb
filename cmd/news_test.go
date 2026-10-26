@@ -186,8 +186,8 @@ func TestLoadNewsDigest_PropagatesQueryError(t *testing.T) {
 // ────────────────────────────────────────────────────────────────────────────
 
 func TestAllSyncSteps_RefreshNewsBeforeFetchAssets(t *testing.T) {
-	newsIdx := slices.Index(config.AllSyncSteps, config.StepRefreshNews)
-	assetsIdx := slices.Index(config.AllSyncSteps, config.StepFetchAssets)
+	newsIdx := slices.Index(config.AllSyncSteps(), config.StepRefreshNews)
+	assetsIdx := slices.Index(config.AllSyncSteps(), config.StepFetchAssets)
 
 	require.GreaterOrEqual(t, newsIdx, 0)
 	require.GreaterOrEqual(t, assetsIdx, 0)

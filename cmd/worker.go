@@ -284,7 +284,10 @@ type taskActivityDeps struct {
 	yahooDownloader shared.Downloader
 	// yahooPublicDownloader fetches public Yahoo Sports player pages. It
 	// shares yahooDownloader's rate limiter: both count against Yahoo.
-	yahooPublicDownloader  shared.Downloader
+	yahooPublicDownloader shared.Downloader
+	// yahooGameKeys is the worker's one in-memory Yahoo game key cache,
+	// shared by the Yahoo and NHL fetch activities.
+	yahooGameKeys          *yahoo.GameKeys
 	boxscorePlayerCacheTTL time.Duration
 }
 
@@ -308,6 +311,7 @@ func registerTasksActivities(w worker.Worker, pool *pgxpool.Pool, redisClient *r
 		redisClient:            redisClient,
 		yahooDownloader:        newYahooDownloader(redisClient, yahooLimiter),
 		yahooPublicDownloader:  shared.RateLimited(yahooLimiter, httpx.DownloadPublic),
+		yahooGameKeys:          yahoo.NewGameKeys(nil),
 		boxscorePlayerCacheTTL: boxscorePlayerCacheTTLFrom(viper.GetViper()),
 	}
 
@@ -356,6 +360,7 @@ func registerYahooFetchActivities(w worker.Worker, d taskActivityDeps) {
 		Download:         d.yahooDownloader,
 		GobCache:         d.gobCache,
 		PublicDownloader: d.yahooPublicDownloader,
+		GameKeys:         d.yahooGameKeys,
 	}
 	w.RegisterActivity(fetchYahooActivities.FetchLeague)
 	w.RegisterActivity(fetchYahooActivities.FetchTeams)
@@ -452,6 +457,7 @@ func registerNHLActivities(w worker.Worker, d taskActivityDeps, importYahooActiv
 		GobCache:    d.gobCache,
 		RedisClient: d.redisClient,
 		Download:    d.yahooDownloader,
+		GameKeys:    d.yahooGameKeys,
 	}
 	// FetchDay calls FetchDailySchedule in-process. The only workflow that
 	// scheduled FetchDailySchedule by name, FetchDayWorkflow, is gone, so no

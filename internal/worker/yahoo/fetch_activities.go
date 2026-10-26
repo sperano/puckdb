@@ -33,11 +33,19 @@ type FetchActivities struct {
 	Download         shared.Downloader
 	GobCache         *cache.GobCache
 	PublicDownloader shared.Downloader
+	// GameKeys keeps the game keys loaded so far; nil fetches the key on
+	// every call.
+	GameKeys *GameKeys
 }
 
 // fetcher builds the cache-or-download primitive from the activity's dependencies.
 func (a *FetchActivities) fetcher() Fetcher {
 	return Fetcher{Storage: a.Storage, GobCache: a.GobCache, Download: a.Download}
+}
+
+// gameKey returns the season's Yahoo game key.
+func (a *FetchActivities) gameKey(ctx context.Context, season int) (int, error) {
+	return a.GameKeys.ForSeason(ctx, a.fetcher(), season)
 }
 
 // logFetched logs a Fetch outcome: downloads at Info, cache hits at Debug.
@@ -61,7 +69,7 @@ func (a *FetchActivities) FetchLeague(ctx context.Context, season int, leagueID 
 	defer metrics.TrackActivityDuration("FetchLeague")()
 	logger := activity.GetLogger(ctx)
 
-	gameKey, err := GetGameKeyForSeason(ctx, a.Storage, a.GobCache, a.Download, season)
+	gameKey, err := a.gameKey(ctx, season)
 	if err != nil {
 		return FetchLeagueResult{}, err
 	}
@@ -142,7 +150,7 @@ func (a *FetchActivities) FetchTeams(ctx context.Context, input FetchTeamsInput)
 	defer metrics.TrackActivityDuration("FetchTeams")()
 	logger := activity.GetLogger(ctx)
 
-	gameKey, err := GetGameKeyForSeason(ctx, a.Storage, a.GobCache, a.Download, input.StartSeason)
+	gameKey, err := a.gameKey(ctx, input.StartSeason)
 	if err != nil {
 		return err
 	}

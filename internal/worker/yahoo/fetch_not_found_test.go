@@ -62,8 +62,6 @@ func failingDownloader(err error) shared.Downloader {
 func TestFetchTeams_Retryability(t *testing.T) {
 	for name, tc := range retryabilityCases {
 		t.Run(name, func(t *testing.T) {
-			// Not parallel: seedGameKey mutates the package-level game key cache.
-			seedGameKey()
 			redisClient, mockRedis := redismock.NewClientMock()
 			res := resource.Team{Season: testYahooSeason, LeagueID: testLeagueID, TeamID: missingTeamID, GameKey: testGameKey}
 			mockRedis.ExpectGet(core.RedisKey(res)).SetErr(redis.Nil)
@@ -86,7 +84,6 @@ func TestFetchTeams_Retryability(t *testing.T) {
 func TestFetchLeague_Retryability(t *testing.T) {
 	for name, tc := range retryabilityCases {
 		t.Run(name, func(t *testing.T) {
-			seedGameKey()
 			redisClient, mockRedis := redismock.NewClientMock()
 			res := resource.League{Season: testYahooSeason, LeagueID: testLeagueID, GameKey: testGameKey}
 			expectCoherentFetchMiss(mockRedis, res)

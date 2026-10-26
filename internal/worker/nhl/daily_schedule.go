@@ -14,6 +14,7 @@ import (
 	"github.com/sperano/puckdb/internal/resource"
 	"github.com/sperano/puckdb/internal/store"
 	"github.com/sperano/puckdb/internal/worker/shared"
+	"github.com/sperano/puckdb/internal/worker/yahoo"
 	"go.temporal.io/sdk/activity"
 	"golang.org/x/sync/errgroup"
 )
@@ -25,6 +26,9 @@ type DailyScheduleActivities struct {
 	GobCache    *cache.GobCache
 	RedisClient *redis.Client // for progress tracking (nil-safe)
 	Download    shared.Downloader
+	// GameKeys keeps the Yahoo game keys loaded so far; nil fetches the key
+	// on every call.
+	GameKeys *yahoo.GameKeys
 }
 
 // FetchDailyScheduleResult contains the result of fetching a daily schedule.

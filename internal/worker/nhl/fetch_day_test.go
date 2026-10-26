@@ -35,8 +35,9 @@ const (
 	testLeagueID     = 12345
 )
 
-func seedGameKey() {
-	yahoo.SetGameKeyCache(testYahooSeason, testGameKey)
+// testGameKeys returns a game key cache that already knows the test season's key.
+func testGameKeys() *yahoo.GameKeys {
+	return yahoo.NewGameKeys(map[int]int{testYahooSeason: testGameKey})
 }
 
 func mockDownloader(content []byte, err error) shared.Downloader {
@@ -65,7 +66,6 @@ type FetchDayTestSuite struct {
 
 func (s *FetchDayTestSuite) SetupTest() {
 	s.env = s.NewTestActivityEnvironment()
-	seedGameKey()
 
 	var err error
 	s.day, err = time.Parse("2006-01-02", testFetchDayDate)
@@ -82,6 +82,7 @@ func (s *FetchDayTestSuite) newFetchDayActivities(mem *store.MemStorage, dl shar
 		NHLClient: &MockNHLClient{},
 		GobCache:  gobCache,
 		Download:  dl,
+		GameKeys:  testGameKeys(),
 	}
 }
 
@@ -198,6 +199,7 @@ func (s *FetchDayTestSuite) TestDailyScheduleError() {
 		NHLClient: mockClient,
 		GobCache:  gobCache,
 		Download:  mockDownloader(nil, nil),
+		GameKeys:  testGameKeys(),
 	}
 	s.env.RegisterActivity(a.FetchDay)
 

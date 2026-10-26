@@ -52,7 +52,6 @@ func standingsRes() resource.LeagueStandings {
 
 func newStandingsActivities(t *testing.T, dl func(context.Context, string) ([]byte, error), gobCache *cache.GobCache) *FetchActivities {
 	t.Helper()
-	seedGameKey()
 	mem := store.NewMemStorage()
 	writeLeagueXML(t, mem, testYahooSeason, testLeagueID, []byte(standingsTestLeagueXML))
 	return newFetchActivities(mem, dl, gobCache)
@@ -164,7 +163,6 @@ func TestFetchYahooLeagueStandings_CapturesSeasonBounds(t *testing.T) {
 // A league whose settings carry no readable start date is skipped with a
 // reason that says so, not with an empty start date.
 func TestFetchYahooLeagueStandings_UnreadableStartDateIsSkipped(t *testing.T) {
-	seedGameKey()
 	mem := store.NewMemStorage()
 	writeLeagueXML(t, mem, testYahooSeason, testLeagueID, []byte(testLeagueXML))
 	act := newFetchActivities(mem, mockDownloader(nil, errors.New("must not download")), cache.NewGobCache(nil))
@@ -210,7 +208,6 @@ func TestFetchYahooLeagueStandings_EmptyStandingsAreNotCached(t *testing.T) {
 }
 
 func TestFetchYahooLeagueStandings_MissingLeagueFileIsAnError(t *testing.T) {
-	seedGameKey()
 	act := newFetchActivities(store.NewMemStorage(), mockDownloader([]byte(standingsTestXML), nil), cache.NewGobCache(nil))
 
 	_, err := runStandings(t, act, standingsTestNow)

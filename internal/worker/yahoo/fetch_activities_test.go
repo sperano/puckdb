@@ -31,8 +31,9 @@ const (
 	testTeamXML     = `<fantasy_content><team></team></fantasy_content>`
 )
 
-func seedGameKey() {
-	SetGameKeyCache(testYahooSeason, testGameKey)
+// testGameKeys returns a game key cache that already knows the test season's key.
+func testGameKeys() *GameKeys {
+	return NewGameKeys(map[int]int{testYahooSeason: testGameKey})
 }
 
 func newFetchActivities(mem *store.MemStorage, dl shared.Downloader, gobCache *cache.GobCache) *FetchActivities {
@@ -40,6 +41,7 @@ func newFetchActivities(mem *store.MemStorage, dl shared.Downloader, gobCache *c
 		Storage:  mem,
 		Download: dl,
 		GobCache: gobCache,
+		GameKeys: testGameKeys(),
 	}
 }
 
@@ -76,7 +78,6 @@ type FetchLeagueTestSuite struct {
 
 func (s *FetchLeagueTestSuite) SetupTest() {
 	s.env = s.NewTestActivityEnvironment()
-	seedGameKey()
 }
 
 func TestFetchLeagueTestSuite(t *testing.T) {
@@ -205,7 +206,6 @@ type FetchTeamsTestSuite struct {
 
 func (s *FetchTeamsTestSuite) SetupTest() {
 	s.env = s.NewTestActivityEnvironment()
-	seedGameKey()
 }
 
 func TestFetchTeamsTestSuite(t *testing.T) {

@@ -17,10 +17,14 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
+// yahooFetcher builds the shared Yahoo cache-or-download primitive.
+func (a *DailyScheduleActivities) yahooFetcher() yahoo.Fetcher {
+	return yahoo.Fetcher{Storage: a.Storage, GobCache: a.GobCache, Download: a.Download}
+}
+
 // fetchYahooResource fetches one Yahoo resource through the shared cache-or-download primitive.
 func (a *DailyScheduleActivities) fetchYahooResource(ctx context.Context, res yahoo.Resource) error {
-	fetcher := yahoo.Fetcher{Storage: a.Storage, GobCache: a.GobCache, Download: a.Download}
-	_, origin, err := fetcher.Fetch(ctx, res)
+	_, origin, err := a.yahooFetcher().Fetch(ctx, res)
 	if err != nil {
 		return fmt.Errorf("fetch %s %s: %w", res.Type(), res.Path(), err)
 	}
@@ -52,7 +56,7 @@ func (a *DailyScheduleActivities) FetchDay(ctx context.Context, input FetchDayIn
 	var gameKey int
 	if len(input.TeamIDs) > 0 {
 		var err error
-		gameKey, err = yahoo.GetGameKeyForSeason(ctx, a.Storage, a.GobCache, a.Download, input.StartSeason)
+		gameKey, err = a.GameKeys.ForSeason(ctx, a.yahooFetcher(), input.StartSeason)
 		if err != nil {
 			return nil, err
 		}

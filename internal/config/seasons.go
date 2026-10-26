@@ -16,11 +16,8 @@ import (
 // failures (missing file, malformed YAML), which must not be silently swallowed.
 var ErrYahooNotConfigured = errors.New("yahoo seasons config not set")
 
-var (
-	cachedSeasons YahooSeasonsMap
-	seasonsOnce   sync.Once
-	seasonsErr    error
-)
+// yahooSeasons memoizes the file GetYahooSeasonsConfig reads.
+var yahooSeasons yahooSeasonsCache
 
 // League and Season carry json tags because workflows record them in Temporal
 // history (see shared.YahooSeasonsSnapshot); renaming a field would break
@@ -110,16 +107,36 @@ func validateTemporaryMetadata(seasons YahooSeasonsMap) error {
 
 // GetYahooSeasonsConfig returns the Yahoo seasons map from the configured YAML
 // file. Returns ErrYahooNotConfigured if no path is configured; a wrapped I/O
-// or YAML error if the file is unreadable or malformed.
+// or YAML error if the file is unreadable or malformed. The file is read once
+// per configured path; callers share the returned map and must not modify it.
 func GetYahooSeasonsConfig() (YahooSeasonsMap, error) {
-	seasonsOnce.Do(func() {
-		paramSeasons := viper.GetString(FlagYahooSeasons)
-		if paramSeasons == "" {
-			seasonsErr = ErrYahooNotConfigured
-			return
-		}
-		log.Debug().Str("path", paramSeasons).Msg("Loading yahoo seasons config")
-		cachedSeasons, seasonsErr = getYahooSeasons(paramSeasons)
-	})
-	return cachedSeasons, seasonsErr
+	return yahooSeasons.load(viper.GetString(FlagYahooSeasons))
+}
+
+// yahooSeasonsCache keeps the seasons map of the last path it loaded. A
+// different path is loaded afresh, and a failed load is not kept, so the next
+// call reads the file again.
+type yahooSeasonsCache struct {
+	mu      sync.Mutex
+	loaded  bool
+	path    string
+	seasons YahooSeasonsMap
+}
+
+func (c *yahooSeasonsCache) load(path string) (YahooSeasonsMap, error) {
+	if path == "" {
+		return nil, ErrYahooNotConfigured
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.loaded && c.path == path {
+		return c.seasons, nil
+	}
+	log.Debug().Str("path", path).Msg("Loading yahoo seasons config")
+	seasons, err := getYahooSeasons(path)
+	if err != nil {
+		return nil, err
+	}
+	c.loaded, c.path, c.seasons = true, path, seasons
+	return seasons, nil
 }

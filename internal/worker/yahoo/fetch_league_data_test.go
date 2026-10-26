@@ -51,7 +51,6 @@ type FetchLeagueDataSuite struct {
 }
 
 func (s *FetchLeagueDataSuite) SetupTest() {
-	seedGameKey()
 }
 
 func TestFetchLeagueDataSuite(t *testing.T) {

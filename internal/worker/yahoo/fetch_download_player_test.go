@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/sperano/puckdb/internal/cache"
 	"github.com/sperano/puckdb/internal/httpx"
 	"github.com/sperano/puckdb/internal/resource"
 	"github.com/sperano/puckdb/internal/store"
@@ -52,73 +51,6 @@ const (
   </league>
 </fantasy_content>`
 )
-
-// ────────────────────────────────────────────────────────────────────────────
-// GetGameKeyForSeason tests
-// ────────────────────────────────────────────────────────────────────────────
-
-func TestGetGameKeyForSeason_MemoryCacheHit(t *testing.T) {
-	t.Parallel()
-
-	const season = 2020
-	const wantKey = 390
-
-	// Seed the in-memory cache so no storage or fetcher is consulted.
-	SetGameKeyCache(season, wantKey)
-
-	got, err := GetGameKeyForSeason(
-		context.Background(),
-		nil, // storage — must not be called
-		nil, // gob cache — must not be called
-		nil, // fetcher — must not be called
-		season,
-	)
-
-	require.NoError(t, err)
-	assert.Equal(t, wantKey, got)
-}
-
-func TestGetGameKeyForSeason_FallsThroughToImpl(t *testing.T) {
-	t.Parallel()
-
-	const season = 2018
-	mem := store.NewMemStorage()
-	gobCache := cache.NewGobCache(nil)
-
-	xmlContent := []byte(`<?xml version="1.0" encoding="UTF-8"?>
-<fantasy_content><games><game><game_key>398</game_key><game_id>398</game_id><code>nhl</code><season>2018</season></game></games></fantasy_content>`)
-
-	fetcher := mockDownloader(xmlContent, nil)
-
-	// Ensure the in-memory cache doesn't have a stale entry for this season.
-	gameKeyCacheMu.Lock()
-	delete(gameKeyCache, season)
-	gameKeyCacheMu.Unlock()
-
-	got, err := GetGameKeyForSeason(context.Background(), mem, gobCache, fetcher, season)
-
-	require.NoError(t, err)
-	assert.Equal(t, 398, got)
-}
-
-func TestGetGameKeyForSeason_FetcherError(t *testing.T) {
-	t.Parallel()
-
-	const season = 2017
-	mem := store.NewMemStorage()
-	gobCache := cache.NewGobCache(nil)
-
-	gameKeyCacheMu.Lock()
-	delete(gameKeyCache, season)
-	gameKeyCacheMu.Unlock()
-
-	fetcher := mockDownloader(nil, errors.New("network timeout"))
-
-	_, err := GetGameKeyForSeason(context.Background(), mem, gobCache, fetcher, season)
-
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "fetch game key")
-}
 
 // ────────────────────────────────────────────────────────────────────────────
 // FetchYahooPlayerBatch tests

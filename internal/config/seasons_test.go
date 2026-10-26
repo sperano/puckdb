@@ -4,9 +4,11 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -102,9 +104,85 @@ func TestLeagueGet_Error(t *testing.T) {
 	assert.Equal(t, "league not found: 9999", err.Error())
 }
 
-// Note: GetYahooSeasonsConfig uses sync.Once so it can only be tested once per process.
-// This test must be run in isolation or be the first to call GetYahooSeasonsConfig.
-// For this reason, we test the underlying getYahooSeasons function more thoroughly above.
+func TestYahooSeasonsCache_LoadsEachPath(t *testing.T) {
+	t.Parallel()
+	var cache yahooSeasonsCache
+
+	first, err := cache.load("testdata/seasons.yaml")
+	require.NoError(t, err)
+	assert.Contains(t, first, 2021)
+
+	second, err := cache.load("testdata/seasons_temporary_metadata.yaml")
+	require.NoError(t, err)
+	assert.Contains(t, second, 2026, "a new path must be loaded, not answered from the previous one")
+	assert.NotContains(t, second, 2021)
+}
+
+func TestYahooSeasonsCache_ReusesLoadedPath(t *testing.T) {
+	t.Parallel()
+	path := writeSeasonsFile(t, minimalSeasonsYAML)
+	var cache yahooSeasonsCache
+	first, err := cache.load(path)
+	require.NoError(t, err)
+
+	require.NoError(t, os.Remove(path))
+	second, err := cache.load(path)
+
+	require.NoError(t, err, "a loaded path must not be read again")
+	assert.Equal(t, first, second)
+}
+
+func TestYahooSeasonsCache_RetriesFailedLoad(t *testing.T) {
+	t.Parallel()
+	path := filepath.Join(t.TempDir(), "seasons.yaml")
+	var cache yahooSeasonsCache
+	_, err := cache.load(path)
+	require.ErrorIs(t, err, os.ErrNotExist)
+
+	require.NoError(t, os.WriteFile(path, []byte(minimalSeasonsYAML), seasonsFileMode))
+	seasons, err := cache.load(path)
+
+	require.NoError(t, err, "a failed load must not be kept")
+	assert.Equal(t, 1, seasons[2021].Leagues[0].LeagueID)
+}
+
+func TestYahooSeasonsCache_EmptyPathIsNotConfigured(t *testing.T) {
+	t.Parallel()
+	var cache yahooSeasonsCache
+	_, err := cache.load("")
+	assert.ErrorIs(t, err, ErrYahooNotConfigured)
+}
+
+func TestGetYahooSeasonsConfig_FollowsConfiguredPath(t *testing.T) {
+	// Not parallel - modifies global viper state
+	t.Cleanup(viper.Reset)
+
+	viper.Set(FlagYahooSeasons, "")
+	_, err := GetYahooSeasonsConfig()
+	require.ErrorIs(t, err, ErrYahooNotConfigured)
+
+	viper.Set(FlagYahooSeasons, "testdata/seasons.yaml")
+	seasons, err := GetYahooSeasonsConfig()
+	require.NoError(t, err)
+	assert.Contains(t, seasons, 2021)
+
+	viper.Set(FlagYahooSeasons, "testdata/seasons_temporary_metadata.yaml")
+	seasons, err = GetYahooSeasonsConfig()
+	require.NoError(t, err)
+	assert.Contains(t, seasons, 2026)
+}
+
+const (
+	seasonsFileMode    = 0o600
+	minimalSeasonsYAML = "2021:\n  leagues:\n    - league_id: 1\n"
+)
+
+func writeSeasonsFile(t *testing.T, content string) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "seasons.yaml")
+	require.NoError(t, os.WriteFile(path, []byte(content), seasonsFileMode))
+	return path
+}
 
 func TestGetSeasons_TemporaryMetadataFrom(t *testing.T) {
 	t.Parallel()

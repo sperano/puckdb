@@ -141,7 +141,7 @@ func leagueSeasonEnded(league store.League, now time.Time) bool {
 // when a copy is cached: eligibility and status change during the preseason.
 func (a *FetchActivities) FetchYahooLeaguePlayersPage(ctx context.Context, input FetchYahooLeaguePlayersPageInput) (FetchYahooLeaguePlayersPageResult, error) {
 	defer metrics.TrackActivityDuration("FetchYahooLeaguePlayersPage")()
-	gameKey, err := GetGameKeyForSeason(ctx, a.Storage, a.GobCache, a.Download, input.Season)
+	gameKey, err := a.gameKey(ctx, input.Season)
 	if err != nil {
 		return FetchYahooLeaguePlayersPageResult{}, err
 	}

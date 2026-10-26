@@ -10,8 +10,8 @@ import (
 func TestParseSyncSteps_NoArgs(t *testing.T) {
 	steps, err := ParseSyncSteps(nil)
 	require.NoError(t, err)
-	assert.Len(t, steps, len(AllSyncSteps))
-	for _, s := range AllSyncSteps {
+	assert.Len(t, steps, len(allSyncSteps))
+	for _, s := range allSyncSteps {
 		assert.True(t, steps[s], "expected %q to be enabled", s)
 	}
 }
@@ -84,4 +84,24 @@ func TestParseSyncSteps_Deduplication(t *testing.T) {
 	steps, err := ParseSyncSteps([]string{"seasons", StepFetchSeasons})
 	require.NoError(t, err)
 	assert.Len(t, steps, 2)
+}
+
+func TestAllSyncSteps_ReturnsCopy(t *testing.T) {
+	steps := AllSyncSteps()
+	steps[0] = "mutated"
+
+	assert.Equal(t, StepInit, AllSyncSteps()[0], "modifying the returned steps must not change the package list")
+}
+
+func TestValidSyncStepNames_DoesNotWriteIntoStepsCapacity(t *testing.T) {
+	const spare = "spare"
+	backing := []string{StepInit, StepFetchSeasons, spare, spare}
+	steps := backing[:2]
+
+	valid := validSyncStepNames(steps, map[string][]string{"seasons": {StepFetchSeasons}})
+	valid[0] = "mutated"
+
+	assert.Equal(t, []string{"mutated", StepFetchSeasons, "seasons"}, valid)
+	assert.Equal(t, []string{StepInit, StepFetchSeasons, spare, spare}, backing,
+		"listing valid names must neither append into nor alias the steps")
 }
