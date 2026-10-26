@@ -130,11 +130,15 @@ func (r *Repository) Reconcile(ctx context.Context, id Identity, poll PollResult
 	if err != nil {
 		return Session{}, draftsession.Report{}, err
 	}
-	if err := updateSuccessfulSession(ctx, tx, id.LeagueKey, poll, next, report, stateRaw, boardHash); err != nil {
+	version, err := draftsession.DatabaseVersion(next.Version)
+	if err != nil {
+		return Session{}, draftsession.Report{}, err
+	}
+	if err := updateSuccessfulSession(ctx, tx, id.LeagueKey, poll, next, version, report, stateRaw, boardHash); err != nil {
 		return Session{}, draftsession.Report{}, err
 	}
 	if report.Changed {
-		if err := insertEvent(ctx, tx, id.LeagueKey, databaseVersion(next.Version), "upstream_reconcile", report, poll.PolledAt); err != nil {
+		if err := insertEvent(ctx, tx, id.LeagueKey, version, "upstream_reconcile", report, poll.PolledAt); err != nil {
 			return Session{}, draftsession.Report{}, err
 		}
 	}
@@ -243,13 +247,17 @@ func (r *Repository) mutate(ctx context.Context, id Identity, kind string, at ti
 	if err != nil {
 		return Session{}, draftsession.Report{}, err
 	}
+	version, err := draftsession.DatabaseVersion(next.Version)
+	if err != nil {
+		return Session{}, draftsession.Report{}, err
+	}
 	const update = `
 UPDATE draft_sessions SET state_version=$2, board=$3, board_hash=$4,
 	recommendations_safe=($5 AND last_error=''), sync_version=sync_version+1, updated_at=$6 WHERE league_key=$1`
-	if _, err := tx.Exec(ctx, update, id.LeagueKey, databaseVersion(next.Version), raw, hash, report.SafeToRecommend, at); err != nil {
+	if _, err := tx.Exec(ctx, update, id.LeagueKey, version, raw, hash, report.SafeToRecommend, at); err != nil {
 		return Session{}, draftsession.Report{}, fmt.Errorf("update manual draft state: %w", err)
 	}
-	if err := insertEvent(ctx, tx, id.LeagueKey, databaseVersion(next.Version), kind, report, at); err != nil {
+	if err := insertEvent(ctx, tx, id.LeagueKey, version, kind, report, at); err != nil {
 		return Session{}, draftsession.Report{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -307,8 +315,9 @@ func (r *Repository) ListEvents(ctx context.Context, leagueKey string, afterVers
 	if limit > maxDraftEventPageSize {
 		limit = maxDraftEventPageSize
 	}
-	if afterVersion > uint64(^uint64(0)>>1) {
-		return nil, errors.New("draft event cursor exceeds PostgreSQL bigint")
+	databaseAfterVersion, err := draftsession.DatabaseVersion(afterVersion)
+	if err != nil {
+		return nil, fmt.Errorf("draft event cursor: %w", err)
 	}
 	const query = `
 SELECT state_version, kind, details, created_at
@@ -316,7 +325,7 @@ FROM draft_session_events
 WHERE league_key=$1 AND state_version>$2
 ORDER BY state_version ASC
 LIMIT $3`
-	rows, err := r.pool.Query(ctx, query, leagueKey, int64(afterVersion), limit)
+	rows, err := r.pool.Query(ctx, query, leagueKey, databaseAfterVersion, limit)
 	if err != nil {
 		return nil, fmt.Errorf("list draft session events: %w", err)
 	}
@@ -406,7 +415,7 @@ func loadStateForUpdate(ctx context.Context, tx pgx.Tx, leagueKey string) (draft
 }
 
 func updateSuccessfulSession(ctx context.Context, tx pgx.Tx, leagueKey string, poll PollResult,
-	state draftsession.State, report draftsession.Report, raw []byte, hash string) error {
+	state draftsession.State, version int64, report draftsession.Report, raw []byte, hash string) error {
 	const update = `
 UPDATE draft_sessions SET state_version=$2, draft_status=$3, board=$4, board_hash=$5,
     recommendations_safe=$6, complete=$7, upstream_pick_count=$8, skipped_pick_count=$9,
@@ -414,7 +423,7 @@ UPDATE draft_sessions SET state_version=$2, draft_status=$3, board=$4, board_has
     last_authoritative_at=CASE WHEN $11 THEN $10 ELSE last_authoritative_at END,
     last_error='', sync_version=sync_version+1, updated_at=$10
 WHERE league_key=$1`
-	_, err := tx.Exec(ctx, update, leagueKey, databaseVersion(state.Version), poll.DraftStatus, raw, hash,
+	_, err := tx.Exec(ctx, update, leagueKey, version, poll.DraftStatus, raw, hash,
 		report.SafeToRecommend, poll.DraftComplete, len(state.Upstream), len(report.Skipped),
 		poll.PolledAt, report.Complete)
 	if err != nil {
@@ -467,12 +476,4 @@ func nonNegativeDuration(duration time.Duration) time.Duration {
 		return 0
 	}
 	return duration
-}
-
-func databaseVersion(version uint64) int64 {
-	const maxDatabaseVersion = uint64(^uint64(0) >> 1)
-	if version > maxDatabaseVersion {
-		panic("draft session version exceeds PostgreSQL bigint")
-	}
-	return int64(version)
 }
