@@ -15,7 +15,7 @@ func TestSnapshotFromRowsRestoresStoredSnapshot(t *testing.T) {
 	cfg := DefaultConfig()
 	cfg.AgingCurve = fitAgingCurve(Input{TargetSeason: 20262027})
 	asOf := time.Date(2026, time.September, 1, 0, 0, 0, 0, time.UTC)
-	row := snapshotRow(cfg, asOf)
+	row := snapshotRow(t, cfg, asOf)
 	players := []sqlcdb.ProjectionPlayer{
 		{PlayerKey: "nhl:2", PlayerKind: string(PlayerKindSkater), Position: "C", Source: string(SourceInternal),
 			SourceAsOf: timestampValue(asOf), Uncertainty: 0.2, MissingStats: []string{string(StatHits)},
@@ -61,7 +61,7 @@ func TestSnapshotFromRowsRestoresTeamEnvironment(t *testing.T) {
 
 	cfg := DefaultConfig()
 	cfg.AgingCurve = fitAgingCurve(Input{TargetSeason: 20262027})
-	snapshot, err := snapshotFromRows(snapshotRow(cfg, asOf), players, nil)
+	snapshot, err := snapshotFromRows(snapshotRow(t, cfg, asOf), players, nil)
 	require.NoError(t, err)
 	require.Equal(t, env, snapshot.Players[0].TeamEnvironment)
 }
@@ -74,8 +74,8 @@ func TestSnapshotFromRowsLoadsV4SnapshotWithoutTeamEnvironment(t *testing.T) {
 
 	cfg := versionConfig(AgingModelVersion)
 	cfg.AgingCurve = fitAgingCurve(Input{TargetSeason: 20262027})
-	row := snapshotRow(cfg, time.Date(2026, time.September, 1, 0, 0, 0, 0, time.UTC))
-	row.ConfigHash = agingConfigHash(cfg)
+	row := snapshotRow(t, cfg, time.Date(2026, time.September, 1, 0, 0, 0, 0, time.UTC))
+	row.ConfigHash = agingConfigHash(t, cfg)
 
 	snapshot, err := snapshotFromRows(row, nil, nil)
 	require.NoError(t, err)
@@ -84,8 +84,9 @@ func TestSnapshotFromRowsLoadsV4SnapshotWithoutTeamEnvironment(t *testing.T) {
 
 // agingConfigHash hashes a config the way nhl-baseline-v4 did, before the
 // team-environment fields existed.
-func agingConfigHash(cfg Config) string {
-	return hashValue(struct {
+func agingConfigHash(t *testing.T, cfg Config) string {
+	t.Helper()
+	return mustHashJSON(t, struct {
 		ModelVersion               string
 		LookbackSeasons            int
 		SeasonDecay                float64
@@ -111,7 +112,7 @@ func TestSnapshotFromRowsRejectsAlteredConfig(t *testing.T) {
 
 	cfg := DefaultConfig()
 	cfg.AgingCurve = fitAgingCurve(Input{TargetSeason: 20262027})
-	row := snapshotRow(cfg, time.Date(2026, time.September, 1, 0, 0, 0, 0, time.UTC))
+	row := snapshotRow(t, cfg, time.Date(2026, time.September, 1, 0, 0, 0, 0, time.UTC))
 	row.SeasonDecay = 0.9
 	_, err := snapshotFromRows(row, nil, nil)
 	require.ErrorContains(t, err, "no longer matches")
@@ -122,7 +123,7 @@ func TestSnapshotFromRowsRestoresPreAgingV2Snapshot(t *testing.T) {
 
 	cfg := versionConfig(FaceoffModelVersion)
 	cfg.LinemateRegressionStrength = 0
-	row := snapshotRow(cfg, time.Date(2026, time.September, 1, 0, 0, 0, 0, time.UTC))
+	row := snapshotRow(t, cfg, time.Date(2026, time.September, 1, 0, 0, 0, 0, time.UTC))
 
 	snapshot, err := snapshotFromRows(row, nil, nil)
 	require.NoError(t, err)
@@ -133,15 +134,17 @@ func TestSnapshotFromRowsRestoresPublishedV3LinemateSnapshot(t *testing.T) {
 	t.Parallel()
 
 	cfg := versionConfig(LinemateModelVersion)
-	row := snapshotRow(cfg, time.Date(2026, time.September, 1, 0, 0, 0, 0, time.UTC))
+	row := snapshotRow(t, cfg, time.Date(2026, time.September, 1, 0, 0, 0, 0, time.UTC))
 
 	snapshot, err := snapshotFromRows(row, nil, nil)
 	require.NoError(t, err)
 	require.Equal(t, cfg, snapshot.Config)
 }
 
-func snapshotRow(cfg Config, asOf time.Time) sqlcdb.ProjectionSnapshot {
-	params := snapshotParams(Snapshot{TargetSeason: 20262027, AsOf: asOf, SourceDataHash: "hash", Config: cfg})
+func snapshotRow(t *testing.T, cfg Config, asOf time.Time) sqlcdb.ProjectionSnapshot {
+	t.Helper()
+	params, err := snapshotParams(Snapshot{TargetSeason: 20262027, AsOf: asOf, SourceDataHash: "hash", Config: cfg})
+	require.NoError(t, err)
 	return sqlcdb.ProjectionSnapshot{
 		TargetSeason: params.TargetSeason, AsOf: params.AsOf, ModelVersion: params.ModelVersion,
 		ConfigHash: params.ConfigHash, SourceDataHash: params.SourceDataHash, LookbackSeasons: params.LookbackSeasons,

@@ -122,8 +122,8 @@ func TestGoalieSourceHashCoversAppearancesFromV6Only(t *testing.T) {
 	changed.GamesAppeared++
 	for _, version := range []string{AgingModelVersion, TeamEnvironmentModelVersion, ModelVersion} {
 		cfg := versionConfig(version)
-		same := sourceDataHash(cfg, benchInput(row)) == sourceDataHash(cfg, benchInput(changed))
-		sameEvaluation := evaluationDataHash(cfg, benchInput(row)) == evaluationDataHash(cfg, benchInput(changed))
+		same := mustSourceDataHash(t, cfg, benchInput(row)) == mustSourceDataHash(t, cfg, benchInput(changed))
+		sameEvaluation := mustEvaluationDataHash(t, cfg, benchInput(row)) == mustEvaluationDataHash(t, cfg, benchInput(changed))
 		require.Equal(t, !countsGoalieAppearances(version), same, version)
 		require.Equal(t, !countsGoalieAppearances(version), sameEvaluation, version)
 	}
@@ -153,7 +153,7 @@ func TestV6ConfigBuildsOnV5(t *testing.T) {
 		}
 		require.NoError(t, cfg.Validate(), version)
 	}
-	require.NotEqual(t, configHash(versionConfig(TeamEnvironmentModelVersion)), configHash(cfg))
+	require.NotEqual(t, mustConfigHash(t, versionConfig(TeamEnvironmentModelVersion)), mustConfigHash(t, cfg))
 }
 
 func mustGenerate(t *testing.T, cfg Config, input Input) Snapshot {

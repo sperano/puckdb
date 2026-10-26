@@ -81,6 +81,7 @@ Only `main.go` and `cmd/` live at the module root; every library package sits un
 | `internal/resource/` | Typed resource definitions (NHL/Yahoo paths, URLs, parse/format) |
 | `internal/core/` | Shared primitives: file types, data origins, time helpers, resource interfaces |
 | `internal/pgconv/` | pgtype conversions shared by GraphQL, workers, simulation and MCP: optional Go values to nullable columns (`PtrTo*`), NULL-as-empty display strings (`FormatDate`, `FormatInt4`, `FormatInt8`, `FormatPlayerPosition`), strict client `YYYY-MM-DD` parsing (`ParseDate`; never `pgtype.Date.Scan`, which takes `infinity` and rolls 02-30 into March), float64 ↔ NUMERIC at six fractional digits. Only conversions identical at every caller; API-shape mappings (GraphQL pointers, MCP float text, error wording) stay with the caller (see https://wiki.spe.quebec/en/puckdb/pgconv) |
+| `internal/canonhash/` | Byte-level mechanism of every stored content identity: `Bytes` (hex SHA-256), `JSON` (of the `encoding/json` encoding), `Versioned` (`<version>:` + `JSON`); marshal errors are returned, never panicked. Canonical shape (identity struct, sorting, omitempty, prefix) stays with each caller, and each stored identity has a golden test in its caller's package (see wiki `puckdb/canonical-hashing.md`) |
 | `internal/config/` | Flags, defaults, seasons YAML parsing |
 | `internal/httpx/` | HTTP client, Yahoo API URL builders |
 | `internal/metrics/` | Prometheus metrics |

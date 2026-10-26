@@ -62,12 +62,16 @@ func Generate(cfg Config, input Input) (Snapshot, error) {
 	slices.SortFunc(players, func(a, b PlayerProjection) int {
 		return cmp.Compare(a.PlayerKey, b.PlayerKey)
 	})
+	sourceHash, err := sourceDataHash(cfg, input)
+	if err != nil {
+		return Snapshot{}, err
+	}
 
 	return Snapshot{
 		TargetSeason:      input.TargetSeason,
 		AsOf:              input.AsOf.UTC(),
 		SourceMaxGameDate: input.SourceMaxGameDate,
-		SourceDataHash:    sourceDataHash(cfg, input),
+		SourceDataHash:    sourceHash,
 		Config:            cfg,
 		Players:           players,
 	}, nil

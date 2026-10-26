@@ -1,15 +1,18 @@
 package projection
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"slices"
 	"time"
+
+	"github.com/sperano/puckdb/internal/canonhash"
 )
 
-func configHash(cfg Config) string {
+// configHash identifies the settings a snapshot was generated with
+// (projection_snapshots.config_hash, projection_evaluations.config_hash).
+// It fails on a setting JSON cannot encode (a NaN or infinite float).
+func configHash(cfg Config) (string, error) {
 	if !supportsLinemateContext(cfg.ModelVersion) {
 		historical := struct {
 			ModelVersion          string
@@ -31,12 +34,23 @@ func configHash(cfg Config) string {
 			MinimumUncertainty: cfg.MinimumUncertainty, MaximumUncertainty: cfg.MaximumUncertainty,
 			MinimumHistoryGames: cfg.MinimumHistoryGames,
 		}
-		return hashValue(historical)
+		return hashConfig(historical)
 	}
-	return hashValue(cfg)
+	return hashConfig(cfg)
 }
 
-func sourceDataHash(cfg Config, input Input) string {
+func hashConfig(value any) (string, error) {
+	hash, err := canonhash.JSON(value)
+	if err != nil {
+		return "", fmt.Errorf("hash projection config: %w", err)
+	}
+	return hash, nil
+}
+
+// sourceDataHash identifies the input rows a snapshot was generated from. It
+// fails on a row JSON cannot encode (a NaN or infinite float read from the
+// database).
+func sourceDataHash(cfg Config, input Input) (string, error) {
 	lowerSeason := historyFloorSeason(input.TargetSeason, cfg.LookbackSeasons)
 	if supportsAgingCurve(cfg.ModelVersion) {
 		lowerSeason = projectionLoadFloor(cfg, input.TargetSeason)
@@ -57,7 +71,7 @@ func sourceDataHash(cfg Config, input Input) string {
 	return inputDataHash(input, cfg.ModelVersion)
 }
 
-func evaluationDataHash(cfg Config, input Input) string {
+func evaluationDataHash(cfg Config, input Input) (string, error) {
 	lowerSeason := historyFloorSeason(input.TargetSeason, cfg.LookbackSeasons)
 	if supportsAgingCurve(cfg.ModelVersion) {
 		lowerSeason = projectionLoadFloor(cfg, input.TargetSeason)
@@ -147,7 +161,7 @@ type legacyGoalieSeason struct {
 	GoalsAgainst int
 }
 
-func encodedSkaterHashRows(rows []SkaterSeason, modelVersion string) []string {
+func encodedSkaterHashRows(rows []SkaterSeason, modelVersion string) ([]string, error) {
 	if supportsAgingCurve(modelVersion) {
 		return encodedValues(rows)
 	}
@@ -197,7 +211,7 @@ func legacySkaterHashRow(row SkaterSeason) legacySkaterSeason {
 // nhl-baseline-v4 and v5 hashed the whole GoalieSeason before GamesAppeared
 // existed, so their rows are encoded with it cleared (omitempty drops it and
 // the JSON is byte-identical to theirs); v6 reads it and hashes it.
-func encodedGoalieHashRows(rows []GoalieSeason, modelVersion string) []string {
+func encodedGoalieHashRows(rows []GoalieSeason, modelVersion string) ([]string, error) {
 	if countsGoalieAppearances(modelVersion) {
 		return encodedValues(rows)
 	}
@@ -219,11 +233,23 @@ func encodedGoalieHashRows(rows []GoalieSeason, modelVersion string) []string {
 	return encodedValues(legacy)
 }
 
-func inputDataHash(input Input, modelVersion string) string {
-	return hashInputParts(input, encodedSkaterHashRows(input.Skaters, modelVersion), encodedGoalieHashRows(input.Goalies, modelVersion))
+func inputDataHash(input Input, modelVersion string) (string, error) {
+	skaters, err := encodedSkaterHashRows(input.Skaters, modelVersion)
+	if err != nil {
+		return "", err
+	}
+	goalies, err := encodedGoalieHashRows(input.Goalies, modelVersion)
+	if err != nil {
+		return "", err
+	}
+	return hashInputParts(input, skaters, goalies)
 }
 
-func hashInputParts(input Input, skaters, goalies []string) string {
+func hashInputParts(input Input, skaters, goalies []string) (string, error) {
+	sources, err := encodeSourceRows(input)
+	if err != nil {
+		return "", err
+	}
 	canonical := struct {
 		TargetSeason      int
 		AsOf              time.Time
@@ -241,33 +267,57 @@ func hashInputParts(input Input, skaters, goalies []string) string {
 	}{
 		TargetSeason: input.TargetSeason, AsOf: input.AsOf.UTC(),
 		SourceMaxGameDate: input.SourceMaxGameDate.UTC(), Skaters: skaters, Goalies: goalies,
-		PlayerPool: encodedValues(input.PlayerPool), Overrides: encodedValues(input.Overrides),
-		TeamSeasons:       encodedValues(input.TeamSeasons),
-		TargetTeams:       encodedValues(input.TargetTeams),
-		SkaterClubSeasons: encodedValues(input.SkaterClubSeasons),
-		GoalieStarts:      encodedValues(input.GoalieStarts),
+		PlayerPool: sources.playerPool, Overrides: sources.overrides,
+		TeamSeasons:       sources.teamSeasons,
+		TargetTeams:       sources.targetTeams,
+		SkaterClubSeasons: sources.skaterClubSeasons,
+		GoalieStarts:      sources.goalieStarts,
 	}
-	return hashValue(canonical)
+	hash, err := canonhash.JSON(canonical)
+	if err != nil {
+		return "", fmt.Errorf("hash projection source data: %w", err)
+	}
+	return hash, nil
 }
 
-func encodedValues[T any](values []T) []string {
+// encodedSourceRows are the sorted encodings of an input's non-history rows.
+type encodedSourceRows struct {
+	playerPool, overrides, teamSeasons, targetTeams, skaterClubSeasons, goalieStarts []string
+}
+
+func encodeSourceRows(input Input) (encodedSourceRows, error) {
+	var rows encodedSourceRows
+	var err error
+	if rows.playerPool, err = encodedValues(input.PlayerPool); err != nil {
+		return rows, err
+	}
+	if rows.overrides, err = encodedValues(input.Overrides); err != nil {
+		return rows, err
+	}
+	if rows.teamSeasons, err = encodedValues(input.TeamSeasons); err != nil {
+		return rows, err
+	}
+	if rows.targetTeams, err = encodedValues(input.TargetTeams); err != nil {
+		return rows, err
+	}
+	if rows.skaterClubSeasons, err = encodedValues(input.SkaterClubSeasons); err != nil {
+		return rows, err
+	}
+	rows.goalieStarts, err = encodedValues(input.GoalieStarts)
+	return rows, err
+}
+
+// encodedValues encodes each value as JSON and sorts the encodings, so the
+// hash does not depend on row order.
+func encodedValues[T any](values []T) ([]string, error) {
 	encoded := make([]string, 0, len(values))
 	for _, value := range values {
 		data, err := json.Marshal(value)
 		if err != nil {
-			panic(fmt.Sprintf("marshal projection source value: %v", err))
+			return nil, fmt.Errorf("encode projection source row %T: %w", value, err)
 		}
 		encoded = append(encoded, string(data))
 	}
 	slices.Sort(encoded)
-	return encoded
-}
-
-func hashValue(value any) string {
-	data, err := json.Marshal(value)
-	if err != nil {
-		panic(fmt.Sprintf("marshal projection hash input: %v", err))
-	}
-	digest := sha256.Sum256(data)
-	return hex.EncodeToString(digest[:])
+	return encoded, nil
 }

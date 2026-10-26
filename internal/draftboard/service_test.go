@@ -380,3 +380,18 @@ func TestStatusRejectsStoredSafeFlagForDuplicatePlayer(t *testing.T) {
 	assert.Contains(t, status.Warnings, draftrank.Issue{Code: IssueDuplicatePlayer,
 		Message: "player 101 appears in more than one slot (round 1 pick 1, round 1 pick 2)"})
 }
+
+// TestRecommendationCacheKeyGolden pins the cache key's canonical shape.
+func TestRecommendationCacheKeyGolden(t *testing.T) {
+	key, err := recommendationCacheKey(draftrecommend.Input{
+		SessionLeagueKey: "500.l.5621",
+		Session:          draftsession.State{Version: 9},
+		Ranking:          boardRanking("500.l.5621"),
+		OurTeamID:        3,
+		SessionSafe:      true,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, goldenRecommendationCacheKey, key)
+}
+
+const goldenRecommendationCacheKey = "bdc3f8a87223ac15289023db400a25c7da8d0f53c04a6e326ea18a9261098e20"

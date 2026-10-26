@@ -55,11 +55,14 @@ func Evaluate(cfg Config, input Input) ([]Evaluation, error) {
 	}
 	previousSeason := historyFloorSeason(input.TargetSeason, 1)
 	result := make([]Evaluation, 0, 2)
-	if evaluation := evaluateSkaters(snapshot, input, previousSeason); len(evaluation.Metrics) > 0 {
-		result = append(result, evaluation)
-	}
-	if evaluation := evaluateGoalies(snapshot, input, previousSeason); len(evaluation.Metrics) > 0 {
-		result = append(result, evaluation)
+	for _, evaluate := range []func(Snapshot, Input, int) (Evaluation, error){evaluateSkaters, evaluateGoalies} {
+		evaluation, err := evaluate(snapshot, input, previousSeason)
+		if err != nil {
+			return nil, err
+		}
+		if len(evaluation.Metrics) > 0 {
+			result = append(result, evaluation)
+		}
 	}
 	return result, nil
 }
@@ -85,11 +88,15 @@ func EvaluateLinemateAdjustment(cfg Config, input Input) (Evaluation, error) {
 	actual := aggregateSkaterValues(input.Skaters, input.TargetSeason)
 	comparisonValues := projectedValues(comparison, PlayerKindSkater)
 	stats := supportedStats(PlayerKindSkater)
+	hash, err := evaluationDataHash(cfg, input)
+	if err != nil {
+		return Evaluation{}, err
+	}
 	return evaluateKind(
-		adjusted, input.ObservedAt, evaluationDataHash(cfg, input),
+		adjusted, input.ObservedAt, hash,
 		PlayerKindSkater, actual, comparisonValues, stats,
 		LinemateDisabledComparison,
-	), nil
+	)
 }
 
 func validateHeldOutInput(input Input) error {
@@ -102,7 +109,7 @@ func validateHeldOutInput(input Input) error {
 	return nil
 }
 
-func evaluateSkaters(snapshot Snapshot, input Input, previousSeason int) Evaluation {
+func evaluateSkaters(snapshot Snapshot, input Input, previousSeason int) (Evaluation, error) {
 	actual := aggregateSkaterValues(input.Skaters, input.TargetSeason)
 	comparison := aggregateSkaterValues(input.Skaters, previousSeason)
 	stats := []Stat{
@@ -110,8 +117,12 @@ func evaluateSkaters(snapshot Snapshot, input Input, previousSeason int) Evaluat
 		StatPlusMinus, StatPenaltyMinutes, StatPowerPlayPoints, StatShotsOnGoal,
 		StatHits, StatBlockedShots, StatFaceoffsWon, StatFaceoffsLost,
 	}
+	hash, err := evaluationDataHash(snapshot.Config, input)
+	if err != nil {
+		return Evaluation{}, err
+	}
 	return evaluateKind(
-		snapshot, input.ObservedAt, evaluationDataHash(snapshot.Config, input),
+		snapshot, input.ObservedAt, hash,
 		PlayerKindSkater, actual, comparison, stats, PreviousSeasonComparison,
 	)
 }
@@ -120,7 +131,7 @@ func evaluateSkaters(snapshot Snapshot, input Input, previousSeason int) Evaluat
 // model version counts them (goalieModelRows): appearances from
 // nhl-baseline-v6, every dressed game for the published versions before it,
 // whose stored evaluations stay reproducible.
-func evaluateGoalies(snapshot Snapshot, input Input, previousSeason int) Evaluation {
+func evaluateGoalies(snapshot Snapshot, input Input, previousSeason int) (Evaluation, error) {
 	rows := goalieModelRows(snapshot.Config.ModelVersion, input.Goalies)
 	actual := aggregateGoalieValues(rows, input.TargetSeason)
 	comparison := aggregateGoalieValues(rows, previousSeason)
@@ -129,8 +140,12 @@ func evaluateGoalies(snapshot Snapshot, input Input, previousSeason int) Evaluat
 		StatShotsAgainst, StatSaves, StatGoalsAgainst, StatSavePercentage,
 		StatGoalsAgainstAvg,
 	}
+	hash, err := evaluationDataHash(snapshot.Config, input)
+	if err != nil {
+		return Evaluation{}, err
+	}
 	return evaluateKind(
-		snapshot, input.ObservedAt, evaluationDataHash(snapshot.Config, input),
+		snapshot, input.ObservedAt, hash,
 		PlayerKindGoalie, actual, comparison, stats, PreviousSeasonComparison,
 	)
 }
@@ -144,7 +159,7 @@ func evaluateKind(
 	comparison map[string]map[Stat]float64,
 	stats []Stat,
 	comparisonModel string,
-) Evaluation {
+) (Evaluation, error) {
 	projections := make(map[string]PlayerProjection)
 	for _, player := range snapshot.Players {
 		if player.Kind == kind {
@@ -158,12 +173,16 @@ func evaluateKind(
 			metrics = append(metrics, metric)
 		}
 	}
+	cfgHash, err := configHash(snapshot.Config)
+	if err != nil {
+		return Evaluation{}, err
+	}
 	return Evaluation{
-		ModelVersion: snapshot.Config.ModelVersion, ConfigHash: configHash(snapshot.Config),
+		ModelVersion: snapshot.Config.ModelVersion, ConfigHash: cfgHash,
 		SourceDataHash: sourceDataHash, TargetSeason: snapshot.TargetSeason,
 		AsOf: snapshot.AsOf, ObservedAt: observedAt.UTC(), PlayerKind: kind,
 		ComparisonModel: comparisonModel, Metrics: metrics,
-	}
+	}, nil
 }
 
 func projectedValues(snapshot Snapshot, kind PlayerKind) map[string]map[Stat]float64 {

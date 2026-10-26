@@ -1,11 +1,10 @@
 package draftwatch
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 
+	"github.com/sperano/puckdb/internal/canonhash"
 	"github.com/sperano/puckdb/internal/draftsession"
 )
 
@@ -14,8 +13,7 @@ func encodeState(state draftsession.State) ([]byte, string, error) {
 	if err != nil {
 		return nil, "", fmt.Errorf("marshal draft session state: %w", err)
 	}
-	sum := sha256.Sum256(raw)
-	return raw, hex.EncodeToString(sum[:]), nil
+	return raw, canonhash.Bytes(raw), nil
 }
 
 func decodeState(raw []byte) (draftsession.State, error) {

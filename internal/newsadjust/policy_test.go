@@ -40,7 +40,32 @@ func TestPolicy_ValidateRejectsDisorderedAssumptions(t *testing.T) {
 
 func TestPolicy_HashChangesWithAssumptions(t *testing.T) {
 	first, second := DefaultPolicy(), DefaultPolicy()
-	assert.Equal(t, first.Hash(), second.Hash())
+	assert.Equal(t, mustPolicyHash(t, first), mustPolicyHash(t, second))
 	second.MissedGames[DurationIndefinite] = Range{Conservative: 60, Base: 20, Optimistic: 0}
-	assert.NotEqual(t, first.Hash(), second.Hash())
+	assert.NotEqual(t, mustPolicyHash(t, first), mustPolicyHash(t, second))
 }
+
+func mustPolicyHash(t *testing.T, p Policy) string {
+	t.Helper()
+	hash, err := p.Hash()
+	require.NoError(t, err)
+	return hash
+}
+
+// TestPolicy_HashGolden pins news_adjustment_runs.policy_hash of the default
+// policy: a stored run whose policy no longer hashes to it fails to load.
+func TestPolicy_HashGolden(t *testing.T) {
+	assert.Equal(t, goldenDefaultPolicyHash, mustPolicyHash(t, DefaultPolicy()))
+}
+
+// An unvalidated policy can hold a NaN: hashing it used to panic and now
+// returns an error.
+func TestPolicy_HashRejectsNonFiniteValue(t *testing.T) {
+	policy := DefaultPolicy()
+	policy.OffseasonDays = math.NaN()
+	require.Error(t, policy.Validate())
+	_, err := policy.Hash()
+	require.ErrorContains(t, err, "hash adjustment policy")
+}
+
+const goldenDefaultPolicyHash = "b7e115998c2deb09103a43ba2d4e24cd4f355cf2e803b2c0af45a6854f82e7b9"

@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/sperano/puckdb/internal/canonhash"
 	"github.com/sperano/puckdb/internal/fixtures/yahoofixtures"
 	"github.com/sperano/puckdb/internal/resource"
 	"github.com/sperano/puckdb/internal/store"
@@ -249,3 +250,16 @@ func TestDirectionFromStoredSortOrder(t *testing.T) {
 		})
 	}
 }
+
+// TestRules_HashGolden pins the stored rules identity
+// (yahoo_league_rule_snapshots.rules_hash): a change means every league's
+// rules look new.
+func TestRules_HashGolden(t *testing.T) {
+	t.Parallel()
+	hash, data, err := FromLeague(parseRotoLeague(t)).Hash()
+	require.NoError(t, err)
+	assert.Equal(t, goldenRotoRulesHash, hash)
+	assert.Equal(t, goldenRotoRulesHash, canonhash.Bytes(data), "the hash is the digest of the returned canonical JSON")
+}
+
+const goldenRotoRulesHash = "21e75de1fb22bd9af82aa47270d6d0d899da7710709f0511b71734d9fb5bbdb3"

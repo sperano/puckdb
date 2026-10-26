@@ -70,7 +70,11 @@ func storedRunFromRow(row sqlcdb.NewsAdjustmentRun) (StoredRun, error) {
 			return StoredRun{}, fmt.Errorf("decode adjustment run %s: %w", row.AdjustmentID, err)
 		}
 	}
-	if stored.Result.Policy.Hash() != row.PolicyHash {
+	policyHash, err := stored.Result.Policy.Hash()
+	if err != nil {
+		return StoredRun{}, fmt.Errorf("adjustment run %s: %w", row.AdjustmentID, err)
+	}
+	if policyHash != row.PolicyHash {
 		return StoredRun{}, fmt.Errorf("adjustment run %s policy no longer matches its hash", row.AdjustmentID)
 	}
 	return stored, nil

@@ -2,14 +2,14 @@ package news
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"strconv"
 	"time"
+
+	"github.com/sperano/puckdb/internal/canonhash"
 )
 
 const (
@@ -100,9 +100,8 @@ func Fetch(ctx context.Context, client *http.Client, url string, last Validators
 	if len(body) > maxFeedBytes {
 		return FetchResponse{}, fmt.Errorf("GET %s: %w", url, ErrFeedTooLarge)
 	}
-	sum := sha256.Sum256(body)
 	validators := Validators{
-		ETag: resp.Header.Get("ETag"), LastModified: resp.Header.Get("Last-Modified"), BodyHash: hex.EncodeToString(sum[:]),
+		ETag: resp.Header.Get("ETag"), LastModified: resp.Header.Get("Last-Modified"), BodyHash: canonhash.Bytes(body),
 	}
 	return FetchResponse{NotModified: validators.BodyHash == last.BodyHash, Body: body, Validators: validators}, nil
 }

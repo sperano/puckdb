@@ -59,3 +59,23 @@ func TestDecodeStateSeedsUpstreamPlayersOfLegacyBoard(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, string(raw), `"upstreamPlayers":[102,105]`)
 }
+
+// TestEncodeStateHashGolden pins draft_sessions' stored board hash.
+func TestEncodeStateHashGolden(t *testing.T) {
+	key := draftsession.PickKey{Round: 2, Pick: 13}
+	base := draftsession.Pick{Key: key, TeamID: 3, PlayerID: 101}
+	manual := draftsession.Pick{Key: key, TeamID: 3, PlayerID: 202}
+	_, hash, err := encodeState(draftsession.State{
+		Upstream: map[draftsession.PickKey]draftsession.Pick{key: base},
+		Manual: map[draftsession.PickKey]draftsession.ManualChange{
+			key: {Kind: draftsession.ManualCorrect, Pick: &manual, Base: &base, Conflict: true},
+		},
+		UpstreamPlayers:  map[int]bool{101: true, 99: true},
+		UpstreamComplete: true,
+		Version:          9,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, goldenStateHash, hash)
+}
+
+const goldenStateHash = "f0c4eea6aef20b7a8f3501258606c6e30afd648b02280795f8ace6f2a0271db9"
