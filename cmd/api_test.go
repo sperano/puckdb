@@ -4,11 +4,14 @@ import (
 	"context"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/sperano/puckdb/internal/graph"
 )
 
 // runHTTPServerTestTimeout bounds how long a test waits for runHTTPServer to
@@ -95,5 +98,49 @@ func TestRunHTTPServer_ReturnsListenError(t *testing.T) {
 		require.Error(t, err, "ListenAndServe on an already-bound port should fail")
 	case <-time.After(runHTTPServerTestTimeout):
 		t.Fatal("runHTTPServer should have returned the listen error promptly")
+	}
+}
+
+// newTestAPIRouter builds the real API router with no Redis, an empty
+// resolver and pass-through sessions: enough for routes that touch neither.
+func newTestAPIRouter() http.Handler {
+	passThrough := func(next http.Handler) http.Handler { return next }
+	return setupAPIRouter(nil, &graph.Resolver{}, passThrough, apiAuth{})
+}
+
+// TestAPIRouterServesDraftBoard requests the mounted board through the API
+// router, whose Mount hands the handler the full /draft/... path.
+func TestAPIRouterServesDraftBoard(t *testing.T) {
+	router := newTestAPIRouter()
+	for path, contentType := range map[string]string{
+		draftBoardPath + "/":          "text/html",
+		draftBoardPath + "/app.js":    "text/javascript",
+		draftBoardPath + "/style.css": "text/css",
+	} {
+		recorder := httptest.NewRecorder()
+		router.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, path, nil))
+		assert.Equal(t, http.StatusOK, recorder.Code, path)
+		assert.Contains(t, recorder.Header().Get("Content-Type"), contentType, path)
+		assert.NotEmpty(t, recorder.Body.Bytes(), path)
+	}
+}
+
+// TestAPIRouterRedirectsDraftBoardRoot sends /draft to /draft/, where the
+// page's relative asset links resolve under the mount.
+func TestAPIRouterRedirectsDraftBoardRoot(t *testing.T) {
+	recorder := httptest.NewRecorder()
+	newTestAPIRouter().ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, draftBoardPath+"?season=2025", nil))
+	assert.Equal(t, http.StatusMovedPermanently, recorder.Code)
+	assert.Equal(t, draftBoardPath+"/?season=2025", recorder.Header().Get("Location"))
+}
+
+// TestAPIRouterDoesNotServeDraftBoardClientTests keeps the client's Node
+// tests and unknown nested paths unreachable through the mount.
+func TestAPIRouterDoesNotServeDraftBoardClientTests(t *testing.T) {
+	router := newTestAPIRouter()
+	for _, path := range []string{draftBoardPath + "/app_test.js", draftBoardPath + "/web/app.js"} {
+		recorder := httptest.NewRecorder()
+		router.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, path, nil))
+		assert.Equal(t, http.StatusNotFound, recorder.Code, path)
 	}
 }
