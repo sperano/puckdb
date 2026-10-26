@@ -100,8 +100,53 @@ func TestRenderProgressBar_EdgeCases(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			bar := renderProgressBar(tt.pct, tt.width)
+			bar := renderProgressBar(tt.pct, tt.width, progressBarGradient)
 			tt.check(t, bar)
+		})
+	}
+}
+
+func TestProgressBarWidth(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name           string
+		terminalWidth  int
+		labelAreaWidth int
+		want           int
+	}{
+		{
+			name:           "unavailable terminal uses fallback",
+			terminalWidth:  0,
+			labelAreaWidth: config.ProgressLabelAreaWidth,
+			want:           config.DefaultProgressBarWidth,
+		},
+		{
+			name:           "wide terminal snaps to palette segments",
+			terminalWidth:  200,
+			labelAreaWidth: config.ProgressLabelAreaWidth,
+			want:           168,
+		},
+		{
+			name:           "narrow terminal clamps to minimum",
+			terminalWidth:  40,
+			labelAreaWidth: config.ProgressLabelAreaWidth,
+			want:           config.MinProgressBarWidth,
+		},
+		{
+			name:           "wider label leaves less room for bar",
+			terminalWidth:  200,
+			labelAreaWidth: config.ProgressLabelAreaWidth + 16,
+			want:           152,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := progressBarWidth(tt.terminalWidth, tt.labelAreaWidth); got != tt.want {
+				t.Errorf("progressBarWidth(%d, %d) = %d, want %d", tt.terminalWidth, tt.labelAreaWidth, got, tt.want)
+			}
 		})
 	}
 }

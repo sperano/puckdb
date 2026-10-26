@@ -11,21 +11,30 @@ import (
 	"golang.org/x/term"
 )
 
-// progressBarWidth returns the inner bar width sized to fill the terminal,
-// given the label-area width on the bar's line. ProgressLineOverhead assumes
-// the default label area; callers that widen it (multi-bar groups with long
-// labels) must pass their actual width so the bar shrinks accordingly,
-// otherwise the rendered line overflows and wraps — which breaks the
-// spinner's in-place redraw.
-// Falls back to DefaultProgressBarWidth if the terminal size is unavailable.
-// The result is snapped to a multiple of 8 for clean gradient segments.
-func progressBarWidth(labelAreaWidth int) int {
-	w, _, err := term.GetSize(int(os.Stdout.Fd()))
-	if err != nil || w <= 0 {
+type progressBarStyle uint8
+
+const (
+	progressBarGradient progressBarStyle = iota
+	progressBarASCII
+)
+
+// terminalProgressBarWidth returns the inner bar width sized to fill stdout.
+func terminalProgressBarWidth(labelAreaWidth int) int {
+	terminalWidth, _, err := term.GetSize(int(os.Stdout.Fd()))
+	if err != nil {
+		terminalWidth = 0
+	}
+	return progressBarWidth(terminalWidth, labelAreaWidth)
+}
+
+// progressBarWidth calculates the inner bar width for a terminal and label
+// area. The result is snapped to a palette-sized segment boundary.
+func progressBarWidth(terminalWidth, labelAreaWidth int) int {
+	if terminalWidth <= 0 {
 		return config.DefaultProgressBarWidth
 	}
 	overhead := config.ProgressLineOverhead + (labelAreaWidth - config.ProgressLabelAreaWidth)
-	barW := w - overhead
+	barW := terminalWidth - overhead
 	barW = (barW / colorThemePaletteSize) * colorThemePaletteSize // snap to multiple of 8
 	if barW < config.MinProgressBarWidth {
 		barW = config.MinProgressBarWidth
@@ -33,7 +42,10 @@ func progressBarWidth(labelAreaWidth int) int {
 	return barW
 }
 
-func renderProgressBar(pct float64, width int) string {
+// renderProgressBar renders the shared width-aware bar used by workflow and
+// simulation progress. The style preserves each display's output contract.
+func renderProgressBar(pct float64, width int, style progressBarStyle) string {
+	width = max(width, 0) // a negative width renders an empty bar
 	filled := int(pct / 100.0 * float64(width))
 	if filled > width {
 		filled = width
@@ -42,8 +54,12 @@ func renderProgressBar(pct float64, width int) string {
 		filled = 0
 	}
 
-	// Split into 8 equal gradient segments (dark to light).
-	// Each segment gets shade sentinels so the render loop can colorize the filled portion.
+	if style == progressBarASCII {
+		return "[" + strings.Repeat("#", filled) + strings.Repeat(" ", width-filled) + "]"
+	}
+
+	// Split into equal gradient segments (dark to light). Each segment gets
+	// shade sentinels so the render loop can colorize the filled portion.
 	segmentWidth := width / colorThemePaletteSize
 	var bar strings.Builder
 	bar.WriteByte('[')
@@ -116,7 +132,7 @@ func renderProgressGroup(g *model.ProgressGroup) string {
 			label = *b.Label
 		}
 		pct := float64(b.Current) / float64(b.Total) * 100
-		bar := renderProgressBar(pct, progressBarWidth(config.ProgressLabelAreaWidth))
+		bar := renderProgressBar(pct, terminalProgressBarWidth(config.ProgressLabelAreaWidth), progressBarGradient)
 		return fmt.Sprintf("▶ %s\n%s %s %s %d%%",
 			g.Header, SpinnerPlaceholder, formatLabelArea(label, b.Current, b.Total), bar, int(pct))
 	}
@@ -127,11 +143,9 @@ func renderProgressGroup(g *model.ProgressGroup) string {
 
 func renderMultiBarGroup(g *model.ProgressGroup) string {
 	var activeBars []*model.ProgressBar
-	var totalCurrent, totalTotal int
+	totalCurrent, totalTotal := progressGroupTotals(g)
 
 	for _, b := range g.Bars {
-		totalCurrent += b.Current
-		totalTotal += b.Total
 		if b.Started && b.Current < b.Total {
 			activeBars = append(activeBars, b)
 		}
@@ -170,17 +184,25 @@ func renderMultiBarGroup(g *model.ProgressGroup) string {
 		if b.Total > 0 {
 			pct = float64(b.Current) / float64(b.Total) * 100
 		}
-		bar := renderProgressBar(pct, progressBarWidth(width))
+		bar := renderProgressBar(pct, terminalProgressBarWidth(width), progressBarGradient)
 		lines = append(lines, fmt.Sprintf("%s %s %s %d%%",
 			SpinnerPlaceholder, formatLabelAreaW(label, b.Current, b.Total, width), bar, int(pct)))
 	}
 
 	if totalTotal > 0 {
 		pct := float64(totalCurrent) / float64(totalTotal) * 100
-		bar := renderProgressBar(pct, progressBarWidth(width))
+		bar := renderProgressBar(pct, terminalProgressBarWidth(width), progressBarGradient)
 		lines = append(lines, fmt.Sprintf("  %s %s %d%%",
 			formatLabelAreaW("Total", totalCurrent, totalTotal, width), bar, int(pct)))
 	}
 
 	return strings.Join(lines, "\n")
+}
+
+func progressGroupTotals(g *model.ProgressGroup) (current, total int) {
+	for _, b := range g.Bars {
+		current += b.Current
+		total += b.Total
+	}
+	return current, total
 }

@@ -10,6 +10,7 @@ import (
 
 	"github.com/rs/zerolog/log"
 	"github.com/sperano/puckdb/internal/config"
+	"github.com/sperano/puckdb/internal/core"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -159,7 +160,7 @@ func runSync(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	fmt.Printf("✓ Sync completed in %s\n", formatElapsed(time.Since(start)))
+	fmt.Printf("✓ Sync completed in %s\n", core.FormatDuration(time.Since(start)))
 	return nil
 }
 

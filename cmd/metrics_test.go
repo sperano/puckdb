@@ -474,7 +474,7 @@ func TestRenderProgressBar(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := renderProgressBar(tt.pct, tt.width)
+			got := renderProgressBar(tt.pct, tt.width, progressBarGradient)
 			if got != tt.want {
 				t.Errorf("renderProgressBar() = %q, want %q", got, tt.want)
 			}

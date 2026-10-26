@@ -6,7 +6,6 @@ import (
 	"os"
 	"sort"
 	"strconv"
-	"strings"
 
 	"github.com/sperano/puckdb/internal/config"
 	"github.com/sperano/puckdb/internal/graph/model"
@@ -324,12 +323,13 @@ func renderProgressGroups(w io.Writer, p *model.ProgressReport) {
 		if g.StartedAt == 0 {
 			continue
 		}
-		current, total := 0, 0
-		for _, b := range g.Bars {
-			current += b.Current
-			total += b.Total
+		current, total := progressGroupTotals(g)
+		pct := 0.0
+		if total > 0 {
+			pct = float64(current) / float64(total) * 100
 		}
-		fmt.Fprintf(w, "  %-7s %s %d/%d\n", g.Header, asciiBar(current, total, simBarWidth), current, total)
+		bar := renderProgressBar(pct, simBarWidth, progressBarASCII)
+		fmt.Fprintf(w, "  %-7s %s %d/%d\n", g.Header, bar, current, total)
 	}
 }
 
@@ -383,18 +383,6 @@ func agentDisplayName(agents []*model.SimAgent, agentID int) string {
 // at least one character at 90% completion, narrow enough to fit on
 // a typical terminal alongside the count text.
 const simBarWidth = 20
-
-// asciiBar renders a fixed-width "[#####     ]" bar. width-clamped
-// to never exceed the configured width even with rounding; a negative
-// width renders an empty bar.
-func asciiBar(current, total, width int) string {
-	width = max(width, 0)
-	if total <= 0 {
-		return "[" + strings.Repeat(" ", width) + "]"
-	}
-	filled := min(max(current*width/total, 0), width)
-	return "[" + strings.Repeat("#", filled) + strings.Repeat(" ", width-filled) + "]"
-}
 
 // printCreatedSimPool prints pool_id and workflow_id lines for scripts to
 // capture. The workflow ID is the one the API started for the pool.
