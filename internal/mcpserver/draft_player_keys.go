@@ -12,7 +12,6 @@ import (
 
 const (
 	standInDraftPlayerKeyPrefix = "nhl.p."
-	yahooDraftPlayerKeyFormat   = "%d.p.%d"
 	draftPlayerKeyIDBitSize     = 64
 )
 
@@ -50,15 +49,8 @@ func requiredDraftPlayerKeys(req mcp.CallToolRequest, leagueKey string) ([]strin
 func validateDraftPlayerKey(playerKey, leagueKey string) error {
 	gameKey := draft.GameKeyOf(leagueKey)
 	if gameKey > 0 {
-		playerID, err := draftwatch.ParsePlayerKey(playerKey, draftwatch.Identity{LeagueKey: leagueKey, GameKey: gameKey})
-		if err != nil {
-			return err
-		}
-		canonical := fmt.Sprintf(yahooDraftPlayerKeyFormat, gameKey, playerID)
-		if playerKey != canonical {
-			return fmt.Errorf("yahoo player key %q is not canonical; use %q", playerKey, canonical)
-		}
-		return nil
+		_, err := draftwatch.ParsePlayerKey(playerKey, draftwatch.Identity{LeagueKey: leagueKey, GameKey: gameKey})
+		return err
 	}
 	// Temporary stand-in rankings use stable NHL IDs because their league
 	// keys intentionally have no Yahoo game key.

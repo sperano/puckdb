@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"maps"
 	"slices"
-	"strconv"
 	"strings"
 
 	"github.com/jackc/pgx/v5"
@@ -14,13 +13,13 @@ import (
 	"github.com/mark3labs/mcp-go/server"
 	"github.com/sperano/puckdb/internal/draftrank"
 	"github.com/sperano/puckdb/internal/sqlcdb"
+	"github.com/sperano/puckdb/internal/yahookey"
 )
 
 const (
 	// leagueKeyListSeparator separates league keys in --mcp-yahoo-leagues.
 	leagueKeyListSeparator = ","
-	// leagueKeyMarker separates the game key and league ID of a Yahoo
-	// league key ("465.l.1001").
+	// leagueKeyMarker separates a league's game key from its numeric ID.
 	leagueKeyMarker = ".l."
 	// leagueIDArg is the argument every league-scoped Yahoo tool takes.
 	leagueIDArg = "league_id"
@@ -208,14 +207,15 @@ func ParseLeagueKeys(list string) ([]string, error) {
 	return keys, nil
 }
 
-// validateLeagueKey checks the "<game key>.l.<league ID>" shape.
+// validateLeagueKey checks the "<game key>.l.<league ID>" allowlist shape.
+// The game key may be a non-Yahoo stand-in such as "temporary-stand-in".
 func validateLeagueKey(key string) error {
-	gameKey, id, found := strings.Cut(key, leagueKeyMarker)
+	gameKey, leagueID, found := strings.Cut(key, leagueKeyMarker)
 	if !found || gameKey == "" {
 		return fmt.Errorf("invalid league key %q: want <game key>%s<league ID>, e.g. 465.l.1001", key, leagueKeyMarker)
 	}
-	if n, err := strconv.Atoi(id); err != nil || n <= 0 {
-		return fmt.Errorf("invalid league key %q: league ID %q is not a positive number", key, id)
+	if _, err := yahookey.ParseID(leagueID); err != nil {
+		return fmt.Errorf("invalid league key %q: league ID %q is not a canonical positive number", key, leagueID)
 	}
 	return nil
 }

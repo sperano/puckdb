@@ -10,6 +10,7 @@ import (
 	"github.com/sperano/puckdb/internal/news"
 	"github.com/sperano/puckdb/internal/newsevent"
 	"github.com/sperano/puckdb/internal/projection"
+	"github.com/sperano/puckdb/internal/yahookey"
 )
 
 // extractedIDPrefix marks adjustment event IDs taken from stored extraction
@@ -22,10 +23,6 @@ const holdSeparator = "; "
 // nhlPlayerKeyPrefix starts the key of a player known by NHL ID only
 // ("nhl:8478402").
 const nhlPlayerKeyPrefix = "nhl:"
-
-// yahooPlayerKeyMarker separates a Yahoo player key's game key from the
-// player ID ("465.p.1234").
-const yahooPlayerKeyMarker = ".p."
 
 // ExtractedEvent is one event stored by news event extraction, with every
 // evidence row and lifecycle transition on record.
@@ -191,12 +188,8 @@ func nhlPlayerID(key string) (int64, bool) {
 
 // yahooPlayerID reads the player ID of a Yahoo player key.
 func yahooPlayerID(key string) (int, bool) {
-	i := strings.LastIndex(key, yahooPlayerKeyMarker)
-	if i < 0 {
-		return 0, false
-	}
-	id, err := strconv.Atoi(key[i+len(yahooPlayerKeyMarker):])
-	return id, err == nil && id > 0
+	parsed, err := yahookey.ParsePlayerKey(key)
+	return parsed.PlayerID, err == nil
 }
 
 // playerKey is the baseline projection's key for the player, else a key

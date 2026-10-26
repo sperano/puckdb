@@ -15,6 +15,7 @@ import (
 	"github.com/sperano/puckdb/internal/draftsession"
 	"github.com/sperano/puckdb/internal/draftwatch"
 	"github.com/sperano/puckdb/internal/graph/model"
+	"github.com/sperano/puckdb/internal/yahookey"
 	"github.com/vektah/gqlparser/v2/gqlerror"
 )
 
@@ -320,7 +321,7 @@ func gqlDraftHistory(board draftboard.Board) []*model.MauriceDraftPick {
 		}
 		playerKey := pick.PlayerKey
 		if playerKey == "" {
-			playerKey = fmt.Sprintf("%d.p.%d", board.Identity.GameKey, pick.PlayerID)
+			playerKey = (yahookey.PlayerKey{GameKey: board.Identity.GameKey, PlayerID: pick.PlayerID}).String()
 		}
 		result = append(result, &model.MauriceDraftPick{
 			Round: pick.Round, Pick: pick.Pick, TeamID: pick.TeamID, TeamName: teamName,

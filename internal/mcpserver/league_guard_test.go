@@ -196,6 +196,7 @@ func TestParseLeagueKeys(t *testing.T) {
 		"465.l.1001":                    {"465.l.1001"},
 		" 465.l.1001 , 453.l.2002,":     {"465.l.1001", "453.l.2002"},
 		"465.l.1001,465.l.1001,nhl.l.7": {"465.l.1001", "nhl.l.7"},
+		"temporary-stand-in.l.29249,temporary-stand-in.l.29249": {"temporary-stand-in.l.29249"},
 	}
 	for list, want := range tests {
 		t.Run(list, func(t *testing.T) {
@@ -208,12 +209,13 @@ func TestParseLeagueKeys(t *testing.T) {
 
 func TestParseLeagueKeysRejects(t *testing.T) {
 	tests := map[string]string{
-		"1001":             `invalid league key "1001": want <game key>.l.<league ID>`,
+		"1001":             `invalid league key "1001"`,
 		".l.1001":          `invalid league key ".l.1001"`,
-		"465.l.":           `league ID "" is not a positive number`,
-		"465.l.abc":        `league ID "abc" is not a positive number`,
-		"465.l.0":          `league ID "0" is not a positive number`,
-		"465.l.1001;465.l": `league ID "1001;465.l" is not a positive number`,
+		"465.l.":           `invalid league key "465.l."`,
+		"465.l.abc":        `invalid league key "465.l.abc"`,
+		"465.l.0":          `invalid league key "465.l.0"`,
+		"465.l.01":         `invalid league key "465.l.01"`,
+		"465.l.1001;465.l": `invalid league key "465.l.1001;465.l"`,
 	}
 	for list, want := range tests {
 		t.Run(list, func(t *testing.T) {

@@ -8,6 +8,7 @@ import (
 
 	"github.com/sperano/puckdb/internal/core"
 	"github.com/sperano/puckdb/internal/store"
+	"github.com/sperano/puckdb/internal/yahookey"
 )
 
 // LeaguePlayersPageSize is the largest page Yahoo serves for the league
@@ -34,8 +35,8 @@ func (l LeaguePlayers) Path() string {
 }
 
 func (l LeaguePlayers) URL() string {
-	return fmt.Sprintf("%s/league/%d.l.%d/players;start=%d;count=%d",
-		baseYahooAPIURL, l.GameKey, l.LeagueID, l.Start, LeaguePlayersPageSize)
+	return fmt.Sprintf("%s/league/%s/players;start=%d;count=%d",
+		baseYahooAPIURL, leagueKey(l.GameKey, l.LeagueID), l.Start, LeaguePlayersPageSize)
 }
 
 func (l LeaguePlayers) Type() core.FileType { return core.YahooLeaguePlayers }
@@ -49,16 +50,16 @@ func (l LeaguePlayers) Parse(data []byte) (*store.FantasyContent, error) {
 		return nil, fmt.Errorf("parse league players %d/%d start %d: response league ID %d does not match requested league %d",
 			l.Season, l.LeagueID, l.Start, content.League.ID, l.LeagueID)
 	}
-	keyGame, keyLeague, err := parseYahooLeagueKey(content.League.Key)
+	key, err := yahookey.ParseLeagueKey(content.League.Key)
 	if err != nil {
-		return nil, fmt.Errorf("parse league players %d/%d start %d: %w",
-			l.Season, l.LeagueID, l.Start, err)
+		return nil, fmt.Errorf("parse league players %d/%d start %d: response league key %q is not <game-key>.l.<league-id>",
+			l.Season, l.LeagueID, l.Start, content.League.Key)
 	}
-	if keyLeague != l.LeagueID {
+	if key.LeagueID != l.LeagueID {
 		return nil, fmt.Errorf("parse league players %d/%d start %d: response league key %q contains league ID %d, want %d",
-			l.Season, l.LeagueID, l.Start, content.League.Key, keyLeague, l.LeagueID)
+			l.Season, l.LeagueID, l.Start, content.League.Key, key.LeagueID, l.LeagueID)
 	}
-	if l.GameKey > 0 && keyGame != l.GameKey {
+	if l.GameKey > 0 && key.GameKey != l.GameKey {
 		return nil, fmt.Errorf("parse league players %d/%d start %d: response league key %q does not match verified key %d.l.%d",
 			l.Season, l.LeagueID, l.Start, content.League.Key, l.GameKey, l.LeagueID)
 	}
