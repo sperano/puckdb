@@ -127,8 +127,8 @@ func TestGroupStandingsByDate(t *testing.T) {
 	assert.Len(t, out[1], 1, "day2 has one row")
 }
 
-// ptrStringIfNotEmpty (used above via decodeSimTransactions/decodeLineupMoves)
-// is covered by TestPtrStringIfNotEmpty in convert_test.go — it used to have
+// optionalString (used above via decodeSimTransactions/decodeLineupMoves)
+// is covered by TestOptionalString in convert_helpers_test.go — it used to have
 // a graph/simulation_helpers.go-local twin named stringPtrIfNotEmpty with an
 // identical body and identical test coverage; the twin was removed as part
 // of the T3-A dedup pass.

@@ -501,11 +501,11 @@ func (r *Resolver) decodeSimTransactions(ctx context.Context, txs []sqlcdb.SimTr
 		}
 		if t.PlayerID.Valid {
 			name := players[t.PlayerID.Int64].Name
-			row.PlayerName = ptrStringIfNotEmpty(name)
+			row.PlayerName = optionalString(name)
 		}
 		if t.DropPlayerID.Valid {
 			name := players[t.DropPlayerID.Int64].Name
-			row.DropPlayerName = ptrStringIfNotEmpty(name)
+			row.DropPlayerName = optionalString(name)
 		}
 		if t.CostUSD.Valid {
 			f, _ := pgconv.NumericToFloat(t.CostUSD)
@@ -535,7 +535,7 @@ func decodeLineupMoves(rows []sqlcdb.SimLineupMove, players map[int64]playerSumm
 		}
 		if m.DisplacedPlayerID.Valid {
 			name := players[m.DisplacedPlayerID.Int64].Name
-			row.DisplacedPlayerName = ptrStringIfNotEmpty(name)
+			row.DisplacedPlayerName = optionalString(name)
 		}
 		out = append(out, row)
 	}

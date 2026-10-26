@@ -211,13 +211,6 @@ func gqlContributions(contributions []draftrank.Contribution) []*model.DraftCont
 	return out
 }
 
-func optionalString(value string) *string {
-	if value == "" {
-		return nil
-	}
-	return &value
-}
-
 func optionalTime(value time.Time) *time.Time {
 	if value.IsZero() {
 		return nil
