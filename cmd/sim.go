@@ -6,6 +6,7 @@ import (
 	"os"
 	"sort"
 	"strconv"
+	"strings"
 
 	"github.com/sperano/puckdb/internal/config"
 	"github.com/sperano/puckdb/internal/graph/model"
@@ -384,33 +385,15 @@ func agentDisplayName(agents []*model.SimAgent, agentID int) string {
 const simBarWidth = 20
 
 // asciiBar renders a fixed-width "[#####     ]" bar. width-clamped
-// to never exceed the configured width even with rounding.
+// to never exceed the configured width even with rounding; a negative
+// width renders an empty bar.
 func asciiBar(current, total, width int) string {
+	width = max(width, 0)
 	if total <= 0 {
-		return "[" + repeatRune(' ', width) + "]"
+		return "[" + strings.Repeat(" ", width) + "]"
 	}
-	filled := current * width / total
-	if filled > width {
-		filled = width
-	}
-	if filled < 0 {
-		filled = 0
-	}
-	return "[" + repeatRune('#', filled) + repeatRune(' ', width-filled) + "]"
-}
-
-// repeatRune returns a string of n copies of r. Avoids strings.Repeat
-// to keep the import surface small — this is the only place we
-// build a fixed-rune string in this file.
-func repeatRune(r rune, n int) string {
-	if n <= 0 {
-		return ""
-	}
-	out := make([]rune, n)
-	for i := range out {
-		out[i] = r
-	}
-	return string(out)
+	filled := min(max(current*width/total, 0), width)
+	return "[" + strings.Repeat("#", filled) + strings.Repeat(" ", width-filled) + "]"
 }
 
 // printCreatedSimPool prints pool_id and workflow_id lines for scripts to

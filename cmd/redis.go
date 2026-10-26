@@ -27,15 +27,13 @@ func cmdRedisFlush() *cobra.Command {
 		Long:    `Flush all keys in the configured Redis database via GraphQL API.`,
 		PreRunE: bindFlagsPreRunE(&config.APIServerAddrFlags, &config.AdminAuthFlags, &config.APIBasicAuthFlags),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			apiAddr := viper.GetString(config.FlagAPIServerAddr)
-			if apiAddr == "" {
-				return fmt.Errorf("api-server-addr is required")
+			client, err := getGraphQLClient()
+			if err != nil {
+				return err
 			}
-
-			client := NewGraphQLClient(apiAddr)
 			ctx := context.Background()
 
-			log.Info().Str("server", apiAddr).Msg("Flushing Redis DB")
+			log.Info().Str("server", viper.GetString(config.FlagAPIServerAddr)).Msg("Flushing Redis DB")
 
 			success, err := client.FlushRedisDB(ctx)
 			if err != nil {

@@ -148,7 +148,7 @@ func TestLoadCreateSimPoolInputFromFile_NoSuchFile(t *testing.T) {
 }
 
 // ----------------------------------------------------------------------------
-// asciiBar / repeatRune
+// asciiBar
 // ----------------------------------------------------------------------------
 
 func TestAsciiBar(t *testing.T) {
@@ -163,18 +163,13 @@ func TestAsciiBar(t *testing.T) {
 		{0, 0, 5, "[     ]"},         // total=0 → empty bar (not panic)
 		{15, 10, 10, "[##########]"}, // overflow clamps to width
 		{-1, 10, 10, "[          ]"},
+		{5, 10, -1, "[]"}, // negative width → empty bar (not panic)
+		{5, 0, -1, "[]"},
 	}
 	for _, tc := range cases {
 		got := asciiBar(tc.current, tc.total, tc.width)
 		assert.Equal(t, tc.expected, got, "current=%d total=%d width=%d", tc.current, tc.total, tc.width)
 	}
-}
-
-func TestRepeatRune(t *testing.T) {
-	t.Parallel()
-	assert.Equal(t, "", repeatRune('#', 0))
-	assert.Equal(t, "", repeatRune('#', -1))
-	assert.Equal(t, "###", repeatRune('#', 3))
 }
 
 // ----------------------------------------------------------------------------

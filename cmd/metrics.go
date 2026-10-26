@@ -152,7 +152,7 @@ func computeAndUpdateCacheMetrics(ctx context.Context, pool *pgxpool.Pool) error
 	start := time.Now()
 
 	redisClient := newRedisClient()
-	defer redisClient.Close()
+	defer closeOrWarn(redisClient, "redis client")
 
 	queries := sqlcdb.New(pool)
 	dataPath := viper.GetString(config.FlagDataPath)

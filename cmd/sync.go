@@ -124,9 +124,9 @@ func runSync(cmd *cobra.Command, args []string) error {
 	if err := validateExplicitSeasonBounds(cmd); err != nil {
 		return err
 	}
-	apiAddr := viper.GetString(config.FlagAPIServerAddr)
-	if apiAddr == "" {
-		return fmt.Errorf("api-server-addr is required")
+	client, err := getGraphQLClient()
+	if err != nil {
+		return err
 	}
 
 	steps, err := config.ParseSyncSteps(args)
@@ -134,7 +134,6 @@ func runSync(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	client := NewGraphQLClient(apiAddr)
 	state := &syncState{client: client}
 	out := cmd.OutOrStdout()
 
@@ -153,88 +152,35 @@ func runSync(cmd *cobra.Command, args []string) error {
 
 	go watchSyncCancel(ctx, cmd.Context(), state.cancel, cancel)
 
-	// Parallel phase: init + yahoo-players + fetch-seasons
-	var parallelRunners []workflowRunner
-
-	if steps[config.StepInit] {
-		parallelRunners = append(parallelRunners, workflowRunner{
-			workflowType: workflowInitialize,
-			trigger:      func() (bool, error) { return client.Initialize(ctx) },
-			getStatus:    client.GetInitializeStatus,
-		})
+	if err := runParallelPhase(ctx, out, state, parallelSyncRunners(ctx, client, steps)); err != nil {
+		return err
+	}
+	if err := runSequentialPhase(ctx, out, state, sequentialSyncSteps(ctx, client), steps); err != nil {
+		return err
 	}
 
-	if steps[config.StepYahooPlayers] {
-		parallelRunners = append(parallelRunners, workflowRunner{
-			workflowType: workflowYahooPlayers,
-			trigger:      func() (bool, error) { return client.FetchYahooPlayers(ctx) },
-			getStatus:    client.GetFetchYahooPlayersStatus,
-		})
-	}
+	fmt.Printf("✓ Sync completed in %s\n", formatElapsed(time.Since(start)))
+	return nil
+}
 
-	if steps[config.StepFetchSeasons] {
-		parallelRunners = append(parallelRunners, workflowRunner{
-			workflowType: workflowFetchSeasons,
-			trigger:      func() (bool, error) { return client.FetchSeasons(ctx, buildSeasonsInput()) },
-			getStatus:    client.GetFetchSeasonsStatus,
-		})
+// runParallelPhase runs the parallel phase's runners: a single one with its
+// own display, several with a combined one.
+func runParallelPhase(ctx context.Context, out io.Writer, state *syncState, runners []workflowRunner) error {
+	switch len(runners) {
+	case 0:
+		return nil
+	case 1:
+		return runners[0].run(ctx, out, state)
+	default:
+		return runParallel(ctx, out, state, runners...)
 	}
+}
 
-	if len(parallelRunners) == 1 {
-		if err := parallelRunners[0].run(ctx, out, state); err != nil {
-			return err
-		}
-	} else if len(parallelRunners) > 1 {
-		if err := runParallel(ctx, out, state, parallelRunners...); err != nil {
-			return err
-		}
-	}
-
-	// Sequential phase
-	seqSteps := []syncStep{
-		{config.StepExtractBoxscorePlayers, workflowExtractBoxscorePlayers, "boxscore players extraction",
-			func() (bool, error) { return client.ExtractBoxscorePlayers(ctx, buildSeasonsInput()) },
-			client.GetExtractBoxscorePlayersStatus},
-		{config.StepFetchPlayerLandings, workflowFetchPlayerLandings, "player landings fetch",
-			func() (bool, error) { return client.FetchPlayerLandings(ctx, nil) },
-			client.GetFetchPlayerLandingsStatus},
-		{config.StepFetchPlayerLogs, workflowFetchPlayerLogs, "player logs fetch",
-			func() (bool, error) { return client.FetchPlayerLogs(ctx, buildSeasonsInput()) },
-			client.GetFetchPlayerLogsStatus},
-		{config.StepProcessPlayers, workflowProcessPlayers, "players processing",
-			func() (bool, error) { return client.ProcessPlayers(ctx, nil) },
-			client.GetProcessPlayersStatus},
-		{config.StepImportSeasons, workflowImportSeasons, "seasons import",
-			func() (bool, error) { return client.ImportSeasons(ctx, buildSeasonsInput()) },
-			client.GetImportSeasonsStatus},
-		{config.StepImportPlayerLogs, workflowImportPlayerLogs, "player logs import",
-			func() (bool, error) { return client.ImportPlayerLogs(ctx, buildSeasonsInput()) },
-			client.GetImportPlayerLogsStatus},
-		{config.StepFetchEdgeStats, workflowFetchEdgeStats, "edge stats fetch",
-			func() (bool, error) { return client.FetchEdgeStats(ctx, buildSeasonsInput()) },
-			client.GetFetchEdgeStatsStatus},
-		{config.StepImportEdgeStats, workflowImportEdgeStats, "edge stats import",
-			func() (bool, error) { return client.ImportEdgeStats(ctx, buildSeasonsInput()) },
-			client.GetImportEdgeStatsStatus},
-		{config.StepRefreshNews, workflowRefreshNews, "news refresh",
-			func() (bool, error) { return client.RefreshNews(ctx, buildRefreshNewsInput()) },
-			client.GetRefreshNewsStatus},
-		{config.StepRefreshDraftRankings, workflowRefreshDraftRankings, "draft rankings refresh",
-			func() (bool, error) {
-				input, err := buildRefreshDraftRankingsInput()
-				if err != nil {
-					return false, err
-				}
-				return client.RefreshDraftRankings(ctx, input)
-			},
-			client.GetRefreshDraftRankingsStatus},
-		{config.StepFetchAssets, workflowFetchAssets, "assets fetch",
-			func() (bool, error) { return client.FetchAssets(ctx, nil) },
-			client.GetFetchAssetsStatus},
-	}
-
+// runSequentialPhase runs the enabled steps one after another, stopping at
+// the first failure.
+func runSequentialPhase(ctx context.Context, out io.Writer, state *syncState, seqSteps []syncStep, enabled map[string]bool) error {
 	for _, step := range seqSteps {
-		if !steps[step.name] {
+		if !enabled[step.name] {
 			continue
 		}
 		runner := workflowRunner{
@@ -246,8 +192,6 @@ func runSync(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("%s failed: %w", step.label, err)
 		}
 	}
-
-	fmt.Printf("✓ Sync completed in %s\n", formatElapsed(time.Since(start)))
 	return nil
 }
 
@@ -383,15 +327,6 @@ func runParallel(ctx context.Context, out io.Writer, state *syncState, runners .
 	}
 
 	return nil
-}
-
-// syncStep defines a workflow-driven sync phase for the data-driven loop.
-type syncStep struct {
-	name      string
-	wt        workflowType
-	label     string
-	trigger   func() (bool, error)
-	getStatus func(context.Context) (*WorkflowStatus, error)
 }
 
 // syncState tracks the current workflow(s) for signal handling
