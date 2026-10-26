@@ -67,6 +67,31 @@ func TestConcurrentRecommendationRequestsShareOneWrite(t *testing.T) {
 	assert.Equal(t, 1, engine.callCount())
 }
 
+func TestCanceledRecommendationLeaderDoesNotCancelSharedWrite(t *testing.T) {
+	const callers = 2
+	engine := newBlockingRecommendationEngine(callers)
+	service := NewService(nil, engine, nil, Options{})
+	input := recommendationInput(1)
+	results := make(chan draftrecommend.StoredRun, callers)
+	errors := make(chan error, callers)
+	leaderCtx, cancelLeader := context.WithCancel(context.Background())
+
+	go recommendWithContext(leaderCtx, service, input, results, errors)
+	engine.waitForEntry(t)
+	sharedCtx := engine.nextContext(t)
+	go recommendWithContext(context.Background(), service, input, results, errors)
+	cancelLeader()
+
+	assert.NoError(t, sharedCtx.Err(), "shared write must outlive the leading request")
+	engine.release()
+	first := <-results
+	require.NoError(t, <-errors)
+	second := <-results
+	require.NoError(t, <-errors)
+	assert.Equal(t, first.ID, second.ID)
+	assert.Equal(t, 1, engine.callCount())
+}
+
 func TestRecommendationWritesForDifferentKeysOverlap(t *testing.T) {
 	const concurrentWrites = 2
 	engine := newBlockingRecommendationEngine(concurrentWrites)
@@ -95,7 +120,12 @@ func recommendAfter(start <-chan struct{}, ready *sync.WaitGroup, service *Servi
 	input draftrecommend.Input, results chan<- draftrecommend.StoredRun, errors chan<- error) {
 	ready.Done()
 	<-start
-	run, err := service.recommend(context.Background(), input)
+	recommendWithContext(context.Background(), service, input, results, errors)
+}
+
+func recommendWithContext(ctx context.Context, service *Service, input draftrecommend.Input,
+	results chan<- draftrecommend.StoredRun, errors chan<- error) {
+	run, err := service.recommend(ctx, input)
 	results <- run
 	errors <- err
 }
@@ -115,27 +145,33 @@ func storedRun() draftrecommend.StoredRun {
 }
 
 type blockingRecommendationEngine struct {
-	mu      sync.Mutex
-	calls   int
-	entered chan struct{}
-	done    chan struct{}
-	once    sync.Once
+	mu       sync.Mutex
+	calls    int
+	entered  chan struct{}
+	contexts chan context.Context
+	done     chan struct{}
+	once     sync.Once
 }
 
 func newBlockingRecommendationEngine(callers int) *blockingRecommendationEngine {
 	return &blockingRecommendationEngine{
-		entered: make(chan struct{}, callers),
-		done:    make(chan struct{}),
+		entered:  make(chan struct{}, callers),
+		contexts: make(chan context.Context, callers),
+		done:     make(chan struct{}),
 	}
 }
 
-func (e *blockingRecommendationEngine) Recommend(_ context.Context,
+func (e *blockingRecommendationEngine) Recommend(ctx context.Context,
 	input draftrecommend.Input) (draftrecommend.StoredRun, error) {
 	e.mu.Lock()
 	e.calls++
 	e.mu.Unlock()
 	e.entered <- struct{}{}
+	e.contexts <- ctx
 	<-e.done
+	if err := ctx.Err(); err != nil {
+		return draftrecommend.StoredRun{}, err
+	}
 	return draftrecommend.StoredRun{ID: uuid.New(), Input: input}, nil
 }
 
@@ -146,6 +182,18 @@ func (e *blockingRecommendationEngine) waitForEntry(t *testing.T) {
 	case <-time.After(recommendationStartTimeout):
 		e.release()
 		t.Fatal("recommendation write did not start concurrently")
+	}
+}
+
+func (e *blockingRecommendationEngine) nextContext(t *testing.T) context.Context {
+	t.Helper()
+	select {
+	case ctx := <-e.contexts:
+		return ctx
+	case <-time.After(recommendationStartTimeout):
+		e.release()
+		t.Fatal("recommendation context was not captured")
+		return nil
 	}
 }
 

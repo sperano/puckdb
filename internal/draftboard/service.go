@@ -302,7 +302,8 @@ func (s *Service) recommend(ctx context.Context, input draftrecommend.Input) (dr
 		if cached, exists := s.recommendationCache.get(key); exists {
 			return cached, nil
 		}
-		run, err := s.recommendations.Recommend(ctx, input)
+		sharedCtx := context.WithoutCancel(ctx)
+		run, err := s.recommendations.Recommend(sharedCtx, input)
 		if err == nil {
 			s.recommendationCache.put(key, run)
 		}
