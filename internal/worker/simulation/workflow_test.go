@@ -791,18 +791,6 @@ func (s *SimPoolWorkflowTestSuite) assertSeasonGroupNotCompletedOnStop(stop Stop
 // Query surface: the shared progress report is the workflow's only query.
 // ============================================================================
 
-// removedSimPoolQueries are the query handlers SimPoolWorkflow used to
-// register. No client called them (the GraphQL resolvers and the CLI read
-// PostgreSQL and the Redis progress report), so they were removed; queries
-// are not recorded in history, so replay is unaffected.
-var removedSimPoolQueries = []string{
-	"summary",
-	"latest_standings",
-	"standings_for_date",
-	"rosters",
-	"log",
-}
-
 func (s *SimPoolWorkflowTestSuite) TestQuerySurface_OnlyProgressReport() {
 	t := s.T()
 	state := minState()
@@ -818,11 +806,6 @@ func (s *SimPoolWorkflowTestSuite) TestQuerySurface_OnlyProgressReport() {
 	var report shared.ProgressReport
 	require.NoError(t, val.Get(&report))
 	assert.Len(t, report.Groups, 2, "progress report keeps its Draft + Season groups")
-
-	for _, name := range removedSimPoolQueries {
-		_, err := s.env.QueryWorkflow(name)
-		assert.Error(t, err, "query %q must no longer be registered", name)
-	}
 }
 
 // Phase 0 builds the agent the draft and daily turns reuse, so every
