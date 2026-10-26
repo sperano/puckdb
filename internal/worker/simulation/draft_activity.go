@@ -37,13 +37,16 @@ import (
 //	4. Fallback: no accepted draft_player within the rounds (or a
 //	   provider failure) ⇒ FallbackDraftPick (deterministic).
 //	5. Atomic commit (Transactor.InTx):
+//	     - InsertSimTransactionDraftPick (first: the slot's marker)
 //	     - InsertSimRoster (slot=BN, acquired_via=draft)
-//	     - InsertSimTransactionDraftPick
 //	     - IncrementSimPoolLLMCost
 //	     - the turn telemetry rows
 //	   All or none — otherwise the next attempt's idempotency probe
 //	   could see a sim_transactions row without the corresponding
-//	   sim_rosters row (roster reads would lie).
+//	   sim_rosters row (roster reads would lie). An overlapping attempt
+//	   that committed the slot first makes the marker insert fail
+//	   (ux_sim_transactions_draft_pick); this attempt then records its
+//	   spend and returns the committed pick (lostDraftPick).
 //
 // Wiki puckdb/simulation.md > "Idempotency" and "Cost cap" describe
 // both probes.
@@ -198,6 +201,9 @@ func (d draftActivity) DraftPick(ctx context.Context, in DraftPickInput) (DraftP
 	}
 
 	if err := d.commitDraftPick(ctx, in, pick, recordMessages); err != nil {
+		if isMarkerConflict(err, draftPickMarkerIndex) {
+			return d.lostDraftPick(ctx, in, pick, recordMessages)
+		}
 		return DraftPickResult{}, err
 	}
 
@@ -237,6 +243,34 @@ func (d draftActivity) idempotencyHit(ctx context.Context, in DraftPickInput) (b
 		return false, sqlcdb.SimTransaction{}, fmt.Errorf("simulation: idempotency probe: %w", err)
 	}
 	return true, prev, nil
+}
+
+// lostDraftPick is DraftPick's result when an overlapping attempt
+// committed this slot while this one ran the model (see turn_markers.go):
+// this attempt's spend still counts, and the result is the idempotency
+// hit's, with the committed player, plus that spend.
+func (d draftActivity) lostDraftPick(ctx context.Context, in DraftPickInput, pick chooseResult, recordMessages bool) (DraftPickResult, error) {
+	if err := recordLostTurn(ctx, abortedTurnTx(d.tx), draftTurnTelemetry(in, pick, recordMessages)); err != nil {
+		return DraftPickResult{}, err
+	}
+	hit, prev, err := d.idempotencyHit(ctx, in)
+	if err != nil {
+		return DraftPickResult{}, err
+	}
+	if !hit {
+		return DraftPickResult{}, fmt.Errorf("simulation: draft pick round %d pick %d: marker conflict without a committed pick", in.Round, in.Pick)
+	}
+	activity.GetLogger(ctx).Warn("DraftPick lost to an overlapping attempt",
+		"committed_player_id", prev.PlayerID.Int64,
+		"discarded_player_id", pick.playerID,
+		"cost_usd", pick.spend.CostUsd,
+	)
+	return DraftPickResult{
+		Skipped:    true,
+		SkipReason: SkipReasonAlreadyDrafted,
+		PlayerID:   prev.PlayerID.Int64,
+		CostUsd:    pick.spend.CostUsd,
+	}, nil
 }
 
 // chooseResult bundles what chooseDraftPlayer hands back: the chosen
@@ -442,7 +476,7 @@ func (d draftActivity) chooseDraftPlayer(ctx context.Context, in DraftPickInput)
 }
 
 // commitDraftPick is the atomic-write step. Three writes in one tx:
-// roster row, draft_pick transaction row, cost increment. Slot is BN
+// draft_pick transaction row, roster row, cost increment. Slot is BN
 // at draft time: drafted players land on the bench and the agent sets
 // its lineup on day 1.
 //
@@ -461,16 +495,9 @@ func (d draftActivity) commitDraftPick(ctx context.Context, in DraftPickInput, p
 	}
 
 	return d.tx.InTx(ctx, func(q draftPickQueries) error {
-		if err := q.InsertSimRoster(ctx, sqlcdb.InsertSimRosterParams{
-			PoolID:      in.PoolID,
-			AgentID:     in.AgentID,
-			PlayerID:    pick.playerID,
-			Slot:        string(SlotBN),
-			AcquiredAt:  in.SimDate,
-			AcquiredVia: string(AcquiredViaDraft),
-		}); err != nil {
-			return fmt.Errorf("insert roster: %w", err)
-		}
+		// The draft_pick row goes first: it is the slot's marker, so an
+		// overlapping attempt's commit stops here, before its roster row
+		// or its turn telemetry (see turn_markers.go).
 		tx, err := q.InsertSimTransactionDraftPick(ctx, sqlcdb.InsertSimTransactionDraftPickParams{
 			PoolID:    in.PoolID,
 			AgentID:   in.AgentID,
@@ -482,6 +509,16 @@ func (d draftActivity) commitDraftPick(ctx context.Context, in DraftPickInput, p
 		})
 		if err != nil {
 			return fmt.Errorf("insert draft_pick tx: %w", err)
+		}
+		if err := q.InsertSimRoster(ctx, sqlcdb.InsertSimRosterParams{
+			PoolID:      in.PoolID,
+			AgentID:     in.AgentID,
+			PlayerID:    pick.playerID,
+			Slot:        string(SlotBN),
+			AcquiredAt:  in.SimDate,
+			AcquiredVia: string(AcquiredViaDraft),
+		}); err != nil {
+			return fmt.Errorf("insert roster: %w", err)
 		}
 
 		// Backfill applied_transaction_id on the accepted LLM attempt's
