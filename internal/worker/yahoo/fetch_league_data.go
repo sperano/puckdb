@@ -38,7 +38,7 @@ type FetchYahooMatchupWeekResult struct {
 // Temporal retries it.
 func (a *FetchActivities) FetchYahooTransactions(ctx context.Context, input FetchYahooLeagueDataInput) (FetchYahooLeagueResourceResult, error) {
 	defer metrics.TrackActivityDuration("FetchYahooTransactions")()
-	gameKey, err := GetGameKeyForSeason(ctx, a.Storage, a.GobCache, a.Download, input.Season)
+	gameKey, err := a.gameKey(ctx, input.Season)
 	if err != nil {
 		return FetchYahooLeagueResourceResult{}, err
 	}
@@ -51,7 +51,7 @@ func (a *FetchActivities) FetchYahooTransactions(ctx context.Context, input Fetc
 // Temporal retries it.
 func (a *FetchActivities) FetchYahooDraftResults(ctx context.Context, input FetchYahooLeagueDataInput) (FetchYahooLeagueResourceResult, error) {
 	defer metrics.TrackActivityDuration("FetchYahooDraftResults")()
-	gameKey, err := GetGameKeyForSeason(ctx, a.Storage, a.GobCache, a.Download, input.Season)
+	gameKey, err := a.gameKey(ctx, input.Season)
 	if err != nil {
 		return FetchYahooLeagueResourceResult{}, err
 	}
@@ -80,7 +80,7 @@ func (a *FetchActivities) fetchOptionalLeagueResource(ctx context.Context, res R
 func (a *FetchActivities) FetchYahooMatchupWeek(ctx context.Context, input FetchYahooMatchupWeekInput) (FetchYahooMatchupWeekResult, error) {
 	defer metrics.TrackActivityDuration("FetchYahooMatchupWeek")()
 	logger := activity.GetLogger(ctx)
-	gameKey, err := GetGameKeyForSeason(ctx, a.Storage, a.GobCache, a.Download, input.Season)
+	gameKey, err := a.gameKey(ctx, input.Season)
 	if err != nil {
 		return FetchYahooMatchupWeekResult{}, err
 	}

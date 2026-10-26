@@ -24,14 +24,14 @@ const (
 	StepRefreshDraftRankings   = "refresh-draft-rankings"
 )
 
-// AllSyncSteps lists every atomic step in execution order. News refresh runs
+// allSyncSteps lists every atomic step in execution order. News refresh runs
 // after the imports because it resolves players against the imported players
 // and Yahoo pools; the draft ranking refresh follows it because rankings are
 // adjusted by the news it extracted. Asset fetch runs
 // last because every asset URL is sourced from a row populated by an earlier
 // step (player headshots from players, team logos from season_teams, Yahoo
 // images from yahoo_* tables).
-var AllSyncSteps = []string{
+var allSyncSteps = []string{
 	StepInit, StepYahooPlayers, StepFetchSeasons,
 	StepExtractBoxscorePlayers, StepFetchPlayerLandings, StepFetchPlayerLogs,
 	StepProcessPlayers, StepImportSeasons, StepImportPlayerLogs,
@@ -39,6 +39,12 @@ var AllSyncSteps = []string{
 	StepRefreshNews,
 	StepRefreshDraftRankings,
 	StepFetchAssets,
+}
+
+// AllSyncSteps returns every atomic step in execution order, as a copy the
+// caller may modify.
+func AllSyncSteps() []string {
+	return slices.Clone(allSyncSteps)
 }
 
 // SyncStepGroups maps shortcut names to the steps they expand to.
@@ -57,8 +63,8 @@ var SyncStepGroups = map[string][]string{
 // Group shortcuts are expanded. Unknown names produce an error.
 func ParseSyncSteps(args []string) (map[string]bool, error) {
 	if len(args) == 0 {
-		enabled := make(map[string]bool, len(AllSyncSteps))
-		for _, s := range AllSyncSteps {
+		enabled := make(map[string]bool, len(allSyncSteps))
+		for _, s := range allSyncSteps {
 			enabled[s] = true
 		}
 		return enabled, nil
@@ -74,7 +80,7 @@ func ParseSyncSteps(args []string) (map[string]bool, error) {
 			}
 			continue
 		}
-		if slices.Contains(AllSyncSteps, arg) {
+		if slices.Contains(allSyncSteps, arg) {
 			enabled[arg] = true
 			continue
 		}
@@ -82,12 +88,18 @@ func ParseSyncSteps(args []string) (map[string]bool, error) {
 	}
 
 	if len(unknown) > 0 {
-		valid := append(AllSyncSteps, sortedKeys(SyncStepGroups)...)
+		valid := validSyncStepNames(allSyncSteps, SyncStepGroups)
 		return nil, fmt.Errorf("unknown sync step(s): %s\nvalid steps: %s",
 			strings.Join(unknown, ", "), strings.Join(valid, ", "))
 	}
 
 	return enabled, nil
+}
+
+// validSyncStepNames lists steps followed by the sorted group names, in a new
+// slice: appending to steps could write into its spare capacity.
+func validSyncStepNames(steps []string, groups map[string][]string) []string {
+	return slices.Concat(steps, sortedKeys(groups))
 }
 
 func sortedKeys(m map[string][]string) []string {

@@ -25,8 +25,8 @@ func TestBuildSeasonsInput_ReimportDays(t *testing.T) {
 }
 
 func allSyncStepsEnabled() map[string]bool {
-	enabled := make(map[string]bool, len(config.AllSyncSteps))
-	for _, step := range config.AllSyncSteps {
+	enabled := make(map[string]bool, len(config.AllSyncSteps()))
+	for _, step := range config.AllSyncSteps() {
 		enabled[step] = true
 	}
 	return enabled
@@ -50,7 +50,7 @@ func TestSyncPhasesCoverEveryStepInOrder(t *testing.T) {
 	for _, step := range sequentialSyncSteps(ctx, client) {
 		names = append(names, step.name)
 	}
-	assert.Equal(t, config.AllSyncSteps[len(parallel):], names)
+	assert.Equal(t, config.AllSyncSteps()[len(parallel):], names)
 }
 
 func TestParallelSyncRunners_OnlyEnabled(t *testing.T) {

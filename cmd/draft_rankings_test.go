@@ -189,8 +189,8 @@ func TestBuildRefreshDraftRankingsInput_Rejects(t *testing.T) {
 }
 
 func TestRefreshDraftRankingsSyncStep(t *testing.T) {
-	news := slices.Index(config.AllSyncSteps, config.StepRefreshNews)
-	rankings := slices.Index(config.AllSyncSteps, config.StepRefreshDraftRankings)
+	news := slices.Index(config.AllSyncSteps(), config.StepRefreshNews)
+	rankings := slices.Index(config.AllSyncSteps(), config.StepRefreshDraftRankings)
 	require.GreaterOrEqual(t, rankings, 0)
 	assert.Equal(t, news+1, rankings, "rankings refresh right after the news they are adjusted by")
 	assert.Equal(t, []string{config.StepRefreshNews, config.StepRefreshDraftRankings}, config.SyncStepGroups["draft"])

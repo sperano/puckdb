@@ -70,12 +70,12 @@ func TestExtractGameKey_NoGameFound(t *testing.T) {
 	assert.Contains(t, err.Error(), "2023")
 }
 
-// --- getGameKeyImpl ---
+// --- fetchGameKey ---
 
-func TestGetGameKeyImpl_FromCache(t *testing.T) {
+func TestFetchGameKey_FromCache(t *testing.T) {
 	t.Parallel()
 
-	// Write a valid game key XML into mem storage so getGameKeyImpl reads from cache.
+	// Write a valid game key XML into mem storage so fetchGameKey reads from cache.
 	mem := store.NewMemStorage()
 	gobCache := cache.NewGobCache(nil) // nil client: gob cache is only populated after a parse
 	season := 2023
@@ -85,13 +85,13 @@ func TestGetGameKeyImpl_FromCache(t *testing.T) {
 	res := resource.GameKey{Season: season}
 	require.NoError(t, mem.Write(context.Background(), res.Path(), xmlContent))
 
-	key, err := getGameKeyImpl(context.Background(), mem, gobCache, season, nil)
+	key, err := fetchGameKey(context.Background(), Fetcher{Storage: mem, GobCache: gobCache}, season)
 
 	require.NoError(t, err)
 	assert.Equal(t, 423, key)
 }
 
-func TestGetGameKeyImpl_FetcherCalled_WhenNoCache(t *testing.T) {
+func TestFetchGameKey_FetcherCalled_WhenNoCache(t *testing.T) {
 	t.Parallel()
 
 	mem := store.NewMemStorage()
@@ -103,7 +103,7 @@ func TestGetGameKeyImpl_FetcherCalled_WhenNoCache(t *testing.T) {
 
 	fetcher := mockDownloader(xmlContent, nil)
 
-	key, err := getGameKeyImpl(context.Background(), mem, gobCache, season, fetcher)
+	key, err := fetchGameKey(context.Background(), Fetcher{Storage: mem, GobCache: gobCache, Download: fetcher}, season)
 
 	require.NoError(t, err)
 	assert.Equal(t, 423, key)
@@ -123,7 +123,7 @@ func TestExtractGameKey_RejectsWrongSeasonOrSport(t *testing.T) {
 	}
 }
 
-func TestGetGameKeyImpl_FetcherError(t *testing.T) {
+func TestFetchGameKey_FetcherError(t *testing.T) {
 	t.Parallel()
 
 	mem := store.NewMemStorage()
@@ -131,7 +131,7 @@ func TestGetGameKeyImpl_FetcherError(t *testing.T) {
 
 	fetcher := mockDownloader(nil, assert.AnError)
 
-	_, err := getGameKeyImpl(context.Background(), mem, gobCache, 2023, fetcher)
+	_, err := fetchGameKey(context.Background(), Fetcher{Storage: mem, GobCache: gobCache, Download: fetcher}, 2023)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "fetch game key")

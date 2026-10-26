@@ -61,8 +61,8 @@ Groups (expand to multiple steps):
   players                    yahoo-players + all player steps + import-player-logs
   edge                       fetch-edge-stats + import-edge-stats`,
 		ValidArgsFunction: func(_ *cobra.Command, _ []string, _ string) ([]string, cobra.ShellCompDirective) {
-			completions := make([]string, 0, len(config.AllSyncSteps)+len(config.SyncStepGroups))
-			completions = append(completions, config.AllSyncSteps...)
+			// AllSyncSteps returns a copy, so appending cannot reach its list.
+			completions := config.AllSyncSteps()
 			for group := range config.SyncStepGroups {
 				completions = append(completions, group)
 			}

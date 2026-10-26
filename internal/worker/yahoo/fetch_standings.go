@@ -59,7 +59,7 @@ func (a *FetchActivities) fetchYahooLeagueStandings(ctx context.Context, input F
 			"date", day, "reason", reason)
 		return FetchYahooLeagueStandingsResult{SkipReason: reason}, nil
 	}
-	gameKey, err := GetGameKeyForSeason(ctx, a.Storage, a.GobCache, a.Download, input.Season)
+	gameKey, err := a.gameKey(ctx, input.Season)
 	if err != nil {
 		return FetchYahooLeagueStandingsResult{}, err
 	}

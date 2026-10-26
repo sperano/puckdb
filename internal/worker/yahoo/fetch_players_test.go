@@ -237,8 +237,13 @@ func runPageActivity(t *testing.T, a *FetchActivities, input FetchYahooLeaguePla
 	return result, err
 }
 
+// pointsGameKeys returns a game key cache that already knows the points
+// fixture season's key.
+func pointsGameKeys() *GameKeys {
+	return NewGameKeys(map[int]int{yahoofixtures.PointsSeason: yahoofixtures.PointsGameKey})
+}
+
 func TestFetchYahooLeaguePlayersPage_DownloadsEvenWhenCached(t *testing.T) {
-	SetGameKeyCache(yahoofixtures.PointsSeason, yahoofixtures.PointsGameKey)
 	mem := store.NewMemStorage()
 	page := resource.LeaguePlayers{Season: yahoofixtures.PointsSeason, LeagueID: yahoofixtures.PointsLeagueID, Start: 0}
 	// Pre-populate a stale cached copy that must be overwritten.
@@ -246,7 +251,7 @@ func TestFetchYahooLeaguePlayersPage_DownloadsEvenWhenCached(t *testing.T) {
 		[]byte(`<fantasy_content><league><league_key>465.l.77777</league_key><league_id>77777</league_id></league></fantasy_content>`)))
 	fresh := yahoofixtures.Read(yahoofixtures.PlayersPage)
 	dl, calls := countingDownloader(fresh, nil)
-	a := &FetchActivities{Storage: mem, Download: dl, GobCache: cache.NewGobCache(nil)}
+	a := &FetchActivities{Storage: mem, Download: dl, GobCache: cache.NewGobCache(nil), GameKeys: pointsGameKeys()}
 
 	result, err := runPageActivity(t, a, FetchYahooLeaguePlayersPageInput{Season: yahoofixtures.PointsSeason, LeagueID: yahoofixtures.PointsLeagueID, Start: 0})
 
@@ -261,10 +266,9 @@ func TestFetchYahooLeaguePlayersPage_DownloadsEvenWhenCached(t *testing.T) {
 }
 
 func TestFetchYahooLeaguePlayersPage_DownloadError(t *testing.T) {
-	SetGameKeyCache(yahoofixtures.PointsSeason, yahoofixtures.PointsGameKey)
 	mem := store.NewMemStorage()
 	dl, _ := countingDownloader(nil, assert.AnError)
-	a := &FetchActivities{Storage: mem, Download: dl, GobCache: cache.NewGobCache(nil)}
+	a := &FetchActivities{Storage: mem, Download: dl, GobCache: cache.NewGobCache(nil), GameKeys: pointsGameKeys()}
 
 	_, err := runPageActivity(t, a, FetchYahooLeaguePlayersPageInput{Season: yahoofixtures.PointsSeason, LeagueID: yahoofixtures.PointsLeagueID, Start: 0})
 
@@ -272,11 +276,10 @@ func TestFetchYahooLeaguePlayersPage_DownloadError(t *testing.T) {
 }
 
 func TestFetchYahooLeaguePlayersPage_FirstPagePreseasonRejectionIsUnavailable(t *testing.T) {
-	SetGameKeyCache(yahoofixtures.PointsSeason, yahoofixtures.PointsGameKey)
 	mem := store.NewMemStorage()
 	rejection := &httpx.HTTPError{StatusCode: http.StatusBadRequest, Status: "400 Bad Request"}
 	dl, _ := countingDownloader(nil, rejection)
-	a := &FetchActivities{Storage: mem, Download: dl, GobCache: cache.NewGobCache(nil)}
+	a := &FetchActivities{Storage: mem, Download: dl, GobCache: cache.NewGobCache(nil), GameKeys: pointsGameKeys()}
 	input := FetchYahooLeaguePlayersPageInput{
 		Season: yahoofixtures.PointsSeason, LeagueID: yahoofixtures.PointsLeagueID, Start: 0,
 	}
@@ -290,10 +293,9 @@ func TestFetchYahooLeaguePlayersPage_FirstPagePreseasonRejectionIsUnavailable(t 
 }
 
 func TestFetchYahooLeaguePlayersPage_LaterPagePreseasonRejectionIsError(t *testing.T) {
-	SetGameKeyCache(yahoofixtures.PointsSeason, yahoofixtures.PointsGameKey)
 	rejection := &httpx.HTTPError{StatusCode: http.StatusBadRequest, Status: "400 Bad Request"}
 	dl, _ := countingDownloader(nil, rejection)
-	a := &FetchActivities{Storage: store.NewMemStorage(), Download: dl, GobCache: cache.NewGobCache(nil)}
+	a := &FetchActivities{Storage: store.NewMemStorage(), Download: dl, GobCache: cache.NewGobCache(nil), GameKeys: pointsGameKeys()}
 
 	_, err := runPageActivity(t, a, FetchYahooLeaguePlayersPageInput{
 		Season: yahoofixtures.PointsSeason, LeagueID: yahoofixtures.PointsLeagueID,
