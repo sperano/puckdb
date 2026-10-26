@@ -19,6 +19,8 @@ import (
 const (
 	// leagueKeyListSeparator separates league keys in --mcp-yahoo-leagues.
 	leagueKeyListSeparator = ","
+	// leagueKeyMarker separates a league's game key from its numeric ID.
+	leagueKeyMarker = ".l."
 	// leagueIDArg is the argument every league-scoped Yahoo tool takes.
 	leagueIDArg = "league_id"
 	// leagueArg is the key-or-ID argument used by draft tools.
@@ -205,10 +207,15 @@ func ParseLeagueKeys(list string) ([]string, error) {
 	return keys, nil
 }
 
-// validateLeagueKey checks the canonical "<game key>.l.<league ID>" shape.
+// validateLeagueKey checks the "<game key>.l.<league ID>" allowlist shape.
+// The game key may be a non-Yahoo stand-in such as "temporary-stand-in".
 func validateLeagueKey(key string) error {
-	if _, err := yahookey.ParseLeagueKey(key); err != nil {
-		return fmt.Errorf("invalid league key %q: want a canonical <game key>.l.<league ID>, e.g. 465.l.1001", key)
+	gameKey, leagueID, found := strings.Cut(key, leagueKeyMarker)
+	if !found || gameKey == "" {
+		return fmt.Errorf("invalid league key %q: want <game key>%s<league ID>, e.g. 465.l.1001", key, leagueKeyMarker)
+	}
+	if _, err := yahookey.ParseID(leagueID); err != nil {
+		return fmt.Errorf("invalid league key %q: league ID %q is not a canonical positive number", key, leagueID)
 	}
 	return nil
 }

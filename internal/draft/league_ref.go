@@ -3,15 +3,10 @@ package draft
 import (
 	"errors"
 	"fmt"
-	"strconv"
 	"strings"
 
 	"github.com/sperano/puckdb/internal/yahookey"
 )
-
-// leagueIDBits bounds parsed game keys and league IDs to the integer columns
-// that store them.
-const leagueIDBits = 32
 
 // AnySeason, as the season of a league lookup, matches the league's rules in
 // any season and picks the most recently seen one.
@@ -41,24 +36,10 @@ func ParseLeagueKey(key string) (gameKey, leagueID int, err error) {
 
 // ParseLeagueID parses a positive numeric Yahoo league ID.
 func ParseLeagueID(value string) (int, error) {
-	id, err := positiveID(value)
+	id, err := yahookey.ParseID(value)
 	if err != nil {
 		return 0, fmt.Errorf("%w: %q is neither a full Yahoo league key nor a positive numeric league ID",
 			ErrMalformedLeagueRef, value)
 	}
 	return id, nil
-}
-
-// positiveID parses a positive integer written canonically: digits only, no
-// sign and no leading zero, so a parsed key is the exact string the league_key
-// columns store.
-func positiveID(value string) (int, error) {
-	if value == "" || value[0] == '0' || strings.TrimLeft(value, "0123456789") != "" {
-		return 0, errors.New("not a canonical positive integer")
-	}
-	parsed, err := strconv.ParseInt(value, 10, leagueIDBits)
-	if err != nil {
-		return 0, errors.New("not a canonical positive integer")
-	}
-	return int(parsed), nil
 }

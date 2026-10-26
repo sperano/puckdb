@@ -8,7 +8,6 @@ import (
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/sperano/puckdb/internal/draft"
 	"github.com/sperano/puckdb/internal/draftwatch"
-	"github.com/sperano/puckdb/internal/yahookey"
 )
 
 const (
@@ -50,15 +49,8 @@ func requiredDraftPlayerKeys(req mcp.CallToolRequest, leagueKey string) ([]strin
 func validateDraftPlayerKey(playerKey, leagueKey string) error {
 	gameKey := draft.GameKeyOf(leagueKey)
 	if gameKey > 0 {
-		playerID, err := draftwatch.ParsePlayerKey(playerKey, draftwatch.Identity{LeagueKey: leagueKey, GameKey: gameKey})
-		if err != nil {
-			return err
-		}
-		canonical := (yahookey.PlayerKey{GameKey: gameKey, PlayerID: playerID}).String()
-		if playerKey != canonical {
-			return fmt.Errorf("yahoo player key %q is not canonical; use %q", playerKey, canonical)
-		}
-		return nil
+		_, err := draftwatch.ParsePlayerKey(playerKey, draftwatch.Identity{LeagueKey: leagueKey, GameKey: gameKey})
+		return err
 	}
 	// Temporary stand-in rankings use stable NHL IDs because their league
 	// keys intentionally have no Yahoo game key.

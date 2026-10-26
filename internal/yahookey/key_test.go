@@ -53,6 +53,21 @@ func TestKeyParsersRejectMalformedKeysConsistently(t *testing.T) {
 	}
 }
 
+func TestParseID(t *testing.T) {
+	t.Parallel()
+
+	for _, value := range []string{"1", "7520", strconv.Itoa(math.MaxInt32)} {
+		parsed, err := ParseID(value)
+		require.NoError(t, err)
+		assert.Equal(t, value, strconv.Itoa(parsed))
+	}
+
+	for _, value := range []string{"", "0", "01", "+1", "-1", "1.0", strconv.FormatInt(math.MaxInt32+1, 10)} {
+		_, err := ParseID(value)
+		assert.Error(t, err, "%q", value)
+	}
+}
+
 type fmtStringer interface {
 	String() string
 }

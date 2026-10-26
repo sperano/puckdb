@@ -57,8 +57,8 @@ func ParseLeagueKey(value string) (LeagueKey, error) {
 	if len(parts) != leaguePartCount || parts[1] != leagueMarker {
 		return LeagueKey{}, invalid("league", value)
 	}
-	gameKey, gameErr := positiveID(parts[0])
-	leagueID, leagueErr := positiveID(parts[2])
+	gameKey, gameErr := ParseID(parts[0])
+	leagueID, leagueErr := ParseID(parts[2])
 	if gameErr != nil || leagueErr != nil {
 		return LeagueKey{}, invalid("league", value)
 	}
@@ -71,9 +71,9 @@ func ParseTeamKey(value string) (TeamKey, error) {
 	if len(parts) != teamPartCount || parts[1] != leagueMarker || parts[3] != teamMarker {
 		return TeamKey{}, invalid("team", value)
 	}
-	gameKey, gameErr := positiveID(parts[0])
-	leagueID, leagueErr := positiveID(parts[2])
-	teamID, teamErr := positiveID(parts[4])
+	gameKey, gameErr := ParseID(parts[0])
+	leagueID, leagueErr := ParseID(parts[2])
+	teamID, teamErr := ParseID(parts[4])
 	if gameErr != nil || leagueErr != nil || teamErr != nil {
 		return TeamKey{}, invalid("team", value)
 	}
@@ -86,15 +86,17 @@ func ParsePlayerKey(value string) (PlayerKey, error) {
 	if len(parts) != playerPartCount || parts[1] != playerMarker {
 		return PlayerKey{}, invalid("player", value)
 	}
-	gameKey, gameErr := positiveID(parts[0])
-	playerID, playerErr := positiveID(parts[2])
+	gameKey, gameErr := ParseID(parts[0])
+	playerID, playerErr := ParseID(parts[2])
 	if gameErr != nil || playerErr != nil {
 		return PlayerKey{}, invalid("player", value)
 	}
 	return PlayerKey{GameKey: gameKey, PlayerID: playerID}, nil
 }
 
-func positiveID(value string) (int, error) {
+// ParseID parses a canonical positive Yahoo identifier that fits the database
+// integer columns used for game, league, team, and player IDs.
+func ParseID(value string) (int, error) {
 	if value == "" || value[0] == '0' || strings.TrimLeft(value, "0123456789") != "" {
 		return 0, errors.New("not a canonical positive integer")
 	}
