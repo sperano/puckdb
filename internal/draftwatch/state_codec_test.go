@@ -8,6 +8,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const persistedStateGolden = `{"upstream":[{"Key":{"Round":2,"Pick":13},"TeamID":3,"PlayerID":101,"Cost":null}],"manual":[{"key":{"Round":2,"Pick":13},"kind":"correct","pick":{"Key":{"Round":2,"Pick":13},"TeamID":3,"PlayerID":202,"Cost":null},"base":{"Key":{"Round":2,"Pick":13},"TeamID":3,"PlayerID":101,"Cost":null},"conflict":true}],"upstreamPlayers":[99,101],"upstreamComplete":true,"version":9}`
+
 func TestStateCodecRoundTripPreservesRestartState(t *testing.T) {
 	key := draftsession.PickKey{Round: 2, Pick: 13}
 	base := draftsession.Pick{Key: key, TeamID: 3, PlayerID: 101}
@@ -24,6 +26,7 @@ func TestStateCodecRoundTripPreservesRestartState(t *testing.T) {
 
 	raw, firstHash, err := encodeState(state)
 	require.NoError(t, err)
+	assert.Equal(t, persistedStateGolden, string(raw))
 	restarted, err := decodeState(raw)
 	require.NoError(t, err)
 	secondRaw, secondHash, err := encodeState(restarted)
@@ -35,10 +38,12 @@ func TestStateCodecRoundTripPreservesRestartState(t *testing.T) {
 }
 
 func TestDecodeStateAcceptsInitialLegacyEmptyArray(t *testing.T) {
-	state, err := decodeState([]byte(`[]`))
-	require.NoError(t, err)
-	assert.Empty(t, state.Upstream)
-	assert.Empty(t, state.Manual)
+	for _, raw := range [][]byte{nil, []byte(`[]`)} {
+		state, err := decodeState(raw)
+		require.NoError(t, err)
+		assert.Empty(t, state.Upstream)
+		assert.Empty(t, state.Manual)
+	}
 }
 
 func TestDecodeStateSeedsUpstreamPlayersOfLegacyBoard(t *testing.T) {

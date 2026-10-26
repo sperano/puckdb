@@ -17,6 +17,7 @@ func TestInputJSONRoundTripPreservesReplaySession(t *testing.T) {
 		Manual: map[draftsession.PickKey]draftsession.ManualChange{
 			{Round: 2, Pick: 3}: {Kind: draftsession.ManualUndo, Base: &pick},
 		},
+		UpstreamPlayers:  map[int]bool{4: true},
 		UpstreamComplete: true,
 		Version:          7,
 	}}
@@ -27,6 +28,7 @@ func TestInputJSONRoundTripPreservesReplaySession(t *testing.T) {
 	var replay Input
 	require.NoError(t, json.Unmarshal(raw, &replay))
 	assert.Equal(t, in.Session, replay.Session)
+	assert.Contains(t, string(raw), `"upstreamPlayers":[4]`)
 }
 
 func TestInputJSONRejectsDuplicateSessionSlots(t *testing.T) {
@@ -36,5 +38,5 @@ func TestInputJSONRejectsDuplicateSessionSlots(t *testing.T) {
 	err := json.Unmarshal(raw, &input)
 
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "duplicate recommendation upstream slot")
+	assert.Contains(t, err.Error(), "duplicate persisted upstream slot")
 }
