@@ -89,7 +89,7 @@ func FetchSeasonPlayerLogsWorkflow(ctx workflow.Context, input FetchSeasonPlayer
 
 	playerIDs := extractPlayerIDs(players)
 	batchSize := cfg.BatchSize
-	numBatches := shared.BatchCount(len(playerIDs), batchSize)
+	batches := shared.NewBatches(playerIDs, batchSize)
 	concurrency := cfg.Concurrency
 
 	// Set up ReportTracker
@@ -102,7 +102,7 @@ func FetchSeasonPlayerLogsWorkflow(ctx workflow.Context, input FetchSeasonPlayer
 	logger.Info("Fetching player game logs",
 		"startYear", season.ID.StartYear(),
 		"playerCount", playerCount,
-		"batches", numBatches,
+		"batches", batches.Count(),
 		"batchSize", batchSize,
 		"concurrency", concurrency)
 
@@ -111,13 +111,10 @@ func FetchSeasonPlayerLogsWorkflow(ctx workflow.Context, input FetchSeasonPlayer
 	refreshCurrent := input.RefreshCurrent
 
 	err = tracker.RunWorkerPool(ctx, shared.PoolOptions{
-		Total: numBatches, Concurrency: concurrency,
-		Progress: shared.SingleBar{
-			Bar:       shared.BarRef{Group: GroupFetchSeasonPlayerLogs},
-			Increment: func(i int) int { return len(shared.BatchSlice(playerIDs, i, batchSize)) },
-		},
+		Total: batches.Count(), Concurrency: concurrency,
+		Progress: batches.ItemProgress(shared.BarRef{Group: GroupFetchSeasonPlayerLogs}),
 		Start: func(_ workflow.Context, batchIdx int) workflow.Future {
-			batch := shared.BatchSlice(playerIDs, batchIdx, batchSize)
+			batch := batches.Batch(batchIdx)
 			activityInput := workplayer.DownloadPlayerGameLogsInput{
 				PlayerIDs:      batch,
 				StartSeason:    startYear,

@@ -1,10 +1,12 @@
 package workflow
 
 import (
+	"context"
 	"errors"
 	"testing"
 
 	"github.com/sperano/puckdb/internal/config"
+	"github.com/sperano/puckdb/internal/store"
 	"github.com/sperano/puckdb/internal/worker/shared"
 	"github.com/sperano/puckdb/internal/worker/yahoo"
 	"github.com/stretchr/testify/mock"
@@ -119,4 +121,47 @@ func TestFetchYahooPlayersWorkflow_ReusesCarriedConfig(t *testing.T) {
 	// from viper instead, MaxPlayerID=999 would force another ContinueAsNew
 	// and this assertion would fail.
 	require.NoError(t, env.GetWorkflowError())
+}
+
+// TestFetchYahooPlayersWorkflow_PartialFinalBatchProgress verifies that an
+// execution whose last activity batch is smaller than ActivityBatchSize
+// advances the bar by the IDs it fetched. The execution continues as new, so
+// no CompleteGroup fills the bar: it must read exactly the IDs processed
+// (1-7), not three full batches (9).
+func TestFetchYahooPlayersWorkflow_PartialFinalBatchProgress(t *testing.T) {
+	const (
+		maxPlayerID         = 10
+		playersPerExecution = 7
+		activityBatchSize   = 3
+	)
+	var ts testsuite.WorkflowTestSuite
+	env := ts.NewTestWorkflowEnvironment()
+	env.RegisterWorkflow(FetchYahooPlayersWorkflow)
+	mockProgressSaves(env)
+
+	var yahooAct *yahoo.FetchActivities
+	var fetched [][2]store.YahooPlayerID
+	env.OnActivity(yahooAct.FetchYahooPlayerBatch, mock.Anything, mock.Anything, mock.Anything).
+		Return(func(_ context.Context, first, last store.YahooPlayerID) (shared.FetchStats, error) {
+			fetched = append(fetched, [2]store.YahooPlayerID{first, last})
+			return shared.FetchStats{}, nil
+		})
+
+	env.ExecuteWorkflow(FetchYahooPlayersWorkflow, &FetchYahooPlayersInput{
+		StartPlayerID: 1,
+		Config: &FetchYahooPlayersConfig{
+			MaxPlayerID:         maxPlayerID,
+			Concurrency:         1,
+			ActivityBatchSize:   activityBatchSize,
+			PlayersPerExecution: playersPerExecution,
+		},
+	})
+
+	require.True(t, env.IsWorkflowCompleted())
+	var contErr *workflow.ContinueAsNewError
+	require.ErrorAs(t, env.GetWorkflowError(), &contErr)
+	require.Equal(t, [][2]store.YahooPlayerID{{1, 3}, {4, 6}, {7, 7}}, fetched)
+	bar := queryProgress(t, env).Groups[GroupFetchYahooPlayers].Bars[0]
+	require.Equal(t, playersPerExecution, bar.Current)
+	require.Equal(t, maxPlayerID, bar.Total)
 }

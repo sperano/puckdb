@@ -240,8 +240,11 @@ func FetchAssetsClassWorkflow(ctx workflow.Context, input FetchAssetsClassInput)
 
 	// Step 2: split assets into batches.
 	batchSize := cfg.BatchSize
-	batches := splitAssetBatches(assets, batchSize)
-	numBatches := len(batches)
+	if batchSize <= 0 {
+		batchSize = config.DefaultAssetBatchSize
+	}
+	batches := shared.NewBatches(assets, batchSize)
+	numBatches := batches.Count()
 
 	// Step 3: initialise the progress tracker. The bar tracks batches (not rows)
 	// to keep history-event counts small.
@@ -270,7 +273,7 @@ func FetchAssetsClassWorkflow(ctx workflow.Context, input FetchAssetsClassInput)
 		Start: func(_ workflow.Context, i int) workflow.Future {
 			var act *asset.Activities
 			return workflow.ExecuteActivity(batchCtx, act.FetchAssetBatch, asset.FetchAssetBatchInput{
-				Assets:         batches[i],
+				Assets:         batches.Batch(i),
 				RefreshCurrent: input.RefreshCurrent,
 			})
 		},
@@ -304,24 +307,6 @@ func FetchAssetsClassWorkflow(ctx workflow.Context, input FetchAssetsClassInput)
 		"class", input.Class.Label,
 		"batches", numBatches)
 	return counts, nil
-}
-
-// splitAssetBatches divides assets into consecutive slices of at most size
-// elements. The last batch may be smaller than size.
-func splitAssetBatches(assets []asset.Asset, size int) [][]asset.Asset {
-	if size <= 0 {
-		size = config.DefaultAssetBatchSize
-	}
-	batches := make([][]asset.Asset, 0, (len(assets)+size-1)/size)
-	for len(assets) > 0 {
-		end := size
-		if end > len(assets) {
-			end = len(assets)
-		}
-		batches = append(batches, assets[:end])
-		assets = assets[end:]
-	}
-	return batches
 }
 
 // ─── Entry-point wrappers ────────────────────────────────────────────────────

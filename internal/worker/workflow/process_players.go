@@ -164,20 +164,19 @@ func loadYahooPool(ctx workflow.Context, tracker *shared.ReportTracker, batchSiz
 
 	// Step 1b: Parse Yahoo players in batches with concurrency
 	var allYahooPlayers []store.YahooPlayer
-	numBatches := shared.BatchCount(len(yahooPlayerIDs), batchSize)
+	batches := shared.NewBatches(yahooPlayerIDs, batchSize)
 	// Resized without a save: legacy chain histories record no save here
 	// (ResizeBar would add a local activity they lack); the next save (the
 	// first batch's IncrementBarBy in RunWorkerPool, or CompleteGroup with
 	// no batches) writes the new size.
-	tracker.SetBarTotal(shared.BarRef{Group: GroupLoadYahoo}, numBatches)
+	tracker.SetBarTotal(shared.BarRef{Group: GroupLoadYahoo}, batches.Count())
 	tracker.RecalcTotal()
 
 	opts := shared.PoolOptions{
-		Total: numBatches, Concurrency: concurrency,
+		Total: batches.Count(), Concurrency: concurrency,
 		Progress: shared.SingleBar{Bar: shared.BarRef{Group: GroupLoadYahoo}},
 		Start: func(_ workflow.Context, batchIndex int) workflow.Future {
-			batch := shared.BatchSlice(yahooPlayerIDs, batchIndex, batchSize)
-			return workflow.ExecuteActivity(ctx, playerAct.ParseYahooPlayerBatch, batch)
+			return workflow.ExecuteActivity(ctx, playerAct.ParseYahooPlayerBatch, batches.Batch(batchIndex))
 		},
 		Handle: shared.CollectSlicesInto(&allYahooPlayers),
 	}
@@ -233,19 +232,12 @@ func verifyUnmatchedPlayers(ctx workflow.Context, tracker *shared.ReportTracker,
 		return unmatchedReport
 	}
 
-	batchSize := workplayer.DefaultVerifyBatchSize
-	numBatches := shared.BatchCount(len(unmatchedPlayers), batchSize)
-	concurrency := verifyConcurrency
-
+	batches := shared.NewBatches(unmatchedPlayers, workplayer.DefaultVerifyBatchSize)
 	err := tracker.RunWorkerPool(ctx, shared.PoolOptions{
-		Total: numBatches, Concurrency: concurrency,
-		Progress: shared.SingleBar{
-			Bar:       shared.BarRef{Group: GroupVerifyUnmatched},
-			Increment: func(i int) int { return len(shared.BatchSlice(unmatchedPlayers, i, batchSize)) },
-		},
+		Total: batches.Count(), Concurrency: verifyConcurrency,
+		Progress: batches.ItemProgress(shared.BarRef{Group: GroupVerifyUnmatched}),
 		Start: func(_ workflow.Context, batchIndex int) workflow.Future {
-			batch := shared.BatchSlice(unmatchedPlayers, batchIndex, batchSize)
-			return workflow.ExecuteActivity(ctx, playerAct.VerifyUnmatchedBatch, batch)
+			return workflow.ExecuteActivity(ctx, playerAct.VerifyUnmatchedBatch, batches.Batch(batchIndex))
 		},
 		Handle: func(ctx workflow.Context, batchIndex int, f workflow.Future) error {
 			var batchResult *workplayer.VerifyUnmatchedResult

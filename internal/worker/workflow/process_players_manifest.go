@@ -111,9 +111,11 @@ type ordinalRange struct {
 // manifestBatches splits the ordinals [from, to) into batches of at most
 // batchSize.
 func manifestBatches(from, to, batchSize int) []ordinalRange {
-	batches := make([]ordinalRange, 0, shared.BatchCount(to-from, batchSize))
-	for start := from; start < to; start += batchSize {
-		batches = append(batches, ordinalRange{From: start, To: min(start+batchSize, to)})
+	ranges := shared.NewBatchRanges(to-from, batchSize)
+	batches := make([]ordinalRange, ranges.Count())
+	for i := range batches {
+		start, end := ranges.Bounds(i)
+		batches[i] = ordinalRange{From: from + start, To: from + end}
 	}
 	return batches
 }

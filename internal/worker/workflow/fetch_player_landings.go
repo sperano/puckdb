@@ -112,22 +112,17 @@ func FetchPlayerLandingsWorkflow(ctx workflow.Context, input *FetchPlayerLanding
 
 	fetchCtx := workflow.WithActivityOptions(ctx, shared.DefaultActivityOptions())
 
-	// Calculate number of batches
-	numBatches := shared.BatchCount(len(players), batchSize)
+	batches := shared.NewBatches(players, batchSize)
 
 	// Aggregate results
 	result := &FetchPlayerLandingsResult{TotalPlayers: len(players)}
 
 	// Run batches with concurrency control
 	err = tracker.RunWorkerPool(ctx, shared.PoolOptions{
-		Total: numBatches, Concurrency: concurrency,
-		Progress: shared.SingleBar{
-			Bar:       shared.BarRef{Group: GroupFetchPlayerLandings},
-			Increment: func(i int) int { return len(shared.BatchSlice(players, i, batchSize)) },
-		},
+		Total: batches.Count(), Concurrency: concurrency,
+		Progress: batches.ItemProgress(shared.BarRef{Group: GroupFetchPlayerLandings}),
 		Start: func(_ workflow.Context, batchIndex int) workflow.Future {
-			batch := shared.BatchSlice(players, batchIndex, batchSize)
-			return workflow.ExecuteActivity(fetchCtx, playerAct.FetchPlayerLandingsBatch, batch)
+			return workflow.ExecuteActivity(fetchCtx, playerAct.FetchPlayerLandingsBatch, batches.Batch(batchIndex))
 		},
 		Handle: shared.AggregateInto[shared.FetchStats](&result.FetchStats),
 	})

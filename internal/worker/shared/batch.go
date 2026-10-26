@@ -12,21 +12,6 @@ const (
 	batchAlreadyClosedMessage = "batch already closed"
 )
 
-// BatchCount returns the number of batches needed to process n items with the given batch size.
-func BatchCount(n, batchSize int) int {
-	return (n + batchSize - 1) / batchSize
-}
-
-// BatchSlice returns the sub-slice for the given batch index and size, clamping to the slice length.
-func BatchSlice[T any](items []T, batchIndex, batchSize int) []T {
-	start := batchIndex * batchSize
-	end := start + batchSize
-	if end > len(items) {
-		end = len(items)
-	}
-	return items[start:end]
-}
-
 // BatchError aggregates multiple errors from a batch operation.
 // It implements error and provides Unwrap() []error for Go 1.20+ error inspection.
 type BatchError struct {
