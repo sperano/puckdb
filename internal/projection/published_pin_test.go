@@ -99,11 +99,11 @@ func computePins(t *testing.T, version string) pinnedHashes {
 	evaluations, err := Evaluate(cfg, input)
 	require.NoError(t, err)
 	return pinnedHashes{
-		config:     configHash(snapshot.Config),
+		config:     mustConfigHash(t, snapshot.Config),
 		source:     snapshot.SourceDataHash,
-		evaluation: evaluationDataHash(snapshot.Config, input),
-		players:    hashValue(snapshot.Players),
-		evaluated:  hashValue(evaluations),
+		evaluation: mustEvaluationDataHash(t, snapshot.Config, input),
+		players:    mustHashJSON(t, snapshot.Players),
+		evaluated:  mustHashJSON(t, evaluations),
 	}
 }
 

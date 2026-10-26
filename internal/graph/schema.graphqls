@@ -186,7 +186,7 @@ input FetchPlayerLandingsInput {
 input FetchAssetsInput {
 	"""How many asset batches run in parallel inside each class workflow. Falls back to the worker's configured default when unset."""
 	classConcurrency: Int
-	"""How many of the nine class workflows run in parallel. Falls back to the worker's configured default when unset."""
+	"""How many of the seven class workflows run in parallel. Falls back to the worker's configured default when unset."""
 	maxClassConcurrency: Int
 	"""Re-download every asset, ignoring already-cached files."""
 	refreshCurrent: Boolean

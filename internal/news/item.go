@@ -2,9 +2,6 @@ package news
 
 import (
 	"cmp"
-	"crypto/sha256"
-	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"html"
 	"regexp"
@@ -14,6 +11,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/sperano/puckdb/internal/canonhash"
 	"github.com/sperano/puckdb/internal/matching"
 )
 
@@ -102,14 +100,14 @@ type hashedContent struct {
 
 // ContentHash identifies the item's content.
 func (it Item) ContentHash() (string, error) {
-	data, err := json.Marshal(hashedContent{
+	hash, err := canonhash.JSON(hashedContent{
 		Title: it.Title, Text: it.Text, Body: it.Body, Author: it.Author, PublishedAt: it.PublishedAt.UTC(),
 		Subjects: it.Subjects, TeamHints: it.TeamHints, CategoryHint: it.CategoryHint,
 	})
 	if err != nil {
 		return "", fmt.Errorf("hash item %s: %w", it.ExternalID, err)
 	}
-	return hashHex(data), nil
+	return hash, nil
 }
 
 // TitleFingerprint identifies the title's words regardless of case,
@@ -141,12 +139,7 @@ func fingerprint(s string) string {
 	if len(words) < minFingerprintWords {
 		return ""
 	}
-	return hashHex([]byte(strings.Join(words, " ")))
-}
-
-func hashHex(data []byte) string {
-	sum := sha256.Sum256(data)
-	return hex.EncodeToString(sum[:])
+	return canonhash.Bytes([]byte(strings.Join(words, " ")))
 }
 
 // Words lowercases s, decodes HTML entities, strips accents

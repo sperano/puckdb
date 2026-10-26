@@ -3,9 +3,7 @@ package cache
 import (
 	"context"
 	"crypto/rand"
-	"crypto/sha256"
 	"encoding/base64"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -13,6 +11,7 @@ import (
 
 	"github.com/go-redis/redis/v8"
 	"github.com/rs/zerolog/log"
+	"github.com/sperano/puckdb/internal/canonhash"
 	"github.com/sperano/puckdb/internal/config"
 	"golang.org/x/oauth2"
 )
@@ -139,8 +138,7 @@ func DeleteTokenForUser(ctx context.Context, redisClient tokenClient, user strin
 // unsalted digest can be brute-forced: treat the key as sensitive and never
 // log it.
 func getRedisKeyForAuthCode(code string) string {
-	digest := sha256.Sum256([]byte(code))
-	return fmt.Sprintf(config.RedisKeyYahooAuthCodeFmt, hex.EncodeToString(digest[:]))
+	return fmt.Sprintf(config.RedisKeyYahooAuthCodeFmt, canonhash.Bytes([]byte(code)))
 }
 
 // MarkAuthCodeAsUsed marks an authorization code as used to prevent replay attacks.

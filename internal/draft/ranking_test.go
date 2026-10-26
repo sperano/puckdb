@@ -471,3 +471,24 @@ func TestBuildRanking_UncertaintySensitivityForGoalieAndRookie(t *testing.T) {
 		}
 	}
 }
+
+// TestBuildRanking_VersionGolden pins the ranking identity that snapshots
+// store and compare: a change re-ranks every league on the next refresh.
+func TestBuildRanking_VersionGolden(t *testing.T) {
+	slots := []RosterSlot{{Position: PositionCenter, Count: 1, Starting: true}}
+	rules, projected, pool := testRankingInput("point", []StatCategory{
+		testWeightedCategory(rankingTestGoalStat, 2),
+		testWeightedCategory(rankingTestAssistStat, 1),
+	}, slots, testPlayer("goal-scorer", projection.PlayerKindSkater, 0, map[projection.Stat]float64{
+		projection.StatGoals: 10, projection.StatAssists: 0,
+	}))
+	ranking, err := BuildRanking(rules, projected, pool, RankingOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ranking.Version != goldenRankingVersion {
+		t.Fatalf("ranking version = %q, want %q", ranking.Version, goldenRankingVersion)
+	}
+}
+
+const goldenRankingVersion = "league-replacement-v2:c810adb50c328d4158cf2b2a9b215bac818b3d24422c70c3a5d1bcf9b01a815d"

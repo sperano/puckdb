@@ -27,7 +27,7 @@ const (
 
 	// TaskQueueAssets is the Temporal task queue for asset download activities.
 	// It is separate from the main puckdb-tasks queue so asset workloads cannot
-	// starve other workflows (architectural delta 4).
+	// starve other workflows.
 	TaskQueueAssets = "puckdb-asset-tasks"
 )
 

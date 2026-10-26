@@ -148,33 +148,26 @@ func TestLoadCreateSimPoolInputFromFile_NoSuchFile(t *testing.T) {
 }
 
 // ----------------------------------------------------------------------------
-// asciiBar / repeatRune
+// Plain progress rendering
 // ----------------------------------------------------------------------------
 
-func TestAsciiBar(t *testing.T) {
+func TestRenderASCIIProgressBar(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
-		current, total, width int
-		expected              string
+		pct      float64
+		width    int
+		expected string
 	}{
-		{0, 10, 10, "[          ]"},
-		{5, 10, 10, "[#####     ]"},
-		{10, 10, 10, "[##########]"},
-		{0, 0, 5, "[     ]"},         // total=0 → empty bar (not panic)
-		{15, 10, 10, "[##########]"}, // overflow clamps to width
-		{-1, 10, 10, "[          ]"},
+		{0, 10, "[          ]"},
+		{50, 10, "[#####     ]"},
+		{100, 10, "[##########]"},
+		{150, 10, "[##########]"},
+		{-10, 10, "[          ]"},
 	}
 	for _, tc := range cases {
-		got := asciiBar(tc.current, tc.total, tc.width)
-		assert.Equal(t, tc.expected, got, "current=%d total=%d width=%d", tc.current, tc.total, tc.width)
+		got := renderProgressBar(tc.pct, tc.width, progressBarASCII)
+		assert.Equal(t, tc.expected, got, "pct=%v width=%d", tc.pct, tc.width)
 	}
-}
-
-func TestRepeatRune(t *testing.T) {
-	t.Parallel()
-	assert.Equal(t, "", repeatRune('#', 0))
-	assert.Equal(t, "", repeatRune('#', -1))
-	assert.Equal(t, "###", repeatRune('#', 3))
 }
 
 // ----------------------------------------------------------------------------
@@ -262,6 +255,25 @@ func TestRenderSimPoolStatus_HidesUnstartedGroups(t *testing.T) {
 	assert.Contains(t, out, "Draft")
 	assert.NotContains(t, out, "Season",
 		"unstarted groups must not render — the user shouldn't see Phase 2 progress before draft completes")
+}
+
+func TestRenderProgressGroups(t *testing.T) {
+	t.Parallel()
+	report := &model.ProgressReport{Groups: []*model.ProgressGroup{
+		{
+			Header:    "Draft",
+			StartedAt: 1,
+			Bars: []*model.ProgressBar{
+				{Current: 40, Total: 80},
+				{Current: 5, Total: 10},
+			},
+		},
+		{Header: "Season", StartedAt: 0},
+	}}
+
+	var buf bytes.Buffer
+	renderProgressGroups(&buf, report)
+	assert.Equal(t, "  Draft   [##########          ] 45/90\n", buf.String())
 }
 
 func TestNextStepHintUsesPoolStatuses(t *testing.T) {

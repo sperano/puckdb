@@ -130,8 +130,7 @@ func (s *CountDaysInSeasonSuite) TestSeasonFullyInPast_ReturnsCorrectDayCount() 
 			StandingsEnd:   end,
 		}
 
-		count, err := CountDaysInSeason(ctx, season)
-		s.NoError(err)
+		count := CountDaysInSeason(ctx, season)
 		// CountDays is inclusive: Jan 1 through Jan 10 = 10 days.
 		s.Equal(10, count)
 		return nil
@@ -155,8 +154,7 @@ func (s *CountDaysInSeasonSuite) TestSeasonWithFutureEndDate_CappedAtYesterday()
 			StandingsEnd:   end,
 		}
 
-		count, err := CountDaysInSeason(ctx, season)
-		s.NoError(err)
+		count := CountDaysInSeason(ctx, season)
 		// The end is capped to ~yesterday, so count should be roughly 3
 		// (3 days ago + 2 days ago + yesterday). Allow ±1 for clock boundaries.
 		s.GreaterOrEqual(count, 2)
@@ -175,8 +173,7 @@ func (s *CountDaysInSeasonSuite) TestSingleDaySeason_ReturnsOne() {
 			StandingsEnd:   d,
 		}
 
-		count, err := CountDaysInSeason(ctx, season)
-		s.NoError(err)
+		count := CountDaysInSeason(ctx, season)
 		s.Equal(1, count)
 		return nil
 	})

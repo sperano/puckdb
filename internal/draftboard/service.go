@@ -2,15 +2,13 @@ package draftboard
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"slices"
 	"sync"
 	"time"
 
+	"github.com/sperano/puckdb/internal/canonhash"
 	"github.com/sperano/puckdb/internal/draft"
 	"github.com/sperano/puckdb/internal/draftrank"
 	"github.com/sperano/puckdb/internal/draftrecommend"
@@ -331,12 +329,11 @@ func recommendationCacheKey(input draftrecommend.Input) (string, error) {
 		SessionSafe: input.SessionSafe, SessionStale: input.SessionStale,
 		RankingIssues: issueCodes(input.RankingIssues),
 	}
-	raw, err := json.Marshal(boundary)
+	key, err := canonhash.JSON(boundary)
 	if err != nil {
-		return "", fmt.Errorf("encode draft recommendation cache key: %w", err)
+		return "", fmt.Errorf("hash draft recommendation cache key: %w", err)
 	}
-	sum := sha256.Sum256(raw)
-	return hex.EncodeToString(sum[:]), nil
+	return key, nil
 }
 
 // issueCodes are the distinct codes of issues, sorted. Messages are left

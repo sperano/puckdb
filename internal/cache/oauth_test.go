@@ -395,3 +395,10 @@ func TestConsumeLoginState_RedisError(t *testing.T) {
 // regression where someone shrinks tokenClient and breaks production
 // callers (which still use *redis.Client) without breaking the tests.
 var _ tokenClient = (*redis.Client)(nil)
+
+func TestGetRedisKeyForAuthCodeGolden(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, goldenAuthCodeKey, getRedisKeyForAuthCode(oauthTestAuthCode))
+}
+
+const goldenAuthCodeKey = "yahoo_oauth2_code_b7fe96979b3015d34bf391cc61fa554507e1d7b5f1b274c7b360a87e621097e6"

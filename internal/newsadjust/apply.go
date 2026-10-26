@@ -6,6 +6,7 @@ import (
 	"slices"
 	"time"
 
+	"github.com/sperano/puckdb/internal/canonhash"
 	"github.com/sperano/puckdb/internal/projection"
 )
 
@@ -71,15 +72,21 @@ func Apply(req Request) (Result, error) {
 	if err != nil {
 		return Result{}, err
 	}
+	policyHash, err := req.Policy.Hash()
+	if err != nil {
+		return Result{}, err
+	}
 	sel := newSelector(req, players, visible, active)
 	claims := sel.buildClaims()
 	result := Result{
-		MethodVersion: MethodVersion, Policy: req.Policy, PolicyHash: req.Policy.Hash(),
+		MethodVersion: MethodVersion, Policy: req.Policy, PolicyHash: policyHash,
 		BaselineHash: req.Baseline.SourceDataHash, Season: req.Season, AsOf: req.AsOf.UTC(),
 		LeagueKey: req.LeagueKey, Decisions: sel.sortedDecisions(), Events: visible,
 		Overrides: active, Shadowed: shadowed, Alerts: slices.Clone(req.CoverageWarnings),
 	}
-	result.ID = adjustmentID(req, result)
+	if result.ID, err = adjustmentID(req, result); err != nil {
+		return Result{}, err
+	}
 	adjusted := make(map[Scenario][]projection.PlayerProjection, len(Scenarios))
 	for _, player := range req.Baseline.Players {
 		adjustment, byScenario := adjustPlayer(req, player, claims[player.PlayerKey], active, sel)
@@ -90,7 +97,9 @@ func Apply(req Request) (Result, error) {
 			result.Players = append(result.Players, *adjustment)
 		}
 	}
-	result.Snapshots = scenarioSnapshots(req, result.ID, adjusted)
+	if result.Snapshots, err = scenarioSnapshots(req, result.ID, adjusted); err != nil {
+		return Result{}, err
+	}
 	return result, nil
 }
 
@@ -216,7 +225,7 @@ func sortedStats(values map[projection.Stat]projection.Estimate) []projection.St
 }
 
 // adjustmentID hashes every input that can change the adjusted snapshots.
-func adjustmentID(req Request, result Result) string {
+func adjustmentID(req Request, result Result) (string, error) {
 	overrides := slices.Clone(result.Overrides)
 	slices.SortFunc(overrides, func(a, b Override) int { return cmp.Compare(a.ID, b.ID) })
 	identity := struct {
@@ -236,20 +245,30 @@ func adjustmentID(req Request, result Result) string {
 		utc(req.Baseline.AsOf).Truncate(storedTimePrecision), req.AsOf, req.LeagueKey, req.Season, result.Events,
 		overrides, req.CoverageWarnings,
 	}
-	return MethodVersion + ":" + hashJSON(identity)
+	id, err := canonhash.Versioned(MethodVersion, identity)
+	if err != nil {
+		return "", fmt.Errorf("hash adjustment identity: %w", err)
+	}
+	return id, nil
 }
 
-func scenarioSnapshots(req Request, id string, adjusted map[Scenario][]projection.PlayerProjection) map[Scenario]projection.Snapshot {
+func scenarioSnapshots(
+	req Request, id string, adjusted map[Scenario][]projection.PlayerProjection,
+) (map[Scenario]projection.Snapshot, error) {
 	snapshots := make(map[Scenario]projection.Snapshot, len(Scenarios))
 	for _, s := range Scenarios {
 		snapshot := req.Baseline
 		snapshot.AsOf = req.AsOf.UTC()
-		snapshot.SourceDataHash = hashJSON(struct {
+		hash, err := canonhash.JSON(struct {
 			AdjustmentID string
 			Scenario     Scenario
 		}{id, s})
+		if err != nil {
+			return nil, fmt.Errorf("hash %s scenario snapshot: %w", s, err)
+		}
+		snapshot.SourceDataHash = hash
 		snapshot.Players = adjusted[s]
 		snapshots[s] = snapshot
 	}
-	return snapshots
+	return snapshots, nil
 }

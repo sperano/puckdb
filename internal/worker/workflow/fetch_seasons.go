@@ -30,10 +30,7 @@ import (
 func daysWithPlayoffTeamsCounter() shared.SeasonCounterFunc {
 	var pa *worknhl.PlayoffActivities
 	return func(ctx workflow.Context, season nhl.SeasonInfo) (int, error) {
-		days, err := shared.CountDaysInSeason(ctx, season)
-		if err != nil {
-			return 0, err
-		}
+		days := shared.CountDaysInSeason(ctx, season)
 		var teams []string
 		if err := workflow.ExecuteActivity(ctx, pa.ListSeasonTeams, season.ID.StartYear()).Get(ctx, &teams); err != nil {
 			return 0, fmt.Errorf("list season teams for %d: %w", season.ID.StartYear(), err)

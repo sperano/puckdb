@@ -8,6 +8,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const persistedStateGolden = `{"upstream":[{"Key":{"Round":2,"Pick":13},"TeamID":3,"PlayerID":101,"Cost":null}],"manual":[{"key":{"Round":2,"Pick":13},"kind":"correct","pick":{"Key":{"Round":2,"Pick":13},"TeamID":3,"PlayerID":202,"Cost":null},"base":{"Key":{"Round":2,"Pick":13},"TeamID":3,"PlayerID":101,"Cost":null},"conflict":true}],"upstreamPlayers":[99,101],"upstreamComplete":true,"version":9}`
+
 func TestStateCodecRoundTripPreservesRestartState(t *testing.T) {
 	key := draftsession.PickKey{Round: 2, Pick: 13}
 	base := draftsession.Pick{Key: key, TeamID: 3, PlayerID: 101}
@@ -24,6 +26,7 @@ func TestStateCodecRoundTripPreservesRestartState(t *testing.T) {
 
 	raw, firstHash, err := encodeState(state)
 	require.NoError(t, err)
+	assert.Equal(t, persistedStateGolden, string(raw))
 	restarted, err := decodeState(raw)
 	require.NoError(t, err)
 	secondRaw, secondHash, err := encodeState(restarted)
@@ -35,10 +38,12 @@ func TestStateCodecRoundTripPreservesRestartState(t *testing.T) {
 }
 
 func TestDecodeStateAcceptsInitialLegacyEmptyArray(t *testing.T) {
-	state, err := decodeState([]byte(`[]`))
-	require.NoError(t, err)
-	assert.Empty(t, state.Upstream)
-	assert.Empty(t, state.Manual)
+	for _, raw := range [][]byte{nil, []byte(`[]`)} {
+		state, err := decodeState(raw)
+		require.NoError(t, err)
+		assert.Empty(t, state.Upstream)
+		assert.Empty(t, state.Manual)
+	}
 }
 
 func TestDecodeStateSeedsUpstreamPlayersOfLegacyBoard(t *testing.T) {
@@ -54,3 +59,23 @@ func TestDecodeStateSeedsUpstreamPlayersOfLegacyBoard(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, string(raw), `"upstreamPlayers":[102,105]`)
 }
+
+// TestEncodeStateHashGolden pins draft_sessions' stored board hash.
+func TestEncodeStateHashGolden(t *testing.T) {
+	key := draftsession.PickKey{Round: 2, Pick: 13}
+	base := draftsession.Pick{Key: key, TeamID: 3, PlayerID: 101}
+	manual := draftsession.Pick{Key: key, TeamID: 3, PlayerID: 202}
+	_, hash, err := encodeState(draftsession.State{
+		Upstream: map[draftsession.PickKey]draftsession.Pick{key: base},
+		Manual: map[draftsession.PickKey]draftsession.ManualChange{
+			key: {Kind: draftsession.ManualCorrect, Pick: &manual, Base: &base, Conflict: true},
+		},
+		UpstreamPlayers:  map[int]bool{101: true, 99: true},
+		UpstreamComplete: true,
+		Version:          9,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, goldenStateHash, hash)
+}
+
+const goldenStateHash = "f0c4eea6aef20b7a8f3501258606c6e30afd648b02280795f8ace6f2a0271db9"
