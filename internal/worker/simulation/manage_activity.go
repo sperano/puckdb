@@ -38,7 +38,8 @@ import (
 //	   the per-pool LLM cost. The LLM call is NOT held inside the tx
 //	   (would starve the pool for ~60s).
 //
-// Failure shape (per PLAN.md > "Always returns success"):
+// Failure shape (provider and validation failures are data, not activity
+// errors; wiki puckdb/simulation.md > "Agent turns"):
 //
 //   - LLM provider error / agentloop hard failure → log a
 //     `pass`-with-error-detail style row; activity returns nil.
@@ -821,8 +822,8 @@ func applyAdd(ctx context.Context, q dailyActionQueries, in ManageRosterInput, r
 // claim, which ProcessWaiversActivity resolves on the process date.
 //
 // process_date = sim_date + waiver_days; waiver_days lives in
-// PoolConfig (PLAN.md > "Waivers"). If WaiverDays is 0 (config
-// default), the claim processes the next day — same-day processing
+// PoolConfig (wiki puckdb/simulation.md > "Free agents and waivers").
+// If WaiverDays is 0 (config default), the claim processes the next day — same-day processing
 // would race with this turn's other adds, so we bump by 1 minimum.
 func applyClaim(ctx context.Context, q dailyActionQueries, in ManageRosterInput, reasoning string, args ClaimPlayerArgs) (int32, error) {
 	processDate := addDays(in.SimDate, claimProcessOffset(in.PoolConfig.WaiverDays))

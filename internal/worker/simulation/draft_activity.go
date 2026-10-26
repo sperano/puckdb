@@ -29,24 +29,24 @@ import (
 //	   write the cost_cap_reached row (once per pool; see
 //	   pauseForCostCap for retry semantics), return the
 //	   SkipReasonCostCapReached result the workflow stops on.
-//	3. LLM tool call: agent.Client.Complete with the draft prompt and
-//	   the draft_player tool. Single-shot — the agent's job is to
-//	   choose ONE player; multi-round agentloop is overkill here.
-//	4. Recover + validate: feed the response through RecoverAction
-//	   (handles fuzzy tool names + lenient JSON), then assert the
-//	   chosen player is in AvailableIDs. Failure ⇒ second LLM attempt
-//	   with the same prompt.
-//	5. Fallback: two failures ⇒ FallbackDraftPick (deterministic).
-//	6. Atomic commit (Transactor.InTx):
+//	3. Agent loop: agentloop.Run with the draft prompt and the
+//	   draft_player and update_notes tools, at most MaxDraftToolRounds
+//	   rounds. Each call goes through RecoverAction (fuzzy tool names,
+//	   lenient JSON); a pick outside AvailableIDs is returned to the
+//	   model as a tool error so it can pick again in the next round.
+//	4. Fallback: no accepted draft_player within the rounds (or a
+//	   provider failure) ⇒ FallbackDraftPick (deterministic).
+//	5. Atomic commit (Transactor.InTx):
 //	     - InsertSimRoster (slot=BN, acquired_via=draft)
 //	     - InsertSimTransactionDraftPick
 //	     - IncrementSimPoolLLMCost
-//	   All three or none — otherwise the next attempt's idempotency
-//	   probe could see a sim_transactions row without the corresponding
+//	     - the turn telemetry rows
+//	   All or none — otherwise the next attempt's idempotency probe
+//	   could see a sim_transactions row without the corresponding
 //	   sim_rosters row (roster reads would lie).
 //
-// PLAN.md > "Idempotency > LLM activities" and PLAN.md > "Cost cap >
-// Enforcement" are the canonical specs.
+// Wiki puckdb/simulation.md > "Idempotency" and "Cost cap" describe
+// both probes.
 // ============================================================================
 
 // DraftPickInput is the per-pick payload assembled by the workflow.
@@ -78,9 +78,8 @@ type DraftPickInput struct {
 //
 // Skipped + SkipReason cover the two no-op paths (idempotency hit,
 // cost-cap trip). PlayerID is 0 when Skipped. CostUsd is the dollar
-// cost of the LLM call(s) for this pick — the workflow doesn't use
-// this directly, but it surfaces in metrics and per-pool cost
-// dashboards (Phase 3.3).
+// cost of the LLM call(s) for this pick; the workflow does not use
+// it (the pool's spend is committed with the pick).
 type DraftPickResult struct {
 	Skipped      bool    `json:"skipped"`
 	SkipReason   string  `json:"skip_reason,omitempty"`
@@ -444,8 +443,8 @@ func (d draftActivity) chooseDraftPlayer(ctx context.Context, in DraftPickInput)
 
 // commitDraftPick is the atomic-write step. Three writes in one tx:
 // roster row, draft_pick transaction row, cost increment. Slot is BN
-// at draft time (PLAN.md > "Slot rules" — drafted players land on
-// the bench; the agent sets lineup separately on day 1).
+// at draft time: drafted players land on the bench and the agent sets
+// its lineup on day 1.
 //
 // Additionally writes the full turn telemetry (sim_agent_turns +
 // children) so the draft attempt is fully auditable: rejected LLM

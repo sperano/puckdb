@@ -17,9 +17,9 @@ import (
 )
 
 // ============================================================================
-// SimPoolWorkflowTestSuite — covers signal state machine, ContinueAsNew,
-// cancel handling, Phase 1 signal handling, and the shouldProcessNow
-// pure helper.
+// SimPoolWorkflowTestSuite — covers StopAfter / MaxSeasonDays scoping,
+// ContinueAsNew, cancel handling, the cost-cap pause and the query
+// surface.
 //
 // Activities are mocked via env.OnActivity. The actual activity
 // behavior is unit-tested separately (draft_activity_test.go,
@@ -209,12 +209,11 @@ func (s *SimPoolWorkflowTestSuite) stubManageRosterPassThrough() {
 }
 
 // ============================================================================
-// Initial start — Phase 1 (draft) runs, Phase 2 pauses (PLAN.md
-// "set status=paused after draft").
+// Initial start — all phases run to the end of the window.
 // ============================================================================
 
-// Happy path: workflow runs to season end without any runtime
-// signals, exits cleanly with no error.
+// Happy path: workflow runs to season end and exits cleanly with no
+// error.
 func (s *SimPoolWorkflowTestSuite) TestInitialStart_RunsToEnd() {
 	t := s.T()
 	state := minState()
@@ -789,26 +788,24 @@ func (s *SimPoolWorkflowTestSuite) assertSeasonGroupNotCompletedOnStop(stop Stop
 }
 
 // ============================================================================
-// Low-4: QuerySummary must return a non-empty Status and a non-zero
-// TotalLLMCostUsd after at least one phase has run.
+// Query surface: the shared progress report is the workflow's only query.
 // ============================================================================
 
-// Execute a full workflow run then query the summary from the
-// workflow result; the test environment's QueryWorkflow lets us
-// interrogate the handler's closure state after the workflow exits.
-// PickTeamName returns a non-zero cost so TotalLLMCostUsd must be > 0.
-func (s *SimPoolWorkflowTestSuite) TestQuerySummary_PopulatesStatusAndCost() {
+// removedSimPoolQueries are the query handlers SimPoolWorkflow used to
+// register. No client called them (the GraphQL resolvers and the CLI read
+// PostgreSQL and the Redis progress report), so they were removed; queries
+// are not recorded in history, so replay is unaffected.
+var removedSimPoolQueries = []string{
+	"summary",
+	"latest_standings",
+	"standings_for_date",
+	"rosters",
+	"log",
+}
+
+func (s *SimPoolWorkflowTestSuite) TestQuerySurface_OnlyProgressReport() {
 	t := s.T()
 	state := minState()
-
-	const teamNameCost = 0.05
-
-	// Override PickTeamName to return a non-zero cost. Must be
-	// registered BEFORE stubActivityResults because testify mock gives
-	// priority to the first registered expectation.
-	s.env.OnActivity(s.acts.PickTeamName, mock.Anything, mock.Anything).
-		Return(PickTeamNameResult{Name: "Oilers", CostUsd: teamNameCost}, nil).
-		Maybe()
 	s.stubActivityResults(state)
 	s.stubManageRosterPassThrough()
 
@@ -816,15 +813,16 @@ func (s *SimPoolWorkflowTestSuite) TestQuerySummary_PopulatesStatusAndCost() {
 	require.True(t, s.env.IsWorkflowCompleted())
 	require.NoError(t, s.env.GetWorkflowError())
 
-	val, err := s.env.QueryWorkflow(QuerySummary)
+	val, err := s.env.QueryWorkflow(shared.ProgressReportQueryName)
 	require.NoError(t, err)
-	var summary PoolSummary
-	require.NoError(t, val.Get(&summary))
+	var report shared.ProgressReport
+	require.NoError(t, val.Get(&report))
+	assert.Len(t, report.Groups, 2, "progress report keeps its Draft + Season groups")
 
-	assert.NotEmpty(t, summary.Status, "QuerySummary must populate Status")
-	// Two agents × teamNameCost = 0.10 total at minimum.
-	assert.Greater(t, summary.TotalLLMCostUsd, 0.0,
-		"QuerySummary must reflect accumulated LLM cost")
+	for _, name := range removedSimPoolQueries {
+		_, err := s.env.QueryWorkflow(name)
+		assert.Error(t, err, "query %q must no longer be registered", name)
+	}
 }
 
 // Phase 0 builds the agent the draft and daily turns reuse, so every

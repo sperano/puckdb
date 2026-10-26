@@ -271,8 +271,7 @@ func ExtractPlayerIDs(prose string) []int64 {
 //   - >0 → fuzzy match used; the value is the edit distance.
 //   - -1 → tool name was exact but args needed lenient cleanup.
 //
-// A non-zero distance is the signal Phase 3.3 metrics should record —
-// it's a model-quality observation, not a bug.
+// A non-zero distance is a model-quality observation, not a bug.
 func RecoverAction(call llm.ToolCall, knownTools []llm.Tool) (action Action, recoveryDistance int, err error) {
 	legal := make(map[string]struct{}, len(knownTools))
 	names := make([]string, 0, len(knownTools))
@@ -320,9 +319,9 @@ func RecoverAction(call llm.ToolCall, knownTools []llm.Tool) (action Action, rec
 	}
 
 	// All three layers failed — surface a single error that names the
-	// tool. Callers (Phase 3.1 activities) should log this as a
-	// tool_use_failure transaction and feed a clear error string back
-	// to the LLM so it can correct in the next round.
+	// tool. Callers (the team-name, draft and daily
+	// activities) record this as a parse-error tool call and feed a clear
+	// error string back to the LLM so it can correct in the next round.
 	return nil, 0, fmt.Errorf("simulation: cannot recover tool call %q (args=%q)",
 		call.Function.Name, call.Function.Arguments)
 }
@@ -334,8 +333,7 @@ func RecoverAction(call llm.ToolCall, knownTools []llm.Tool) (action Action, rec
 // lets every case in parseActionLenient below collapse to a one-liner
 // that differs only in the concrete Args type — the same shape
 // ParseAction (agent.go) uses with ParseArgs[T] as its unmarshal func.
-// The two switches aren't merged across files in this pass: agent.go is
-// owned by a different work item this wave.
+// ParseAction (agent.go) keeps its own switch.
 func parseLenientAction[T Action](call llm.ToolCall, unmarshal func([]byte, any) error) (Action, error) {
 	var args T
 	if err := unmarshal([]byte(call.Function.Arguments), &args); err != nil {

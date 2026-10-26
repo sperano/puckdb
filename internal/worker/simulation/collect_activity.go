@@ -32,11 +32,11 @@ import (
 // Idempotency: every write uses ON CONFLICT DO UPDATE. Reruns of the
 // same (pool, sim_date) overwrite identically because the row set is
 // deterministic — the day's roster is locked before scoring runs
-// (PLAN.md Day Loop step 4), so attempt N+1 produces the same
+// (wiki puckdb/simulation.md > "Day loop" step 4), so attempt N+1 produces the same
 // (player, category) keys as attempt N.
 //
-// PLAN.md > "CollectDayStatsActivity" and > "Goalie decision
-// semantics" are the canonical specs.
+// wiki puckdb/simulation.md > "Stat accumulation" and
+// > "Scoring" are the canonical specs.
 // ============================================================================
 
 // CollectDayStatsInput is the per-day, per-pool payload. AgentIDs is
@@ -202,8 +202,9 @@ func (c collectActivity) fetchDayStats(ctx context.Context, games []sqlcdb.ListS
 // per-player rows for everyone who appeared in the day's games.
 // Returns the count of rows written (diagnostic for the result).
 //
-// "Active" is the slot filter that excludes BN/IR (PLAN.md > "Slot
-// rules" — bench / IR players don't score even if they played).
+// "Active" is the slot filter that excludes BN/IR (bench / IR
+// players don't score even if they played; wiki puckdb/simulation.md
+// > "Stat accumulation").
 func writeAgentDayStats(
 	ctx context.Context,
 	q collectQueries,
@@ -267,8 +268,8 @@ type categoryContribution struct {
 }
 
 // summarizeSkater accumulates a skater's per-game stats into one
-// contribution per category. PLAN.md > "Categories" lists the six
-// skater categories: G, A, +/-, PIM, PPP, SOG. A player who plays
+// contribution per category. The six skater categories are G, A, +/-,
+// PIM, PPP, SOG (wiki puckdb/simulation.md > "Scoring"). A player who plays
 // multiple games on a date (theoretical in V1) gets their values
 // summed before upserting.
 func summarizeSkater(rows []sqlcdb.GetGameSkaterStatsByGameRow) []categoryContribution {
@@ -292,11 +293,11 @@ func summarizeSkater(rows []sqlcdb.GetGameSkaterStatsByGameRow) []categoryContri
 }
 
 // summarizeGoalie accumulates a goalie's per-game stats into per-
-// category contributions. PLAN.md > "Categories" lists three goalie
-// categories:
+// category contributions. The three goalie categories
+// (wiki puckdb/simulation.md > "Scoring") are:
 //
 //   - W: count = 1 if the row's decision is exactly "W". L / OTL / T /
-//     NULL all contribute 0 (PLAN.md > "Goalie decision semantics").
+//     NULL all contribute 0 (wiki puckdb/simulation.md > "Scoring").
 //   - GA: SUM of goals_against across ALL rows including
 //     NULL-decision rows (a pulled starter still let in goals).
 //   - GAA: stored as components (goalie_ga + goalie_toi_seconds);
@@ -320,7 +321,7 @@ func summarizeGoalie(rows []sqlcdb.GetGameGoalieStatsByGameRow) []categoryContri
 
 // writePlayerCategoryRow upserts one (pool, agent, date, player,
 // category) row. ON CONFLICT DO UPDATE in the SQL ensures retries
-// overwrite cleanly (PLAN.md > "Idempotency > Stat activities").
+// overwrite cleanly (wiki puckdb/simulation.md > "Idempotency").
 func writePlayerCategoryRow(
 	ctx context.Context,
 	q collectQueries,

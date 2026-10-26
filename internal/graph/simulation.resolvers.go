@@ -24,10 +24,10 @@ func (r *mutationResolver) CreateSimPool(ctx context.Context, input model.Create
 // CancelSimPool is the resolver for the cancelSimPool field.
 //
 // Cooperative cancel via Temporal's RequestCancelWorkflow — the
-// workflow's runSeasonPhase ctx.Err() check picks up the cancel,
-// writes status='cancelled' (placeholder until SetPoolStatusActivity
-// lands), and returns the cancel error so Temporal records the
-// workflow as Cancelled rather than Failed.
+// workflow sees its context cancelled, its deferred cleanup writes
+// status='cancelled' through SetPoolStatusActivity, and it returns the
+// cancel error so Temporal records the workflow as Cancelled rather
+// than Failed.
 func (r *mutationResolver) CancelSimPool(ctx context.Context, poolID int) (*model.SimPool, error) {
 	wfID := simulation.WorkflowIDForPool(int32(poolID))
 	if err := r.TemporalClient.CancelWorkflow(ctx, wfID, ""); err != nil {
@@ -74,8 +74,7 @@ func (r *queryResolver) SimPools(ctx context.Context) ([]*model.SimPool, error) 
 // SimTransactions is the resolver for the simTransactions field.
 //
 // Filters: agentID and date are optional. The sqlc query encodes
-// "skip filter" as 0 / NULL respectively (PLAN.md > "ListSimTransactions
-// > optional sentinels"). limit defaults to defaultSimTxLimit when
+// "skip filter" as 0 / NULL respectively. limit defaults to defaultSimTxLimit when
 // unset to keep dashboard queries bounded.
 func (r *queryResolver) SimTransactions(ctx context.Context, poolID int, agentID *int, date *string, limit *int) ([]*model.SimTransaction, error) {
 	agentFilter := int32(0)

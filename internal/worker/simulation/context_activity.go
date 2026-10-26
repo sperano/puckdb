@@ -33,10 +33,9 @@ import (
 //   - on_waivers — the players currently in their waiver-clearing
 //     window, each carrying a valid player id for claim_player.
 //
-// Still empty (documented V2 follow-ups):
+// Not populated yet (wiki puckdb/simulation.md > "Daily context"):
 //   - todays_schedule — needs ListSimDayGames + GetTeamGoalsPerGame
-//     with team-abbrev resolution (see CHECKLIST.md "Known V2
-//     Follow-ups").
+//     with team-abbrev resolution.
 //   - your_analysis — a derived summary the LLM can also compute itself
 //     from the standings + roster blocks.
 // ============================================================================
@@ -157,7 +156,7 @@ func (b rosterContextActivity) BuildManageRosterContext(ctx context.Context, in 
 		Day:            pgconv.FormatDate(in.SimDate),
 		Standings:      standingsRows,
 		YourRoster:     rosterRows,
-		TodaysSchedule: nil, // V2 polish — see file header
+		TodaysSchedule: nil, // not populated yet — see file header
 		TopFreeAgents:  topFreeAgents,
 		OnWaivers:      waiverRows,
 		PendingClaims:  pendingClaimRows,
@@ -245,7 +244,7 @@ func (b rosterContextActivity) loadAgentNotes(ctx context.Context, agentID int32
 //   - []RosterRow for the daily prompt's your_roster block.
 //
 // One DB read for the rosters plus one batched GetPlayersByIDs call
-// covering every roster player (was one GetPlayer per player).
+// covering every roster player.
 // Players with a NULL players.position are omitted from the position map
 // with a warning; they will appear on the roster but cannot be slotted into
 // any active slot (set_lineup will return a clear "position lookup" error).
@@ -296,10 +295,10 @@ func (b rosterContextActivity) loadRosterAndPositions(
 			NHLPosition: pgconv.FormatPlayerPosition(p.Position),
 			Slot:        RosterSlot(r.Slot),
 			// The raw team ID; its abbreviation needs a season_teams
-			// join (V2 polish).
+			// join (not populated yet).
 			Team: pgconv.FormatInt8(p.TeamID),
-			// Last7 / Season / PlaysToday / GamesNext7Days are V2
-			// polish — would need additional queries against game
+			// Last7 / Season / PlaysToday / GamesNext7Days are not
+			// populated yet — would need additional queries against game
 			// stats + schedule. Empty values are valid (the LLM
 			// sees zeros and treats them as "no recent data").
 		})
@@ -321,8 +320,8 @@ func (b rosterContextActivity) loadRosterAndPositions(
 //
 // Called for FA and on-waivers candidates so that an agent who adds a player
 // in round 1 can immediately slot them in round 2 of the same turn. Position
-// lookups are batched with one GetPlayersByIDs call (was one GetPlayer per
-// candidate not already on the roster).
+// lookups are batched with one GetPlayersByIDs call for the candidates not
+// already on the roster.
 func (b rosterContextActivity) loadCandidatePositions(
 	ctx context.Context,
 	playerIDs []int64,

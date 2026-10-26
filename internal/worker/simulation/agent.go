@@ -89,9 +89,8 @@ func NewAgent(agentID int32, agent AgentConfig, providerConfigs map[llm.Provider
 }
 
 // SystemPrompt returns the cached system prompt string. Exposed
-// primarily for tests and for cache-hit verification (the Phase 3.3
-// "log cache_read_input_tokens" telemetry needs to know the prompt is
-// stable across calls).
+// primarily for tests and for cache-hit verification (the prompt must
+// stay byte-stable across calls).
 func (a *Agent) SystemPrompt() string { return a.systemPrompt }
 
 // DraftTools returns the per-agent tool list for the draft phase.
@@ -158,9 +157,9 @@ func (UpdateNotesArgs) ToolName() string { return ToolUpdateNotes }
 func (SetTeamNameArgs) ToolName() string { return ToolSetTeamName }
 
 // ParseAction converts an llm.ToolCall into the right typed Action.
-// Returns an error for unknown tool names — that's a fuzzy-recovery
-// signal for Phase 2.2; the daily activity should log the call as an
-// error transaction rather than crash. The returned error is also
+// Returns an error for unknown tool names — RecoverAction (recovery.go)
+// layers fuzzy recovery on top; the activities record the call as a
+// parse-error tool call rather than crash. The returned error is also
 // suitable to surface back to the LLM as a tool result so the model
 // can correct itself in the next round.
 func ParseAction(call llm.ToolCall) (Action, error) {
@@ -233,7 +232,7 @@ func agentTimeout(agent AgentConfig) time.Duration {
 // The simulation accepts llm.ParseProvider's names plus Google's:
 // "google" (and its "gemini" alias, the same canonicalization pricing
 // uses) routes to ProviderOpenAI because Gemini is reachable through an
-// OpenAI-compatible endpoint (PLAN.md > Multi-Provider Support). The
+// OpenAI-compatible endpoint. The
 // caller MUST set agent.APIBase to the Gemini URL — there is no global
 // Gemini base in llm.NewProviderConfigs. The alias stays here, not in
 // llm.ParseProvider: the other ParseProvider callers (news extraction)

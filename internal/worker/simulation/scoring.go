@@ -1,7 +1,7 @@
 package simulation
 
 // scoring.go: Yahoo-style rotisserie scoring engine for the sim pool.
-// The reference algorithm is documented in PLAN.md "Scoring: Rotisserie".
+// The rules and worked examples are on wiki puckdb/simulation.md > "Scoring".
 
 import (
 	"cmp"
@@ -37,7 +37,8 @@ func (c Category) IsLowerBetter() bool {
 // For non-GAA categories only AgentID and Value are read.
 // For GAA, RankGAA derives the displayed value from GoalieGA / GoalieTOISeconds;
 // an agent with GoalieTOISeconds == 0 receives the worst rank in that category
-// per PLAN.md "Rate stats" (no goalie minutes ever accrued, so GAA is undefined).
+// (no goalie minutes ever accrued, so GAA is undefined; see wiki
+// puckdb/simulation.md > "Scoring").
 type AgentCategoryStat struct {
 	AgentID          int32
 	Value            float64
@@ -145,7 +146,7 @@ func goalsAgainstAverage(ga, toiSeconds int) float64 {
 // from cumulative components via goalsAgainstAverage.
 //
 // Agents with GoalieTOISeconds == 0 are forced to the worst sorted position
-// regardless of value (PLAN.md "Rate stats"); their reported Value is 0
+// regardless of value (wiki puckdb/simulation.md > "Scoring"); their reported Value is 0
 // since no goalie minutes accrued. Multiple zero-TOI agents tie at the
 // bottom and split the lowest positions per the standard tie-split rule.
 //
