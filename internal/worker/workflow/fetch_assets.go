@@ -168,16 +168,10 @@ func populateClassBarTotals(ctx workflow.Context, tracker *shared.ReportTracker,
 		if err := f.Get(ctx, &rowCount); err != nil {
 			return fmt.Errorf("count %s: %w", parentAssetClasses[i].Class.Label, err)
 		}
-		tracker.SetBarTotal(shared.BarRef{Group: fetchAssetsGroupIdx, Bar: i}, batchesForRows(rowCount, batchSize))
+		tracker.SetBarTotal(shared.BarRef{Group: fetchAssetsGroupIdx, Bar: i}, shared.NewBatchRanges(rowCount, batchSize).Count())
 	}
 	tracker.RecalcTotal()
 	return nil
-}
-
-// batchesForRows returns the number of batches a row count produces given
-// batchSize, matching splitAssetBatches' partitioning semantics.
-func batchesForRows(rowCount, batchSize int) int {
-	return (rowCount + batchSize - 1) / batchSize
 }
 
 // dispatchClassChildren spawns one child workflow per class via

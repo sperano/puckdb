@@ -212,36 +212,6 @@ func (s *FetchAssetsWorkflowTestSuite) TestFetchAssetsWorkflow_ForwardsChildOver
 	}
 }
 
-// TestBatchesForRows verifies the row-to-batch conversion used to size
-// bar.Total. Parent and child track in batches; the count activity returns
-// rows.
-func TestBatchesForRows(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name      string
-		rows      int
-		batchSize int
-		want      int
-	}{
-		{"exact multiple", 300, 100, 3},
-		{"remainder", 250, 100, 3},
-		{"under one batch", 50, 100, 1},
-		{"empty", 0, 100, 0},
-		{"single row", 1, 100, 1},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			got := batchesForRows(tc.rows, tc.batchSize)
-			if got != tc.want {
-				t.Errorf("batchesForRows(%d, %d) = %d, want %d", tc.rows, tc.batchSize, got, tc.want)
-			}
-		})
-	}
-}
-
 // fetchAssetsTestBatchSize is the asset batch size the totals test sets, so
 // each class's row count converts to a known number of batches.
 const fetchAssetsTestBatchSize = 10

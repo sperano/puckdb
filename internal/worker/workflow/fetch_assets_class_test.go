@@ -312,37 +312,6 @@ func TestPerClassWrappers(t *testing.T) {
 	}
 }
 
-// TestSplitAssetBatches verifies the batching helper directly (pure function).
-func TestSplitAssetBatches(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name      string
-		n         int
-		batchSize int
-		wantLen   int
-		wantLast  int
-	}{
-		{"exact multiple", 300, 100, 3, 100},
-		{"remainder", 250, 100, 3, 50},
-		{"single", 50, 100, 1, 50},
-		{"empty", 0, 100, 0, 0},
-		{"one item", 1, 100, 1, 1},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			assets := makeAssets(tc.n)
-			batches := splitAssetBatches(assets, tc.batchSize)
-			require.Len(t, batches, tc.wantLen)
-			if tc.wantLen > 0 {
-				require.Len(t, batches[tc.wantLen-1], tc.wantLast)
-			}
-		})
-	}
-}
-
 // ─── Config snapshot tests ────────────────────────────────────────────────────
 
 func TestLoadFetchAssetsClassConfig(t *testing.T) {

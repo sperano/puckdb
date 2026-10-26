@@ -167,14 +167,14 @@ func runPhaseProcessPlayers(ctx workflow.Context, tracker *shared.ReportTracker,
 	}
 
 	playersThisExec := endIdx - startIdx
-	numBatches := shared.BatchCount(playersThisExec, input.BatchSize)
+	batches := shared.NewBatches(input.Players[startIdx:endIdx], input.BatchSize)
 
 	logger.Info("ProcessPlayersWorkflow Phase 2: processing players",
 		"total_players", totalPlayers,
 		"start_index", startIdx,
 		"end_index", endIdx,
 		"players_this_exec", playersThisExec,
-		"num_batches", numBatches,
+		"num_batches", batches.Count(),
 		"concurrency", input.Concurrency,
 		"batch_size", input.BatchSize)
 
@@ -195,16 +195,11 @@ func runPhaseProcessPlayers(ctx workflow.Context, tracker *shared.ReportTracker,
 	}
 
 	// Run batches with concurrency control
-	window := input.Players[startIdx:endIdx]
 	opts := shared.PoolOptions{
-		Total: numBatches, Concurrency: input.Concurrency,
-		Progress: shared.SingleBar{
-			Bar:       shared.BarRef{Group: GroupProcessPlayers},
-			Increment: func(i int) int { return len(shared.BatchSlice(window, i, input.BatchSize)) },
-		},
+		Total: batches.Count(), Concurrency: input.Concurrency,
+		Progress: batches.ItemProgress(shared.BarRef{Group: GroupProcessPlayers}),
 		Start: func(_ workflow.Context, batchIndex int) workflow.Future {
-			batch := shared.BatchSlice(window, batchIndex, input.BatchSize)
-			return workflow.ExecuteActivity(activityCtx, playerAct.ProcessPlayerBatch, batch)
+			return workflow.ExecuteActivity(activityCtx, playerAct.ProcessPlayerBatch, batches.Batch(batchIndex))
 		},
 		Handle: func(ctx workflow.Context, batchIndex int, f workflow.Future) error {
 			var result workplayer.ProcessPlayerBatchResult

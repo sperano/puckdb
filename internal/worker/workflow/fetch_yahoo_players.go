@@ -140,8 +140,8 @@ func FetchYahooPlayersWorkflow(ctx workflow.Context, input *FetchYahooPlayersInp
 	}
 	totalPlayers := endID - startID + 1
 
-	// Calculate number of activity batches needed
-	numActivityBatches := (totalPlayers + activityBatchSize - 1) / activityBatchSize
+	// Activity batches over this execution's IDs, as offsets from startID.
+	batches := shared.NewBatchRanges(totalPlayers, activityBatchSize)
 
 	logger.Info("FetchYahooPlayersWorkflow started",
 		"startID", startID,
@@ -149,7 +149,7 @@ func FetchYahooPlayersWorkflow(ctx workflow.Context, input *FetchYahooPlayersInp
 		"maxPlayerID", maxPlayerID,
 		"concurrency", concurrency,
 		"activityBatchSize", activityBatchSize,
-		"numActivityBatches", numActivityBatches,
+		"numActivityBatches", batches.Count(),
 		"totalCompleted", totalCompleted)
 
 	// Set up progress tracking with the new ReportTracker
@@ -163,12 +163,8 @@ func FetchYahooPlayersWorkflow(ctx workflow.Context, input *FetchYahooPlayersInp
 	// Each batch downloads up to activityBatchSize pages behind the rate limiter.
 	activityCtx := workflow.WithActivityOptions(ctx, shared.YahooDownloadActivityOptions())
 	startActivity := func(ctx workflow.Context, batchIndex int) workflow.Future {
-		batchStartID := startID + (batchIndex * activityBatchSize)
-		batchEndID := batchStartID + activityBatchSize - 1
-		if batchEndID > endID {
-			batchEndID = endID
-		}
-		return workflow.ExecuteActivity(activityCtx, yahooAct.FetchYahooPlayerBatch, batchStartID, batchEndID)
+		first, end := batches.Bounds(batchIndex)
+		return workflow.ExecuteActivity(activityCtx, yahooAct.FetchYahooPlayerBatch, startID+first, startID+end-1)
 	}
 
 	executionFound := 0
@@ -181,15 +177,12 @@ func FetchYahooPlayersWorkflow(ctx workflow.Context, input *FetchYahooPlayersInp
 		return nil
 	}
 
-	// Run worker pool with activity batch size as increment (each activity handles a batch of players)
+	// Each completed batch advances the bar by the IDs it covered.
 	opts := shared.PoolOptions{
-		Total: numActivityBatches, Concurrency: concurrency,
-		Progress: shared.SingleBar{
-			Bar:       shared.BarRef{Group: GroupFetchYahooPlayers},
-			Increment: func(_ int) int { return activityBatchSize },
-		},
-		Start:  startActivity,
-		Handle: handler,
+		Total: batches.Count(), Concurrency: concurrency,
+		Progress: batches.ItemProgress(shared.BarRef{Group: GroupFetchYahooPlayers}),
+		Start:    startActivity,
+		Handle:   handler,
 	}
 	if err := tracker.RunWorkerPool(ctx, opts); err != nil {
 		return err
