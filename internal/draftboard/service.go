@@ -62,27 +62,30 @@ type Refresher interface {
 	SyncOnce(context.Context, draftwatch.Identity) (draftwatch.Session, draftsession.Report, error)
 }
 
-// Options control stale presentation and the service clock.
+// Options configure board freshness, watches, and recommendation caching.
 type Options struct {
 	StaleAfter              time.Duration
 	Now                     func() time.Time
 	Watch                   *WatchController
 	RecommendationCacheSize int
+	RecommendationTimeout   time.Duration
 }
 
 // Service is the application boundary for a composed live draft board.
 type Service struct {
-	data                DataSource
-	recommendations     RecommendationEngine
-	refresher           Refresher
-	watch               *WatchController
-	staleAfter          time.Duration
-	now                 func() time.Time
-	recommendationCache *recommendationCache
-	recommendationGroup singleflight.Group
+	data                  DataSource
+	recommendations       RecommendationEngine
+	refresher             Refresher
+	watch                 *WatchController
+	staleAfter            time.Duration
+	now                   func() time.Time
+	recommendationCache   *recommendationCache
+	recommendationGroup   singleflight.Group
+	recommendationTimeout time.Duration
 }
 
-// NewService composes a board service. Options.Now defaults to time.Now; a
+// NewService composes a board service. Options.Now defaults to time.Now;
+// recommendation limits use their package defaults when non-positive, and a
 // nil Options.Watch leaves watch controls unavailable.
 func NewService(data DataSource, recommendations RecommendationEngine, refresher Refresher, options Options) *Service {
 	if options.Now == nil {
@@ -91,9 +94,13 @@ func NewService(data DataSource, recommendations RecommendationEngine, refresher
 	if options.RecommendationCacheSize <= 0 {
 		options.RecommendationCacheSize = DefaultRecommendationCacheSize
 	}
+	if options.RecommendationTimeout <= 0 {
+		options.RecommendationTimeout = DefaultRecommendationTimeout
+	}
 	return &Service{data: data, recommendations: recommendations, refresher: refresher,
 		watch: options.Watch, staleAfter: options.StaleAfter, now: options.Now,
-		recommendationCache: newRecommendationCache(options.RecommendationCacheSize)}
+		recommendationCache:   newRecommendationCache(options.RecommendationCacheSize),
+		recommendationTimeout: options.RecommendationTimeout}
 }
 
 // ResolveIdentity returns the season-safe identity used to validate Yahoo
@@ -302,7 +309,8 @@ func (s *Service) recommend(ctx context.Context, input draftrecommend.Input) (dr
 		if cached, exists := s.recommendationCache.get(key); exists {
 			return cached, nil
 		}
-		sharedCtx := context.WithoutCancel(ctx)
+		sharedCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), s.recommendationTimeout)
+		defer cancel()
 		run, err := s.recommendations.Recommend(sharedCtx, input)
 		if err == nil {
 			s.recommendationCache.put(key, run)

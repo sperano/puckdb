@@ -13,7 +13,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const recommendationStartTimeout = time.Second
+const (
+	recommendationStartTimeout      = time.Second
+	recommendationOperationTimeout  = 20 * time.Millisecond
+	recommendationDeadlineTolerance = 100 * time.Millisecond
+)
 
 func TestRecommendationCacheEvictsLeastRecentlyUsed(t *testing.T) {
 	const capacity = 2
@@ -92,6 +96,20 @@ func TestCanceledRecommendationLeaderDoesNotCancelSharedWrite(t *testing.T) {
 	assert.Equal(t, 1, engine.callCount())
 }
 
+func TestRecommendationSharedWriteHasBoundedTimeout(t *testing.T) {
+	engine := newBlockingRecommendationEngine(1)
+	service := NewService(nil, engine, nil, Options{RecommendationTimeout: recommendationOperationTimeout})
+	started := time.Now()
+
+	_, err := service.recommend(context.Background(), recommendationInput(1))
+
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+	sharedCtx := engine.nextContext(t)
+	deadline, bounded := sharedCtx.Deadline()
+	require.True(t, bounded)
+	assert.WithinDuration(t, started.Add(recommendationOperationTimeout), deadline, recommendationDeadlineTolerance)
+}
+
 func TestRecommendationWritesForDifferentKeysOverlap(t *testing.T) {
 	const concurrentWrites = 2
 	engine := newBlockingRecommendationEngine(concurrentWrites)
@@ -168,7 +186,10 @@ func (e *blockingRecommendationEngine) Recommend(ctx context.Context,
 	e.mu.Unlock()
 	e.entered <- struct{}{}
 	e.contexts <- ctx
-	<-e.done
+	select {
+	case <-e.done:
+	case <-ctx.Done():
+	}
 	if err := ctx.Err(); err != nil {
 		return draftrecommend.StoredRun{}, err
 	}

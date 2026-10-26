@@ -3,13 +3,18 @@ package draftboard
 import (
 	"slices"
 	"sync"
+	"time"
 
 	"github.com/sperano/puckdb/internal/draftrecommend"
 )
 
-// DefaultRecommendationCacheSize bounds the number of persisted
-// recommendation results retained by one board service process.
-const DefaultRecommendationCacheSize = 64
+const (
+	// DefaultRecommendationCacheSize bounds the number of persisted
+	// recommendation results retained by one board service process.
+	DefaultRecommendationCacheSize = 64
+	// DefaultRecommendationTimeout bounds one coalesced recommendation write.
+	DefaultRecommendationTimeout = 30 * time.Second
+)
 
 // recommendationCache keeps the most recently used recommendation runs.
 type recommendationCache struct {
