@@ -930,3 +930,15 @@ func anyArgs(expected, actual []any) error { return nil }
 
 // ensure sqlcdb import is used
 var _ sqlcdb.UpsertSeasonParams = sqlcdb.UpsertSeasonParams{}
+
+func TestNewSeasonsActivitiesWiresEveryQueryField(t *testing.T) {
+	queries := struct{ SeasonsQueries }{}
+	mem := store.NewMemStorage()
+	client := &MockNHLClient{}
+
+	got := NewSeasonsActivities(queries, SeasonsActivities{Storage: mem, NHLClient: client})
+
+	assert.Empty(t, unwiredQueryFields(got, queries, "Storage", "NHLClient"))
+	assert.Same(t, mem, got.Storage)
+	assert.Same(t, client, got.NHLClient)
+}
