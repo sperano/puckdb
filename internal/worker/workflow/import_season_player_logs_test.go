@@ -6,81 +6,75 @@ import (
 
 	worknhl "github.com/sperano/puckdb/internal/worker/nhl"
 	"github.com/sperano/puckdb/internal/worker/shared"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"github.com/stretchr/testify/suite"
+	"github.com/stretchr/testify/require"
 	"go.temporal.io/sdk/testsuite"
 )
 
-type ImportSeasonPlayerLogsWorkflowTestSuite struct {
-	suite.Suite
-	testsuite.WorkflowTestSuite
-	env *testsuite.TestWorkflowEnvironment
+func newImportSeasonPlayerLogsV2Env(t *testing.T) *testsuite.TestWorkflowEnvironment {
+	t.Helper()
+	var ts testsuite.WorkflowTestSuite
+	env := ts.NewTestWorkflowEnvironment()
+	env.RegisterWorkflow(ImportSeasonPlayerLogsV2Workflow)
+	return env
 }
 
-func (s *ImportSeasonPlayerLogsWorkflowTestSuite) SetupTest() {
-	s.env = s.NewTestWorkflowEnvironment()
-	s.env.RegisterWorkflow(ImportSeasonPlayerLogsWorkflow)
-	s.env.OnActivity(((*shared.ProgressActivities)(nil)).Save,
-		mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
+func TestImportSeasonPlayerLogsV2ImportsEveryManifestPlayerOnce(t *testing.T) {
+	env := newImportSeasonPlayerLogsV2Env(t)
+	saved := recordSavedReports(env)
+	imported := recordImportedPlayers(env)
+	ids := make([]int64, playerLogsFixtureSkaters)
+	for i := range ids {
+		ids[i] = playerLogsFixtureFirstSkater + int64(i)
+	}
+
+	env.ExecuteWorkflow(ImportSeasonPlayerLogsV2Workflow,
+		ImportSeasonPlayerLogsInput{Season: playerLogsFixtureSeason(), PlayerIDs: ids})
+	require.True(t, env.IsWorkflowCompleted())
+	require.NoError(t, env.GetWorkflowError())
+
+	counts := imported()
+	assert.Len(t, counts, len(ids))
+	for _, id := range ids {
+		assert.Equal(t, 1, counts[id], "player %d", id)
+	}
+	require.Len(t, saved.last, 1)
+	var report shared.ProgressReport
+	for _, r := range saved.last {
+		report = r
+	}
+	bar := report.Groups[GroupImportPlayerLogs].Bars[0]
+	assert.Equal(t, [2]int{len(ids), len(ids)}, [2]int{bar.Current, bar.Total})
 }
 
-func (s *ImportSeasonPlayerLogsWorkflowTestSuite) AfterTest(suiteName, testName string) {
-	s.env.AssertExpectations(s.T())
+func TestImportSeasonPlayerLogsV2NoPlayersStartsNoBatch(t *testing.T) {
+	env := newImportSeasonPlayerLogsV2Env(t)
+
+	env.ExecuteWorkflow(ImportSeasonPlayerLogsV2Workflow, ImportSeasonPlayerLogsInput{Season: playerLogsFixtureSeason()})
+	require.True(t, env.IsWorkflowCompleted())
+	assert.NoError(t, env.GetWorkflowError())
 }
 
-func TestImportSeasonPlayerLogsWorkflowTestSuite(t *testing.T) {
-	suite.Run(t, new(ImportSeasonPlayerLogsWorkflowTestSuite))
-}
-
-func (s *ImportSeasonPlayerLogsWorkflowTestSuite) TestSuccess() {
-	season := testSeasonW(2023, "2023-10-10", "2023-10-12")
-
+func TestImportSeasonPlayerLogsV2BatchError(t *testing.T) {
+	env := newImportSeasonPlayerLogsV2Env(t)
+	recordSavedReports(env)
 	var ia *worknhl.ImportActivities
-	s.env.OnActivity(ia.CollectSeasonPlayerIDs, mock.Anything, mock.Anything).Return([]int64{1, 2, 3}, nil)
-	s.env.OnActivity(ia.ImportPlayerGameLogsBatch, mock.Anything, mock.Anything).Return(
-		&worknhl.ImportPlayerGameLogsBatchResult{PlayersProcessed: 3, GamesUpdated: 10}, nil)
+	env.OnActivity(ia.ImportPlayerGameLogsBatch, mock.Anything, mock.Anything).
+		Return((*worknhl.ImportPlayerGameLogsBatchResult)(nil), errors.New("batch failed"))
 
-	s.env.ExecuteWorkflow(ImportSeasonPlayerLogsWorkflow, season)
-
-	s.True(s.env.IsWorkflowCompleted())
-	s.NoError(s.env.GetWorkflowError())
+	env.ExecuteWorkflow(ImportSeasonPlayerLogsV2Workflow,
+		ImportSeasonPlayerLogsInput{Season: playerLogsFixtureSeason(), PlayerIDs: []int64{1, 2, 3}})
+	require.True(t, env.IsWorkflowCompleted())
+	assert.Error(t, env.GetWorkflowError())
 }
 
-func (s *ImportSeasonPlayerLogsWorkflowTestSuite) TestNoPlayers() {
-	season := testSeasonW(2023, "2023-10-10", "2023-10-12")
+func TestSeasonPlayerLogTotalsSummary(t *testing.T) {
+	var totals seasonPlayerLogTotals
+	totals.add(worknhl.ImportPlayerGameLogsBatchResult{PlayersProcessed: 2})
+	assert.Equal(t, "Imported game logs for 2 of 2 players in 1s.", totals.summary(2, "1s"))
 
-	var ia *worknhl.ImportActivities
-	s.env.OnActivity(ia.CollectSeasonPlayerIDs, mock.Anything, mock.Anything).Return([]int64{}, nil)
-
-	s.env.ExecuteWorkflow(ImportSeasonPlayerLogsWorkflow, season)
-
-	s.True(s.env.IsWorkflowCompleted())
-	s.NoError(s.env.GetWorkflowError())
-}
-
-func (s *ImportSeasonPlayerLogsWorkflowTestSuite) TestCollectError() {
-	season := testSeasonW(2023, "2023-10-10", "2023-10-12")
-
-	var ia *worknhl.ImportActivities
-	s.env.OnActivity(ia.CollectSeasonPlayerIDs, mock.Anything, mock.Anything).Return(
-		([]int64)(nil), errors.New("redis error"))
-
-	s.env.ExecuteWorkflow(ImportSeasonPlayerLogsWorkflow, season)
-
-	s.True(s.env.IsWorkflowCompleted())
-	s.Error(s.env.GetWorkflowError())
-}
-
-func (s *ImportSeasonPlayerLogsWorkflowTestSuite) TestBatchError() {
-	season := testSeasonW(2023, "2023-10-10", "2023-10-12")
-
-	var ia *worknhl.ImportActivities
-	s.env.OnActivity(ia.CollectSeasonPlayerIDs, mock.Anything, mock.Anything).Return([]int64{1, 2, 3}, nil)
-	s.env.OnActivity(ia.ImportPlayerGameLogsBatch, mock.Anything, mock.Anything).Return(
-		(*worknhl.ImportPlayerGameLogsBatchResult)(nil), errors.New("batch failed"))
-
-	s.env.ExecuteWorkflow(ImportSeasonPlayerLogsWorkflow, season)
-
-	s.True(s.env.IsWorkflowCompleted())
-	s.Error(s.env.GetWorkflowError())
+	totals.add(worknhl.ImportPlayerGameLogsBatchResult{PlayersProcessed: 1, PlayersWithoutLog: 2, PlayersUnreadable: 1})
+	assert.Equal(t, "Imported game logs for 3 of 6 players in 1s. 2 had no cached log. 1 logs were unreadable.",
+		totals.summary(6, "1s"))
 }

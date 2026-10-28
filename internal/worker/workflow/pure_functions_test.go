@@ -357,9 +357,11 @@ func TestNewImportPlayerLogsProgressReport(t *testing.T) {
 	r := NewImportPlayerLogsProgressReport()
 
 	require.NotNil(t, r)
-	require.Len(t, r.Groups, 1)
-	assert.Contains(t, r.Groups[0].Header, "Importing")
-	assert.Empty(t, r.Groups[0].Bars)
+	require.Len(t, r.Groups, 2)
+	assert.Contains(t, r.Groups[GroupImportPlayerLogsScan].Header, "Listing skaters")
+	assert.Len(t, r.Groups[GroupImportPlayerLogsScan].Bars, 1)
+	assert.Contains(t, r.Groups[GroupImportPlayerLogsImport].Header, "Importing")
+	assert.Empty(t, r.Groups[GroupImportPlayerLogsImport].Bars)
 }
 
 func TestNewProcessPlayersProgressReport(t *testing.T) {
