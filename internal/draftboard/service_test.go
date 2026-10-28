@@ -398,3 +398,31 @@ func TestRecommendationCacheKeyGolden(t *testing.T) {
 }
 
 const goldenRecommendationCacheKey = "bdc3f8a87223ac15289023db400a25c7da8d0f53c04a6e326ea18a9261098e20"
+
+func TestNewBoardEstimatesTurnFromSnakeOrderOnlyWhenSafeAndFresh(t *testing.T) {
+	const ourTeam, otherTeam = 10, 20
+	order := estimatedSnakeOrder(2, []draft.RosterSlot{{Position: draft.PositionCenter, Count: 2}},
+		[]teamDraftPosition{{TeamID: ourTeam, Position: 1}, {TeamID: otherTeam, Position: 2}})
+	first := order[0].Key
+	inputs := boardInputs{
+		session: draftwatch.Session{State: draftsession.State{Upstream: map[draftsession.PickKey]draftsession.Pick{
+			first: {Key: first, TeamID: ourTeam, PlayerID: 101},
+		}}},
+		ranking: boardRanking("500.l.5621"),
+		league:  LeagueData{TeamID: ourTeam, EstimatedOrder: order},
+	}
+	now := time.Date(2026, 10, 4, 12, 0, 0, 0, time.UTC)
+
+	board := newBoard(inputs, Roster{}, Status{RecommendationsSafe: true}, nil, draftrecommend.Result{}, now)
+
+	require.NotNil(t, board.CurrentPick)
+	assert.Equal(t, draftrecommend.PickSlot{Key: draftsession.PickKey{Round: 1, Pick: 2}, TeamID: otherTeam},
+		*board.CurrentPick, "the other team picks twice at the snake turn")
+	assert.Equal(t, new(2), board.PicksUntilTurn)
+	assert.True(t, board.TurnEstimated)
+
+	stale := newBoard(inputs, Roster{}, Status{RecommendationsSafe: true, Stale: true}, nil, draftrecommend.Result{}, now)
+	assert.Nil(t, stale.CurrentPick)
+	assert.Nil(t, stale.PicksUntilTurn)
+	assert.False(t, stale.TurnEstimated)
+}

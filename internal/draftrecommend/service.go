@@ -169,57 +169,36 @@ func annotateBoard(result *Result, in Input) error {
 		result.Issues = append(result.Issues, issuePickOrderMissing)
 		return nil
 	}
-	indexByKey := make(map[draftsession.PickKey]int, len(in.Order))
-	for i, slot := range in.Order {
+	inOrder := make(map[draftsession.PickKey]bool, len(in.Order))
+	for _, slot := range in.Order {
 		if slot.Key.Round <= 0 || slot.Key.Pick <= 0 || slot.TeamID <= 0 {
 			return fmt.Errorf("%w: pick order contains invalid slot", ErrInvalidInput)
 		}
-		if _, exists := indexByKey[slot.Key]; exists {
+		if inOrder[slot.Key] {
 			return fmt.Errorf("%w: pick order contains duplicate slot", ErrInvalidInput)
 		}
-		indexByKey[slot.Key] = i
+		inOrder[slot.Key] = true
 	}
 	board := draftsession.EffectiveBoard(in.Session)
 	boardKeys := make(map[draftsession.PickKey]bool, len(board))
 	for _, entry := range board {
-		if _, exists := indexByKey[entry.Pick.Key]; !exists {
+		if !inOrder[entry.Pick.Key] {
 			result.Issues = append(result.Issues, issuePickOutsideOrder)
 			result.BoardStatus = BoardStatusIncomplete
 			return nil
 		}
 		boardKeys[entry.Pick.Key] = true
 	}
-	currentIndex := len(in.Order)
-	for i, slot := range in.Order {
-		if !boardKeys[slot.Key] {
-			currentIndex = i
-			result.CurrentPick = pickSlotCopy(slot)
-			break
-		}
-	}
+	result.CurrentPick, result.PicksUntilNextTurn = nextTurn(in.Order, boardKeys, in.OurTeamID)
 	if result.CurrentPick == nil {
 		result.Issues = append(result.Issues, issueNoRemainingPicks)
 		return nil
-	}
-	pending := 0
-	for i := currentIndex; i < len(in.Order); i++ {
-		if boardKeys[in.Order[i].Key] {
-			continue
-		}
-		if in.Order[i].TeamID == in.OurTeamID {
-			until := pending
-			result.PicksUntilNextTurn = &until
-			break
-		}
-		pending++
 	}
 	if result.PicksUntilNextTurn == nil {
 		result.Issues = append(result.Issues, issueTurnOutsideOrder)
 	}
 	return nil
 }
-
-func pickSlotCopy(slot PickSlot) *PickSlot { copy := slot; return &copy }
 
 func validateRoster(in Input) error {
 	seen := make(map[int]bool, len(in.Roster))

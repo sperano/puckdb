@@ -246,8 +246,8 @@ func newBoard(inputs boardInputs, roster Roster, status Status, recommendation *
 		PicksUntilTurn: cloneInt(result.PicksUntilNextTurn), GeneratedAt: now,
 	}
 	if board.CurrentPick == nil && status.RecommendationsSafe && !status.Stale {
-		board.CurrentPick, board.PicksUntilTurn = estimatedTurn(inputs.session.State,
-			inputs.league.EstimatedOrder, inputs.league.TeamID)
+		board.CurrentPick, board.PicksUntilTurn = draftrecommend.NextTurn(inputs.league.EstimatedOrder,
+			inputs.session.State, inputs.league.TeamID)
 		board.TurnEstimated = board.CurrentPick != nil
 	}
 	return board
