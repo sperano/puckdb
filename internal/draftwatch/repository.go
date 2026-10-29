@@ -129,7 +129,7 @@ func (r *Repository) Reconcile(ctx context.Context, id Identity, poll PollResult
 	if err != nil {
 		return Session{}, draftsession.Report{}, err
 	}
-	next, report, err := draftsession.Reconcile(current, poll.Snapshot)
+	next, report, err := draftsession.Reconcile(current, poll.Observed)
 	if err != nil {
 		return Session{}, draftsession.Report{}, err
 	}
@@ -401,8 +401,8 @@ func successfulObservation(poll PollResult, report draftsession.Report) Observat
 	return Observation{
 		PolledAt: poll.PolledAt, Duration: nonNegativeDuration(poll.Duration), Success: true,
 		Authoritative: report.Complete, Changed: report.Changed, DraftStatus: poll.DraftStatus,
-		DeclaredCount: poll.Snapshot.ExpectedCount, ParsedCount: poll.Snapshot.RawCount,
-		SkippedCount: len(report.Skipped), SnapshotHash: poll.SnapshotHash,
+		DeclaredCount: poll.Observed.ExpectedCount, ParsedCount: poll.Observed.RawCount,
+		SkippedCount: len(report.Skipped), SnapshotHash: poll.ObservedHash,
 	}
 }
 

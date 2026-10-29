@@ -257,14 +257,14 @@ func TestEventsMapsBoundaryShapeAndCopiesDetails(t *testing.T) {
 func conflictedUndoState(t *testing.T) draftsession.State {
 	t.Helper()
 	key := draftsession.PickKey{Round: 1, Pick: 1}
-	state, _, err := draftsession.Reconcile(draftsession.State{}, draftsession.Snapshot{
+	state, _, err := draftsession.Reconcile(draftsession.State{}, draftsession.ObservedBoard{
 		Picks:    []draftsession.ObservedPick{{Key: key, TeamID: 3, PlayerID: 101}},
 		RawCount: 1, ExpectedCount: 1, HasExpectedCount: true, Authoritative: true,
 	})
 	require.NoError(t, err)
 	state, _, err = draftsession.ApplyManual(state, draftsession.ManualOperation{Kind: draftsession.ManualUndo, Key: key})
 	require.NoError(t, err)
-	state, _, err = draftsession.Reconcile(state, draftsession.Snapshot{
+	state, _, err = draftsession.Reconcile(state, draftsession.ObservedBoard{
 		Picks:    []draftsession.ObservedPick{{Key: key, TeamID: 3, PlayerID: 102}},
 		RawCount: 1, ExpectedCount: 1, HasExpectedCount: true, Authoritative: true,
 	})

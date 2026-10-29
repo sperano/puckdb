@@ -25,7 +25,7 @@ func TestReconcileIdenticalAuthoritativeSnapshotIsIdempotent(t *testing.T) {
 func TestReconcilePartialSnapshotAddsWithoutDeletingAndSuppressesRecommendations(t *testing.T) {
 	initial, _, err := Reconcile(State{}, completeSnapshot(observed(1, 1, 1, 101), observed(1, 2, 2, 102)))
 	require.NoError(t, err)
-	partial := Snapshot{Authoritative: true, HasExpectedCount: true, ExpectedCount: 3, RawCount: 2,
+	partial := ObservedBoard{Authoritative: true, HasExpectedCount: true, ExpectedCount: 3, RawCount: 2,
 		Picks: []ObservedPick{observed(1, 1, 1, 201)}}
 
 	next, report, err := Reconcile(initial, partial)
@@ -41,7 +41,7 @@ func TestReconcilePartialSnapshotAddsWithoutDeletingAndSuppressesRecommendations
 func TestReconcileDoesNotTreatUnverifiedEmptyPayloadAsReset(t *testing.T) {
 	initial, _, err := Reconcile(State{}, completeSnapshot(observed(1, 1, 1, 101)))
 	require.NoError(t, err)
-	for i, empty := range []Snapshot{
+	for i, empty := range []ObservedBoard{
 		{Authoritative: false, HasExpectedCount: true, ExpectedCount: 0, RawCount: 0},
 		{Authoritative: true, HasExpectedCount: false, RawCount: 0},
 		{Authoritative: true, HasExpectedCount: true, ExpectedCount: 1, RawCount: 0},
@@ -94,12 +94,12 @@ func TestReconcileCorrectedAndUndonePicks(t *testing.T) {
 }
 
 func TestReconcileRejectsNegativeSnapshotCounts(t *testing.T) {
-	_, _, err := Reconcile(State{}, Snapshot{Authoritative: true, RawCount: -1})
-	assert.ErrorIs(t, err, ErrInvalidSnapshot)
+	_, _, err := Reconcile(State{}, ObservedBoard{Authoritative: true, RawCount: -1})
+	assert.ErrorIs(t, err, ErrInvalidObservedBoard)
 }
 
-func completeSnapshot(rows ...ObservedPick) Snapshot {
-	return Snapshot{Authoritative: true, HasExpectedCount: true, ExpectedCount: len(rows), RawCount: len(rows), Picks: rows}
+func completeSnapshot(rows ...ObservedPick) ObservedBoard {
+	return ObservedBoard{Authoritative: true, HasExpectedCount: true, ExpectedCount: len(rows), RawCount: len(rows), Picks: rows}
 }
 
 func observed(round, pick, team, player int) ObservedPick {

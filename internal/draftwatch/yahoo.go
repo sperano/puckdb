@@ -24,11 +24,13 @@ const (
 )
 
 // PollResult is one pair of force-refreshed Yahoo status/draft observations.
+// ObservedHash, the hash of Observed, is stored in the
+// draft_session_observations.snapshot_hash column.
 type PollResult struct {
-	Snapshot      draftsession.Snapshot
+	Observed      draftsession.ObservedBoard
 	DraftStatus   string
 	DraftComplete bool
-	SnapshotHash  string
+	ObservedHash  string
 	Duration      time.Duration
 	PolledAt      time.Time
 }
@@ -75,13 +77,13 @@ func (s YahooSource) Poll(ctx context.Context, id Identity) (PollResult, error) 
 	}
 	finished := now().UTC()
 	return PollResult{
-		Snapshot: snapshot, DraftStatus: statusValue,
+		Observed: snapshot, DraftStatus: statusValue,
 		DraftComplete: statusValue == draftStatusPostDraft,
-		SnapshotHash:  hash, Duration: finished.Sub(started), PolledAt: finished,
+		ObservedHash:  hash, Duration: finished.Sub(started), PolledAt: finished,
 	}, nil
 }
 
-func buildSnapshot(id Identity, content *store.FantasyContent, status string) draftsession.Snapshot {
+func buildSnapshot(id Identity, content *store.FantasyContent, status string) draftsession.ObservedBoard {
 	results := content.League.DraftResults
 	observed := make([]draftsession.ObservedPick, 0, len(results.Slice))
 	for _, result := range results.Slice {
@@ -108,7 +110,7 @@ func buildSnapshot(id Identity, content *store.FantasyContent, status string) dr
 	// says the league is predraft and explicitly supplies count=0.
 	authoritative := len(results.Slice) > 0 ||
 		(status == draftStatusPreDraft && results.HasCount && results.Count == 0)
-	return draftsession.Snapshot{
+	return draftsession.ObservedBoard{
 		Authoritative: authoritative, HasExpectedCount: results.HasCount,
 		ExpectedCount: results.Count, RawCount: len(results.Slice), Picks: observed,
 	}
@@ -118,7 +120,7 @@ func normalizeDraftStatus(status string) string {
 	return strings.ToLower(strings.TrimSpace(status))
 }
 
-func hashSnapshot(snapshot draftsession.Snapshot) (string, error) {
+func hashSnapshot(snapshot draftsession.ObservedBoard) (string, error) {
 	hash, err := canonhash.JSON(snapshot)
 	if err != nil {
 		return "", fmt.Errorf("hash Yahoo draft snapshot: %w", err)

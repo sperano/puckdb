@@ -109,7 +109,7 @@ func TestRepositoryRestartKeepsCompleteBoardAcrossDuplicateAndPartialPolls(t *te
 	afterPartial, partialReport, err := restarted.Reconcile(fixture.ctx, fixture.identity, partial)
 	require.NoError(t, err)
 	assert.False(t, partialReport.SafeToRecommend)
-	assert.Len(t, afterPartial.State.Upstream, len(complete.Snapshot.Picks), "partial replay must not delete unseen picks")
+	assert.Len(t, afterPartial.State.Upstream, len(complete.Observed.Picks), "partial replay must not delete unseen picks")
 }
 
 func TestRepositoryPersistsPlayersYahooCorrectedAway(t *testing.T) {
@@ -188,7 +188,7 @@ func TestRepositoryPersistsUpstreamDuplicateAsUnsafeConflict(t *testing.T) {
 }
 
 func replayPoll(authoritative bool, expected int, picks ...draftsession.ObservedPick) PollResult {
-	return PollResult{PolledAt: time.Now().UTC(), Snapshot: draftsession.Snapshot{
+	return PollResult{PolledAt: time.Now().UTC(), Observed: draftsession.ObservedBoard{
 		Authoritative: authoritative, HasExpectedCount: true, ExpectedCount: expected,
 		RawCount: len(picks), Picks: picks,
 	}}
@@ -286,7 +286,7 @@ func reconcileConflict(t *testing.T, fixture repositoryTestFixture, key draftses
 	t.Helper()
 	_, _, err := fixture.repo.Reconcile(fixture.ctx, fixture.identity, PollResult{
 		PolledAt: time.Now().UTC(),
-		Snapshot: draftsession.Snapshot{
+		Observed: draftsession.ObservedBoard{
 			Authoritative: true, HasExpectedCount: true, ExpectedCount: 1, RawCount: 1,
 			Picks: []draftsession.ObservedPick{{Key: key, TeamID: 1, PlayerID: 13}},
 		},

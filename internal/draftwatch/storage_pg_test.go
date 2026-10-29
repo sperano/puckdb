@@ -27,7 +27,7 @@ func TestListObservationsReturnsNewestFirstWithEveryColumn(t *testing.T) {
 	// poll, so the declared and parsed counts differ.
 	poll := replayPoll(true, 2, draftsession.ObservedPick{Key: draftsession.PickKey{Round: 1, Pick: 1}, TeamID: 1, PlayerID: 101})
 	poll.PolledAt, poll.Duration = polledAt, 1500*time.Millisecond
-	poll.DraftStatus, poll.SnapshotHash = "draft", "observed-hash"
+	poll.DraftStatus, poll.ObservedHash = "draft", "observed-hash"
 	_, _, err := fixture.repo.Reconcile(fixture.ctx, fixture.identity, poll)
 	require.NoError(t, err)
 	failedAt := polledAt.Add(time.Minute)
