@@ -129,7 +129,7 @@ func TestProjectionSnapshotsRequireV6AgingCurve(t *testing.T) {
 	queries := sqlcdb.New(pool)
 	id, err := StoreSnapshotWith(ctx, queries, snapshot)
 	require.NoError(t, err)
-	loaded, err := NewRepository(pool).LoadSnapshot(ctx, id)
+	loaded, err := NewPGStore(pool).LoadSnapshot(ctx, id)
 	require.NoError(t, err)
 	require.Equal(t, cfg, loaded.Config)
 

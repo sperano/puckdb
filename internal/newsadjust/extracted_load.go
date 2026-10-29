@@ -24,7 +24,7 @@ type ExtractedEventQueries interface {
 
 // LoadEvents loads the stored extraction events about the baseline's
 // players as adjustment event versions (LoadExtractedEvents).
-func (r *Repository) LoadEvents(ctx context.Context, baseline projection.Snapshot) ([]Event, []string, error) {
+func (r *PGStore) LoadEvents(ctx context.Context, baseline projection.Snapshot) ([]Event, []string, error) {
 	return LoadExtractedEvents(ctx, r.queries, baseline.Players)
 }
 

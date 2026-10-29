@@ -44,8 +44,8 @@ type RefreshRequest struct {
 // called between steps so a long refresh stays observable and cancellable.
 type Refresher struct {
 	Queries     *sqlcdb.Queries
-	Projections *projection.Repository
-	Adjustments *newsadjust.Repository
+	Projections *projection.PGStore
+	Adjustments *newsadjust.PGStore
 	Store       *PGStore
 	Now         func() time.Time
 	Heartbeat   func(step string)
@@ -54,8 +54,8 @@ type Refresher struct {
 // NewRefresher returns a Refresher over the pool.
 func NewRefresher(pool *pgxpool.Pool) *Refresher {
 	return &Refresher{
-		Queries: sqlcdb.New(pool), Projections: projection.NewRepository(pool),
-		Adjustments: newsadjust.NewRepository(pool), Store: NewPGStore(pool), Now: time.Now,
+		Queries: sqlcdb.New(pool), Projections: projection.NewPGStore(pool),
+		Adjustments: newsadjust.NewPGStore(pool), Store: NewPGStore(pool), Now: time.Now,
 	}
 }
 

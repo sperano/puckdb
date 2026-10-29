@@ -63,7 +63,7 @@ func storedFixtureInput(t *testing.T, pool *pgxpool.Pool) draftrank.BuildInput {
 	input := fixtureInput(t)
 	baselineID, err := projection.StoreSnapshotWith(ctx, sqlcdb.New(pool), input.Baseline)
 	require.NoError(t, err)
-	runID, err := newsadjust.NewRepository(pool).SaveRun(ctx, baselineID, *input.Adjustment)
+	runID, err := newsadjust.NewPGStore(pool).SaveRun(ctx, baselineID, *input.Adjustment)
 	require.NoError(t, err)
 	input.BaselineID, input.AdjustmentRunID = baselineID, runID
 	return input
@@ -135,7 +135,7 @@ func TestPGStore_OverrideChangesSinceSnapshot(t *testing.T) {
 	store := draftrank.NewPGStore(pool)
 	ctx := context.Background()
 	since := draftfixtures.AsOf
-	require.NoError(t, newsadjust.NewRepository(pool).CreateOverride(ctx, newsadjust.Override{
+	require.NoError(t, newsadjust.NewPGStore(pool).CreateOverride(ctx, newsadjust.Override{
 		ID: "o1", PlayerKey: draftfixtures.TopCenter, Kind: newsadjust.OverrideMissedGames, Value: 5,
 		Reason: "appeal", CreatedAt: since.Add(time.Hour),
 	}))

@@ -16,7 +16,7 @@ import (
 // storage.
 var ErrOverridesUnavailable = errors.New("override storage is not configured")
 
-// OverrideStore is where manager overrides live (newsadjust.Repository).
+// OverrideStore is where manager overrides live (newsadjust.PGStore).
 type OverrideStore interface {
 	ListOverrides(ctx context.Context) ([]newsadjust.Override, error)
 	CreateOverride(ctx context.Context, o newsadjust.Override) error

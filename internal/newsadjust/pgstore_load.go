@@ -10,7 +10,7 @@ import (
 )
 
 // LoadRun reads a stored adjustment and its audit trail.
-func (r *Repository) LoadRun(ctx context.Context, runID uuid.UUID) (StoredRun, error) {
+func (r *PGStore) LoadRun(ctx context.Context, runID uuid.UUID) (StoredRun, error) {
 	id := uuidValue(runID)
 	row, err := r.queries.GetNewsAdjustmentRun(ctx, id)
 	if err != nil {

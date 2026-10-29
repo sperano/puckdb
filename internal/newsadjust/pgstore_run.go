@@ -25,7 +25,7 @@ type StoredRun struct {
 // SaveRun stores an adjustment's scenario snapshots, inputs and audit trail
 // in one transaction. Saving the same adjustment again replaces its rows,
 // so a retried save is idempotent.
-func (r *Repository) SaveRun(ctx context.Context, baselineID uuid.UUID, result Result) (uuid.UUID, error) {
+func (r *PGStore) SaveRun(ctx context.Context, baselineID uuid.UUID, result Result) (uuid.UUID, error) {
 	params, err := runParams(baselineID, result)
 	if err != nil {
 		return uuid.Nil, err
@@ -164,7 +164,7 @@ func storePlayers(ctx context.Context, q *sqlcdb.Queries, runID pgtype.UUID, pla
 // Replay rebuilds a stored adjustment from its stored baseline snapshot,
 // policy, season, overrides and event versions, and checks that it
 // reproduces the stored identity and every stored scenario snapshot.
-func (r *Repository) Replay(ctx context.Context, runID uuid.UUID) (Result, error) {
+func (r *PGStore) Replay(ctx context.Context, runID uuid.UUID) (Result, error) {
 	stored, err := r.LoadRun(ctx, runID)
 	if err != nil {
 		return Result{}, err

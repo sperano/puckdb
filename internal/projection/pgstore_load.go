@@ -15,7 +15,7 @@ import (
 // LoadSnapshot reads a stored snapshot back with its players sorted by key.
 // It fails when the stored parameters no longer hash to the stored config
 // hash, so a reconstructed ranking cannot silently use altered inputs.
-func (r *Repository) LoadSnapshot(ctx context.Context, id uuid.UUID) (Snapshot, error) {
+func (r *PGStore) LoadSnapshot(ctx context.Context, id uuid.UUID) (Snapshot, error) {
 	snapshotID := pgtype.UUID{Bytes: id, Valid: true}
 	row, err := r.queries.GetProjectionSnapshot(ctx, snapshotID)
 	if err != nil {

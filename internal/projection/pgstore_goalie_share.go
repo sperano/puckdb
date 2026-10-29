@@ -11,7 +11,7 @@ import (
 // loadGoalieStarts reads the clubs' most recent started games on or before
 // cutoff for the goalie start share, over the lookback window. Models
 // without the share, or with an empty window, load none.
-func (r *Repository) loadGoalieStarts(ctx context.Context, cfg Config, targetSeason int, cutoff pgtype.Date) ([]GoalieStart, error) {
+func (r *PGStore) loadGoalieStarts(ctx context.Context, cfg Config, targetSeason int, cutoff pgtype.Date) ([]GoalieStart, error) {
 	if !supportsGoalieStartShare(cfg.ModelVersion) || cfg.GoalieShareWindowGames <= 0 {
 		return nil, nil
 	}
@@ -40,7 +40,7 @@ func (r *Repository) loadGoalieStarts(ctx context.Context, cfg Config, targetSea
 // goalie start share can be backtested. Only nhl-baseline-v7 and later read
 // it: the published versions' evaluation-data hashes cover the skater clubs
 // alone.
-func (r *Repository) loadEvaluationTargetTeamsWithGoalies(ctx context.Context, targetSeason int) ([]PlayerTeam, error) {
+func (r *PGStore) loadEvaluationTargetTeamsWithGoalies(ctx context.Context, targetSeason int) ([]PlayerTeam, error) {
 	out, err := r.loadEvaluationTargetTeams(ctx, targetSeason)
 	if err != nil {
 		return nil, err

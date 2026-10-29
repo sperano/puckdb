@@ -28,7 +28,7 @@ func TestAgingBacktest20252026(t *testing.T) {
 	t.Cleanup(pool.Close)
 
 	agedConfig := versionConfig(AgingModelVersion)
-	repository := NewRepository(pool)
+	repository := NewPGStore(pool)
 	input, err := repository.LoadEvaluationInput(
 		ctx, agedConfig, agingBacktestTargetSeason,
 		time.Date(2025, time.September, 20, 0, 0, 0, 0, time.UTC),

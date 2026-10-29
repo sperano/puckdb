@@ -30,15 +30,15 @@ var ErrExclusionUnsupported = errors.New("exclusion cannot undo this event's eff
 // reset, or the reset time precedes its creation.
 var ErrOverrideNotResettable = errors.New("override not found, already reset, or reset before it was created")
 
-// Repository stores overrides and adjustment runs.
-type Repository struct {
+// PGStore stores overrides and adjustment runs.
+type PGStore struct {
 	pool        *pgxpool.Pool
 	queries     *sqlcdb.Queries
-	projections *projection.Repository
+	projections *projection.PGStore
 }
 
-func NewRepository(pool *pgxpool.Pool) *Repository {
-	return &Repository{pool: pool, queries: sqlcdb.New(pool), projections: projection.NewRepository(pool)}
+func NewPGStore(pool *pgxpool.Pool) *PGStore {
+	return &PGStore{pool: pool, queries: sqlcdb.New(pool), projections: projection.NewPGStore(pool)}
 }
 
 // NewOverrideID returns a fresh override ID.
@@ -48,7 +48,7 @@ func NewOverrideID() string {
 
 // CreateOverride stores a new override. A reset is recorded later with
 // ResetOverride, never at creation.
-func (r *Repository) CreateOverride(ctx context.Context, o Override) error {
+func (r *PGStore) CreateOverride(ctx context.Context, o Override) error {
 	if err := o.Validate(); err != nil {
 		return err
 	}
@@ -77,7 +77,7 @@ func (r *Repository) CreateOverride(ctx context.Context, o Override) error {
 // an event whose effect on other events extraction stores on those events
 // (the lifecycle of what it superseded or resolved): excluding it could not
 // undo that effect.
-func (r *Repository) checkExclusionTarget(ctx context.Context, o Override) error {
+func (r *PGStore) checkExclusionTarget(ctx context.Context, o Override) error {
 	digits, stored := strings.CutPrefix(o.EventID, extractedIDPrefix)
 	eventID, err := strconv.ParseInt(digits, 10, 64)
 	if !stored || err != nil || eventID <= 0 {
@@ -110,7 +110,7 @@ func (r *Repository) checkExclusionTarget(ctx context.Context, o Override) error
 }
 
 // ResetOverride ends an override at a time, keeping its record and values.
-func (r *Repository) ResetOverride(ctx context.Context, id string, at time.Time, reason string) error {
+func (r *PGStore) ResetOverride(ctx context.Context, id string, at time.Time, reason string) error {
 	if strings.TrimSpace(reason) == "" || at.IsZero() {
 		return fmt.Errorf("resetting override %s needs a time and a reason", id)
 	}
@@ -128,7 +128,7 @@ func (r *Repository) ResetOverride(ctx context.Context, id string, at time.Time,
 
 // ListOverrides returns every override ever recorded, reset or not, so
 // Apply can select what was in force at any as-of time.
-func (r *Repository) ListOverrides(ctx context.Context) ([]Override, error) {
+func (r *PGStore) ListOverrides(ctx context.Context) ([]Override, error) {
 	rows, err := r.queries.ListNewsAdjustmentOverrides(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("list overrides: %w", err)
