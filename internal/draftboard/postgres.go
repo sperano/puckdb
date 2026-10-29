@@ -109,7 +109,7 @@ func readRanking(ctx context.Context, reader RankingReader, id draftwatch.Identi
 // the draft format and pick clock, and the estimated snake order when the
 // format allows one.
 func (s *PGDataSource) LeagueData(ctx context.Context, id draftwatch.Identity) (LeagueData, error) {
-	rules, err := draft.LoadSnapshot(ctx, s.queries, id.Season, id.LeagueID)
+	rules, err := draft.LoadRulesSnapshot(ctx, s.queries, id.Season, id.LeagueID)
 	if err != nil {
 		return LeagueData{}, err
 	}

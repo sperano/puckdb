@@ -20,7 +20,7 @@ const (
 // draft status and time), so the roster slots and scoring the snapshot
 // recorded are compared too: a difference there means the snapshot's values
 // and slot allocation no longer describe the league.
-func rulesChangeIssues(ranked League, current draft.Snapshot) []Issue {
+func rulesChangeIssues(ranked League, current draft.RulesSnapshot) []Issue {
 	if RulesHash(current) == ranked.RulesHash {
 		return nil
 	}

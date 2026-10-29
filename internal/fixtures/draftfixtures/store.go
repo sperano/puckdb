@@ -22,7 +22,7 @@ type Store struct {
 	Snapshots  map[uuid.UUID]*draftrank.Snapshot
 	Latest     map[string]uuid.UUID
 	Refreshes  map[string]*draftrank.Refresh
-	Rules      map[string]draft.Snapshot
+	Rules      map[string]draft.RulesSnapshot
 	Keys       map[string][2]int
 	Overrides  []newsadjust.Override
 	Changes    int64
@@ -35,7 +35,7 @@ func NewStore() *Store {
 	return &Store{
 		Snapshots: make(map[uuid.UUID]*draftrank.Snapshot), Latest: make(map[string]uuid.UUID),
 		Refreshes: make(map[string]*draftrank.Refresh),
-		Rules:     map[string]draft.Snapshot{Key(Season, LeagueID): Rules()},
+		Rules:     map[string]draft.RulesSnapshot{Key(Season, LeagueID): Rules()},
 		Keys:      map[string][2]int{LeagueKey: {Season, LeagueID}},
 	}
 }
@@ -63,7 +63,7 @@ func (s *Store) FindLeagueKey(_ context.Context, leagueKey string) (int, int, er
 	return ids[0], ids[1], nil
 }
 
-func (s *Store) LeagueRules(_ context.Context, season, leagueID int) (*draft.Snapshot, error) {
+func (s *Store) LeagueRules(_ context.Context, season, leagueID int) (*draft.RulesSnapshot, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	rules, known := s.Rules[Key(season, leagueID)]
@@ -73,16 +73,16 @@ func (s *Store) LeagueRules(_ context.Context, season, leagueID int) (*draft.Sna
 	return &rules, nil
 }
 
-func (s *Store) ListLeagueRules(_ context.Context, season int) ([]draft.Snapshot, error) {
+func (s *Store) ListLeagueRules(_ context.Context, season int) ([]draft.RulesSnapshot, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	var out []draft.Snapshot
+	var out []draft.RulesSnapshot
 	for _, rules := range s.Rules {
 		if rules.Rules.Season == season {
 			out = append(out, rules)
 		}
 	}
-	slices.SortFunc(out, func(a, b draft.Snapshot) int { return a.Rules.LeagueID - b.Rules.LeagueID })
+	slices.SortFunc(out, func(a, b draft.RulesSnapshot) int { return a.Rules.LeagueID - b.Rules.LeagueID })
 	return out, nil
 }
 

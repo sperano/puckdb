@@ -34,7 +34,7 @@ func SeasonLabel(seasonID int) string {
 
 // BuildRanking values a complete Yahoo player pool against a frozen rules and
 // projection snapshot. It never queries live state or changes scoring rules.
-func BuildRanking(rules Snapshot, projected projection.Snapshot, pool []PoolPlayer, options RankingOptions) (RankingSnapshot, error) {
+func BuildRanking(rules RulesSnapshot, projected projection.Snapshot, pool []PoolPlayer, options RankingOptions) (RankingSnapshot, error) {
 	scoring, err := ScoringFor(rules)
 	if err != nil {
 		return RankingSnapshot{}, err

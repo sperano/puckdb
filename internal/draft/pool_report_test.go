@@ -13,7 +13,7 @@ import (
 func poolReportTestReport(pool PoolCoverage) LeagueReport {
 	return LeagueReport{
 		Season: compareTestSeason, LeagueID: compareTestLeagueID,
-		Snapshot: Snapshot{Rules: Rules{LeagueKey: "465.l.1"}},
+		Snapshot: RulesSnapshot{Rules: Rules{LeagueKey: "465.l.1"}},
 		Pool:     pool,
 	}
 }

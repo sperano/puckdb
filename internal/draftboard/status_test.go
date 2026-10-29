@@ -35,7 +35,7 @@ func TestBoardWarningsKeepIssueCodesThroughRecommendationService(t *testing.T) {
 	data := &fakeDataSource{identity: identity, ranking: ranking, session: draftwatch.Session{
 		Identity: identity, State: draftsession.State{Version: 2}, LastSuccessAt: &lastSuccess, LastError: "HTTP 503",
 	}, leagueData: LeagueData{TeamID: 3,
-		Rules: draft.Snapshot{Rules: draft.Rules{RosterSlots: []draft.RosterSlot{{Position: draft.PositionCenter, Count: 1, Starting: true}}}},
+		Rules: draft.RulesSnapshot{Rules: draft.Rules{RosterSlots: []draft.RosterSlot{{Position: draft.PositionCenter, Count: 1, Starting: true}}}},
 	}}
 	service := NewService(data, draftrecommend.NewService(discardRunStore{}), nil,
 		Options{Now: func() time.Time { return now }, StaleAfter: time.Minute})

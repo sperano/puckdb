@@ -89,9 +89,9 @@ var fixturePlayers = []fixturePlayer{
 
 // Rules is the fixture league's rules: a points league scoring goals,
 // assists and goalie wins with one C, LW, RW and G per team.
-func Rules() draft.Snapshot {
+func Rules() draft.RulesSnapshot {
 	weight := func(w float64) *float64 { return &w }
-	return draft.Snapshot{
+	return draft.RulesSnapshot{
 		Rules: draft.Rules{
 			LeagueKey: LeagueKey, GameKey: 465, LeagueID: LeagueID, Season: Season, Name: LeagueName,
 			ScoringType: "point", NumTeams: numTeams,

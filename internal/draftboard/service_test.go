@@ -35,7 +35,7 @@ func TestBoardComposesFreshnessHistoryRosterAvailableNewsAndNoGuessedTurn(t *tes
 		SyncVersion: 14,
 	}, ranking: boardRanking(identity.LeagueKey), leagueData: LeagueData{
 		TeamID: 3, TeamName: "My team", DraftPosition: 2, DraftFormat: "snake",
-		Rules: draft.Snapshot{Rules: draft.Rules{RosterSlots: []draft.RosterSlot{{Position: draft.PositionCenter, Count: 4, Starting: true}}}},
+		Rules: draft.RulesSnapshot{Rules: draft.Rules{RosterSlots: []draft.RosterSlot{{Position: draft.PositionCenter, Count: 4, Starting: true}}}},
 	}}
 	engine := &fakeRecommendationEngine{result: draftrecommend.Result{
 		Scenario: draftrank.ScenarioBase, Issues: draftrecommend.Issues{{Code: draftrecommend.IssueTurnEstimateOmitted,
@@ -127,7 +127,7 @@ func TestBoardScenarioFallsBackConsistentlyWithoutEngine(t *testing.T) {
 		session:  draftwatch.Session{Identity: identity, State: state, RecommendationsSafe: true},
 		ranking:  boardRanking(identity.LeagueKey),
 		leagueData: LeagueData{TeamID: 3, TeamName: "My team",
-			Rules: draft.Snapshot{Rules: draft.Rules{RosterSlots: []draft.RosterSlot{{Position: draft.PositionCenter, Count: 4, Starting: true}}}}},
+			Rules: draft.RulesSnapshot{Rules: draft.Rules{RosterSlots: []draft.RosterSlot{{Position: draft.PositionCenter, Count: 4, Starting: true}}}}},
 	}
 	service := NewService(data, nil, nil, Options{Now: func() time.Time { return now }, StaleAfter: time.Minute})
 
@@ -151,7 +151,7 @@ func TestBoardAbsentBaselineSurfacesMissingScenarioWithoutEngine(t *testing.T) {
 		session:  draftwatch.Session{Identity: identity, State: state, RecommendationsSafe: true},
 		ranking:  ranking,
 		leagueData: LeagueData{TeamID: 3, TeamName: "My team",
-			Rules: draft.Snapshot{Rules: draft.Rules{RosterSlots: []draft.RosterSlot{{Position: draft.PositionCenter, Count: 4, Starting: true}}}}},
+			Rules: draft.RulesSnapshot{Rules: draft.Rules{RosterSlots: []draft.RosterSlot{{Position: draft.PositionCenter, Count: 4, Starting: true}}}}},
 	}
 	service := NewService(data, nil, nil, Options{Now: func() time.Time { return now }, StaleAfter: time.Minute})
 

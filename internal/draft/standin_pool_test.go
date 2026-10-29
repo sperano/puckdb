@@ -303,7 +303,7 @@ func TestLoadLeaguePool_DispatchesBySource(t *testing.T) {
 		q := &fakeQueries{players: []sqlcdb.ListYahooLeaguePlayersWithNHLRow{
 			{PlayerID: 1, PlayerKey: "465.p.1", FullName: "Yahoo Player"},
 		}}
-		snapshot := Snapshot{Source: SourceYahooAPI, Rules: Rules{LeagueKey: "465.l.1001", Season: standInTestLeagueSeason}}
+		snapshot := RulesSnapshot{Source: SourceYahooAPI, Rules: Rules{LeagueKey: "465.l.1001", Season: standInTestLeagueSeason}}
 		players, notes, err := LoadLeaguePool(context.Background(), q, snapshot)
 		require.NoError(t, err)
 		require.Len(t, players, 1)
@@ -317,7 +317,7 @@ func TestLoadLeaguePool_DispatchesBySource(t *testing.T) {
 			rosterCoverage: standInFullCoverage(),
 			rosterRows:     []sqlcdb.ListSeasonRosterPoolCandidatesRow{standInRow(1, 1, sqlcdb.PlayerPositionC, standInTestUpdatedAt, true, false)},
 		}
-		snapshot := Snapshot{Source: SourceTemporaryStandIn, Rules: Rules{LeagueKey: "temp.l.1002", Season: standInTestLeagueSeason}}
+		snapshot := RulesSnapshot{Source: SourceTemporaryStandIn, Rules: Rules{LeagueKey: "temp.l.1002", Season: standInTestLeagueSeason}}
 		players, notes, err := LoadLeaguePool(context.Background(), q, snapshot)
 		require.NoError(t, err)
 		require.Len(t, players, 1)

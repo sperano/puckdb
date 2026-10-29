@@ -20,7 +20,7 @@ const SnapshotVersion = "draft-rankings-v1"
 // BuildInput is everything one snapshot is ranked from. Adjustment is nil
 // when news adjustments were unavailable; Unavailable then says why.
 type BuildInput struct {
-	Rules           draft.Snapshot
+	Rules           draft.RulesSnapshot
 	Pool            []draft.PoolPlayer
 	Baseline        projection.Snapshot
 	BaselineID      uuid.UUID
@@ -129,7 +129,7 @@ func buildMeta(in BuildInput, scoring draft.Scoring, rankings map[Scenario]draft
 
 // LeagueOf describes a league from its rules; a league whose scoring is
 // unsupported still gets its name, size and categories.
-func LeagueOf(rules draft.Snapshot) League {
+func LeagueOf(rules draft.RulesSnapshot) League {
 	scoring, err := draft.ScoringFor(rules)
 	if err != nil {
 		return leagueOf(rules, draft.Scoring{Provisional: rules.Source != draft.SourceYahooAPI}, RulesHash(rules))
@@ -141,7 +141,7 @@ func LeagueOf(rules draft.Snapshot) League {
 // a ranking read reports for the current rules (Read.RulesHash): the stored
 // hash of the rules, or their canonical hash when the snapshot carries none;
 // the two agree (BuildRanking checks it).
-func RulesHash(rules draft.Snapshot) string {
+func RulesHash(rules draft.RulesSnapshot) string {
 	if rules.Hash != "" {
 		return rules.Hash
 	}
@@ -152,7 +152,7 @@ func RulesHash(rules draft.Snapshot) string {
 	return hash
 }
 
-func leagueOf(rules draft.Snapshot, scoring draft.Scoring, hash string) League {
+func leagueOf(rules draft.RulesSnapshot, scoring draft.Scoring, hash string) League {
 	league := League{
 		Season: rules.Rules.Season, LeagueID: rules.Rules.LeagueID, LeagueKey: rules.Rules.LeagueKey,
 		Name: rules.Rules.Name, NumTeams: rules.Rules.NumTeams, ScoringType: rules.Rules.ScoringType,

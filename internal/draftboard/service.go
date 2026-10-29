@@ -28,7 +28,7 @@ var (
 
 // LeagueData contains current imported rules and the user's imported roster.
 type LeagueData struct {
-	Rules          draft.Snapshot
+	Rules          draft.RulesSnapshot
 	TeamID         int
 	TeamName       string
 	DraftPosition  int

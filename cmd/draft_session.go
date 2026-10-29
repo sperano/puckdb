@@ -282,7 +282,7 @@ func runDraftCapability(cmd *cobra.Command, loaded draftSessionContext) error {
 	if err != nil {
 		return err
 	}
-	rules, err := draft.LoadSnapshot(cmd.Context(), sqlcdb.New(loaded.pool), loaded.identity.Season, loaded.identity.LeagueID)
+	rules, err := draft.LoadRulesSnapshot(cmd.Context(), sqlcdb.New(loaded.pool), loaded.identity.Season, loaded.identity.LeagueID)
 	if err != nil {
 		return err
 	}

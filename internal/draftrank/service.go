@@ -18,8 +18,8 @@ const DefaultSnapshotCacheSize = 8
 // Reader is the storage the read path needs.
 type Reader interface {
 	FindLeagueKey(ctx context.Context, leagueKey string) (season, leagueID int, err error)
-	LeagueRules(ctx context.Context, season, leagueID int) (*draft.Snapshot, error)
-	ListLeagueRules(ctx context.Context, season int) ([]draft.Snapshot, error)
+	LeagueRules(ctx context.Context, season, leagueID int) (*draft.RulesSnapshot, error)
+	ListLeagueRules(ctx context.Context, season int) ([]draft.RulesSnapshot, error)
 	LatestSnapshotID(ctx context.Context, season, leagueID int) (uuid.UUID, error)
 	SnapshotInfo(ctx context.Context, id uuid.UUID) (*SnapshotInfo, error)
 	LoadSnapshot(ctx context.Context, id uuid.UUID) (*Snapshot, error)

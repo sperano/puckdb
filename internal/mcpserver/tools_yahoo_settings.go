@@ -42,7 +42,7 @@ func loadLeague(ctx context.Context, q leagueLookup, leagueID int32) (sqlcdb.Yah
 // leagueSettings is what get_yahoo_league_settings reports for one league.
 type leagueSettings struct {
 	league     sqlcdb.YahooLeague
-	snapshot   *draft.Snapshot // nil when no rules snapshot was recorded
+	snapshot   *draft.RulesSnapshot // nil when no rules snapshot was recorded
 	categories []sqlcdb.YahooLeagueStatCategory
 	slots      []sqlcdb.YahooLeagueRosterPosition
 }
@@ -117,7 +117,7 @@ func loadLeagueSettings(ctx context.Context, q yahooQueries, leagueID int32) (le
 // latestRulesSnapshot decodes the league's latest rules version the way the
 // draft helper does (draft.SnapshotFromRow), or returns nil when none was
 // recorded.
-func latestRulesSnapshot(ctx context.Context, q yahooQueries, league sqlcdb.YahooLeague) (*draft.Snapshot, error) {
+func latestRulesSnapshot(ctx context.Context, q yahooQueries, league sqlcdb.YahooLeague) (*draft.RulesSnapshot, error) {
 	row, err := q.GetLatestYahooLeagueRuleSnapshot(ctx, sqlcdb.GetLatestYahooLeagueRuleSnapshotParams{
 		Season: league.Season, LeagueID: league.ID,
 	})
@@ -127,7 +127,7 @@ func latestRulesSnapshot(ctx context.Context, q yahooQueries, league sqlcdb.Yaho
 	if err != nil {
 		return nil, fmt.Errorf("load rules snapshot of league %d: %w", league.ID, err)
 	}
-	snapshot, err := draft.SnapshotFromRow(row)
+	snapshot, err := draft.RulesSnapshotFromRow(row)
 	if err != nil {
 		return nil, err
 	}

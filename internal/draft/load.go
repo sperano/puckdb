@@ -14,8 +14,8 @@ import (
 // ErrNoRules means no rules snapshot was imported for the league and season.
 var ErrNoRules = errors.New("no league rules imported")
 
-// Snapshot is one stored version of a league's rules with its provenance.
-type Snapshot struct {
+// RulesSnapshot is one stored version of a league's rules with its provenance.
+type RulesSnapshot struct {
 	Rules  Rules
 	Source Source
 	// SourceSeason and SourceLeagueKey name the league the settings were
@@ -42,7 +42,7 @@ type OwnedTeam struct {
 type LeagueReport struct {
 	Season    int
 	LeagueID  int
-	Snapshot  Snapshot
+	Snapshot  RulesSnapshot
 	OwnedTeam *OwnedTeam
 	Pool      PoolCoverage
 	// Notes records identity or coverage problems found while loading.
@@ -64,37 +64,37 @@ type Queries interface {
 	ListLatestYahooEligiblePositionsByPlayer(ctx context.Context) ([]sqlcdb.ListLatestYahooEligiblePositionsByPlayerRow, error)
 }
 
-// LoadSnapshot returns the latest rules version of a league in a season.
-func LoadSnapshot(ctx context.Context, q Queries, season, leagueID int) (Snapshot, error) {
+// LoadRulesSnapshot returns the latest rules version of a league in a season.
+func LoadRulesSnapshot(ctx context.Context, q Queries, season, leagueID int) (RulesSnapshot, error) {
 	row, err := q.GetLatestYahooLeagueRuleSnapshot(ctx, sqlcdb.GetLatestYahooLeagueRuleSnapshotParams{
 		Season: int32(season), LeagueID: int32(leagueID),
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
-		return Snapshot{}, fmt.Errorf("season %d league %d: %w; run a Yahoo sync for the season", season, leagueID, ErrNoRules)
+		return RulesSnapshot{}, fmt.Errorf("season %d league %d: %w; run a Yahoo sync for the season", season, leagueID, ErrNoRules)
 	}
 	if err != nil {
-		return Snapshot{}, fmt.Errorf("load rules for season %d league %d: %w", season, leagueID, err)
+		return RulesSnapshot{}, fmt.Errorf("load rules for season %d league %d: %w", season, leagueID, err)
 	}
-	snapshot, err := SnapshotFromRow(row)
+	snapshot, err := RulesSnapshotFromRow(row)
 	if err != nil {
-		return Snapshot{}, err
+		return RulesSnapshot{}, err
 	}
 	snapshot.Versions, err = q.CountYahooLeagueRuleSnapshots(ctx, sqlcdb.CountYahooLeagueRuleSnapshotsParams{
 		Season: int32(season), LeagueID: int32(leagueID),
 	})
 	if err != nil {
-		return Snapshot{}, fmt.Errorf("count rule versions for season %d league %d: %w", season, leagueID, err)
+		return RulesSnapshot{}, fmt.Errorf("count rule versions for season %d league %d: %w", season, leagueID, err)
 	}
 	return snapshot, nil
 }
 
-// SnapshotFromRow decodes a stored rules snapshot row.
-func SnapshotFromRow(row sqlcdb.YahooLeagueRuleSnapshot) (Snapshot, error) {
+// RulesSnapshotFromRow decodes a stored rules snapshot row.
+func RulesSnapshotFromRow(row sqlcdb.YahooLeagueRuleSnapshot) (RulesSnapshot, error) {
 	var rules Rules
 	if err := json.Unmarshal(row.Rules, &rules); err != nil {
-		return Snapshot{}, fmt.Errorf("decode rules snapshot %d: %w", row.ID, err)
+		return RulesSnapshot{}, fmt.Errorf("decode rules snapshot %d: %w", row.ID, err)
 	}
-	return Snapshot{
+	return RulesSnapshot{
 		Rules: rules, Source: Source(row.Source),
 		SourceSeason: int(row.SourceSeason), SourceLeagueKey: row.SourceLeagueKey,
 		FetchedAt: row.FetchedAt.Time, FirstSeenAt: row.FirstSeenAt.Time, LastSeenAt: row.LastSeenAt.Time,
@@ -105,7 +105,7 @@ func SnapshotFromRow(row sqlcdb.YahooLeagueRuleSnapshot) (Snapshot, error) {
 // LoadLeagueReport loads a league's latest rules, the user's team and the
 // coverage of its player pool. now and maxAge decide staleness.
 func LoadLeagueReport(ctx context.Context, q Queries, season, leagueID int, now time.Time, maxAge time.Duration) (LeagueReport, error) {
-	snapshot, err := LoadSnapshot(ctx, q, season, leagueID)
+	snapshot, err := LoadRulesSnapshot(ctx, q, season, leagueID)
 	if err != nil {
 		return LeagueReport{}, err
 	}
@@ -178,7 +178,7 @@ func LoadPool(ctx context.Context, q Queries, leagueKey string) ([]PoolPlayer, e
 // failing with MISSING_POOL. TEMPORARY: the SourceTemporaryStandIn branch is
 // removed together with temporary_metadata_from once Yahoo access returns
 // (see standin_pool.go, config.LeagueMetadataSource).
-func LoadLeaguePool(ctx context.Context, q Queries, snapshot Snapshot) ([]PoolPlayer, []string, error) {
+func LoadLeaguePool(ctx context.Context, q Queries, snapshot RulesSnapshot) ([]PoolPlayer, []string, error) {
 	if snapshot.Source != SourceTemporaryStandIn {
 		players, err := LoadPool(ctx, q, snapshot.Rules.LeagueKey)
 		return players, nil, err
