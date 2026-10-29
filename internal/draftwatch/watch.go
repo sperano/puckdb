@@ -21,8 +21,8 @@ type Source interface {
 	Poll(context.Context, Identity) (PollResult, error)
 }
 
-// SessionRepository is the persistence surface used by a runner.
-type SessionRepository interface {
+// SessionStore is the persistence surface used by a runner.
+type SessionStore interface {
 	Reconcile(context.Context, Identity, PollResult) (Session, draftsession.Report, error)
 	RecordFailure(context.Context, Identity, time.Time, time.Duration, error) error
 }
@@ -57,10 +57,10 @@ type RefreshRequest struct {
 // Runner coordinates fetch, transactional reconciliation, persistence and
 // the database-wide per-session synchronization lock.
 type Runner struct {
-	Pool       *pgxpool.Pool
-	Repository SessionRepository
-	Source     Source
-	Now        func() time.Time
+	Pool   *pgxpool.Pool
+	Store  SessionStore
+	Source Source
+	Now    func() time.Time
 }
 
 // SyncOnce performs one targeted poll and records success or failure. It uses
@@ -84,13 +84,13 @@ func (r Runner) syncOnce(ctx context.Context, id Identity) (Session, draftsessio
 	poll, err := r.Source.Poll(ctx, id)
 	if err != nil {
 		finished := now().UTC()
-		recordErr := r.Repository.RecordFailure(ctx, id, finished, finished.Sub(started), err)
+		recordErr := r.Store.RecordFailure(ctx, id, finished, finished.Sub(started), err)
 		if recordErr != nil {
 			return Session{}, draftsession.Report{}, errors.Join(err, recordErr)
 		}
 		return Session{}, draftsession.Report{}, err
 	}
-	return r.Repository.Reconcile(ctx, id, poll)
+	return r.Store.Reconcile(ctx, id, poll)
 }
 
 // Watch polls until cancellation or Yahoo reports postdraft. Cancellation

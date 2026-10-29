@@ -86,20 +86,20 @@ type Observation struct {
 	Error         string
 }
 
-// Repository persists each reducer transition and its observation atomically.
-type Repository struct {
+// PGStore persists each reducer transition and its observation atomically.
+type PGStore struct {
 	pool    *pgxpool.Pool
 	queries *sqlcdb.Queries
 }
 
-// NewRepository returns a Repository on pool.
-func NewRepository(pool *pgxpool.Pool) *Repository {
-	return &Repository{pool: pool, queries: sqlcdb.New(pool)}
+// NewPGStore returns a PGStore on pool.
+func NewPGStore(pool *pgxpool.Pool) *PGStore {
+	return &PGStore{pool: pool, queries: sqlcdb.New(pool)}
 }
 
 // Ensure creates an empty persisted session when a board is opened before its
 // first poll. Existing sessions are returned unchanged.
-func (r *Repository) Ensure(ctx context.Context, id Identity) (Session, error) {
+func (r *PGStore) Ensure(ctx context.Context, id Identity) (Session, error) {
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
 		return Session{}, fmt.Errorf("begin draft session initialization: %w", err)
@@ -115,7 +115,7 @@ func (r *Repository) Ensure(ctx context.Context, id Identity) (Session, error) {
 }
 
 // Reconcile applies one successful Yahoo poll inside a row-locked transaction.
-func (r *Repository) Reconcile(ctx context.Context, id Identity, poll PollResult) (Session, draftsession.Report, error) {
+func (r *PGStore) Reconcile(ctx context.Context, id Identity, poll PollResult) (Session, draftsession.Report, error) {
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
 		return Session{}, draftsession.Report{}, fmt.Errorf("begin draft reconciliation: %w", err)
@@ -160,7 +160,7 @@ func (r *Repository) Reconcile(ctx context.Context, id Identity, poll PollResult
 }
 
 // RecordFailure keeps the last usable board while recording poll and error state.
-func (r *Repository) RecordFailure(ctx context.Context, id Identity, at time.Time, duration time.Duration, pollErr error) error {
+func (r *PGStore) RecordFailure(ctx context.Context, id Identity, at time.Time, duration time.Duration, pollErr error) error {
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("begin draft failure record: %w", err)
@@ -190,18 +190,18 @@ func (r *Repository) RecordFailure(ctx context.Context, id Identity, at time.Tim
 }
 
 // ApplyManual records one local add, correction, or undo transactionally.
-func (r *Repository) ApplyManual(ctx context.Context, id Identity, operation draftsession.ManualOperation, at time.Time) (Session, draftsession.Report, error) {
+func (r *PGStore) ApplyManual(ctx context.Context, id Identity, operation draftsession.ManualOperation, at time.Time) (Session, draftsession.Report, error) {
 	return r.applyManual(ctx, id, operation, at, nil)
 }
 
 // ApplyManualAtVersion applies a manual operation only if the board still has
 // the expected reducer version. The comparison is made under the session row
 // lock in the same transaction as the state change.
-func (r *Repository) ApplyManualAtVersion(ctx context.Context, id Identity, operation draftsession.ManualOperation, expectedVersion uint64, at time.Time) (Session, draftsession.Report, error) {
+func (r *PGStore) ApplyManualAtVersion(ctx context.Context, id Identity, operation draftsession.ManualOperation, expectedVersion uint64, at time.Time) (Session, draftsession.Report, error) {
 	return r.applyManual(ctx, id, operation, at, &expectedVersion)
 }
 
-func (r *Repository) applyManual(ctx context.Context, id Identity, operation draftsession.ManualOperation, at time.Time, expectedVersion *uint64) (Session, draftsession.Report, error) {
+func (r *PGStore) applyManual(ctx context.Context, id Identity, operation draftsession.ManualOperation, at time.Time, expectedVersion *uint64) (Session, draftsession.Report, error) {
 	kind := "manual_" + string(operation.Kind)
 	return r.mutate(ctx, id, kind, at, expectedVersion, func(state draftsession.State) (draftsession.State, draftsession.Report, error) {
 		return draftsession.ApplyManual(state, operation)
@@ -209,17 +209,17 @@ func (r *Repository) applyManual(ctx context.Context, id Identity, operation dra
 }
 
 // ResolveConflict applies the required explicit conflict choice.
-func (r *Repository) ResolveConflict(ctx context.Context, id Identity, key draftsession.PickKey, choice draftsession.ConflictChoice, at time.Time) (Session, draftsession.Report, error) {
+func (r *PGStore) ResolveConflict(ctx context.Context, id Identity, key draftsession.PickKey, choice draftsession.ConflictChoice, at time.Time) (Session, draftsession.Report, error) {
 	return r.resolveConflict(ctx, id, key, choice, at, nil)
 }
 
 // ResolveConflictAtVersion resolves a conflict only if the board still has
 // the expected reducer version.
-func (r *Repository) ResolveConflictAtVersion(ctx context.Context, id Identity, key draftsession.PickKey, choice draftsession.ConflictChoice, expectedVersion uint64, at time.Time) (Session, draftsession.Report, error) {
+func (r *PGStore) ResolveConflictAtVersion(ctx context.Context, id Identity, key draftsession.PickKey, choice draftsession.ConflictChoice, expectedVersion uint64, at time.Time) (Session, draftsession.Report, error) {
 	return r.resolveConflict(ctx, id, key, choice, at, &expectedVersion)
 }
 
-func (r *Repository) resolveConflict(ctx context.Context, id Identity, key draftsession.PickKey, choice draftsession.ConflictChoice, at time.Time, expectedVersion *uint64) (Session, draftsession.Report, error) {
+func (r *PGStore) resolveConflict(ctx context.Context, id Identity, key draftsession.PickKey, choice draftsession.ConflictChoice, at time.Time, expectedVersion *uint64) (Session, draftsession.Report, error) {
 	kind := "resolve_" + string(choice)
 	return r.mutate(ctx, id, kind, at, expectedVersion, func(state draftsession.State) (draftsession.State, draftsession.Report, error) {
 		return draftsession.ResolveConflict(state, key, choice)
@@ -228,7 +228,7 @@ func (r *Repository) resolveConflict(ctx context.Context, id Identity, key draft
 
 type stateMutation func(draftsession.State) (draftsession.State, draftsession.Report, error)
 
-func (r *Repository) mutate(ctx context.Context, id Identity, kind string, at time.Time, expectedVersion *uint64, mutate stateMutation) (Session, draftsession.Report, error) {
+func (r *PGStore) mutate(ctx context.Context, id Identity, kind string, at time.Time, expectedVersion *uint64, mutate stateMutation) (Session, draftsession.Report, error) {
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
 		return Session{}, draftsession.Report{}, fmt.Errorf("begin draft mutation: %w", err)
@@ -278,7 +278,7 @@ func (r *Repository) mutate(ctx context.Context, id Identity, kind string, at ti
 }
 
 // Get returns one session and its reducer state.
-func (r *Repository) Get(ctx context.Context, leagueKey string) (Session, error) {
+func (r *PGStore) Get(ctx context.Context, leagueKey string) (Session, error) {
 	row, err := r.queries.GetDraftSession(ctx, leagueKey)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Session{}, fmt.Errorf("load draft session %s: %w", leagueKey, ErrSessionNotFound)
@@ -291,7 +291,7 @@ func (r *Repository) Get(ctx context.Context, leagueKey string) (Session, error)
 
 // ListEvents returns state-changing events strictly newer than afterVersion in
 // ascending version order. The limit is bounded to protect reconnect polling.
-func (r *Repository) ListEvents(ctx context.Context, leagueKey string, afterVersion uint64, limit int) ([]Event, error) {
+func (r *PGStore) ListEvents(ctx context.Context, leagueKey string, afterVersion uint64, limit int) ([]Event, error) {
 	if limit <= 0 {
 		return nil, errors.New("draft event limit must be positive")
 	}
@@ -324,7 +324,7 @@ func (r *Repository) ListEvents(ctx context.Context, leagueKey string, afterVers
 }
 
 // ListObservations returns the newest bounded observation history.
-func (r *Repository) ListObservations(ctx context.Context, leagueKey string, limit int) ([]Observation, error) {
+func (r *PGStore) ListObservations(ctx context.Context, leagueKey string, limit int) ([]Observation, error) {
 	maxObservations, err := int4("observation limit", limit)
 	if err != nil {
 		return nil, err

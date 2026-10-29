@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/sperano/puckdb/internal/draftsession"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -32,9 +33,9 @@ func TestValidateWatchOptions(t *testing.T) {
 
 func TestSyncOncePersistsTokenFailureWithoutReplacingBoard(t *testing.T) {
 	upstreamErr := errors.New("token unavailable")
-	repository := &fakeSessionRepository{}
+	store := &fakeSessionStore{}
 	runner := Runner{
-		Repository: repository,
+		Store: store,
 		Source: sourceFunc(func(context.Context, Identity) (PollResult, error) {
 			return PollResult{}, upstreamErr
 		}),
@@ -43,14 +44,14 @@ func TestSyncOncePersistsTokenFailureWithoutReplacingBoard(t *testing.T) {
 	_, _, err := runner.syncOnce(context.Background(), testDraftIdentity)
 
 	assert.ErrorIs(t, err, upstreamErr)
-	assert.ErrorIs(t, repository.failure, upstreamErr)
-	assert.False(t, repository.reconciled)
+	assert.ErrorIs(t, store.failure, upstreamErr)
+	assert.False(t, store.reconciled)
 }
 
 func TestSyncOnceCarriesDraftCompletion(t *testing.T) {
-	repository := &fakeSessionRepository{session: Session{Complete: true}}
+	store := &fakeSessionStore{session: Session{Complete: true}}
 	runner := Runner{
-		Repository: repository,
+		Store: store,
 		Source: sourceFunc(func(context.Context, Identity) (PollResult, error) {
 			return PollResult{DraftComplete: true}, nil
 		}),
@@ -60,7 +61,7 @@ func TestSyncOnceCarriesDraftCompletion(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.True(t, session.Complete)
-	assert.True(t, repository.reconciled)
+	assert.True(t, store.reconciled)
 }
 
 func TestSyncOnceRequiresSynchronizationPool(t *testing.T) {
@@ -81,7 +82,7 @@ const (
 func TestWatchLoopPollsImmediatelyOnRefreshAndAnswersWithThatPoll(t *testing.T) {
 	source := newCountingSource()
 	refresh := make(chan RefreshRequest)
-	runner := Runner{Repository: &countingRepository{}, Source: source}
+	runner := Runner{Store: &countingSessionStore{}, Source: source}
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
 	go func() { done <- runner.watchLoop(ctx, testDraftIdentity, idleWatchOptions(refresh)) }()
@@ -138,7 +139,7 @@ func TestRefreshCancelledMidPollGetsFinalReconciliation(t *testing.T) {
 	source := newCountingSource()
 	source.blockPoll = refreshPoll
 	refresh := make(chan RefreshRequest)
-	runner := Runner{Repository: &countingRepository{}, Source: source}
+	runner := Runner{Store: &countingSessionStore{}, Source: source}
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
 	go func() { done <- runner.watchLoop(ctx, testDraftIdentity, idleWatchOptions(refresh)) }()
@@ -160,7 +161,7 @@ func TestSyncOnceReportsSyncInProgressWhileWatchHoldsLock(t *testing.T) {
 	identity := testIdentityForRepository(t)
 	source := newCountingSource()
 	refresh := make(chan RefreshRequest)
-	runner := Runner{Pool: pool, Repository: &countingRepository{}, Source: source}
+	runner := Runner{Pool: pool, Store: &countingSessionStore{}, Source: source}
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
 	go func() { done <- runner.Watch(ctx, identity, idleWatchOptions(refresh)) }()
@@ -248,14 +249,14 @@ func (s *countingSource) awaitPoll(t *testing.T) {
 	}
 }
 
-// countingRepository advances the sync version on every reconciliation.
-type countingRepository struct{ syncVersion atomic.Uint64 }
+// countingSessionStore advances the sync version on every reconciliation.
+type countingSessionStore struct{ syncVersion atomic.Uint64 }
 
-func (r *countingRepository) Reconcile(context.Context, Identity, PollResult) (Session, draftsession.Report, error) {
+func (r *countingSessionStore) Reconcile(context.Context, Identity, PollResult) (Session, draftsession.Report, error) {
 	return Session{SyncVersion: r.syncVersion.Add(1)}, draftsession.Report{}, nil
 }
 
-func (r *countingRepository) RecordFailure(context.Context, Identity, time.Time, time.Duration, error) error {
+func (r *countingSessionStore) RecordFailure(context.Context, Identity, time.Time, time.Duration, error) error {
 	return nil
 }
 
@@ -265,18 +266,64 @@ func (f sourceFunc) Poll(ctx context.Context, id Identity) (PollResult, error) {
 	return f(ctx, id)
 }
 
-type fakeSessionRepository struct {
+type fakeSessionStore struct {
 	session    Session
 	failure    error
 	reconciled bool
 }
 
-func (f *fakeSessionRepository) Reconcile(_ context.Context, _ Identity, _ PollResult) (Session, draftsession.Report, error) {
+func (f *fakeSessionStore) Reconcile(_ context.Context, _ Identity, _ PollResult) (Session, draftsession.Report, error) {
 	f.reconciled = true
 	return f.session, draftsession.Report{}, nil
 }
 
-func (f *fakeSessionRepository) RecordFailure(_ context.Context, _ Identity, _ time.Time, _ time.Duration, err error) error {
+func (f *fakeSessionStore) RecordFailure(_ context.Context, _ Identity, _ time.Time, _ time.Duration, err error) error {
 	f.failure = err
 	return nil
+}
+
+// legacyTrySyncLock and legacySyncUnlock are the session-lock statements
+// released binaries send, verbatim. A rolling restart runs them next to the
+// current code, so both must name the same advisory lock.
+const (
+	legacyTrySyncLock = `SELECT pg_try_advisory_lock(hashtextextended('draft-session-sync:' || $1, 0))`
+	legacySyncUnlock  = `SELECT pg_advisory_unlock(hashtextextended('draft-session-sync:' || $1, 0))`
+)
+
+func TestSessionSyncLockExcludesLegacyLockStatement(t *testing.T) {
+	pool := openDraftWatchTestDB(t)
+	ctx := context.Background()
+	leagueKey := testIdentityForRepository(t).LeagueKey
+
+	lock, err := acquireSessionSync(ctx, pool, leagueKey)
+	require.NoError(t, err)
+	other := acquireTestConn(t, pool)
+	assert.False(t, tryLegacySyncLock(t, other, leagueKey), "a released binary must not take a held lock")
+	lock.Close()
+
+	require.True(t, tryLegacySyncLock(t, other, leagueKey))
+	_, err = acquireSessionSync(ctx, pool, leagueKey)
+	require.ErrorIs(t, err, ErrSyncInProgress, "the current code must not take a lock a released binary holds")
+	var unlocked bool
+	require.NoError(t, other.QueryRow(ctx, legacySyncUnlock, leagueKey).Scan(&unlocked))
+	require.True(t, unlocked)
+
+	lock, err = acquireSessionSync(ctx, pool, leagueKey)
+	require.NoError(t, err, "the lock is free once the released binary unlocks it")
+	lock.Close()
+}
+
+func acquireTestConn(t *testing.T, pool *pgxpool.Pool) *pgxpool.Conn {
+	t.Helper()
+	conn, err := pool.Acquire(context.Background())
+	require.NoError(t, err)
+	t.Cleanup(conn.Release)
+	return conn
+}
+
+func tryLegacySyncLock(t *testing.T, conn *pgxpool.Conn, leagueKey string) bool {
+	t.Helper()
+	var acquired bool
+	require.NoError(t, conn.QueryRow(context.Background(), legacyTrySyncLock, leagueKey).Scan(&acquired))
+	return acquired
 }

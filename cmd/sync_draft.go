@@ -64,9 +64,9 @@ func runSyncDraft(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		return err
 	}
-	repository := draftwatch.NewRepository(pool)
+	repository := draftwatch.NewPGStore(pool)
 	runner := draftwatch.Runner{
-		Pool: pool, Repository: repository,
+		Pool: pool, Store: repository,
 		Source: draftwatch.NewYahooSource(newDefaultStorage(), gobCache, newYahooDownloader(redisClient, yahooLimiter)),
 	}
 	out := cmd.OutOrStdout()

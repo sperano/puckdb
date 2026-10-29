@@ -77,7 +77,7 @@ func newDraftSessionCommand(use, short string, run func(*cobra.Command, draftSes
 type draftSessionContext struct {
 	pool       *pgxpool.Pool
 	identity   draftwatch.Identity
-	repository *draftwatch.Repository
+	repository *draftwatch.PGStore
 }
 
 func loadDraftSessionContext(cmd *cobra.Command) (draftSessionContext, error) {
@@ -91,7 +91,7 @@ func loadDraftSessionContext(cmd *cobra.Command) (draftSessionContext, error) {
 		pool.Close()
 		return draftSessionContext{}, err
 	}
-	return draftSessionContext{pool: pool, identity: id, repository: draftwatch.NewRepository(pool)}, nil
+	return draftSessionContext{pool: pool, identity: id, repository: draftwatch.NewPGStore(pool)}, nil
 }
 
 // resolveDraftSessionIdentity resolves the session league of `sync draft` and

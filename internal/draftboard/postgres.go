@@ -38,13 +38,13 @@ type PGDataSource struct {
 	pool    *pgxpool.Pool
 	queries *sqlcdb.Queries
 	ranking RankingReader
-	session *draftwatch.Repository
+	session *draftwatch.PGStore
 }
 
 // NewPGDataSource builds the concrete data source around a shared pool.
 func NewPGDataSource(pool *pgxpool.Pool, ranking RankingReader) *PGDataSource {
 	return &PGDataSource{pool: pool, queries: sqlcdb.New(pool), ranking: ranking,
-		session: draftwatch.NewRepository(pool)}
+		session: draftwatch.NewPGStore(pool)}
 }
 
 // ResolveIdentity resolves a full league key or numeric league ID for season
