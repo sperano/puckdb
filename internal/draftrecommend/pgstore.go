@@ -26,16 +26,16 @@ type StoredRun struct {
 	Result Result    `json:"result"`
 }
 
-// Repository stores complete recommendation inputs and outputs for audit and
+// PGStore stores complete recommendation inputs and outputs for audit and
 // deterministic replay. It does not regenerate or mutate a recommendation.
-type Repository struct{ queries *sqlcdb.Queries }
+type PGStore struct{ queries *sqlcdb.Queries }
 
-// NewRepository returns a Repository on pool.
-func NewRepository(pool *pgxpool.Pool) *Repository { return &Repository{queries: sqlcdb.New(pool)} }
+// NewPGStore returns a PGStore on pool.
+func NewPGStore(pool *pgxpool.Pool) *PGStore { return &PGStore{queries: sqlcdb.New(pool)} }
 
 // Save persists one generated result. Metadata columns are derived from the
 // frozen input and checked against the result before the insert.
-func (r *Repository) Save(ctx context.Context, input Input, result Result) (uuid.UUID, error) {
+func (r *PGStore) Save(ctx context.Context, input Input, result Result) (uuid.UUID, error) {
 	if err := validateStoredRun(input, result); err != nil {
 		return uuid.Nil, err
 	}
@@ -72,7 +72,7 @@ func (r *Repository) Save(ctx context.Context, input Input, result Result) (uuid
 }
 
 // Get loads one complete run for audit or replay.
-func (r *Repository) Get(ctx context.Context, id uuid.UUID) (StoredRun, error) {
+func (r *PGStore) Get(ctx context.Context, id uuid.UUID) (StoredRun, error) {
 	row, err := r.queries.GetDraftRecommendationRun(ctx, uuidValue(id))
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -84,7 +84,7 @@ func (r *Repository) Get(ctx context.Context, id uuid.UUID) (StoredRun, error) {
 }
 
 // Latest loads the newest result generated for an exact session version.
-func (r *Repository) Latest(ctx context.Context, leagueKey string, sessionVersion uint64) (StoredRun, error) {
+func (r *PGStore) Latest(ctx context.Context, leagueKey string, sessionVersion uint64) (StoredRun, error) {
 	version, err := draftsession.DatabaseVersion(sessionVersion)
 	if err != nil {
 		return StoredRun{}, err

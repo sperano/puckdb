@@ -30,7 +30,7 @@ func NewPGService(pool *pgxpool.Pool, rankings RankingReader, refresher Refreshe
 	watchFactory func() WatchRunner, watchOptions draftwatch.WatchOptions, options Options) *Service {
 	data := NewPGDataSource(pool, rankings)
 	options.Watch = NewWatchController(data, watchFactory, watchOptions, options.Now)
-	return NewService(data, draftrecommend.NewService(draftrecommend.NewRepository(pool)), refresher, options)
+	return NewService(data, draftrecommend.NewService(draftrecommend.NewPGStore(pool)), refresher, options)
 }
 
 // PGDataSource loads board inputs and shortlist state from PostgreSQL.
