@@ -122,8 +122,8 @@ type RankedPlayer struct {
 	Explanations      []string
 }
 
-// RankingSnapshot is the immutable result of scoring one complete league pool.
-type RankingSnapshot struct {
+// Ranking is the immutable result of scoring one complete league pool.
+type Ranking struct {
 	Version           string
 	RuleHash          string
 	ProjectionHash    string
@@ -136,7 +136,7 @@ type RankingSnapshot struct {
 
 // Filter returns a view of the fixed ranking. OR semantics apply to multiple
 // positions, and a multi-position player is emitted exactly once.
-func (r RankingSnapshot) Filter(positions ...string) []RankedPlayer {
+func (r Ranking) Filter(positions ...string) []RankedPlayer {
 	if len(positions) == 0 {
 		return cloneRankedPlayers(r.Players)
 	}

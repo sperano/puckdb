@@ -19,7 +19,7 @@ type OrderingBacktest struct {
 // EvaluateOrdering measures pairwise ordering accuracy on supplied held-out
 // outcomes. Tied predictions get half credit; tied outcomes do not count.
 // All players need both a realized outcome and a basic point-total baseline.
-func EvaluateOrdering(ranking RankingSnapshot, realized, basicPoints map[string]float64) (OrderingBacktest, error) {
+func EvaluateOrdering(ranking Ranking, realized, basicPoints map[string]float64) (OrderingBacktest, error) {
 	if len(ranking.Players) < 2 {
 		return OrderingBacktest{}, fmt.Errorf("backtest needs at least two ranked players")
 	}

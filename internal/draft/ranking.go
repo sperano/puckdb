@@ -34,46 +34,46 @@ func SeasonLabel(seasonID int) string {
 
 // BuildRanking values a complete Yahoo player pool against a frozen rules and
 // projection snapshot. It never queries live state or changes scoring rules.
-func BuildRanking(rules RulesSnapshot, projected projection.Snapshot, pool []PoolPlayer, options RankingOptions) (RankingSnapshot, error) {
+func BuildRanking(rules RulesSnapshot, projected projection.Snapshot, pool []PoolPlayer, options RankingOptions) (Ranking, error) {
 	scoring, err := ScoringFor(rules)
 	if err != nil {
-		return RankingSnapshot{}, err
+		return Ranking{}, err
 	}
 	options = options.normalized()
 	if err := options.validate(scoring); err != nil {
-		return RankingSnapshot{}, err
+		return Ranking{}, err
 	}
 	if len(pool) == 0 || projected.SourceDataHash == "" || projected.Config.ModelVersion == "" {
-		return RankingSnapshot{}, fmt.Errorf("player pool, projection source hash and model version are required")
+		return Ranking{}, fmt.Errorf("player pool, projection source hash and model version are required")
 	}
 	if !sameHockeySeason(rules.Rules.Season, projected.TargetSeason) {
-		return RankingSnapshot{}, fmt.Errorf("rules season %d differs from projection season %d", rules.Rules.Season, projected.TargetSeason)
+		return Ranking{}, fmt.Errorf("rules season %d differs from projection season %d", rules.Rules.Season, projected.TargetSeason)
 	}
 	ruleHash, _, err := rules.Rules.Hash()
 	if err != nil {
-		return RankingSnapshot{}, err
+		return Ranking{}, err
 	}
 	if rules.Hash != "" && rules.Hash != ruleHash {
-		return RankingSnapshot{}, fmt.Errorf("rules snapshot hash does not match normalized rules")
+		return Ranking{}, fmt.Errorf("rules snapshot hash does not match normalized rules")
 	}
 	caps, err := capsFromRules(rules.Rules)
 	if err != nil {
-		return RankingSnapshot{}, err
+		return Ranking{}, err
 	}
 	if err := caps.validatePolicy(options.WorkloadCapPolicy); err != nil {
-		return RankingSnapshot{}, err
+		return Ranking{}, err
 	}
 	units, err := demandUnits(rules.Rules, options)
 	if err != nil {
-		return RankingSnapshot{}, err
+		return Ranking{}, err
 	}
 	candidates, err := prepareCandidates(scoring, pool, projected, caps.gameCap, caps.goalieStartsCap)
 	if err != nil {
-		return RankingSnapshot{}, err
+		return Ranking{}, err
 	}
 	for _, stat := range scoring.Stats {
 		if statCandidateCount(stat.StatID, candidates) == 0 {
-			return RankingSnapshot{}, fmt.Errorf("pool has no players for scoring stat %d", stat.StatID)
+			return Ranking{}, fmt.Errorf("pool has no players for scoring stat %d", stat.StatID)
 		}
 	}
 	slices.SortFunc(scoring.Stats, func(a, b ScoringStat) int { return a.StatID - b.StatID })
@@ -83,9 +83,9 @@ func BuildRanking(rules RulesSnapshot, projected projection.Snapshot, pool []Poo
 	players := rankCandidates(candidates, officialPlan, adjustedPlan, options, scoring.Provisional)
 	version, err := rankingIdentity(ruleHash, projected, pool, scoring, options)
 	if err != nil {
-		return RankingSnapshot{}, err
+		return Ranking{}, err
 	}
-	return RankingSnapshot{
+	return Ranking{
 		Version: version, RuleHash: ruleHash, ProjectionHash: projected.SourceDataHash,
 		ProjectionVersion: projected.Config.ModelVersion, Scoring: scoring,
 		Options: options, Assumptions: rankingAssumptions(scoring, options, caps), Players: players,

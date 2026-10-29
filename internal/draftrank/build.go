@@ -62,13 +62,13 @@ func Build(in BuildInput) (Snapshot, error) {
 	return snapshot, nil
 }
 
-func rankScenarios(in BuildInput) (map[Scenario]draft.RankingSnapshot, error) {
+func rankScenarios(in BuildInput) (map[Scenario]draft.Ranking, error) {
 	options := in.Options.RankingOptions()
 	baseline, err := draft.BuildRanking(in.Rules, in.Baseline, in.Pool, options)
 	if err != nil {
 		return nil, refreshError(IssueRankingFailed, fmt.Errorf("baseline ranking: %w", err))
 	}
-	rankings := map[Scenario]draft.RankingSnapshot{ScenarioBaseline: baseline}
+	rankings := map[Scenario]draft.Ranking{ScenarioBaseline: baseline}
 	if in.Adjustment == nil {
 		return rankings, nil
 	}
@@ -93,7 +93,7 @@ func rankScenarios(in BuildInput) (map[Scenario]draft.RankingSnapshot, error) {
 	return rankings, nil
 }
 
-func buildMeta(in BuildInput, scoring draft.Scoring, rankings map[Scenario]draft.RankingSnapshot) Meta {
+func buildMeta(in BuildInput, scoring draft.Scoring, rankings map[Scenario]draft.Ranking) Meta {
 	meta := Meta{
 		League:   leagueOf(in.Rules, scoring, rankings[ScenarioBaseline].RuleHash),
 		PoolSize: len(in.Pool), PoolFetchedAt: oldestFetch(in.Pool),
@@ -196,7 +196,7 @@ func freshnessOf(coverage []news.SourceCoverage) []SourceFreshness {
 	return out
 }
 
-func buildPlayers(in BuildInput, scoring draft.Scoring, rankings map[Scenario]draft.RankingSnapshot) []Player {
+func buildPlayers(in BuildInput, scoring draft.Scoring, rankings map[Scenario]draft.Ranking) []Player {
 	abbrs := make(map[int]string, len(scoring.Stats))
 	for _, stat := range scoring.Stats {
 		abbrs[stat.StatID] = stat.Abbr

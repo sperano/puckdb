@@ -123,7 +123,7 @@ func testWeightedCategory(id int, weight float64) StatCategory {
 	return StatCategory{StatID: id, Enabled: true, Weight: &weight}
 }
 
-func rankedByKey(t *testing.T, ranking RankingSnapshot, key string) RankedPlayer {
+func rankedByKey(t *testing.T, ranking Ranking, key string) RankedPlayer {
 	t.Helper()
 	for _, player := range ranking.Players {
 		if player.PlayerKey == key {

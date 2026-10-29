@@ -93,7 +93,7 @@ func Compare(rules draft.RulesSnapshot, baseline projection.Snapshot, result Res
 	return comparison, nil
 }
 
-func placementsByKey(ranking draft.RankingSnapshot) map[string]Placement {
+func placementsByKey(ranking draft.Ranking) map[string]Placement {
 	out := make(map[string]Placement, len(ranking.Players))
 	for _, player := range ranking.Players {
 		out[player.PlayerKey] = placementOf(player)
