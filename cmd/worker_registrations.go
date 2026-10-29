@@ -38,7 +38,8 @@ func registerTasksWorkflows(w worker.Worker) {
 	w.RegisterWorkflow(workflow.ImportPlayerLogsWorkflow)
 	w.RegisterWorkflow(workflow.ImportNHLSeasonWorkflow)
 	w.RegisterWorkflow(workflow.ImportYahooSeasonWorkflow)
-	w.RegisterWorkflow(workflow.ImportSeasonPlayerLogsWorkflow)
+	w.RegisterWorkflow(workflow.ImportSeasonPlayerLogsV2Workflow)
+	w.RegisterWorkflow(workflow.ImportSeasonPlayerLogsWorkflow) // legacy ImportPlayerLogsWorkflow histories only
 	w.RegisterWorkflow(workflow.ImportEdgeSeasonsWorkflow)
 	w.RegisterWorkflow(workflow.ImportEdgeWorkflow)
 
@@ -237,7 +238,8 @@ func registerNHLActivities(w worker.Worker, d taskActivityDeps, importYahooActiv
 	w.RegisterActivity(importActivities.ImportDay)
 	w.RegisterActivity(importActivities.ImportDayIfChanged)
 	w.RegisterActivity(importActivities.ImportPlayerGameLogsBatch)
-	w.RegisterActivity(importActivities.CollectSeasonPlayerIDs)
+	w.RegisterActivity(importActivities.CollectSeasonSkaters)
+	w.RegisterActivity(importActivities.CollectSeasonPlayerIDs) // legacy ImportSeasonPlayerLogsWorkflow histories only
 
 	dailyScheduleActivities := &worknhl.DailyScheduleActivities{
 		Storage:     d.storage,
@@ -289,8 +291,8 @@ func registerPlayerActivities(w worker.Worker, d taskActivityDeps) {
 	w.RegisterActivity(playerActivities.LoadSeasonBoxscorePlayers)
 	w.RegisterActivity(playerActivities.LoadAllBoxscorePlayers)
 	w.RegisterActivity(playerActivities.ConsolidateBoxscorePlayersActivity)
-	w.RegisterActivity(playerActivities.CountPlayersForAllSeasons)
-	w.RegisterActivity(playerActivities.ProcessPlayerBatch) // legacy chains only
+	w.RegisterActivity(playerActivities.CountPlayersForAllSeasons) // legacy ImportPlayerLogsWorkflow histories only
+	w.RegisterActivity(playerActivities.ProcessPlayerBatch)        // legacy chains only
 	w.RegisterActivity(playerActivities.CreateProcessPlayersManifest)
 	w.RegisterActivity(playerActivities.ProcessPlayerManifestBatch)
 	w.RegisterActivity(playerActivities.RecordProcessPlayersErrors)

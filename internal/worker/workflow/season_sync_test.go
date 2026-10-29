@@ -52,10 +52,11 @@ func seasonFanOutCases() []seasonFanOutCase {
 			}},
 		{"ImportPlayerLogsWorkflow", ImportPlayerLogsWorkflow,
 			func(env *testsuite.TestWorkflowEnvironment, _ bool) {
-				env.RegisterWorkflow(ImportSeasonPlayerLogsWorkflow)
-				env.OnActivity(pa.CountPlayersForAllSeasons, mock.Anything, []int{seasonFanOutTestYear}).
-					Return(map[int]int{seasonFanOutTestYear: seasonFanOutTestPlayers}, nil).Once()
-				env.OnWorkflow(ImportSeasonPlayerLogsWorkflow, mock.Anything, mock.Anything).Return(core.OriginCounts{}, nil).Once()
+				env.RegisterWorkflow(ImportSeasonPlayerLogsV2Workflow)
+				var ia *worknhl.ImportActivities
+				env.OnActivity(ia.CollectSeasonSkaters, mock.Anything, mock.Anything).
+					Return(worknhl.SeasonSkaterManifest{PlayerIDs: make([]int64, seasonFanOutTestPlayers)}, nil).Once()
+				env.OnWorkflow(ImportSeasonPlayerLogsV2Workflow, mock.Anything, mock.Anything).Return(core.OriginCounts{}, nil).Once()
 			}},
 		{"FetchPlayerLogsWorkflow", FetchPlayerLogsWorkflow,
 			func(env *testsuite.TestWorkflowEnvironment, wantRefresh bool) {

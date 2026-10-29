@@ -7,7 +7,6 @@ import (
 
 	"github.com/rs/zerolog/log"
 	nhlapi "github.com/sperano/nhl-api-go/nhl"
-	"github.com/sperano/puckdb/internal/config"
 	"github.com/sperano/puckdb/internal/core"
 	"github.com/sperano/puckdb/internal/metrics"
 	"github.com/sperano/puckdb/internal/resource"
@@ -23,9 +22,14 @@ type ImportPlayerGameLogsBatchInput struct {
 
 // ImportPlayerGameLogsBatchResult contains results of importing player game logs.
 type ImportPlayerGameLogsBatchResult struct {
-	PlayersProcessed int               `json:"playersProcessed"`
-	GamesUpdated     int               `json:"gamesUpdated"`
-	Origins          core.OriginCounts `json:"origins"`
+	PlayersProcessed int `json:"playersProcessed"`
+	// PlayersWithoutLog counts the batch's players with no cached
+	// regular-season game log; PlayersUnreadable those whose log failed to
+	// read. Neither is imported.
+	PlayersWithoutLog int               `json:"playersWithoutLog,omitempty"`
+	PlayersUnreadable int               `json:"playersUnreadable,omitempty"`
+	GamesUpdated      int               `json:"gamesUpdated"`
+	Origins           core.OriginCounts `json:"origins"`
 }
 
 // ImportPlayerGameLogsBatch imports game log stats (PPP, GWG, OT goals) for a batch of players.
@@ -44,12 +48,14 @@ func (a *ImportActivities) ImportPlayerGameLogsBatch(ctx context.Context, input 
 		}
 
 		if !resource.Exists(ctx, a.Storage, gameLogRes) {
+			result.PlayersWithoutLog++
 			continue
 		}
 
 		gameLog, origin, err := a.GobCache.ReadParsedCached(ctx, a.Storage, gameLogRes)
 		if err != nil {
-			log.Debug().Err(err).Int64("playerID", playerID).Msg("Failed to read player game log")
+			log.Warn().Err(err).Int64("playerID", playerID).Msg("Failed to read player game log")
+			result.PlayersUnreadable++
 			continue
 		}
 		result.Origins.Record(origin)
@@ -64,6 +70,8 @@ func (a *ImportActivities) ImportPlayerGameLogsBatch(ctx context.Context, input 
 
 	logger.Info("Imported player game logs batch",
 		"players", result.PlayersProcessed,
+		"withoutLog", result.PlayersWithoutLog,
+		"unreadable", result.PlayersUnreadable,
 		"games", result.GamesUpdated)
 
 	return result, nil
@@ -106,51 +114,16 @@ type CollectSeasonPlayerIDsInput struct {
 	EndDate time.Time // Pre-computed by workflow using workflow.Now() for determinism
 }
 
-// CollectSeasonPlayerIDs reads all boxscores for a season and returns unique skater player IDs.
+// CollectSeasonPlayerIDs returns the PlayerIDs of the season's
+// SeasonSkaterManifest. Legacy: only ImportSeasonPlayerLogsWorkflow, which
+// ImportPlayerLogsWorkflow runs started before the skater manifest still
+// start, schedules it; remove both once none runs.
 func (a *ImportActivities) CollectSeasonPlayerIDs(ctx context.Context, input CollectSeasonPlayerIDsInput) ([]int64, error) {
-	defer metrics.TrackActivityDuration("CollectSeasonPlayerIDs")()
-
-	seen := make(map[int64]struct{})
-
-	season := input.Season
-	endDate := input.EndDate
-	for d := season.StandingsStart.Time; !d.After(endDate); d = d.AddDate(0, 0, 1) {
-		scheduleRes := resource.DailySchedule{Date: d}
-		if !resource.Exists(ctx, a.Storage, scheduleRes) {
-			continue
-		}
-
-		schedule, _, err := a.GobCache.ReadParsedCached(ctx, a.Storage, scheduleRes)
-		if err != nil {
-			continue
-		}
-
-		for _, game := range schedule.Games {
-			if shouldSkipGame(game) {
-				continue
-			}
-
-			boxscoreRes := resource.Boxscore{Date: d, GameID: game.ID}
-			if !resource.Exists(ctx, a.Storage, boxscoreRes) {
-				continue
-			}
-
-			boxscore, _, err := a.GobCache.ReadParsedCached(ctx, a.Storage, boxscoreRes)
-			if err != nil {
-				continue
-			}
-
-			collectPlayerIDs(boxscore, seen)
-		}
-
-		activity.RecordHeartbeat(ctx, d.Format(config.DateFormat))
+	manifest, err := a.CollectSeasonSkaters(ctx, input)
+	if err != nil {
+		return nil, err
 	}
-
-	ids := make([]int64, 0, len(seen))
-	for id := range seen {
-		ids = append(ids, id)
-	}
-	return ids, nil
+	return manifest.PlayerIDs, nil
 }
 
 // collectPlayerIDs extracts unique skater player IDs from a boxscore.
