@@ -57,8 +57,9 @@ type RecommendationEngine interface {
 	Recommend(context.Context, draftrecommend.Input) (draftrecommend.StoredRun, error)
 }
 
-// Refresher performs the shared draftwatch one-shot poll.
-type Refresher interface {
+// SessionSyncer polls Yahoo once for a league and reconciles the result
+// (draftwatch.Runner.SyncOnce).
+type SessionSyncer interface {
 	SyncOnce(context.Context, draftwatch.Identity) (draftwatch.Session, draftsession.Report, error)
 }
 
@@ -75,7 +76,7 @@ type Options struct {
 type Service struct {
 	data                  DataSource
 	recommendations       RecommendationEngine
-	refresher             Refresher
+	syncer                SessionSyncer
 	watch                 *WatchController
 	staleAfter            time.Duration
 	now                   func() time.Time
@@ -87,7 +88,7 @@ type Service struct {
 // NewService composes a board service. Options.Now defaults to time.Now;
 // recommendation limits use their package defaults when non-positive, and a
 // nil Options.Watch leaves watch controls unavailable.
-func NewService(data DataSource, recommendations RecommendationEngine, refresher Refresher, options Options) *Service {
+func NewService(data DataSource, recommendations RecommendationEngine, syncer SessionSyncer, options Options) *Service {
 	if options.Now == nil {
 		options.Now = time.Now
 	}
@@ -97,7 +98,7 @@ func NewService(data DataSource, recommendations RecommendationEngine, refresher
 	if options.RecommendationTimeout <= 0 {
 		options.RecommendationTimeout = DefaultRecommendationTimeout
 	}
-	return &Service{data: data, recommendations: recommendations, refresher: refresher,
+	return &Service{data: data, recommendations: recommendations, syncer: syncer,
 		watch: options.Watch, staleAfter: options.StaleAfter, now: options.Now,
 		recommendationCache:   newRecommendationCache(options.RecommendationCacheSize),
 		recommendationTimeout: options.RecommendationTimeout}

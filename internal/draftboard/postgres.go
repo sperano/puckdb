@@ -26,11 +26,11 @@ type RankingReader interface {
 
 // NewPGService wires PostgreSQL state, immutable ranking reads, recommendation
 // persistence and the process-scoped watcher controller.
-func NewPGService(pool *pgxpool.Pool, rankings RankingReader, refresher Refresher,
+func NewPGService(pool *pgxpool.Pool, rankings RankingReader, syncer SessionSyncer,
 	watchFactory func() WatchRunner, watchOptions draftwatch.WatchOptions, options Options) *Service {
 	data := NewPGDataSource(pool, rankings)
 	options.Watch = NewWatchController(data, watchFactory, watchOptions, options.Now)
-	return NewService(data, draftrecommend.NewService(draftrecommend.NewPGStore(pool)), refresher, options)
+	return NewService(data, draftrecommend.NewService(draftrecommend.NewPGStore(pool)), syncer, options)
 }
 
 // PGDataSource loads board inputs and shortlist state from PostgreSQL.
