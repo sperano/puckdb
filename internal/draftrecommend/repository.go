@@ -9,8 +9,10 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/sperano/puckdb/internal/draftsession"
+	"github.com/sperano/puckdb/internal/sqlcdb"
 )
 
 // ErrRunNotFound is returned when no stored run matches the requested ID or
@@ -26,10 +28,10 @@ type StoredRun struct {
 
 // Repository stores complete recommendation inputs and outputs for audit and
 // deterministic replay. It does not regenerate or mutate a recommendation.
-type Repository struct{ pool *pgxpool.Pool }
+type Repository struct{ queries *sqlcdb.Queries }
 
 // NewRepository returns a Repository on pool.
-func NewRepository(pool *pgxpool.Pool) *Repository { return &Repository{pool: pool} }
+func NewRepository(pool *pgxpool.Pool) *Repository { return &Repository{queries: sqlcdb.New(pool)} }
 
 // Save persists one generated result. Metadata columns are derived from the
 // frozen input and checked against the result before the insert.
@@ -53,60 +55,50 @@ func (r *Repository) Save(ctx context.Context, input Input, result Result) (uuid
 	if err != nil {
 		return uuid.Nil, fmt.Errorf("encode recommendation result: %w", err)
 	}
-	const insert = `
-INSERT INTO draft_recommendation_runs (
-    league_key, session_version, ranking_snapshot_id, ranking_identity, ranking_version,
-    projection_snapshot_id, projection_version, rules_hash, scenario,
-    strategy, input, result, generated_at, latency_milliseconds
-) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
-RETURNING id`
-	var id uuid.UUID
 	snapshot := input.Ranking
-	err = r.pool.QueryRow(ctx, insert,
-		snapshot.League.LeagueKey, version, snapshot.ID,
-		snapshot.Identity, result.RankingVersion, snapshot.Projection.SnapshotID, snapshot.Projection.ModelVersion,
-		snapshot.League.RulesHash, result.Scenario, strategyRaw, inputRaw, resultRaw,
-		result.GeneratedAt, result.LatencyMillis,
-	).Scan(&id)
+	id, err := r.queries.InsertDraftRecommendationRun(ctx, sqlcdb.InsertDraftRecommendationRunParams{
+		LeagueKey: snapshot.League.LeagueKey, SessionVersion: version,
+		RankingSnapshotID: uuidValue(snapshot.ID), RankingIdentity: snapshot.Identity,
+		RankingVersion: result.RankingVersion, ProjectionSnapshotID: uuidValue(snapshot.Projection.SnapshotID),
+		ProjectionVersion: snapshot.Projection.ModelVersion, RulesHash: snapshot.League.RulesHash,
+		Scenario: string(result.Scenario), Strategy: strategyRaw, Input: inputRaw, Result: resultRaw,
+		GeneratedAt:         pgtype.Timestamptz{Time: result.GeneratedAt, Valid: true},
+		LatencyMilliseconds: result.LatencyMillis,
+	})
 	if err != nil {
 		return uuid.Nil, fmt.Errorf("store draft recommendation: %w", err)
 	}
-	return id, nil
+	return uuid.UUID(id.Bytes), nil
 }
 
 // Get loads one complete run for audit or replay.
 func (r *Repository) Get(ctx context.Context, id uuid.UUID) (StoredRun, error) {
-	const query = `SELECT input, result FROM draft_recommendation_runs WHERE id=$1`
-	var inputRaw, resultRaw []byte
-	if err := r.pool.QueryRow(ctx, query, id).Scan(&inputRaw, &resultRaw); err != nil {
+	row, err := r.queries.GetDraftRecommendationRun(ctx, uuidValue(id))
+	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return StoredRun{}, fmt.Errorf("%w: %s", ErrRunNotFound, id)
 		}
 		return StoredRun{}, fmt.Errorf("load draft recommendation %s: %w", id, err)
 	}
-	return decodeStoredRun(id, inputRaw, resultRaw)
+	return decodeStoredRun(id, row.Input, row.Result)
 }
 
 // Latest loads the newest result generated for an exact session version.
 func (r *Repository) Latest(ctx context.Context, leagueKey string, sessionVersion uint64) (StoredRun, error) {
-	const query = `
-SELECT id, input, result FROM draft_recommendation_runs
-WHERE league_key=$1 AND session_version=$2
-ORDER BY generated_at DESC, id DESC LIMIT 1`
-	var id uuid.UUID
-	var inputRaw, resultRaw []byte
 	version, err := draftsession.DatabaseVersion(sessionVersion)
 	if err != nil {
 		return StoredRun{}, err
 	}
-	err = r.pool.QueryRow(ctx, query, leagueKey, version).Scan(&id, &inputRaw, &resultRaw)
+	row, err := r.queries.GetLatestDraftRecommendationRun(ctx, sqlcdb.GetLatestDraftRecommendationRunParams{
+		LeagueKey: leagueKey, SessionVersion: version,
+	})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return StoredRun{}, fmt.Errorf("%w: league %s session %d", ErrRunNotFound, leagueKey, sessionVersion)
 		}
 		return StoredRun{}, fmt.Errorf("load latest draft recommendation: %w", err)
 	}
-	return decodeStoredRun(id, inputRaw, resultRaw)
+	return decodeStoredRun(uuid.UUID(row.ID.Bytes), row.Input, row.Result)
 }
 
 func validateStoredRun(input Input, result Result) error {
@@ -167,3 +159,7 @@ func decodeStoredRun(id uuid.UUID, inputRaw, resultRaw []byte) (StoredRun, error
 	}
 	return run, nil
 }
+
+// uuidValue passes id as given, uuid.Nil included: every UUID these queries
+// write or match is NOT NULL.
+func uuidValue(id uuid.UUID) pgtype.UUID { return pgtype.UUID{Bytes: id, Valid: true} }
