@@ -16,7 +16,7 @@ const rotoScoringStatCount = 9
 
 func TestScoringFor_RotoLeague(t *testing.T) {
 	t.Parallel()
-	snapshot := Snapshot{Rules: FromLeague(parseRotoLeague(t)), Source: SourceYahooAPI}
+	snapshot := RulesSnapshot{Rules: FromLeague(parseRotoLeague(t)), Source: SourceYahooAPI}
 	scoring, err := ScoringFor(snapshot)
 	require.NoError(t, err)
 	assert.Equal(t, FormatCategories, scoring.Format)
@@ -27,7 +27,7 @@ func TestScoringFor_RotoLeague(t *testing.T) {
 
 func TestScoringFor_StandInSourceIsProvisional(t *testing.T) {
 	t.Parallel()
-	snapshot := Snapshot{Rules: FromLeague(parseRotoLeague(t)), Source: SourceTemporaryStandIn}
+	snapshot := RulesSnapshot{Rules: FromLeague(parseRotoLeague(t)), Source: SourceTemporaryStandIn}
 	scoring, err := ScoringFor(snapshot)
 	require.NoError(t, err)
 	assert.True(t, scoring.Provisional)
@@ -35,7 +35,7 @@ func TestScoringFor_StandInSourceIsProvisional(t *testing.T) {
 
 func TestScoringFor_PointsLeagueBonusUnsupported(t *testing.T) {
 	t.Parallel()
-	snapshot := Snapshot{Rules: FromLeague(parsePointsLeague(t, yahoofixtures.PointsLeague)), Source: SourceYahooAPI}
+	snapshot := RulesSnapshot{Rules: FromLeague(parsePointsLeague(t, yahoofixtures.PointsLeague)), Source: SourceYahooAPI}
 	_, err := ScoringFor(snapshot)
 	require.Error(t, err)
 	assert.ErrorIs(t, err, ErrMissingScoringInputs)
@@ -44,7 +44,7 @@ func TestScoringFor_PointsLeagueBonusUnsupported(t *testing.T) {
 
 func TestScoringFor_PointsLeagueMissingWeight(t *testing.T) {
 	t.Parallel()
-	snapshot := Snapshot{Rules: FromLeague(parsePointsLeague(t, yahoofixtures.PointsLeagueMissingWeight)), Source: SourceYahooAPI}
+	snapshot := RulesSnapshot{Rules: FromLeague(parsePointsLeague(t, yahoofixtures.PointsLeagueMissingWeight)), Source: SourceYahooAPI}
 	_, err := ScoringFor(snapshot)
 	require.Error(t, err)
 	assert.ErrorIs(t, err, ErrMissingScoringInputs)
@@ -55,7 +55,7 @@ func TestScoringFor_ValidPointsLeague(t *testing.T) {
 	t.Parallel()
 	league := parsePointsLeague(t, yahoofixtures.PointsLeague)
 	clearBonus(&league, statGoals)
-	snapshot := Snapshot{Rules: FromLeague(league), Source: SourceYahooAPI}
+	snapshot := RulesSnapshot{Rules: FromLeague(league), Source: SourceYahooAPI}
 
 	scoring, err := ScoringFor(snapshot)
 	require.NoError(t, err)
@@ -71,7 +71,7 @@ func TestScoringFor_UnknownScoringType(t *testing.T) {
 	rules := Rules{ScoringType: "bogus", LeagueKey: "465.l.1", Categories: []StatCategory{
 		{StatID: statGoals, Enabled: true, Direction: HigherIsBetter},
 	}}
-	_, err := ScoringFor(Snapshot{Rules: rules, Source: SourceYahooAPI})
+	_, err := ScoringFor(RulesSnapshot{Rules: rules, Source: SourceYahooAPI})
 	require.Error(t, err)
 	assert.ErrorIs(t, err, ErrMissingScoringInputs)
 	assert.Contains(t, err.Error(), `unsupported scoring type "bogus"`)
@@ -80,7 +80,7 @@ func TestScoringFor_UnknownScoringType(t *testing.T) {
 func TestScoringFor_NoScoringCategories(t *testing.T) {
 	t.Parallel()
 	rules := Rules{ScoringType: scoringTypeRoto, LeagueKey: "465.l.1"}
-	_, err := ScoringFor(Snapshot{Rules: rules, Source: SourceYahooAPI})
+	_, err := ScoringFor(RulesSnapshot{Rules: rules, Source: SourceYahooAPI})
 	require.Error(t, err)
 	assert.ErrorIs(t, err, ErrMissingScoringInputs)
 	assert.Contains(t, err.Error(), "no enabled, non-display-only stat categories")
@@ -91,7 +91,7 @@ func TestScoringFor_UnknownDirectionInRotoLeague(t *testing.T) {
 	rules := Rules{ScoringType: scoringTypeRoto, LeagueKey: "465.l.1", Categories: []StatCategory{
 		{StatID: statGoals, Abbr: "G", Enabled: true, Direction: DirectionUnknown},
 	}}
-	_, err := ScoringFor(Snapshot{Rules: rules, Source: SourceYahooAPI})
+	_, err := ScoringFor(RulesSnapshot{Rules: rules, Source: SourceYahooAPI})
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, ErrMissingScoringInputs))
 	assert.Contains(t, err.Error(), "stat 1 (G) has no sort direction")
@@ -105,7 +105,7 @@ func TestScoringFor_DuplicateCategory(t *testing.T) {
 		LeagueKey:   "465.l.1",
 		Categories:  []StatCategory{category, category},
 	}
-	_, err := ScoringFor(Snapshot{Rules: rules, Source: SourceYahooAPI})
+	_, err := ScoringFor(RulesSnapshot{Rules: rules, Source: SourceYahooAPI})
 	require.Error(t, err)
 	assert.ErrorIs(t, err, ErrMissingScoringInputs)
 	assert.Contains(t, err.Error(), "stat 1 (G) is duplicated")
@@ -122,7 +122,7 @@ func TestScoringFor_ClonesPositionTypes(t *testing.T) {
 			Direction: HigherIsBetter, PositionTypes: positionTypes,
 		}},
 	}
-	scoring, err := ScoringFor(Snapshot{Rules: rules, Source: SourceYahooAPI})
+	scoring, err := ScoringFor(RulesSnapshot{Rules: rules, Source: SourceYahooAPI})
 	require.NoError(t, err)
 	positionTypes[0] = "G"
 	assert.Equal(t, []string{"P"}, scoring.Stats[0].PositionTypes)

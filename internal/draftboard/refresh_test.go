@@ -72,7 +72,7 @@ func TestRefreshWhileWatchHoldsPostgresLock(t *testing.T) {
 	pool := openDraftBoardTestDB(t)
 	identity := uniqueRefreshIdentity(t, pool)
 	source := newSignalingSource()
-	runner := draftwatch.Runner{Pool: pool, Repository: draftwatch.NewRepository(pool), Source: source}
+	runner := draftwatch.Runner{Pool: pool, Store: draftwatch.NewPGStore(pool), Source: source}
 	controller := NewWatchController(staticIdentityResolver{identity: identity},
 		func() WatchRunner { return runner }, idleRefreshWatchOptions(), nil)
 	service := NewService(&fakeDataSource{identity: identity}, nil, runner, Options{Watch: controller})
@@ -108,7 +108,7 @@ func startExternalWatch(t *testing.T, identity draftwatch.Identity) func() {
 	t.Helper()
 	external := openDraftBoardTestDB(t)
 	source := newSignalingSource()
-	runner := draftwatch.Runner{Pool: external, Repository: draftwatch.NewRepository(external), Source: source}
+	runner := draftwatch.Runner{Pool: external, Store: draftwatch.NewPGStore(external), Source: source}
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
 	go func() { done <- runner.Watch(ctx, identity, idleRefreshWatchOptions()) }()

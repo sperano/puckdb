@@ -152,7 +152,7 @@ func draftRefreshVariables() map[string]any {
 
 // newDraftRefreshTestServer serves a board whose one-shot refresher is
 // refresher; a non-nil watch factory starts a watch of the fixture league.
-func newDraftRefreshTestServer(t *testing.T, refresher draftboard.Refresher, watch func() draftboard.WatchRunner) *httptest.Server {
+func newDraftRefreshTestServer(t *testing.T, refresher draftboard.SessionSyncer, watch func() draftboard.WatchRunner) *httptest.Server {
 	t.Helper()
 	data := &graphBoardData{identity: draftwatch.Identity{LeagueKey: draftfixtures.LeagueKey,
 		Season: draftfixtures.Season, LeagueID: draftfixtures.LeagueID, GameKey: 465}}
@@ -295,7 +295,7 @@ func newDraftBoardTestServer(t *testing.T) (*httptest.Server, *graphBoardData) {
 	}
 	data.session.Identity = data.identity
 	data.league = draftboard.LeagueData{TeamID: 3, TeamName: "My team", DraftFormat: "snake",
-		PickClock: new(90), Rules: draft.Snapshot{Rules: draft.Rules{RosterSlots: snapshot.League.RosterSlots}},
+		PickClock: new(90), Rules: draft.RulesSnapshot{Rules: draft.Rules{RosterSlots: snapshot.League.RosterSlots}},
 		EstimatedOrder: []draftrecommend.PickSlot{
 			{Key: draftsession.PickKey{Round: 1, Pick: 1}, TeamID: 3},
 			{Key: draftsession.PickKey{Round: 1, Pick: 2}, TeamID: 4},

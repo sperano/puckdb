@@ -44,8 +44,8 @@ type RefreshRequest struct {
 // called between steps so a long refresh stays observable and cancellable.
 type Refresher struct {
 	Queries     *sqlcdb.Queries
-	Projections *projection.Repository
-	Adjustments *newsadjust.Repository
+	Projections *projection.PGStore
+	Adjustments *newsadjust.PGStore
 	Store       *PGStore
 	Now         func() time.Time
 	Heartbeat   func(step string)
@@ -54,8 +54,8 @@ type Refresher struct {
 // NewRefresher returns a Refresher over the pool.
 func NewRefresher(pool *pgxpool.Pool) *Refresher {
 	return &Refresher{
-		Queries: sqlcdb.New(pool), Projections: projection.NewRepository(pool),
-		Adjustments: newsadjust.NewRepository(pool), Store: NewPGStore(pool), Now: time.Now,
+		Queries: sqlcdb.New(pool), Projections: projection.NewPGStore(pool),
+		Adjustments: newsadjust.NewPGStore(pool), Store: NewPGStore(pool), Now: time.Now,
 	}
 }
 
@@ -88,7 +88,7 @@ func (r *Refresher) Refresh(ctx context.Context, req RefreshRequest) (Refresh, e
 }
 
 func (r *Refresher) refresh(ctx context.Context, req RefreshRequest, asOf time.Time) (uuid.UUID, string, error) {
-	rules, err := draft.LoadSnapshot(ctx, r.Queries, req.Season, req.LeagueID)
+	rules, err := draft.LoadRulesSnapshot(ctx, r.Queries, req.Season, req.LeagueID)
 	if errors.Is(err, draft.ErrNoRules) {
 		return uuid.Nil, "", refreshError(IssueMissingRules, err)
 	}
@@ -135,7 +135,7 @@ func (r *Refresher) refresh(ctx context.Context, req RefreshRequest, asOf time.T
 // (draft.SourceTemporaryStandIn) has no Yahoo pool to sync at all — its pool
 // notes say what NHL rosters were tried and why nothing qualified — so it
 // gets a distinct message from a real Yahoo league's.
-func missingPoolError(rules draft.Snapshot, leagueKey string, poolNotes []string) error {
+func missingPoolError(rules draft.RulesSnapshot, leagueKey string, poolNotes []string) error {
 	if rules.Source != draft.SourceTemporaryStandIn {
 		return fmt.Errorf("league %s has no draftable players; run a Yahoo sync", leagueKey)
 	}
@@ -149,7 +149,7 @@ func missingPoolError(rules draft.Snapshot, leagueKey string, poolNotes []string
 
 // baseline builds (or, for a day already built, reuses) the league-neutral
 // projection snapshot of the pool.
-func (r *Refresher) baseline(ctx context.Context, season int, rules draft.Snapshot, pool []draft.PoolPlayer, asOf time.Time) (uuid.UUID, projection.Snapshot, error) {
+func (r *Refresher) baseline(ctx context.Context, season int, rules draft.RulesSnapshot, pool []draft.PoolPlayer, asOf time.Time) (uuid.UUID, projection.Snapshot, error) {
 	request := projection.BuildRequest{PlayerPool: projectionPool(pool), Categories: projectionCategories(rules.Rules)}
 	id, snapshot, err := r.Projections.BuildSnapshot(ctx, projection.DefaultConfig(), SeasonID(season), asOf.UTC().Truncate(projectionAsOfPrecision), request)
 	var coverage *projection.CoverageError

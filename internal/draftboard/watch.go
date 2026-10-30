@@ -15,7 +15,8 @@ type WatchRunner interface {
 	Watch(context.Context, draftwatch.Identity, draftwatch.WatchOptions) error
 }
 
-// IdentityResolver gives the controller season-safe session keys.
+// IdentityResolver resolves a league reference to its season-safe session
+// identity, for the board and its watch controller.
 type IdentityResolver interface {
 	ResolveIdentity(context.Context, string, int) (draftwatch.Identity, error)
 }

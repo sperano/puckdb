@@ -85,7 +85,7 @@ func timestamptz(t time.Time) pgtype.Timestamptz {
 func TestLoadSnapshot_NoRows(t *testing.T) {
 	t.Parallel()
 	q := &fakeQueries{snapshotErr: pgx.ErrNoRows}
-	_, err := LoadSnapshot(context.Background(), q, loadTestSeason, loadTestLeagueID)
+	_, err := LoadRulesSnapshot(context.Background(), q, loadTestSeason, loadTestLeagueID)
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, ErrNoRules))
 }
@@ -104,7 +104,7 @@ func TestLoadSnapshot_DecodesRulesAndVersions(t *testing.T) {
 		},
 		count: 3,
 	}
-	snapshot, err := LoadSnapshot(context.Background(), q, loadTestSeason, loadTestLeagueID)
+	snapshot, err := LoadRulesSnapshot(context.Background(), q, loadTestSeason, loadTestLeagueID)
 	require.NoError(t, err)
 	assert.Equal(t, rules, snapshot.Rules)
 	assert.Equal(t, hash, snapshot.Hash)
@@ -122,7 +122,7 @@ func TestLoadSnapshot_CountError(t *testing.T) {
 		snapshot: sqlcdb.YahooLeagueRuleSnapshot{Rules: data},
 		countErr: errors.New("boom"),
 	}
-	_, err = LoadSnapshot(context.Background(), q, loadTestSeason, loadTestLeagueID)
+	_, err = LoadRulesSnapshot(context.Background(), q, loadTestSeason, loadTestLeagueID)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "count rule versions")
 }

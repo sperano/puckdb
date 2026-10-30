@@ -8,9 +8,9 @@ import (
 // Reconcile applies resolved positive observations. Only an authoritative,
 // count-verified, fully resolved snapshot replaces the upstream board. Partial
 // observations may add or correct known slots, but never remove a slot.
-func Reconcile(current State, snapshot Snapshot) (State, Report, error) {
+func Reconcile(current State, snapshot ObservedBoard) (State, Report, error) {
 	if snapshot.RawCount < 0 || snapshot.ExpectedCount < 0 {
-		return current, Report{}, fmt.Errorf("%w: negative result count", ErrInvalidSnapshot)
+		return current, Report{}, fmt.Errorf("%w: negative result count", ErrInvalidObservedBoard)
 	}
 
 	next := cloneState(current)

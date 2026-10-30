@@ -153,9 +153,9 @@ func newDraftBoardService(pool *pgxpool.Pool, redisClient *redis.Client, ranking
 	if err != nil {
 		return nil, fmt.Errorf("create Yahoo rate limiter: %w", err)
 	}
-	repository := draftwatch.NewRepository(pool)
+	repository := draftwatch.NewPGStore(pool)
 	runner := draftwatch.Runner{
-		Pool: pool, Repository: repository,
+		Pool: pool, Store: repository,
 		Source: draftwatch.NewYahooSource(newDefaultStorage(), gobCache, newYahooDownloader(redisClient, yahooLimiter)),
 	}
 	interval := time.Duration(viper.GetInt(config.FlagDraftPollInterval)) * time.Second

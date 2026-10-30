@@ -8,6 +8,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/sperano/puckdb/internal/draftsession"
+	"github.com/sperano/puckdb/internal/sqlcdb"
 )
 
 // ErrSyncInProgress reports that another synchronization of the same league
@@ -20,8 +21,8 @@ type Source interface {
 	Poll(context.Context, Identity) (PollResult, error)
 }
 
-// SessionRepository is the persistence surface used by a runner.
-type SessionRepository interface {
+// SessionStore is the persistence surface used by a runner.
+type SessionStore interface {
 	Reconcile(context.Context, Identity, PollResult) (Session, draftsession.Report, error)
 	RecordFailure(context.Context, Identity, time.Time, time.Duration, error) error
 }
@@ -56,10 +57,10 @@ type RefreshRequest struct {
 // Runner coordinates fetch, transactional reconciliation, persistence and
 // the database-wide per-session synchronization lock.
 type Runner struct {
-	Pool       *pgxpool.Pool
-	Repository SessionRepository
-	Source     Source
-	Now        func() time.Time
+	Pool   *pgxpool.Pool
+	Store  SessionStore
+	Source Source
+	Now    func() time.Time
 }
 
 // SyncOnce performs one targeted poll and records success or failure. It uses
@@ -83,13 +84,13 @@ func (r Runner) syncOnce(ctx context.Context, id Identity) (Session, draftsessio
 	poll, err := r.Source.Poll(ctx, id)
 	if err != nil {
 		finished := now().UTC()
-		recordErr := r.Repository.RecordFailure(ctx, id, finished, finished.Sub(started), err)
+		recordErr := r.Store.RecordFailure(ctx, id, finished, finished.Sub(started), err)
 		if recordErr != nil {
 			return Session{}, draftsession.Report{}, errors.Join(err, recordErr)
 		}
 		return Session{}, draftsession.Report{}, err
 	}
-	return r.Repository.Reconcile(ctx, id, poll)
+	return r.Store.Reconcile(ctx, id, poll)
 }
 
 // Watch polls until cancellation or Yahoo reports postdraft. Cancellation
@@ -234,9 +235,8 @@ func acquireSessionSync(ctx context.Context, pool *pgxpool.Pool, leagueKey strin
 	if err != nil {
 		return nil, fmt.Errorf("acquire draft synchronization connection: %w", err)
 	}
-	const query = `SELECT pg_try_advisory_lock(hashtextextended('draft-session-sync:' || $1, 0))`
-	var acquired bool
-	if err := conn.QueryRow(ctx, query, leagueKey).Scan(&acquired); err != nil {
+	acquired, err := sqlcdb.New(conn).TryDraftSessionSyncLock(ctx, leagueKey)
+	if err != nil {
 		conn.Release()
 		return nil, fmt.Errorf("acquire draft synchronization lock: %w", err)
 	}
@@ -251,11 +251,9 @@ func (l *sessionSyncLock) Close() {
 	if l == nil || l.conn == nil {
 		return
 	}
-	const query = `SELECT pg_advisory_unlock(hashtextextended('draft-session-sync:' || $1, 0))`
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	var unlocked bool
-	err := l.conn.QueryRow(ctx, query, l.leagueKey).Scan(&unlocked)
+	unlocked, err := sqlcdb.New(l.conn).ReleaseDraftSessionSyncLock(ctx, l.leagueKey)
 	if err != nil || !unlocked {
 		// A session advisory lock survives transaction boundaries. If release
 		// is uncertain, remove the connection from the pool and close the

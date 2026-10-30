@@ -95,8 +95,8 @@ func testPlayer(key string, kind projection.PlayerKind, uncertainty float64, val
 	return projected
 }
 
-func testRankingInput(scoringType string, categories []StatCategory, slots []RosterSlot, players ...projection.PlayerProjection) (Snapshot, projection.Snapshot, []PoolPlayer) {
-	rules := Snapshot{Rules: Rules{
+func testRankingInput(scoringType string, categories []StatCategory, slots []RosterSlot, players ...projection.PlayerProjection) (RulesSnapshot, projection.Snapshot, []PoolPlayer) {
+	rules := RulesSnapshot{Rules: Rules{
 		LeagueKey: "470.l.1001", Season: rankingTestSeason, ScoringType: scoringType,
 		NumTeams: 1, Categories: categories, RosterSlots: slots,
 	}, Source: SourceYahooAPI}
@@ -123,7 +123,7 @@ func testWeightedCategory(id int, weight float64) StatCategory {
 	return StatCategory{StatID: id, Enabled: true, Weight: &weight}
 }
 
-func rankedByKey(t *testing.T, ranking RankingSnapshot, key string) RankedPlayer {
+func rankedByKey(t *testing.T, ranking Ranking, key string) RankedPlayer {
 	t.Helper()
 	for _, player := range ranking.Players {
 		if player.PlayerKey == key {

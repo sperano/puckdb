@@ -26,11 +26,11 @@ type RankingReader interface {
 
 // NewPGService wires PostgreSQL state, immutable ranking reads, recommendation
 // persistence and the process-scoped watcher controller.
-func NewPGService(pool *pgxpool.Pool, rankings RankingReader, refresher Refresher,
+func NewPGService(pool *pgxpool.Pool, rankings RankingReader, syncer SessionSyncer,
 	watchFactory func() WatchRunner, watchOptions draftwatch.WatchOptions, options Options) *Service {
 	data := NewPGDataSource(pool, rankings)
 	options.Watch = NewWatchController(data, watchFactory, watchOptions, options.Now)
-	return NewService(data, draftrecommend.NewService(draftrecommend.NewRepository(pool)), refresher, options)
+	return NewService(data, draftrecommend.NewService(draftrecommend.NewPGStore(pool)), syncer, options)
 }
 
 // PGDataSource loads board inputs and shortlist state from PostgreSQL.
@@ -38,13 +38,13 @@ type PGDataSource struct {
 	pool    *pgxpool.Pool
 	queries *sqlcdb.Queries
 	ranking RankingReader
-	session *draftwatch.Repository
+	session *draftwatch.PGStore
 }
 
 // NewPGDataSource builds the concrete data source around a shared pool.
 func NewPGDataSource(pool *pgxpool.Pool, ranking RankingReader) *PGDataSource {
 	return &PGDataSource{pool: pool, queries: sqlcdb.New(pool), ranking: ranking,
-		session: draftwatch.NewRepository(pool)}
+		session: draftwatch.NewPGStore(pool)}
 }
 
 // ResolveIdentity resolves a full league key or numeric league ID for season
@@ -109,7 +109,7 @@ func readRanking(ctx context.Context, reader RankingReader, id draftwatch.Identi
 // the draft format and pick clock, and the estimated snake order when the
 // format allows one.
 func (s *PGDataSource) LeagueData(ctx context.Context, id draftwatch.Identity) (LeagueData, error) {
-	rules, err := draft.LoadSnapshot(ctx, s.queries, id.Season, id.LeagueID)
+	rules, err := draft.LoadRulesSnapshot(ctx, s.queries, id.Season, id.LeagueID)
 	if err != nil {
 		return LeagueData{}, err
 	}
@@ -210,21 +210,11 @@ func sameDate(left, right pgtype.Date) bool {
 // ListShortlist returns the league's shortlisted player keys ordered by when
 // they were added (created_at), then by player key for equal timestamps.
 func (s *PGDataSource) ListShortlist(ctx context.Context, leagueKey string) ([]string, error) {
-	const query = `SELECT player_key FROM draft_shortlist WHERE league_key=$1 ORDER BY created_at, player_key`
-	rows, err := s.pool.Query(ctx, query, leagueKey)
+	keys, err := s.queries.ListDraftShortlist(ctx, leagueKey)
 	if err != nil {
 		return nil, fmt.Errorf("list draft shortlist: %w", err)
 	}
-	defer rows.Close()
-	keys := make([]string, 0)
-	for rows.Next() {
-		var key string
-		if err := rows.Scan(&key); err != nil {
-			return nil, fmt.Errorf("scan draft shortlist: %w", err)
-		}
-		keys = append(keys, key)
-	}
-	return keys, rows.Err()
+	return keys, nil
 }
 
 // SetShortlist adds or removes a shortlisted player while the session is
@@ -239,9 +229,9 @@ func (s *PGDataSource) SetShortlist(ctx context.Context, leagueKey, playerKey st
 		return fmt.Errorf("begin draft shortlist update: %w", err)
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
-	const versionQuery = `SELECT state_version FROM draft_sessions WHERE league_key=$1 FOR UPDATE`
-	var current int64
-	if err := tx.QueryRow(ctx, versionQuery, leagueKey).Scan(&current); err != nil {
+	queries := s.queries.WithTx(tx)
+	current, err := queries.LockDraftSessionVersion(ctx, leagueKey)
+	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return fmt.Errorf("read draft session %s for shortlist: %w", leagueKey, draftwatch.ErrSessionNotFound)
 		}
@@ -253,13 +243,15 @@ func (s *PGDataSource) SetShortlist(ctx context.Context, leagueKey, playerKey st
 	if uint64(current) != expectedVersion {
 		return versionConflict(&draftwatch.StaleStateVersionError{Expected: expectedVersion, Actual: uint64(current)})
 	}
-	changed, err := updateShortlist(ctx, tx, leagueKey, playerKey, selected, at)
+	changed, err := updateShortlist(ctx, queries, leagueKey, playerKey, selected, at)
 	if err != nil {
 		return err
 	}
 	if changed {
-		const bump = `UPDATE draft_sessions SET sync_version=sync_version+1, updated_at=$2 WHERE league_key=$1`
-		if _, err := tx.Exec(ctx, bump, leagueKey, at); err != nil {
+		err := queries.BumpDraftSessionSyncVersion(ctx, sqlcdb.BumpDraftSessionSyncVersionParams{
+			UpdatedAt: pgtype.Timestamptz{Time: at, Valid: true}, LeagueKey: leagueKey,
+		})
+		if err != nil {
 			return fmt.Errorf("advance draft sync version for shortlist: %w", err)
 		}
 	}
@@ -269,19 +261,21 @@ func (s *PGDataSource) SetShortlist(ctx context.Context, leagueKey, playerKey st
 	return nil
 }
 
-func updateShortlist(ctx context.Context, tx pgx.Tx, leagueKey, playerKey string, selected bool, at time.Time) (bool, error) {
+func updateShortlist(ctx context.Context, queries *sqlcdb.Queries, leagueKey, playerKey string, selected bool, at time.Time) (bool, error) {
 	if selected {
-		const insert = `INSERT INTO draft_shortlist (league_key, player_key, created_at) VALUES ($1,$2,$3) ON CONFLICT (league_key, player_key) DO NOTHING`
-		result, err := tx.Exec(ctx, insert, leagueKey, playerKey, at)
+		added, err := queries.AddDraftShortlistPlayer(ctx, sqlcdb.AddDraftShortlistPlayerParams{
+			LeagueKey: leagueKey, PlayerKey: playerKey, CreatedAt: pgtype.Timestamptz{Time: at, Valid: true},
+		})
 		if err != nil {
 			return false, fmt.Errorf("save draft shortlist player: %w", err)
 		}
-		return result.RowsAffected() > 0, nil
+		return added > 0, nil
 	}
-	const remove = `DELETE FROM draft_shortlist WHERE league_key=$1 AND player_key=$2`
-	result, err := tx.Exec(ctx, remove, leagueKey, playerKey)
+	removed, err := queries.RemoveDraftShortlistPlayer(ctx, sqlcdb.RemoveDraftShortlistPlayerParams{
+		LeagueKey: leagueKey, PlayerKey: playerKey,
+	})
 	if err != nil {
 		return false, fmt.Errorf("remove draft shortlist player: %w", err)
 	}
-	return result.RowsAffected() > 0, nil
+	return removed > 0, nil
 }

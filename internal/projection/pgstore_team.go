@@ -10,7 +10,7 @@ import (
 )
 
 // loadTeamSeasons reads the clubs' environments over the history window.
-func (r *Repository) loadTeamSeasons(ctx context.Context, targetSeason, lowerSeason int, cutoff pgtype.Date) ([]TeamSeason, error) {
+func (r *PGStore) loadTeamSeasons(ctx context.Context, targetSeason, lowerSeason int, cutoff pgtype.Date) ([]TeamSeason, error) {
 	rows, err := r.queries.ListProjectionTeamSeasons(ctx, sqlcdb.ListProjectionTeamSeasonsParams{
 		Season: int32(targetSeason), Season_2: int32(lowerSeason), GameDate: cutoff,
 	})
@@ -30,7 +30,7 @@ func (r *Repository) loadTeamSeasons(ctx context.Context, targetSeason, lowerSea
 
 // loadSkaterClubSeasons reads the per-club games of the skater seasons
 // split between clubs over the history window.
-func (r *Repository) loadSkaterClubSeasons(ctx context.Context, targetSeason, lowerSeason int, cutoff pgtype.Date) ([]SkaterClubSeason, error) {
+func (r *PGStore) loadSkaterClubSeasons(ctx context.Context, targetSeason, lowerSeason int, cutoff pgtype.Date) ([]SkaterClubSeason, error) {
 	rows, err := r.queries.ListProjectionSkaterClubGames(ctx, sqlcdb.ListProjectionSkaterClubGamesParams{
 		Season: int32(targetSeason), Season_2: int32(lowerSeason), GameDate: cutoff,
 	})
@@ -50,7 +50,7 @@ func (r *Repository) loadSkaterClubSeasons(ctx context.Context, targetSeason, lo
 // model supports it: club environments and split-season club games over the
 // lookback window (the aging curve's longer training window does not apply
 // to clubs), and the target clubs from loadTargets.
-func (r *Repository) loadTeamInputs(
+func (r *PGStore) loadTeamInputs(
 	ctx context.Context,
 	cfg Config,
 	input *Input,
@@ -74,7 +74,7 @@ func (r *Repository) loadTeamInputs(
 
 // loadTargetTeams reads each player's club from the target season's
 // imported rosters.
-func (r *Repository) loadTargetTeams(ctx context.Context, targetSeason int) ([]PlayerTeam, error) {
+func (r *PGStore) loadTargetTeams(ctx context.Context, targetSeason int) ([]PlayerTeam, error) {
 	rows, err := r.queries.ListProjectionTargetTeams(ctx, int32(targetSeason))
 	if err != nil {
 		return nil, fmt.Errorf("load projection target teams: %w", err)
@@ -88,7 +88,7 @@ func (r *Repository) loadTargetTeams(ctx context.Context, targetSeason int) ([]P
 
 // loadEvaluationTargetTeams reads each skater's first club of a held-out
 // season.
-func (r *Repository) loadEvaluationTargetTeams(ctx context.Context, targetSeason int) ([]PlayerTeam, error) {
+func (r *PGStore) loadEvaluationTargetTeams(ctx context.Context, targetSeason int) ([]PlayerTeam, error) {
 	rows, err := r.queries.ListProjectionEvaluationTargetTeams(ctx, int32(targetSeason))
 	if err != nil {
 		return nil, fmt.Errorf("load evaluation target teams: %w", err)

@@ -1,5 +1,5 @@
 // Package draftwatch connects Yahoo's mutable draft resources to the durable
-// draft-session reducer and PostgreSQL repository.
+// draft-session reducer and its PostgreSQL store.
 package draftwatch
 
 import (

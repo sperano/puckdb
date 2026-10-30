@@ -80,7 +80,7 @@ type Scoring struct {
 // wrapping ErrMissingScoringInputs that lists every problem when the scoring
 // type is unknown, no stat scores, a category has no direction, or a points
 // stat has no weight or a bonus the model cannot apply.
-func ScoringFor(snapshot Snapshot) (Scoring, error) {
+func ScoringFor(snapshot RulesSnapshot) (Scoring, error) {
 	rules := snapshot.Rules
 	kind, known := scoringTypes[rules.ScoringType]
 	if !known {

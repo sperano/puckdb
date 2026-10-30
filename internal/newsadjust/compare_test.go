@@ -21,8 +21,8 @@ const (
 	testRatioTolRank = 1e-6
 )
 
-func goalieRules(leagueKey, scoringType string, categories ...draft.StatCategory) draft.Snapshot {
-	return draft.Snapshot{Rules: draft.Rules{
+func goalieRules(leagueKey, scoringType string, categories ...draft.StatCategory) draft.RulesSnapshot {
+	return draft.RulesSnapshot{Rules: draft.Rules{
 		LeagueKey: leagueKey, Season: testDraftSeason, ScoringType: scoringType, NumTeams: 1,
 		Categories:  categories,
 		RosterSlots: []draft.RosterSlot{{Position: draft.PositionGoalie, Count: 1, Starting: true}},

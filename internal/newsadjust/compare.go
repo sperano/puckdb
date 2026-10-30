@@ -46,7 +46,7 @@ type Comparison struct {
 
 // Compare ranks the baseline and every scenario of an adjustment for one
 // league. Rows follow the baseline ranking order.
-func Compare(rules draft.Snapshot, baseline projection.Snapshot, result Result, pool []draft.PoolPlayer, options draft.RankingOptions) (Comparison, error) {
+func Compare(rules draft.RulesSnapshot, baseline projection.Snapshot, result Result, pool []draft.PoolPlayer, options draft.RankingOptions) (Comparison, error) {
 	switch {
 	case result.BaselineHash != baseline.SourceDataHash:
 		return Comparison{}, fmt.Errorf("adjustment %s was built from another baseline", result.ID)
@@ -93,7 +93,7 @@ func Compare(rules draft.Snapshot, baseline projection.Snapshot, result Result, 
 	return comparison, nil
 }
 
-func placementsByKey(ranking draft.RankingSnapshot) map[string]Placement {
+func placementsByKey(ranking draft.Ranking) map[string]Placement {
 	out := make(map[string]Placement, len(ranking.Players))
 	for _, player := range ranking.Players {
 		out[player.PlayerKey] = placementOf(player)

@@ -212,8 +212,8 @@ func (s *PGStore) LatestRefresh(ctx context.Context, season, leagueID int) (*Ref
 }
 
 // LeagueRules returns a league's latest rules, nil when none were imported.
-func (s *PGStore) LeagueRules(ctx context.Context, season, leagueID int) (*draft.Snapshot, error) {
-	rules, err := draft.LoadSnapshot(ctx, s.queries, season, leagueID)
+func (s *PGStore) LeagueRules(ctx context.Context, season, leagueID int) (*draft.RulesSnapshot, error) {
+	rules, err := draft.LoadRulesSnapshot(ctx, s.queries, season, leagueID)
 	if errors.Is(err, draft.ErrNoRules) {
 		return nil, nil
 	}
@@ -224,14 +224,14 @@ func (s *PGStore) LeagueRules(ctx context.Context, season, leagueID int) (*draft
 }
 
 // ListLeagueRules returns the latest rules of every league of a season.
-func (s *PGStore) ListLeagueRules(ctx context.Context, season int) ([]draft.Snapshot, error) {
+func (s *PGStore) ListLeagueRules(ctx context.Context, season int) ([]draft.RulesSnapshot, error) {
 	rows, err := s.queries.ListLatestYahooLeagueRuleSnapshots(ctx, int32(season))
 	if err != nil {
 		return nil, fmt.Errorf("list league rules of season %d: %w", season, err)
 	}
-	out := make([]draft.Snapshot, 0, len(rows))
+	out := make([]draft.RulesSnapshot, 0, len(rows))
 	for _, row := range rows {
-		rules, err := draft.SnapshotFromRow(row)
+		rules, err := draft.RulesSnapshotFromRow(row)
 		if err != nil {
 			return nil, err
 		}

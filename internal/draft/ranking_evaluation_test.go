@@ -3,7 +3,7 @@ package draft
 import "testing"
 
 func TestEvaluateOrdering_ComparisonToBasicPoints(t *testing.T) {
-	ranking := RankingSnapshot{Players: []RankedPlayer{
+	ranking := Ranking{Players: []RankedPlayer{
 		{PlayerKey: "wing", AdjustedValue: 8},
 		{PlayerKey: "center", AdjustedValue: 2},
 		{PlayerKey: "depth", AdjustedValue: 0},

@@ -55,7 +55,7 @@ func openAdjustmentTestDB(t *testing.T) *pgxpool.Pool {
 }
 
 func TestRepository_OverrideHistory(t *testing.T) {
-	repo := NewRepository(openAdjustmentTestDB(t))
+	repo := NewPGStore(openAdjustmentTestDB(t))
 	ctx := context.Background()
 	override := testOverride(NewOverrideID(), OverrideMissedGames, 10)
 	override.LeagueKey, override.ExpiresAt = testLeague1001, testOverrideAt.Add(30*24*time.Hour)
@@ -75,7 +75,7 @@ func TestRepository_OverrideHistory(t *testing.T) {
 
 func TestRepository_SaveRunIsIdempotentAndReplays(t *testing.T) {
 	pool := openAdjustmentTestDB(t)
-	repo := NewRepository(pool)
+	repo := NewPGStore(pool)
 	ctx := context.Background()
 	baseline := testBaseline(testGoalie(testGoalieKey, testGoalieStarts), testSkater(testSkaterKey))
 	baselineID, err := projection.StoreSnapshotWith(ctx, sqlcdb.New(pool), baseline)
@@ -146,7 +146,7 @@ func TestRepository_ExclusionMustNameAStoredEventAboutItsPlayer(t *testing.T) {
 	matchedKey := fmt.Sprintf("465.p.%d", testMatchedYahooID)
 	yahooKey := fmt.Sprintf("465.p.%d", testYahooOnlyID)
 
-	repo := NewRepository(pool)
+	repo := NewPGStore(pool)
 	for name, tc := range map[string]struct {
 		player, event string
 		accepted      bool
@@ -198,7 +198,7 @@ func TestRepository_RefusesExclusionsOfStoredRelationships(t *testing.T) {
 		strings.TrimPrefix(correction, extractedIDPrefix), strings.TrimPrefix(original, extractedIDPrefix))
 	require.NoError(t, err)
 
-	repo := NewRepository(pool)
+	repo := NewPGStore(pool)
 	for event, want := range map[string]error{
 		extractedID(reinstatement): ErrExclusionUnsupported,
 		correction:                 ErrExclusionUnsupported,

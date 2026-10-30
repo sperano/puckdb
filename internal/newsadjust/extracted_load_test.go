@@ -169,7 +169,7 @@ func TestRepository_LoadEventsReplaysReconciledExtraction(t *testing.T) {
 
 	goalie := projectedWithID(testGoalie(testGoalieKey, testGoalieStarts), testGoalieNHLID)
 	baseline := testBaseline(goalie)
-	events, warnings, err := NewRepository(pool).LoadEvents(ctx, baseline)
+	events, warnings, err := NewPGStore(pool).LoadEvents(ctx, baseline)
 	require.NoError(t, err)
 	assert.Empty(t, warnings)
 	require.Len(t, events, 3, "suspension created and resolved, reinstatement created")

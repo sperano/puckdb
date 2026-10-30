@@ -9,9 +9,10 @@ import (
 )
 
 var (
-	// ErrInvalidSnapshot rejects a Yahoo observation with a negative result
-	// count. Reconcile skips invalid picks rather than rejecting them.
-	ErrInvalidSnapshot = errors.New("invalid draft snapshot")
+	// ErrInvalidObservedBoard rejects a Yahoo observation with a negative
+	// result count. Reconcile skips invalid picks rather than rejecting them.
+	// Its message predates the type name and reaches CLI and GraphQL errors.
+	ErrInvalidObservedBoard = errors.New("invalid draft snapshot")
 	// ErrInvalidManual rejects a manual operation or conflict resolution
 	// that does not fit the slot's current state.
 	ErrInvalidManual = errors.New("invalid manual draft operation")
@@ -46,11 +47,14 @@ type ObservedPick struct {
 	Issue    string
 }
 
-// Snapshot carries the evidence needed to decide whether omissions are
-// meaningful. ExpectedCount must be present and equal RawCount before an
-// observation can remove old picks. An empty authoritative snapshot therefore
-// requires HasExpectedCount=true and ExpectedCount=RawCount=0.
-type Snapshot struct {
+// ObservedBoard is the draft board one Yahoo poll reported, with the
+// evidence needed to decide whether omissions are meaningful. ExpectedCount
+// must be present and equal RawCount before an observation can remove old
+// picks. An empty authoritative observation therefore requires
+// HasExpectedCount=true and ExpectedCount=RawCount=0. Its field names are
+// part of draft_session_observations.snapshot_hash (draftwatch hashes the
+// untagged JSON), so they must not change.
+type ObservedBoard struct {
 	Authoritative    bool
 	HasExpectedCount bool
 	ExpectedCount    int

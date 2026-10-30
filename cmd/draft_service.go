@@ -13,7 +13,7 @@ import (
 // newDraftService builds the ranking service the API and the CLI share, so
 // both read the same stored snapshots through the same code.
 func newDraftService(pool *pgxpool.Pool) *draftrank.Service {
-	return draftrank.NewService(draftrank.NewPGStore(pool), newsadjust.NewRepository(pool), draftrank.ServiceOptions{
+	return draftrank.NewService(draftrank.NewPGStore(pool), newsadjust.NewPGStore(pool), draftrank.ServiceOptions{
 		StaleAfter: time.Duration(viper.GetInt(config.FlagDraftStaleAfter)) * time.Hour,
 	})
 }

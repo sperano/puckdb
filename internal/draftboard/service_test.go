@@ -35,7 +35,7 @@ func TestBoardComposesFreshnessHistoryRosterAvailableNewsAndNoGuessedTurn(t *tes
 		SyncVersion: 14,
 	}, ranking: boardRanking(identity.LeagueKey), leagueData: LeagueData{
 		TeamID: 3, TeamName: "My team", DraftPosition: 2, DraftFormat: "snake",
-		Rules: draft.Snapshot{Rules: draft.Rules{RosterSlots: []draft.RosterSlot{{Position: draft.PositionCenter, Count: 4, Starting: true}}}},
+		Rules: draft.RulesSnapshot{Rules: draft.Rules{RosterSlots: []draft.RosterSlot{{Position: draft.PositionCenter, Count: 4, Starting: true}}}},
 	}}
 	engine := &fakeRecommendationEngine{result: draftrecommend.Result{
 		Scenario: draftrank.ScenarioBase, Issues: draftrecommend.Issues{{Code: draftrecommend.IssueTurnEstimateOmitted,
@@ -127,7 +127,7 @@ func TestBoardScenarioFallsBackConsistentlyWithoutEngine(t *testing.T) {
 		session:  draftwatch.Session{Identity: identity, State: state, RecommendationsSafe: true},
 		ranking:  boardRanking(identity.LeagueKey),
 		leagueData: LeagueData{TeamID: 3, TeamName: "My team",
-			Rules: draft.Snapshot{Rules: draft.Rules{RosterSlots: []draft.RosterSlot{{Position: draft.PositionCenter, Count: 4, Starting: true}}}}},
+			Rules: draft.RulesSnapshot{Rules: draft.Rules{RosterSlots: []draft.RosterSlot{{Position: draft.PositionCenter, Count: 4, Starting: true}}}}},
 	}
 	service := NewService(data, nil, nil, Options{Now: func() time.Time { return now }, StaleAfter: time.Minute})
 
@@ -151,7 +151,7 @@ func TestBoardAbsentBaselineSurfacesMissingScenarioWithoutEngine(t *testing.T) {
 		session:  draftwatch.Session{Identity: identity, State: state, RecommendationsSafe: true},
 		ranking:  ranking,
 		leagueData: LeagueData{TeamID: 3, TeamName: "My team",
-			Rules: draft.Snapshot{Rules: draft.Rules{RosterSlots: []draft.RosterSlot{{Position: draft.PositionCenter, Count: 4, Starting: true}}}}},
+			Rules: draft.RulesSnapshot{Rules: draft.Rules{RosterSlots: []draft.RosterSlot{{Position: draft.PositionCenter, Count: 4, Starting: true}}}}},
 	}
 	service := NewService(data, nil, nil, Options{Now: func() time.Time { return now }, StaleAfter: time.Minute})
 
@@ -257,14 +257,14 @@ func TestEventsMapsBoundaryShapeAndCopiesDetails(t *testing.T) {
 func conflictedUndoState(t *testing.T) draftsession.State {
 	t.Helper()
 	key := draftsession.PickKey{Round: 1, Pick: 1}
-	state, _, err := draftsession.Reconcile(draftsession.State{}, draftsession.Snapshot{
+	state, _, err := draftsession.Reconcile(draftsession.State{}, draftsession.ObservedBoard{
 		Picks:    []draftsession.ObservedPick{{Key: key, TeamID: 3, PlayerID: 101}},
 		RawCount: 1, ExpectedCount: 1, HasExpectedCount: true, Authoritative: true,
 	})
 	require.NoError(t, err)
 	state, _, err = draftsession.ApplyManual(state, draftsession.ManualOperation{Kind: draftsession.ManualUndo, Key: key})
 	require.NoError(t, err)
-	state, _, err = draftsession.Reconcile(state, draftsession.Snapshot{
+	state, _, err = draftsession.Reconcile(state, draftsession.ObservedBoard{
 		Picks:    []draftsession.ObservedPick{{Key: key, TeamID: 3, PlayerID: 102}},
 		RawCount: 1, ExpectedCount: 1, HasExpectedCount: true, Authoritative: true,
 	})

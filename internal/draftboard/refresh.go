@@ -32,10 +32,10 @@ func (s *Service) Refresh(ctx context.Context, league string, season int) (draft
 			return outcome.Session, outcome.Report, outcome.Err
 		}
 	}
-	if s.refresher == nil {
+	if s.syncer == nil {
 		return draftwatch.Session{}, draftsession.Report{}, errors.New("draft refresh runner is unavailable")
 	}
-	session, report, err := s.refresher.SyncOnce(ctx, identity)
+	session, report, err := s.syncer.SyncOnce(ctx, identity)
 	if errors.Is(err, draftwatch.ErrSyncInProgress) {
 		return draftwatch.Session{}, draftsession.Report{}, fmt.Errorf(
 			"%w: another Yahoo draft sync for %s is running (a CLI or another API process watching the league, "+

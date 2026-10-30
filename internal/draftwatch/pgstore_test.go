@@ -91,7 +91,7 @@ func TestRepositoryRestartKeepsCompleteBoardAcrossDuplicateAndPartialPolls(t *te
 	require.NoError(t, err)
 	require.True(t, firstReport.SafeToRecommend)
 
-	restarted := NewRepository(fixture.repo.pool)
+	restarted := NewPGStore(fixture.repo.pool)
 	recovered, err := restarted.Get(fixture.ctx, fixture.identity.LeagueKey)
 	require.NoError(t, err)
 	assert.Equal(t, first.State, recovered.State)
@@ -109,7 +109,7 @@ func TestRepositoryRestartKeepsCompleteBoardAcrossDuplicateAndPartialPolls(t *te
 	afterPartial, partialReport, err := restarted.Reconcile(fixture.ctx, fixture.identity, partial)
 	require.NoError(t, err)
 	assert.False(t, partialReport.SafeToRecommend)
-	assert.Len(t, afterPartial.State.Upstream, len(complete.Snapshot.Picks), "partial replay must not delete unseen picks")
+	assert.Len(t, afterPartial.State.Upstream, len(complete.Observed.Picks), "partial replay must not delete unseen picks")
 }
 
 func TestRepositoryPersistsPlayersYahooCorrectedAway(t *testing.T) {
@@ -122,7 +122,7 @@ func TestRepositoryPersistsPlayersYahooCorrectedAway(t *testing.T) {
 		replayPoll(true, 1, draftsession.ObservedPick{Key: key, TeamID: 3, PlayerID: 103}))
 	require.NoError(t, err)
 
-	recovered, err := NewRepository(fixture.repo.pool).Get(fixture.ctx, fixture.identity.LeagueKey)
+	recovered, err := NewPGStore(fixture.repo.pool).Get(fixture.ctx, fixture.identity.LeagueKey)
 
 	require.NoError(t, err)
 	assert.Equal(t, map[int]bool{102: true, 103: true}, recovered.State.UpstreamPlayers)
@@ -188,7 +188,7 @@ func TestRepositoryPersistsUpstreamDuplicateAsUnsafeConflict(t *testing.T) {
 }
 
 func replayPoll(authoritative bool, expected int, picks ...draftsession.ObservedPick) PollResult {
-	return PollResult{PolledAt: time.Now().UTC(), Snapshot: draftsession.Snapshot{
+	return PollResult{PolledAt: time.Now().UTC(), Observed: draftsession.ObservedBoard{
 		Authoritative: authoritative, HasExpectedCount: true, ExpectedCount: expected,
 		RawCount: len(picks), Picks: picks,
 	}}
@@ -211,7 +211,7 @@ func TestSessionSafeToRecommendRequiresStoredFlagAndBoardInvariants(t *testing.T
 }
 
 func TestListEventsValidatesCursorAndLimitBeforeDatabaseAccess(t *testing.T) {
-	var repo *Repository
+	var repo *PGStore
 	_, err := repo.ListEvents(context.Background(), "league", 0, 0)
 	assert.ErrorContains(t, err, "limit must be positive")
 	_, err = repo.ListEvents(context.Background(), "league", uint64(^uint64(0)>>1)+1, 1)
@@ -221,7 +221,7 @@ func TestListEventsValidatesCursorAndLimitBeforeDatabaseAccess(t *testing.T) {
 type repositoryTestFixture struct {
 	ctx      context.Context
 	identity Identity
-	repo     *Repository
+	repo     *PGStore
 }
 
 func newRepositoryTestFixture(t *testing.T) repositoryTestFixture {
@@ -230,7 +230,7 @@ func newRepositoryTestFixture(t *testing.T) repositoryTestFixture {
 	ctx := context.Background()
 	identity := testIdentityForRepository(t)
 	t.Cleanup(func() { _, _ = pool.Exec(ctx, `DELETE FROM draft_sessions WHERE league_key=$1`, identity.LeagueKey) })
-	return repositoryTestFixture{ctx: ctx, identity: identity, repo: NewRepository(pool)}
+	return repositoryTestFixture{ctx: ctx, identity: identity, repo: NewPGStore(pool)}
 }
 
 func assertSessionVersions(t *testing.T, fixture repositoryTestFixture, stateVersion, syncVersion uint64) {
@@ -286,7 +286,7 @@ func reconcileConflict(t *testing.T, fixture repositoryTestFixture, key draftses
 	t.Helper()
 	_, _, err := fixture.repo.Reconcile(fixture.ctx, fixture.identity, PollResult{
 		PolledAt: time.Now().UTC(),
-		Snapshot: draftsession.Snapshot{
+		Observed: draftsession.ObservedBoard{
 			Authoritative: true, HasExpectedCount: true, ExpectedCount: 1, RawCount: 1,
 			Picks: []draftsession.ObservedPick{{Key: key, TeamID: 1, PlayerID: 13}},
 		},
@@ -352,4 +352,53 @@ func TestRecordFailureStoresTypedErrorClass(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, observations, 1)
 	assert.Equal(t, ErrorClassRateLimited, observations[0].ErrorClass)
+}
+
+func TestListObservationsReturnsNewestFirstWithEveryColumn(t *testing.T) {
+	fixture := newRepositoryTestFixture(t)
+	polledAt := time.Date(2026, 10, 4, 20, 0, 0, 0, time.UTC)
+	// Yahoo declares two picks but returns one: a partial, non-authoritative
+	// poll, so the declared and parsed counts differ.
+	poll := replayPoll(true, 2, draftsession.ObservedPick{Key: draftsession.PickKey{Round: 1, Pick: 1}, TeamID: 1, PlayerID: 101})
+	poll.PolledAt, poll.Duration = polledAt, 1500*time.Millisecond
+	poll.DraftStatus, poll.ObservedHash = "draft", "observed-hash"
+	_, _, err := fixture.repo.Reconcile(fixture.ctx, fixture.identity, poll)
+	require.NoError(t, err)
+	failedAt := polledAt.Add(time.Minute)
+	require.NoError(t, fixture.repo.RecordFailure(fixture.ctx, fixture.identity, failedAt, -time.Second, errors.New("poll failed")))
+
+	observations, err := fixture.repo.ListObservations(fixture.ctx, fixture.identity.LeagueKey, 10)
+	require.NoError(t, err)
+	assert.Equal(t, []Observation{
+		{PolledAt: failedAt, ErrorClass: ErrorClassTransport, Error: "poll failed"},
+		{PolledAt: polledAt, Duration: 1500 * time.Millisecond, Success: true,
+			Changed: true, DraftStatus: "draft", DeclaredCount: 2, ParsedCount: 1, SnapshotHash: "observed-hash"},
+	}, utcObservations(observations))
+
+	observations, err = fixture.repo.ListObservations(fixture.ctx, fixture.identity.LeagueKey, 1)
+	require.NoError(t, err)
+	require.Len(t, observations, 1, "the limit bounds the history")
+	assert.True(t, failedAt.Equal(observations[0].PolledAt))
+}
+
+func TestListObservationsBreaksPolledAtTieByNewestRow(t *testing.T) {
+	fixture := newRepositoryTestFixture(t)
+	at := time.Date(2026, 10, 4, 20, 0, 0, 0, time.UTC)
+	require.NoError(t, fixture.repo.RecordFailure(fixture.ctx, fixture.identity, at, time.Second, errors.New("first")))
+	require.NoError(t, fixture.repo.RecordFailure(fixture.ctx, fixture.identity, at, time.Second, errors.New("second")))
+
+	observations, err := fixture.repo.ListObservations(fixture.ctx, fixture.identity.LeagueKey, 10)
+	require.NoError(t, err)
+	require.Len(t, observations, 2)
+	assert.Equal(t, "second", observations[0].Error)
+	assert.Equal(t, "first", observations[1].Error)
+}
+
+// utcObservations normalizes the time zone pgx gives timestamptz values so
+// whole observations compare with assert.Equal.
+func utcObservations(observations []Observation) []Observation {
+	for i := range observations {
+		observations[i].PolledAt = observations[i].PolledAt.UTC()
+	}
+	return observations
 }

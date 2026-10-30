@@ -28,7 +28,7 @@ var (
 
 // LeagueData contains current imported rules and the user's imported roster.
 type LeagueData struct {
-	Rules          draft.Snapshot
+	Rules          draft.RulesSnapshot
 	TeamID         int
 	TeamName       string
 	DraftPosition  int
@@ -38,18 +38,38 @@ type LeagueData struct {
 	EstimatedOrder []draftrecommend.PickSlot
 }
 
-// DataSource isolates persistence so board composition can be tested without
-// PostgreSQL. Shortlist mutation must compare against the persisted session.
-type DataSource interface {
-	ResolveIdentity(context.Context, string, int) (draftwatch.Identity, error)
+// SessionStore is the persisted draft session a board reads and edits.
+// Manual edits apply only while the session is still at the expected state
+// version.
+type SessionStore interface {
 	Session(context.Context, draftwatch.Identity) (draftwatch.Session, error)
-	Ranking(context.Context, draftwatch.Identity) (draftrank.Read, error)
-	LeagueData(context.Context, draftwatch.Identity) (LeagueData, error)
-	ListShortlist(context.Context, string) ([]string, error)
-	SetShortlist(context.Context, string, string, uint64, bool, time.Time) error
 	ApplyManual(context.Context, draftwatch.Identity, draftsession.ManualOperation, uint64, time.Time) (draftwatch.Session, draftsession.Report, error)
 	ResolveConflict(context.Context, draftwatch.Identity, draftsession.PickKey, draftsession.ConflictChoice, uint64, time.Time) (draftwatch.Session, draftsession.Report, error)
 	ListEvents(context.Context, string, uint64, int) ([]draftwatch.Event, error)
+}
+
+// ShortlistStore keeps a league's shortlist. Mutation must compare against
+// the persisted session's state version.
+type ShortlistStore interface {
+	ListShortlist(context.Context, string) ([]string, error)
+	SetShortlist(context.Context, string, string, uint64, bool, time.Time) error
+}
+
+// LeagueSource supplies a league's ranking and its imported rules and
+// roster.
+type LeagueSource interface {
+	Ranking(context.Context, draftwatch.Identity) (draftrank.Read, error)
+	LeagueData(context.Context, draftwatch.Identity) (LeagueData, error)
+}
+
+// DataSource is every role a board needs, so board composition can be
+// tested without PostgreSQL; a helper needing one role takes that
+// interface instead.
+type DataSource interface {
+	IdentityResolver
+	SessionStore
+	ShortlistStore
+	LeagueSource
 }
 
 // RecommendationEngine evaluates and persists the frozen board input.
@@ -57,8 +77,9 @@ type RecommendationEngine interface {
 	Recommend(context.Context, draftrecommend.Input) (draftrecommend.StoredRun, error)
 }
 
-// Refresher performs the shared draftwatch one-shot poll.
-type Refresher interface {
+// SessionSyncer polls Yahoo once for a league and reconciles the result
+// (draftwatch.Runner.SyncOnce).
+type SessionSyncer interface {
 	SyncOnce(context.Context, draftwatch.Identity) (draftwatch.Session, draftsession.Report, error)
 }
 
@@ -75,7 +96,7 @@ type Options struct {
 type Service struct {
 	data                  DataSource
 	recommendations       RecommendationEngine
-	refresher             Refresher
+	syncer                SessionSyncer
 	watch                 *WatchController
 	staleAfter            time.Duration
 	now                   func() time.Time
@@ -87,7 +108,7 @@ type Service struct {
 // NewService composes a board service. Options.Now defaults to time.Now;
 // recommendation limits use their package defaults when non-positive, and a
 // nil Options.Watch leaves watch controls unavailable.
-func NewService(data DataSource, recommendations RecommendationEngine, refresher Refresher, options Options) *Service {
+func NewService(data DataSource, recommendations RecommendationEngine, syncer SessionSyncer, options Options) *Service {
 	if options.Now == nil {
 		options.Now = time.Now
 	}
@@ -97,7 +118,7 @@ func NewService(data DataSource, recommendations RecommendationEngine, refresher
 	if options.RecommendationTimeout <= 0 {
 		options.RecommendationTimeout = DefaultRecommendationTimeout
 	}
-	return &Service{data: data, recommendations: recommendations, refresher: refresher,
+	return &Service{data: data, recommendations: recommendations, syncer: syncer,
 		watch: options.Watch, staleAfter: options.StaleAfter, now: options.Now,
 		recommendationCache:   newRecommendationCache(options.RecommendationCacheSize),
 		recommendationTimeout: options.RecommendationTimeout}

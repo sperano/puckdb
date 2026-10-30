@@ -150,7 +150,7 @@ func observedPick(key draftsession.PickKey, teamID, playerID int) draftsession.O
 // reconciled applies one complete, authoritative Yahoo board.
 func reconciled(t *testing.T, state draftsession.State, picks ...draftsession.ObservedPick) draftsession.State {
 	t.Helper()
-	next, _, err := draftsession.Reconcile(state, draftsession.Snapshot{Picks: picks, Authoritative: true,
+	next, _, err := draftsession.Reconcile(state, draftsession.ObservedBoard{Picks: picks, Authoritative: true,
 		HasExpectedCount: true, ExpectedCount: len(picks), RawCount: len(picks)})
 	require.NoError(t, err)
 	return next

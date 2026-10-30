@@ -13,9 +13,9 @@ import (
 	"github.com/sperano/puckdb/internal/sqlcdb"
 )
 
-// Repository loads projection inputs from PostgreSQL and stores snapshots
+// PGStore loads projection inputs from PostgreSQL and stores snapshots
 // and evaluations.
-type Repository struct {
+type PGStore struct {
 	pool    *pgxpool.Pool
 	queries *sqlcdb.Queries
 }
@@ -29,15 +29,15 @@ type BuildRequest struct {
 	Overrides  []Override
 }
 
-// NewRepository returns a Repository on pool.
-func NewRepository(pool *pgxpool.Pool) *Repository {
-	return &Repository{pool: pool, queries: sqlcdb.New(pool)}
+// NewPGStore returns a PGStore on pool.
+func NewPGStore(pool *pgxpool.Pool) *PGStore {
+	return &PGStore{pool: pool, queries: sqlcdb.New(pool)}
 }
 
 // BuildSnapshot loads only regular-season games available by asOf, generates
 // a deterministic baseline, and replaces the rows for the same snapshot
 // identity atomically. This makes workflow retries idempotent.
-func (r *Repository) BuildSnapshot(
+func (r *PGStore) BuildSnapshot(
 	ctx context.Context,
 	cfg Config,
 	targetSeason int,
@@ -74,7 +74,7 @@ func (r *Repository) BuildSnapshot(
 	return selectedID, selected, err
 }
 
-func (r *Repository) loadInput(
+func (r *PGStore) loadInput(
 	ctx context.Context,
 	cfg Config,
 	targetSeason int,
@@ -126,7 +126,7 @@ func (r *Repository) loadInput(
 // LoadEvaluationInput loads the input of a held-out evaluation of
 // targetSeason: history available at projectionAsOf, and the target season's
 // rows observed by observedAt as outcomes.
-func (r *Repository) LoadEvaluationInput(
+func (r *PGStore) LoadEvaluationInput(
 	ctx context.Context,
 	cfg Config,
 	targetSeason int,
@@ -345,7 +345,7 @@ func goalieSeasonFromRow(row sqlcdb.ListProjectionGoalieHistoryRow) GoalieSeason
 	}
 }
 
-func (r *Repository) storeSnapshot(ctx context.Context, snapshot Snapshot) (uuid.UUID, error) {
+func (r *PGStore) storeSnapshot(ctx context.Context, snapshot Snapshot) (uuid.UUID, error) {
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
 		return uuid.Nil, fmt.Errorf("begin projection snapshot transaction: %w", err)
@@ -385,7 +385,7 @@ func StoreSnapshotWith(ctx context.Context, queries *sqlcdb.Queries, snapshot Sn
 
 // StoreEvaluation validates evaluation and stores it with its metrics in one
 // transaction, returning the new row's ID.
-func (r *Repository) StoreEvaluation(ctx context.Context, evaluation Evaluation) (uuid.UUID, error) {
+func (r *PGStore) StoreEvaluation(ctx context.Context, evaluation Evaluation) (uuid.UUID, error) {
 	if err := validateEvaluation(evaluation); err != nil {
 		return uuid.Nil, err
 	}

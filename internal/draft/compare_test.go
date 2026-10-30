@@ -30,7 +30,7 @@ func buildCompareReports(t *testing.T) (roto, points LeagueReport) {
 	rotoRules.Name = "Roto | League"
 	roto = LeagueReport{
 		Season: compareTestSeason, LeagueID: compareTestLeagueID,
-		Snapshot: Snapshot{
+		Snapshot: RulesSnapshot{
 			Rules: rotoRules, Source: SourceTemporaryStandIn,
 			SourceSeason: compareTestSourceSeason, SourceLeagueKey: compareTestSourceKey,
 			FetchedAt: fetchedAt, FirstSeenAt: fetchedAt, LastSeenAt: fetchedAt,
@@ -40,7 +40,7 @@ func buildCompareReports(t *testing.T) (roto, points LeagueReport) {
 	pointsRules := FromLeague(parsePointsLeague(t, yahoofixtures.PointsLeagueMissingWeight))
 	points = LeagueReport{
 		Season: compareTestSeason, LeagueID: compareTestLeagueID,
-		Snapshot: Snapshot{
+		Snapshot: RulesSnapshot{
 			Rules: pointsRules, Source: SourceYahooAPI,
 			FetchedAt: fetchedAt, FirstSeenAt: fetchedAt, LastSeenAt: fetchedAt,
 		},
@@ -117,7 +117,7 @@ func validLeagueReport() LeagueReport {
 	draftTime := compareTestGeneratedAt.Add(-24 * time.Hour)
 	return LeagueReport{
 		Season: compareTestSeason, LeagueID: compareTestLeagueID,
-		Snapshot: Snapshot{
+		Snapshot: RulesSnapshot{
 			Source:    SourceYahooAPI,
 			FetchedAt: compareTestGeneratedAt.Add(-time.Hour),
 			Rules: Rules{
