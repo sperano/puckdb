@@ -47,3 +47,15 @@ func TestCapsFromRules_WeeklyGoalieMinimum(t *testing.T) {
 		})
 	}
 }
+
+func TestCapsFromRules_ReportsFirstInvalidCapInKeyOrder(t *testing.T) {
+	t.Parallel()
+	const attempts = 20 // map iteration order varies between runs
+	rules := Rules{Settings: map[string]string{"max_goalie_starts": "abc", "max_games_played": "abc"}}
+	for range attempts {
+		_, err := capsFromRules(rules)
+		if err == nil || !strings.Contains(err.Error(), `"max_games_played"`) {
+			t.Fatalf("want the error for max_games_played, the first key in order, got %v", err)
+		}
+	}
+}

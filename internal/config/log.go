@@ -1,10 +1,11 @@
 package config
 
 import (
+	"maps"
 	"os"
 	"path/filepath"
 	"runtime"
-	"sort"
+	"slices"
 	"strings"
 
 	"github.com/rs/zerolog"
@@ -36,14 +37,7 @@ func init() {
 }
 
 func getLogLevelsStr() string {
-	arr := make([]string, len(logLevels))
-	i := 0
-	for k := range logLevels {
-		arr[i] = k
-		i++
-	}
-	sort.Strings(arr)
-	return strings.Join(arr, ", ")
+	return strings.Join(slices.Sorted(maps.Keys(logLevels)), ", ")
 }
 
 func SetLogLevel() {

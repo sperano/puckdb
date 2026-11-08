@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 )
@@ -99,14 +100,5 @@ func ParseSyncSteps(args []string) (map[string]bool, error) {
 // validSyncStepNames lists steps followed by the sorted group names, in a new
 // slice: appending to steps could write into its spare capacity.
 func validSyncStepNames(steps []string, groups map[string][]string) []string {
-	return slices.Concat(steps, sortedKeys(groups))
-}
-
-func sortedKeys(m map[string][]string) []string {
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
-	slices.Sort(keys)
-	return keys
+	return slices.Concat(steps, slices.Sorted(maps.Keys(groups)))
 }

@@ -212,6 +212,9 @@ func rowOf(player Player, scenario Scenario, positions []string) Row {
 }
 
 // foldText lower-cases and strips accents so "stutzle" finds "Stützle".
+// It deliberately does not call matching.NormalizeName: that one also
+// decodes HTML entities and defines the stored normalized names Yahoo IDs
+// are matched on, so search folding can change without re-matching players.
 func foldText(text string) string {
 	folded, _, err := transform.String(transform.Chain(norm.NFD, runes.Remove(runes.In(unicode.Mn)), norm.NFC), text)
 	if err != nil {
