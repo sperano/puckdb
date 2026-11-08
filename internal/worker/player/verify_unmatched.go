@@ -309,7 +309,9 @@ func namesMatchForVerification(searchedName, resultName string) bool {
 	return false
 }
 
-// normalizeNameForVerification prepares a name for comparison.
+// normalizeNameForVerification prepares a name for comparison. Unlike
+// matching.NormalizeName it decodes no HTML entities: it only compares a Yahoo
+// pool name with an NHL search result, and stores nothing.
 func normalizeNameForVerification(name string) string {
 	name = strings.TrimSpace(name)
 	t := transform.Chain(norm.NFD, runes.Remove(runes.In(unicode.Mn)), norm.NFC)

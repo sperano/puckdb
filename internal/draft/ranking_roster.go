@@ -2,6 +2,7 @@ package draft
 
 import (
 	"fmt"
+	"maps"
 	"slices"
 	"strconv"
 	"strings"
@@ -54,12 +55,7 @@ type draftPlan struct {
 
 func capsFromRules(rules Rules) (rankingCaps, error) {
 	var caps rankingCaps
-	keys := make([]string, 0, len(rules.Settings))
-	for key := range rules.Settings {
-		keys = append(keys, key)
-	}
-	slices.Sort(keys)
-	for _, key := range keys {
+	for _, key := range slices.Sorted(maps.Keys(rules.Settings)) {
 		raw := rules.Settings[key]
 		if !isWorkloadLimit(key) {
 			continue

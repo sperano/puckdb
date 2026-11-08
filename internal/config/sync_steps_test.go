@@ -105,3 +105,11 @@ func TestValidSyncStepNames_DoesNotWriteIntoStepsCapacity(t *testing.T) {
 	assert.Equal(t, []string{StepInit, StepFetchSeasons, spare, spare}, backing,
 		"listing valid names must neither append into nor alias the steps")
 }
+
+func TestValidSyncStepNames_ListsGroupsInSortedOrder(t *testing.T) {
+	groups := map[string][]string{"yahoo": nil, "edge": nil, "seasons": nil, "players": nil}
+
+	valid := validSyncStepNames([]string{StepInit}, groups)
+
+	assert.Equal(t, []string{StepInit, "edge", "players", "seasons", "yahoo"}, valid)
+}
