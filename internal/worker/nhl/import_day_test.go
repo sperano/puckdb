@@ -55,10 +55,12 @@ var stepHeartbeats = []string{
 var importDayTeam = yahoo.TeamInfo{LeagueID: 12345, TeamID: 1}
 
 // importDayProbe is importDay's result and error message, returned as one
-// successful activity result.
+// successful activity result, and the error itself, which the activity
+// result cannot carry.
 type importDayProbe struct {
 	Result dayImportResult
 	Err    string
+	Cause  error `json:"-"`
 }
 
 // heartbeatRecorder keeps the string details of every heartbeat an activity
@@ -151,15 +153,18 @@ func importDayInput(day time.Time, teams ...yahoo.TeamInfo) ImportDayInput {
 }
 
 // runImportDayWith runs act.importDay in an activity environment and returns
-// its probe and the heartbeats it recorded.
+// its probe, with the error importDay returned, and the heartbeats it
+// recorded.
 func runImportDayWith(t *testing.T, act *ImportActivities, input ImportDayInput) (importDayProbe, []string) {
 	t.Helper()
 	heartbeats := &heartbeatRecorder{}
 	var env testsuite.WorkflowTestSuite
 	activityEnv := env.NewTestActivityEnvironment()
 	activityEnv.SetWorkerOptions(worker.Options{Interceptors: []interceptor.WorkerInterceptor{heartbeats}})
+	var cause error
 	activityEnv.RegisterActivityWithOptions(func(ctx context.Context, input ImportDayInput) (importDayProbe, error) {
 		result, err := act.importDay(ctx, input)
+		cause = err
 		probe := importDayProbe{Result: result}
 		if err != nil {
 			probe.Err = err.Error()
@@ -170,6 +175,7 @@ func runImportDayWith(t *testing.T, act *ImportActivities, input ImportDayInput)
 	require.NoError(t, err)
 	var probe importDayProbe
 	require.NoError(t, future.Get(&probe))
+	probe.Cause = cause
 	return probe, heartbeats.recorded()
 }
 
@@ -230,7 +236,7 @@ func TestImportDay_WrapsFailedStepWithItsName(t *testing.T) {
 	probe := runImportDay(t, seedImportDay(t, day), day, dbErr)
 
 	assert.Contains(t, probe.Err, "import boxscores for 2024-01-15")
-	assert.Contains(t, probe.Err, dbErr.Error())
+	require.ErrorIs(t, probe.Cause, dbErr, "the failure classifier sees the step's cause")
 }
 
 // Each step whose importer can fail on its own input names its data in the
@@ -282,7 +288,7 @@ func TestImportDay_FailedYahooStepNamesItsData(t *testing.T) {
 	probe, _ := runImportDayWith(t, act, importDayInput(day, importDayTeam))
 
 	assert.Contains(t, probe.Err, "import Yahoo data for 2024-01-15")
-	assert.Contains(t, probe.Err, txErr.Error())
+	require.ErrorIs(t, probe.Cause, txErr, "the failure classifier sees the step's cause")
 	q.AssertExpectations(t)
 }
 
@@ -302,22 +308,27 @@ func TestImportDay_FailedStepKeepsEarlierStepsCounts(t *testing.T) {
 }
 
 // The Yahoo step adds its reads to the day's origins and its unreadable
-// files to the day's skipped rows.
+// files (summaries, standings and rosters, one each here) to the day's
+// skipped rows.
 func TestImportDay_YahooStepCountsReadsAndReadFailures(t *testing.T) {
 	day := time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC)
 	withoutYahoo := runImportDay(t, seedImportDay(t, day), day, nil)
 	require.Empty(t, withoutYahoo.Err)
 	mem := seedImportDay(t, day)
-	roster := resource.Roster{LeagueID: importDayTeam.LeagueID, TeamID: importDayTeam.TeamID, Date: day}
-	summary := resource.TeamSummary{LeagueID: importDayTeam.LeagueID, TeamID: importDayTeam.TeamID, Date: day}
-	require.NoError(t, mem.Write(context.Background(), roster.Path(), []byte(emptyYahooRosterXML)))
-	require.NoError(t, mem.Write(context.Background(), summary.Path(), []byte(corruptCachedFile)))
+	secondTeam := yahoo.TeamInfo{LeagueID: importDayTeam.LeagueID, TeamID: importDayTeam.TeamID + 1}
+	write := func(path, content string) {
+		require.NoError(t, mem.Write(context.Background(), path, []byte(content)))
+	}
+	write(resource.Roster{LeagueID: importDayTeam.LeagueID, TeamID: importDayTeam.TeamID, Date: day}.Path(), emptyYahooRosterXML)
+	write(resource.TeamSummary{LeagueID: importDayTeam.LeagueID, TeamID: importDayTeam.TeamID, Date: day}.Path(), corruptCachedFile)
+	write(resource.Roster{LeagueID: secondTeam.LeagueID, TeamID: secondTeam.TeamID, Date: day}.Path(), corruptCachedFile)
+	write(resource.LeagueStandings{Season: importDayInput(day).Season, LeagueID: importDayTeam.LeagueID, Date: day}.Path(), corruptCachedFile)
 	act, q := newImportDayActivities(mem, nil)
 
-	probe, _ := runImportDayWith(t, act, importDayInput(day, importDayTeam))
+	probe, _ := runImportDayWith(t, act, importDayInput(day, importDayTeam, secondTeam))
 
 	require.Empty(t, probe.Err)
-	assert.Equal(t, 1, probe.Result.SkippedRows, "the unreadable summary")
+	assert.Equal(t, 3, probe.Result.SkippedRows, "the unreadable summary, standings and roster")
 	assert.Equal(t, withoutYahoo.Result.Origins.Total()+1, probe.Result.Origins.Total(), "the roster read")
 	assert.Equal(t, withoutYahoo.Result.Origins[core.OriginFileSystem]+1, probe.Result.Origins[core.OriginFileSystem])
 	q.AssertExpectations(t)
