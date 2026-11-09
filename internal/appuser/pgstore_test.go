@@ -144,8 +144,9 @@ func TestNewPGStore_RequiresAnInstance(t *testing.T) {
 	require.ErrorIs(t, err, ErrNoInstance)
 }
 
-// The same identity on two instances is two users: neither one's session
-// cookie nor its conversations carry over to the other instance.
+// The same identity on two instances is two users: one's session cookie does
+// not carry over to the other instance. Conversations are scoped by user, so
+// they follow (internal/maurice's PostgreSQL contract tests that scoping).
 func TestPGStore_UsersArePerInstance(t *testing.T) {
 	store, pool := openStore(t)
 	other := newStore(t, pool, otherInstance)

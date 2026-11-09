@@ -53,7 +53,9 @@ func resolveRequest(ctx context.Context, provider Provider, store Store, hasher 
 	if res.Created {
 		http.SetCookie(w, sessionCookie(token))
 	}
-	return res.User, nil
+	user := res.User
+	user.Username = identity.Username
+	return user, nil
 }
 
 // Current returns the user of the request in ctx, resolving it on first use.

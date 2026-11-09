@@ -5,6 +5,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -183,7 +184,7 @@ func TestNewAppSessionsRejectsBadProvider(t *testing.T) {
 }
 
 // The provider's header filter runs on every route: a request carrying both
-// identities is refused even where no user is resolved.
+// identities is refused on /ping, where no user is resolved.
 func TestAPIRouterRejectsConflictingIdentities(t *testing.T) {
 	passThrough := func(next http.Handler) http.Handler { return next }
 	sessions := appSessions{filter: appuser.IgnoreForeignHeaders(appuser.AuthentikProvider{}), resolve: passThrough}
@@ -200,4 +201,56 @@ func TestAPIRouterRejectsConflictingIdentities(t *testing.T) {
 	recorder = httptest.NewRecorder()
 	router.ServeHTTP(recorder, req)
 	assert.Equal(t, http.StatusOK, recorder.Code)
+}
+
+// A valid configuration builds the provider's filter and user resolution;
+// neither touches the database until a request resolves a user.
+func TestNewAppSessionsBuildsProvider(t *testing.T) {
+	for name, settings := range map[string]map[string]string{
+		"authentik, the flag default": {},
+		"cloudflare": {
+			config.FlagAuthProvider:               appuser.ProviderCloudflare,
+			config.FlagCloudflareAccessTeamDomain: "team.cloudflareaccess.com",
+			config.FlagCloudflareAccessAUD:        "aud",
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			viper.Reset()
+			t.Cleanup(viper.Reset)
+			viper.SetDefault(config.FlagAuthProvider, config.DefaultAuthProvider)
+			viper.Set(config.FlagInstance, "maurice-crapettes")
+			for k, v := range settings {
+				viper.Set(k, v)
+			}
+			sessions, err := newAppSessions(nil)
+			require.NoError(t, err)
+			assert.NotNil(t, sessions.filter)
+			assert.NotNil(t, sessions.resolve)
+		})
+	}
+}
+
+// The header filter runs before httpx.HeaderContext, so the @admin
+// directive never sees an Authentik group forged on a cloudflare instance.
+func TestAPIRouterDropsForgedAdminGroup(t *testing.T) {
+	const query = `{"query":"mutation { dropDatabase }"}`
+	cloudflare, err := appuser.NewCloudflareProvider(appuser.CloudflareAccessConfig{
+		TeamDomain: "team.cloudflareaccess.com", Audience: "aud",
+	})
+	require.NoError(t, err)
+	passThrough := func(next http.Handler) http.Handler { return next }
+	post := func(provider appuser.Provider) string {
+		sessions := appSessions{filter: appuser.IgnoreForeignHeaders(provider), resolve: passThrough}
+		router := setupAPIRouter(nil, &graph.Resolver{}, sessions, apiAuth{admin: graph.AdminAuth{Group: config.DefaultAdminGroup}})
+		req := httptest.NewRequest(http.MethodPost, graphQLPath+"/query", strings.NewReader(query))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("X-Authentik-Groups", config.DefaultAdminGroup)
+		recorder := httptest.NewRecorder()
+		router.ServeHTTP(recorder, req)
+		return recorder.Body.String()
+	}
+
+	assert.Contains(t, post(cloudflare), "admin privileges required", "the forged group is dropped")
+	assert.NotContains(t, post(appuser.AuthentikProvider{}), "admin privileges required",
+		"control: on an authentik instance the same header grants admin")
 }

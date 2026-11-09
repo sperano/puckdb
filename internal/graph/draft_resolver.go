@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
 	"github.com/sperano/nhl-api-go/nhl"
+	"github.com/sperano/puckdb/internal/appuser"
 	"github.com/sperano/puckdb/internal/draftrank"
 	"github.com/sperano/puckdb/internal/graph/model"
 	"github.com/sperano/puckdb/internal/httpx"
@@ -18,9 +19,10 @@ import (
 
 // Draft ranking resolvers. Every read goes through the shared
 // draftrank.Service, the same one the CLI export uses, and only reads
-// stored snapshots. Access follows the rest of the API: the Authentik
-// forward-auth proxy in front of it authenticates every request, and the
-// override author is the authenticated Authentik user.
+// stored snapshots. Access follows the rest of the API: the instance's login
+// provider (the Authentik forward-auth proxy or Cloudflare Access) in front
+// of it authenticates every request, and the override author is the
+// authenticated user's username.
 
 const (
 	// defaultDraftPageSize is the page size when a request sets none.
@@ -173,19 +175,36 @@ func (r *Resolver) draftOverrides(ctx context.Context, leagueKey, playerKey *str
 	return out, nil
 }
 
-// createDraftOverride records the override under the authenticated
-// Authentik user.
+// createDraftOverride records the override under the authenticated user.
 func (r *Resolver) createDraftOverride(ctx context.Context, input model.DraftOverrideCreateInput) (*model.DraftOverride, error) {
 	svc, err := r.draft()
 	if err != nil {
 		return nil, err
 	}
-	author := httpx.HeadersFromContext(ctx).Get(headerAuthentikUsername)
+	author, err := overrideAuthor(ctx)
+	if err != nil {
+		return nil, err
+	}
 	created, err := svc.CreateOverride(ctx, overrideFromInput(input), author)
 	if err != nil {
 		return nil, err
 	}
 	return gqlOverride(created), nil
+}
+
+// overrideAuthor is the username of the request's PuckDB user. Without one
+// (no user resolution on the route, or no identity) it falls back to the
+// Authentik username header, which a cloudflare instance strips.
+func overrideAuthor(ctx context.Context) (string, error) {
+	user, err := appuser.Current(ctx)
+	switch {
+	case err == nil:
+		return user.Username, nil
+	case errors.Is(err, appuser.ErrUnauthenticated):
+		return httpx.HeadersFromContext(ctx).Get(headerAuthentikUsername), nil
+	default:
+		return "", err
+	}
 }
 
 func (r *Resolver) resetDraftOverride(ctx context.Context, id, reason string) (bool, error) {

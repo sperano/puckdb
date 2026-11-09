@@ -169,6 +169,11 @@ func TestAccessVerifier_ValidToken(t *testing.T) {
 	single["aud"] = testAudience
 	_, err = v.Verify(context.Background(), signToken(t, a, kidA, single))
 	require.NoError(t, err, "aud may be a single string")
+
+	several := validClaims()
+	several["aud"] = []string{"other-application", testAudience}
+	_, err = v.Verify(context.Background(), signToken(t, a, kidA, several))
+	require.NoError(t, err, "the AUD tag may be any element of aud")
 	assert.Equal(t, int32(1), srv.fetches.Load(), "known keys are cached")
 }
 
@@ -177,6 +182,7 @@ func TestAccessVerifier_RejectsClaims(t *testing.T) {
 	srv := newJWKSServer(t, map[string]*rsa.PublicKey{kidA: &a.PublicKey})
 	cases := map[string]func(c map[string]any){
 		"wrong aud":         func(c map[string]any) { c["aud"] = []string{"another-application"} },
+		"aud without tag":   func(c map[string]any) { c["aud"] = []string{"another-application", "third-application"} },
 		"no aud":            func(c map[string]any) { delete(c, "aud") },
 		"expired":           func(c map[string]any) { c["exp"] = testNow.Add(-testTokenLifetime).Unix() },
 		"expired past skew": func(c map[string]any) { c["exp"] = testNow.Add(-tokenClockSkew).Unix() },
@@ -238,13 +244,17 @@ func TestAccessVerifier_RejectsBadSignatures(t *testing.T) {
 }
 
 func TestNewAccessVerifier_ValidatesConfig(t *testing.T) {
-	_, err := NewAccessVerifier(CloudflareAccessConfig{TeamDomain: testTeamDomain, Audience: testAudience})
-	require.NoError(t, err)
+	for _, domain := range []string{testTeamDomain, "Crapettes.CloudflareAccess.com", testTeamDomain + ".", " " + testTeamDomain + " "} {
+		v, err := NewAccessVerifier(CloudflareAccessConfig{TeamDomain: domain, Audience: testAudience})
+		require.NoError(t, err, domain)
+		assert.Equal(t, testIssuer, v.issuer, "Cloudflare's issuer, whatever the case or final dot of %q", domain)
+		assert.Equal(t, testIssuer+"/cdn-cgi/access/certs", v.keys.url)
+	}
 
 	for _, domain := range []string{"", "https://" + testTeamDomain, testTeamDomain + "/", testTeamDomain + "/cdn-cgi", "user@" + testTeamDomain, testTeamDomain + ":8443"} {
 		_, err := NewAccessVerifier(CloudflareAccessConfig{TeamDomain: domain, Audience: testAudience})
 		require.Error(t, err, domain)
 	}
-	_, err = NewAccessVerifier(CloudflareAccessConfig{TeamDomain: testTeamDomain, Audience: " "})
+	_, err := NewAccessVerifier(CloudflareAccessConfig{TeamDomain: testTeamDomain, Audience: " "})
 	require.ErrorContains(t, err, "audience")
 }

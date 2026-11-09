@@ -101,7 +101,7 @@ func TestMiddleware_NewSessionSetsCookieOnce(t *testing.T) {
 	rec, users, errs := serve(t, store, authenticated(), 2)
 
 	require.NoError(t, errs[0])
-	assert.Equal(t, User{ID: "u1", SessionID: "s1"}, users[0])
+	assert.Equal(t, User{ID: "u1", SessionID: "s1", Username: "eric"}, users[0])
 	assert.Equal(t, users[0], users[1])
 	require.Len(t, store.requests, 1, "resolution happens once per request")
 	assert.Nil(t, store.requests[0].PresentedHash)

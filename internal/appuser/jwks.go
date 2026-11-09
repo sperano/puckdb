@@ -34,7 +34,8 @@ const (
 	// range crypto/rsa accepts for verification).
 	minRSAExponent = 2
 	maxRSAExponent = math.MaxInt32
-	// jwkKeyTypeRSA, jwkUseSignature: the only key type and use accepted.
+	// jwkKeyTypeRSA is the only key type accepted; a key's use must be
+	// absent or jwkUseSignature.
 	jwkKeyTypeRSA   = "RSA"
 	jwkUseSignature = "sig"
 )
@@ -44,6 +45,7 @@ var errUnknownKey = errors.New("unknown signing key")
 
 // keySet caches a JWKS by key id. An unknown key id, or keys older than
 // jwksMaxAge, trigger a refetch, at most once per jwksMinRefetchInterval.
+// Cached fresh keys are served without waiting on a fetch in flight.
 type keySet struct {
 	url    string
 	client *http.Client
@@ -53,6 +55,10 @@ type keySet struct {
 	keys        map[string]*rsa.PublicKey
 	fetchedAt   time.Time
 	lastAttempt time.Time
+	// lastErr is the error of the last fetch, nil when it succeeded.
+	lastErr error
+	// inflight is closed when the running fetch ends; nil when none runs.
+	inflight chan struct{}
 }
 
 func newKeySet(url string, client *http.Client, now func() time.Time) *keySet {
@@ -62,44 +68,63 @@ func newKeySet(url string, client *http.Client, now func() time.Time) *keySet {
 	return &keySet{url: url, client: client, now: now}
 }
 
-// key returns the key named kid. The lock is held across a fetch, so
-// concurrent requests needing one wait for it instead of fetching again.
+// key returns the key named kid. A request needing a fetch starts one, or
+// joins the one in flight, and waits for it until ctx ends. While the last
+// fetch failed, a kid the cache lacks returns that fetch error, not
+// ErrInvalidToken.
 func (s *keySet) key(ctx context.Context, kid string) (*rsa.PublicKey, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	key, known := s.keys[kid]
-	fresh := s.now().Sub(s.fetchedAt) < jwksMaxAge
-	if known && fresh {
-		return key, nil
-	}
-	if s.now().Sub(s.lastAttempt) >= jwksMinRefetchInterval {
-		if err := s.refresh(ctx); err != nil {
-			if !known {
-				return nil, err
-			}
-			log.Warn().Err(err).Str("url", s.url).Msg("refresh Cloudflare Access signing keys; using the cached ones")
+	for {
+		s.mu.Lock()
+		key, known := s.keys[kid]
+		if known && s.now().Sub(s.fetchedAt) < jwksMaxAge {
+			s.mu.Unlock()
+			return key, nil
 		}
-		key, known = s.keys[kid]
+		if s.inflight == nil && s.now().Sub(s.lastAttempt) >= jwksMinRefetchInterval {
+			s.startRefresh(ctx)
+		}
+		if done := s.inflight; done != nil {
+			s.mu.Unlock()
+			select {
+			case <-done:
+				continue
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			}
+		}
+		lastErr := s.lastErr
+		s.mu.Unlock()
+		switch {
+		case known:
+			return key, nil
+		case lastErr != nil:
+			return nil, fmt.Errorf("fetch Cloudflare Access signing keys: %w", lastErr)
+		default:
+			return nil, fmt.Errorf("%w: %w %q", ErrInvalidToken, errUnknownKey, kid)
+		}
 	}
-	if !known {
-		return nil, fmt.Errorf("%w: %w %q", ErrInvalidToken, errUnknownKey, kid)
-	}
-	return key, nil
 }
 
-// refresh fetches the key set, replacing the cache on success. The fetch
+// startRefresh starts a fetch of the key set; s.mu must be held. The fetch
 // does not end with the request that triggered it: other requests wait on
-// its result.
-func (s *keySet) refresh(ctx context.Context) error {
-	s.lastAttempt = s.now()
-	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), jwksFetchTimeout)
-	defer cancel()
-	keys, err := s.fetch(ctx)
-	if err != nil {
-		return fmt.Errorf("fetch Cloudflare Access signing keys: %w", err)
-	}
-	s.keys, s.fetchedAt = keys, s.now()
-	return nil
+// its result. A failed fetch keeps the cached keys.
+func (s *keySet) startRefresh(ctx context.Context) {
+	done := make(chan struct{})
+	s.inflight, s.lastAttempt = done, s.now()
+	go func() {
+		defer close(done)
+		ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), jwksFetchTimeout)
+		defer cancel()
+		keys, err := s.fetch(ctx)
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		s.inflight, s.lastErr = nil, err
+		if err != nil {
+			log.Warn().Err(err).Str("url", s.url).Msg("fetch Cloudflare Access signing keys; keeping the cached ones")
+			return
+		}
+		s.keys, s.fetchedAt = keys, s.now()
+	}()
 }
 
 func (s *keySet) fetch(ctx context.Context) (map[string]*rsa.PublicKey, error) {

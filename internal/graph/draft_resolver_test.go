@@ -14,6 +14,7 @@ import (
 	"github.com/99designs/gqlgen/graphql/handler"
 	"github.com/99designs/gqlgen/graphql/handler/transport"
 	"github.com/google/uuid"
+	"github.com/sperano/puckdb/internal/appuser"
 	"github.com/sperano/puckdb/internal/config"
 	"github.com/sperano/puckdb/internal/draftrank"
 	"github.com/sperano/puckdb/internal/fixtures/draftfixtures"
@@ -261,6 +262,23 @@ func TestDraftAPI_ExistingAuthenticationApplies(t *testing.T) {
 	listed := postGraphQL(t, server, nil, `{ draftOverrides(includeInactive: true) { id state } }`, nil)
 	require.Empty(t, listed.Errors)
 	assert.Contains(t, string(listed.Data), `"state":"RESET"`)
+}
+
+// The author is the resolved user's username, so a cloudflare instance,
+// which strips the Authentik headers, records the user's email.
+func TestCreateDraftOverride_AuthorIsTheResolvedUser(t *testing.T) {
+	_, store, svc := newDraftTestServer(t)
+	const cloudflareUser = "fan@example.com"
+	ctx := appuser.WithUser(t.Context(), appuser.User{ID: "user-1", Username: cloudflareUser})
+	value := 10.0
+	scenario := model.DraftScenarioBase
+	_, err := (&Resolver{Draft: svc}).createDraftOverride(ctx, model.DraftOverrideCreateInput{
+		PlayerKey: draftfixtures.SuspendedKey, Kind: model.DraftOverrideKindMissedGames,
+		Scenario: &scenario, Value: &value, Reason: "appeal reduced the suspension",
+	})
+	require.NoError(t, err)
+	require.Len(t, store.Overrides, 1)
+	assert.Equal(t, cloudflareUser, store.Overrides[0].CreatedBy)
 }
 
 func TestDraftAPI_ErrorsAndMissingDatabase(t *testing.T) {

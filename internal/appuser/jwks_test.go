@@ -5,7 +5,11 @@ import (
 	"crypto/rsa"
 	"encoding/json"
 	"net/http"
+	"net/http/httptest"
+	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -77,13 +81,111 @@ func TestKeySet_MaxAge(t *testing.T) {
 	assert.Equal(t, int32(3), srv.fetches.Load())
 }
 
-// Failing to fetch the keys is a server error, not an invalid token.
+// Failing to fetch the keys is a server error, not an invalid token, also
+// for the requests the rate limit keeps from fetching again.
 func TestKeySet_FetchFailure(t *testing.T) {
 	a, _ := signingKeys(t)
 	srv := newJWKSServer(t, nil)
 	srv.set(nil, http.StatusBadGateway)
-	_, err := testVerifier(srv, newClock()).Verify(context.Background(), signToken(t, a, kidA, validClaims()))
-	require.ErrorContains(t, err, "fetch Cloudflare Access signing keys")
+	clk := newClock()
+	v := testVerifier(srv, clk)
+	for range 2 {
+		_, err := v.Verify(context.Background(), signToken(t, a, kidA, validClaims()))
+		require.ErrorContains(t, err, "fetch Cloudflare Access signing keys")
+		assert.NotErrorIs(t, err, ErrInvalidToken)
+	}
+	assert.Equal(t, int32(1), srv.fetches.Load(), "the second request is rate-limited")
+
+	srv.set(map[string]*rsa.PublicKey{kidA: &a.PublicKey}, http.StatusOK)
+	clk.Advance(jwksMinRefetchInterval)
+	_, err := v.Verify(context.Background(), signToken(t, a, kidA, validClaims()))
+	require.NoError(t, err)
+	_, err = v.Verify(context.Background(), signToken(t, a, "random-kid", validClaims()))
+	require.ErrorIs(t, err, errUnknownKey, "after a successful fetch, an unknown kid is an invalid token again")
+}
+
+const (
+	// concurrentVerifiers is how many requests race for one refetch.
+	concurrentVerifiers = 16
+	// inFlightWaitTimeout is how long a request waits on a stalled fetch.
+	inFlightWaitTimeout = 50 * time.Millisecond
+)
+
+// Concurrent requests naming a new key share one fetch.
+func TestKeySet_ConcurrentRefetchIsShared(t *testing.T) {
+	a, b := signingKeys(t)
+	srv := newJWKSServer(t, map[string]*rsa.PublicKey{kidA: &a.PublicKey})
+	clk := newClock()
+	v := testVerifier(srv, clk)
+	_, err := v.Verify(context.Background(), signToken(t, a, kidA, validClaims()))
+	require.NoError(t, err)
+
+	srv.set(map[string]*rsa.PublicKey{kidA: &a.PublicKey, kidB: &b.PublicKey}, http.StatusOK)
+	clk.Advance(jwksMinRefetchInterval)
+	token := signToken(t, b, kidB, validClaims())
+	errs := make([]error, concurrentVerifiers)
+	var wg sync.WaitGroup
+	for i := range errs {
+		wg.Go(func() { _, errs[i] = v.Verify(context.Background(), token) })
+	}
+	wg.Wait()
+	for _, err := range errs {
+		require.NoError(t, err)
+	}
+	assert.Equal(t, int32(2), srv.fetches.Load())
+}
+
+// A fetch in flight neither delays cached keys nor outlives a waiting
+// request's context.
+func TestKeySet_FetchInFlightDoesNotBlock(t *testing.T) {
+	a, b := signingKeys(t)
+	release := make(chan struct{})
+	var fetches int
+	var mu sync.Mutex
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		mu.Lock()
+		fetches++
+		first := fetches == 1
+		mu.Unlock()
+		if !first {
+			<-release
+		}
+		_ = json.NewEncoder(w).Encode(jwksDocument(map[string]*rsa.PublicKey{kidA: &a.PublicKey}))
+	}))
+	t.Cleanup(srv.Close)
+	t.Cleanup(func() { close(release) })
+	clk := newClock()
+	v := newAccessVerifier(testIssuer, testAudience, newKeySet(srv.URL, srv.Client(), clk.Now), clk.Now)
+	_, err := v.Verify(context.Background(), signToken(t, a, kidA, validClaims()))
+	require.NoError(t, err)
+
+	clk.Advance(jwksMinRefetchInterval)
+	ctx, cancel := context.WithTimeout(context.Background(), inFlightWaitTimeout)
+	defer cancel()
+	_, err = v.Verify(ctx, signToken(t, b, kidB, validClaims()))
+	require.ErrorIs(t, err, context.DeadlineExceeded, "the waiting request ends with its context")
+	_, err = v.Verify(context.Background(), signToken(t, a, kidA, validClaims()))
+	require.NoError(t, err, "a cached key is served while the fetch is in flight")
+}
+
+// The key set response is bounded.
+func TestKeySet_ResponseSizeLimit(t *testing.T) {
+	a, _ := signingKeys(t)
+	doc, err := json.Marshal(jwksDocument(map[string]*rsa.PublicKey{kidA: &a.PublicKey}))
+	require.NoError(t, err)
+	serve := func(size int) *keySet {
+		body := string(doc) + strings.Repeat(" ", size-len(doc))
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			_, _ = w.Write([]byte(body))
+		}))
+		t.Cleanup(srv.Close)
+		return newKeySet(srv.URL, srv.Client(), newClock().Now)
+	}
+
+	_, err = serve(maxJWKSBytes).key(context.Background(), kidA)
+	require.NoError(t, err, "a key set of exactly the limit is read")
+	_, err = serve(maxJWKSBytes+1).key(context.Background(), kidA)
+	require.ErrorContains(t, err, "larger than")
 	assert.NotErrorIs(t, err, ErrInvalidToken)
 }
 

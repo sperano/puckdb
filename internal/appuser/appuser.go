@@ -88,6 +88,9 @@ func IdentityFromHeaders(h http.Header) (Identity, bool) {
 type User struct {
 	ID        string
 	SessionID string
+	// Username is the request identity's username (the Authentik username,
+	// or the Cloudflare Access email).
+	Username string
 }
 
 // SessionRequest asks the store to resolve a user's session.

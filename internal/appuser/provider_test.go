@@ -49,6 +49,8 @@ func TestCloudflareProvider_RejectsAndIgnores(t *testing.T) {
 		"both identities": {
 			map[string]string{HeaderCfAccessJWT: signToken(t, key, kidA, validClaims()), HeaderUID: "authentik-subject"},
 			ErrConflictingIdentities},
+		"blank authentik header": {
+			map[string]string{HeaderCfAccessJWT: signToken(t, key, kidA, validClaims()), HeaderUID: " "}, nil},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -56,7 +58,12 @@ func TestCloudflareProvider_RejectsAndIgnores(t *testing.T) {
 			for k, v := range tc.headers {
 				h.Set(k, v)
 			}
-			_, err := p.Authenticate(context.Background(), h)
+			id, err := p.Authenticate(context.Background(), h)
+			if tc.want == nil {
+				require.NoError(t, err, "a blank header is no identity, so nothing conflicts")
+				assert.Equal(t, testSubject, id.Subject)
+				return
+			}
 			require.ErrorIs(t, err, tc.want)
 		})
 	}
@@ -132,6 +139,10 @@ func TestIgnoreForeignHeaders(t *testing.T) {
 	assert.Equal(t, http.StatusUnauthorized, code, "both identities: rejected, not chosen")
 	assert.Nil(t, seen)
 
+	req.Header.Set(HeaderUID, " ")
+	code, _ = filtered(AuthentikProvider{}, req)
+	assert.Equal(t, http.StatusNoContent, code, "a blank header is no identity")
+
 	req.Header.Del(HeaderUID)
 	_, seen = filtered(AuthentikProvider{}, req)
 	assert.Empty(t, seen.Get(HeaderCfAccessJWT), "the authentik provider drops Cloudflare headers")
@@ -144,7 +155,7 @@ func TestMiddleware_CloudflareIdentity(t *testing.T) {
 	req.Header.Set(HeaderCfAccessJWT, signToken(t, key, kidA, validClaims()))
 	_, users, errs := serveWith(t, p, store, req, 1)
 	require.NoError(t, errs[0])
-	assert.Equal(t, "u1", users[0].ID)
+	assert.Equal(t, User{ID: "u1", SessionID: "s1", Username: testEmail}, users[0], "the user carries the identity's username")
 	require.Len(t, store.requests, 1)
 	assert.Equal(t, testEmail, store.requests[0].Identity.Email)
 

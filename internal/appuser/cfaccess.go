@@ -56,20 +56,29 @@ type AccessVerifier struct {
 	now      func() time.Time
 }
 
-// NewAccessVerifier returns a verifier for cfg's application.
+// NewAccessVerifier returns a verifier for cfg's application. The team
+// domain is compared case-insensitively and may end with a dot, as host
+// names may: the issuer Cloudflare writes is lowercase with no final dot.
 func NewAccessVerifier(cfg CloudflareAccessConfig) (*AccessVerifier, error) {
-	if err := validTeamDomain(cfg.TeamDomain); err != nil {
+	domain := normalizeTeamDomain(cfg.TeamDomain)
+	if err := validTeamDomain(domain); err != nil {
 		return nil, err
 	}
 	if strings.TrimSpace(cfg.Audience) == "" {
 		return nil, errors.New("cloudflare access audience (AUD tag) is empty")
 	}
-	issuer := "https://" + cfg.TeamDomain
+	issuer := "https://" + domain
 	return newAccessVerifier(issuer, cfg.Audience, newKeySet(issuer+cfAccessCertsPath, nil, time.Now), time.Now), nil
 }
 
 func newAccessVerifier(issuer, audience string, keys *keySet, now func() time.Time) *AccessVerifier {
 	return &AccessVerifier{issuer: issuer, audience: strings.TrimSpace(audience), keys: keys, now: now}
+}
+
+// normalizeTeamDomain lowercases domain and drops surrounding blanks and one
+// final dot.
+func normalizeTeamDomain(domain string) string {
+	return strings.TrimSuffix(strings.ToLower(strings.TrimSpace(domain)), ".")
 }
 
 // validTeamDomain accepts a bare host name such as team.cloudflareaccess.com.
@@ -122,7 +131,8 @@ func (a *audience) UnmarshalJSON(b []byte) error {
 
 // Verify checks token's signature, issuer, audience and expiry and returns
 // its identity claims. A token failing a check returns ErrInvalidToken; a
-// failure to obtain the signing keys returns another error.
+// failure to obtain the signing keys (also for a key id the cache lacks
+// while the last fetch failed) or the end of ctx returns another error.
 func (v *AccessVerifier) Verify(ctx context.Context, token string) (AccessClaims, error) {
 	payload, err := v.verifySignature(ctx, token)
 	if err != nil {
