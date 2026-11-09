@@ -7,10 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"strconv"
 	"strings"
-	"sync"
-	"time"
 
 	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/lipgloss"
@@ -52,7 +49,16 @@ type REPLConfig struct {
 	MaxTokens       int
 	MaxToolRounds   int
 	ListLimit       int
+	// In, Out and ErrOut are the REPL's input, output (prompt, menus,
+	// answers) and error streams; nil means os.Stdin, os.Stdout and
+	// os.Stderr.
+	In     io.Reader
+	Out    io.Writer
+	ErrOut io.Writer
 }
+
+// markdownWrapWidth is the column at which rendered answers wrap.
+const markdownWrapWidth = 100
 
 // Styles for the REPL UI.
 var (
@@ -71,55 +77,6 @@ var (
 	styleConvTitle   = lipgloss.NewStyle().Foreground(lipgloss.Color("15"))             // white
 )
 
-// spinner frames for the thinking indicator.
-var spinnerFrames = [...]string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
-
-// spinner displays a thinking animation while the LLM is working.
-type spinner struct {
-	mu      sync.Mutex
-	running bool
-	stop    chan struct{}
-}
-
-func (s *spinner) Start(label string) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.running {
-		return
-	}
-	s.running = true
-	s.stop = make(chan struct{})
-
-	style := lipgloss.NewStyle().Foreground(lipgloss.Color("12"))
-
-	go func() {
-		i := 0
-		ticker := time.NewTicker(80 * time.Millisecond)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-s.stop:
-				fmt.Printf("\r\033[K") // clear spinner line
-				return
-			case <-ticker.C:
-				frame := style.Render(spinnerFrames[i%len(spinnerFrames)])
-				fmt.Printf("\r  %s %s", frame, label)
-				i++
-			}
-		}
-	}()
-}
-
-func (s *spinner) Stop() {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if !s.running {
-		return
-	}
-	s.running = false
-	close(s.stop)
-}
-
 func formatPrompt(model string) string {
 	return fmt.Sprintf("%s %s %s ",
 		stylePromptLabel.Render("maurice"),
@@ -129,179 +86,102 @@ func formatPrompt(model string) string {
 }
 
 // RunREPL starts the interactive Maurice chat loop and blocks until the user
-// exits or the context is cancelled.
+// exits, the input ends or the context is cancelled.
 func RunREPL(ctx context.Context, cfg REPLConfig) error {
-	currentEntry, err := FindModel(cfg.Models, cfg.InitialModel)
+	return runREPL(ctx, cfg, cfg.modelService)
+}
+
+// runREPL is RunREPL with the service factory injected, so tests can drive
+// the loop without an LLM provider.
+func runREPL(ctx context.Context, cfg REPLConfig, newService func(ModelEntry) Service) error {
+	entry, err := FindModel(cfg.Models, cfg.InitialModel)
 	if err != nil {
 		return fmt.Errorf("select initial model: %w", err)
 	}
-
-	buildService := func(entry ModelEntry) Service {
-		pcfg := cfg.ProviderConfigs[entry.Provider]
-		return NewService(
-			llm.NewClientForProvider(entry.Provider, pcfg, entry.ID),
-			cfg.MCPClient, cfg.DB, ServiceConfig{
-				Provider:      entry.Provider.String(),
-				Model:         entry.ID,
-				MaxHistory:    cfg.MaxHistory,
-				MaxTokens:     cfg.MaxTokens,
-				MaxToolRounds: cfg.MaxToolRounds,
-			},
-		)
-	}
-
-	mdRenderer, err := glamour.NewTermRenderer(glamour.WithAutoStyle(), glamour.WithWordWrap(100))
+	mdRenderer, err := glamour.NewTermRenderer(glamour.WithAutoStyle(), glamour.WithWordWrap(markdownWrapWidth))
 	if err != nil {
 		return fmt.Errorf("init markdown renderer: %w", err)
 	}
-
-	svc := buildService(currentEntry)
-	defer func() {
-		if err := svc.Close(); err != nil {
-			log.Warn().Err(err).Msg("maurice service close")
-		}
-	}()
-	model := currentEntry.ID
+	in, out, errOut := cfg.streams()
+	r := &repl{
+		models:          cfg.Models,
+		providerConfigs: cfg.ProviderConfigs,
+		listLimit:       cfg.ListLimit,
+		out:             out,
+		errOut:          errOut,
+		markdown:        mdRenderer,
+		spin:            newSpinner(out),
+		newService:      newService,
+		entry:           entry,
+		svc:             newService(entry),
+	}
+	defer r.closeService()
 
 	log.Info().
-		Str("provider", currentEntry.Provider.String()).
-		Str("model", model).
+		Str("provider", entry.Provider.String()).
+		Str("model", entry.ID).
 		Msg("Maurice REPL started")
+	r.printBanner()
 
-	fmt.Println()
-	fmt.Println(styleHeader.Render("  Maurice — Hockey AI Chat"))
-	fmt.Println(styleHint.Render("  /quit  /new  /history  /load <id>  /model"))
-	fmt.Println()
-
-	lines, scanErr := readLines(ctx, os.Stdin)
-	spin := &spinner{}
-	var conversationID *string
-
+	// Cancelled on return so the stdin goroutine stops delivering lines
+	// nobody reads any more.
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	lines, scanErr := readLines(ctx, in)
 	for {
-		fmt.Print(formatPrompt(model))
-		var input string
+		fmt.Fprint(out, formatPrompt(r.entry.ID))
 		select {
 		case <-ctx.Done():
 			// First SIGINT/SIGTERM cancels the root signal context (see
 			// cmd.SignalContext). Return cleanly so the deferred service,
 			// MCP and DB cleanup in the callers runs; the stdin goroutine
 			// stays blocked in Scan and exits with the process.
-			fmt.Println()
+			fmt.Fprintln(out)
 			return nil
 		case line, ok := <-lines:
 			if !ok {
 				return scanErr()
 			}
-			input = strings.TrimSpace(line)
-		}
-		if input == "" {
-			continue
-		}
-
-		switch {
-		case input == "/quit" || input == "/exit":
-			return nil
-
-		case input == "/new":
-			conversationID = nil
-			fmt.Println(styleHint.Render("  Started new conversation."))
-			continue
-
-		case input == "/history":
-			convs, err := svc.ListConversations(ctx, LocalUserID, cfg.ListLimit)
-			if err != nil {
-				fmt.Fprintln(os.Stderr, styleError.Render("  Error: "+err.Error()))
-				continue
+			if r.handle(ctx, strings.TrimSpace(line)) {
+				return nil
 			}
-			if len(convs) == 0 {
-				fmt.Println(styleHint.Render("  No conversations yet."))
-				continue
-			}
-			fmt.Println()
-			for _, c := range convs {
-				title := "(untitled)"
-				if c.Title != nil {
-					title = *c.Title
-				}
-				fmt.Printf("  %s  %s  %s\n",
-					styleConvID.Render(c.ID),
-					styleConvDate.Render(c.UpdatedAt.Format("2006-01-02 15:04")),
-					styleConvTitle.Render(title),
-				)
-			}
-			fmt.Println()
-			continue
-
-		case input == "/model" || strings.HasPrefix(input, "/model "):
-			arg := strings.TrimSpace(strings.TrimPrefix(input, "/model"))
-			if arg == "" {
-				printModelMenu(model, cfg.Models)
-				continue
-			}
-			num, err := strconv.Atoi(arg)
-			if err != nil || num < 1 || num > len(cfg.Models) {
-				fmt.Println(styleError.Render("  Invalid selection: " + arg))
-				printModelMenu(model, cfg.Models)
-				continue
-			}
-			currentEntry = cfg.Models[num-1]
-			model = currentEntry.ID
-			if err := svc.Close(); err != nil {
-				log.Warn().Err(err).Msg("maurice service close")
-			}
-			svc = buildService(currentEntry)
-			fmt.Printf("  Switched to %s %s\n",
-				styleMenuCurrent.Render(model),
-				styleHint.Render("("+currentEntry.Provider.String()+")"),
-			)
-			if pcfg := cfg.ProviderConfigs[currentEntry.Provider]; currentEntry.Provider != llm.ProviderOllama && pcfg.APIKey == "" {
-				fmt.Println(styleWarning.Render("  Warning: no API key configured for " + currentEntry.Provider.String()))
-			}
-			continue
-
-		case strings.HasPrefix(input, "/load "):
-			id := strings.TrimSpace(strings.TrimPrefix(input, "/load "))
-			if id == "" {
-				fmt.Println(styleHint.Render("  Usage: /load <conversation-id>"))
-				continue
-			}
-			conv, _, err := svc.GetConversation(ctx, LocalUserID, id)
-			if err != nil {
-				fmt.Fprintln(os.Stderr, styleError.Render("  Error: "+err.Error()))
-				continue
-			}
-			conversationID = &conv.ID
-			title := "(untitled)"
-			if conv.Title != nil {
-				title = *conv.Title
-			}
-			fmt.Println(styleHint.Render("  Resumed: " + title))
-			continue
-		}
-
-		spin.Start("thinking...")
-		resp, err := svc.Chat(ctx, ChatRequest{UserID: LocalUserID, ConversationID: conversationID, Message: input})
-		spin.Stop()
-
-		if err != nil {
-			fmt.Fprintln(os.Stderr, styleError.Render("  Error: "+err.Error()))
-			continue
-		}
-
-		conversationID = &resp.ConversationID
-		for _, warning := range resp.Warnings {
-			fmt.Println(styleWarning.Render("  Warning: " + warning))
-		}
-		if len(resp.ToolsUsed) > 0 {
-			fmt.Println(styleToolTag.Render("  tools: " + strings.Join(resp.ToolsUsed, ", ")))
-		}
-		rendered, renderErr := mdRenderer.Render(resp.Content)
-		if renderErr != nil {
-			fmt.Println(resp.Content)
-		} else {
-			fmt.Print(rendered)
 		}
 	}
+}
+
+// modelService builds the chat service for entry with the configured limits;
+// NewService replaces zero limits with the defaults.
+func (cfg REPLConfig) modelService(entry ModelEntry) Service {
+	return NewService(
+		llm.NewClientForProvider(entry.Provider, cfg.ProviderConfigs[entry.Provider], entry.ID),
+		cfg.MCPClient, cfg.DB, ServiceConfig{
+			Provider:      entry.Provider.String(),
+			Model:         entry.ID,
+			MaxHistory:    cfg.MaxHistory,
+			MaxTokens:     cfg.MaxTokens,
+			MaxToolRounds: cfg.MaxToolRounds,
+		},
+	)
+}
+
+// streams returns the REPL's input, output and error streams, defaulting to
+// the process's standard streams.
+func (cfg REPLConfig) streams() (io.Reader, io.Writer, io.Writer) {
+	var (
+		in     io.Reader = os.Stdin
+		out    io.Writer = os.Stdout
+		errOut io.Writer = os.Stderr
+	)
+	if cfg.In != nil {
+		in = cfg.In
+	}
+	if cfg.Out != nil {
+		out = cfg.Out
+	}
+	if cfg.ErrOut != nil {
+		errOut = cfg.ErrOut
+	}
+	return in, out, errOut
 }
 
 // readLines scans r line by line from a dedicated goroutine into the
@@ -325,22 +205,4 @@ func readLines(ctx context.Context, r io.Reader) (<-chan string, func() error) {
 		}
 	}()
 	return lines, scanner.Err
-}
-
-// printModelMenu prints the model selection menu to stdout.
-func printModelMenu(currentModel string, models []ModelEntry) {
-	fmt.Println()
-	fmt.Println(styleHint.Render("  Current: " + currentModel))
-	fmt.Println()
-	for i, m := range models {
-		num := styleMenuNumber.Render(fmt.Sprintf("%d)", i+1))
-		name := m.ID
-		if m.ID == currentModel {
-			name = styleMenuCurrent.Render(m.ID)
-		}
-		fmt.Printf("  %s %-36s %s\n", num, name, styleHint.Render(m.Description))
-	}
-	fmt.Println()
-	fmt.Println(styleHint.Render("  /model <number>"))
-	fmt.Println()
 }
