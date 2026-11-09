@@ -124,7 +124,8 @@ func parsePackages(t *testing.T, root string) []parsedPackage {
 }
 
 // TestLogKeysDetectsViolations runs the detection on a sample with one
-// violation of each kind.
+// violation of each kind, except the unpaired Temporal key, which appears
+// twice: in a direct call and through the logFetched forwarder.
 func TestLogKeysDetectsViolations(t *testing.T) {
 	t.Parallel()
 	const src = `package sample
