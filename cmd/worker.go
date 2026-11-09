@@ -113,9 +113,7 @@ func runWorker(cmd *cobra.Command, _ []string) error {
 	}
 	defer closeTemporal()
 
-	options := workerOptions()
-	options.Interceptors = workerInterceptors()
-	w := worker.New(tclient, queueName, options)
+	w := worker.New(tclient, queueName, workerOptions())
 
 	if queueType == workerQueueTypeAdmin {
 		registerAdminQueue(w, pool, redisClient)
@@ -213,10 +211,11 @@ func newWorkerTemporalClient() (client.Client, func(), error) {
 	}, nil
 }
 
-// workerOptions returns the poller and execution limits shared by the main
-// and asset workers.
+// workerOptions returns the poller and execution limits and the activity
+// interceptors shared by the main and asset workers.
 func workerOptions() worker.Options {
 	return worker.Options{
+		Interceptors:                           workerInterceptors(),
 		MaxConcurrentWorkflowTaskPollers:       viper.GetInt(config.FlagWorkerMaxWorkflowPollers),
 		MaxConcurrentActivityTaskPollers:       viper.GetInt(config.FlagWorkerMaxActivityPollers),
 		MaxConcurrentWorkflowTaskExecutionSize: viper.GetInt(config.FlagWorkerMaxWorkflowExecution),
@@ -224,7 +223,8 @@ func workerOptions() worker.Options {
 	}
 }
 
-// workerInterceptors returns the activity interceptors of every worker queue.
+// workerInterceptors returns the activity interceptors of every worker queue
+// (main, admin and asset), installed through workerOptions.
 func workerInterceptors() []interceptor.WorkerInterceptor {
 	return []interceptor.WorkerInterceptor{
 		// Keeps an activity's progress in the heartbeats it sends

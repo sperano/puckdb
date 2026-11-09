@@ -25,7 +25,9 @@ const (
 
 // Hints appended to the message of a permanent failure.
 const (
-	corruptCachedFileHint = "a retry reads the same bytes; re-run the fetch to replace the file"
+	// Fetches skip a file already cached, and a Yahoo player pool page is
+	// downloaded again only with a new pool, which a missing manifest starts.
+	corruptCachedFileHint = "a retry reads the same bytes; delete the cached file (for a Yahoo player pool page, the pool manifest) and re-run the fetch"
 	rejectedValueHint     = "every retry sends the same value"
 )
 

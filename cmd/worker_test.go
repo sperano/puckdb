@@ -31,9 +31,10 @@ func TestWorkerErrChCap(t *testing.T) {
 	assert.Equal(t, 2, workerErrChCap(workerQueueTypeAdmin), "metrics + main worker")
 }
 
-func TestWorkerInterceptors_ClassifyFailuresAndKeepHeartbeatDetails(t *testing.T) {
-	t.Parallel()
-	got := workerInterceptors()
+// The main, admin and asset workers are all built from workerOptions.
+// Not parallel: workerOptions reads the global viper.
+func TestWorkerOptions_ClassifyFailuresAndKeepHeartbeatDetails(t *testing.T) {
+	got := workerOptions().Interceptors
 
 	assert.Contains(t, got, &shared.FailureClassifierInterceptor{}, "permanent activity failures must not be retried")
 	assert.Contains(t, got, &shared.HeartbeatDetailsInterceptor{})

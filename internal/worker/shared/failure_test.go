@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -60,6 +59,10 @@ func assertUnchanged(t *testing.T, want, got error) {
 
 func TestClassifyActivityError_Permanent(t *testing.T) {
 	t.Parallel()
+	hints := map[string]string{
+		ErrTypeCorruptCachedFile: corruptCachedFileHint,
+		ErrTypeRejectedValue:     rejectedValueHint,
+	}
 	tests := []struct {
 		name    string
 		err     error
@@ -68,7 +71,10 @@ func TestClassifyActivityError_Permanent(t *testing.T) {
 		{"corrupt cached file", corruptFile(), ErrTypeCorruptCachedFile},
 		{"string too long in a batch", batchOf(fmt.Errorf("row 3: %w", pgError(sqlStateStringTooLong))), ErrTypeRejectedValue},
 		{"numeric out of range", fmt.Errorf("upsert game: %w", pgError(sqlStateNumericOutOfRange)), ErrTypeRejectedValue},
+		{"invalid datetime", pgError(sqlStateInvalidDatetime), ErrTypeRejectedValue},
+		{"datetime out of range", pgError(sqlStateDatetimeOutOfRange), ErrTypeRejectedValue},
 		{"invalid UTF-8", pgError(sqlStateInvalidByteSequence), ErrTypeRejectedValue},
+		{"untranslatable character", pgError(sqlStateUntranslatableChar), ErrTypeRejectedValue},
 		{"invalid text", pgError(sqlStateInvalidText), ErrTypeRejectedValue},
 		{"not null", pgError(sqlStateNotNullViolation), ErrTypeRejectedValue},
 		{"check", pgError(sqlStateCheckViolation), ErrTypeRejectedValue},
@@ -79,7 +85,8 @@ func TestClassifyActivityError_Permanent(t *testing.T) {
 			t.Parallel()
 			got := ClassifyActivityError(tt.err)
 			appErr := requirePermanent(t, got, tt.errType)
-			assert.True(t, strings.HasPrefix(appErr.Message(), tt.err.Error()), "the message keeps the original error")
+			assert.Equal(t, tt.err.Error()+" ("+hints[tt.errType]+")", appErr.Message(),
+				"the message is the original error once, then the hint")
 		})
 	}
 }
@@ -96,6 +103,7 @@ func TestClassifyActivityError_RetryableUnchanged(t *testing.T) {
 		{"unreadable cached file", fmt.Errorf("read daily schedule: %w", os.ErrNotExist)},
 		{"foreign key: the referenced row may come from another activity", batchOf(pgError("23503"))},
 		{"unique violation: a concurrent writer", pgError("23505")},
+		{"exclusion violation: a concurrent writer", pgError("23P01")},
 		{"serialization failure", pgError("40001")},
 		{"deadlock", pgError("40P01")},
 		{"connection failure", pgError("08006")},
