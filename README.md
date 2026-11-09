@@ -77,8 +77,11 @@ go build -o puckdb .
 Run the API and worker in separate terminals:
 
 ```bash
-./puckdb api
+./puckdb api --instance puckdb
 ```
+
+`--instance` (`PUCKDB_INSTANCE`) is required: it names this API among the
+instances sharing the database, and users belong to one instance.
 
 ```bash
 ./puckdb worker --yahoo-seasons ""

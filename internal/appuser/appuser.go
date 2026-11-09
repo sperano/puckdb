@@ -3,6 +3,9 @@
 // reverse proxy must set and strip from client requests: PuckDB trusts them
 // as is. Authentik tokens, cookies and JWTs are never stored; a PuckDB
 // session is an opaque random cookie of which only a keyed hash is kept.
+//
+// Users belong to one API instance (PGStore's instance): API instances share
+// the database, and the same identity on two of them is two users.
 package appuser
 
 import (

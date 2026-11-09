@@ -2,9 +2,11 @@
 -- profile_updated_at moves only when the username or display name changed.
 -- The upsert always takes the row lock (DO UPDATE, never DO NOTHING), which
 -- serializes session resolution per user for the rest of the transaction.
-INSERT INTO app_users (auth_provider, auth_subject, username, display_name)
-VALUES ($1, $2, $3, $4)
-ON CONFLICT (auth_provider, auth_subject) DO UPDATE
+-- A user belongs to one instance: the same identity on another instance is
+-- another user.
+INSERT INTO app_users (instance, auth_provider, auth_subject, username, display_name)
+VALUES ($1, $2, $3, $4, $5)
+ON CONFLICT (instance, auth_provider, auth_subject) DO UPDATE
 SET username = EXCLUDED.username,
     display_name = EXCLUDED.display_name,
     profile_updated_at = CASE

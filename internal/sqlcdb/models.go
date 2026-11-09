@@ -759,10 +759,12 @@ type AppUser struct {
 	FirstSeenAt      pgtype.Timestamptz `json:"first_seen_at"`
 	ProfileUpdatedAt pgtype.Timestamptz `json:"profile_updated_at"`
 	DisabledAt       pgtype.Timestamptz `json:"disabled_at"`
+	Instance         string             `json:"instance"`
 }
 
 type AppUserUsage struct {
 	UserID                   pgtype.UUID `json:"user_id"`
+	Instance                 string      `json:"instance"`
 	Username                 string      `json:"username"`
 	PuckdbSessionCount       int64       `json:"puckdb_session_count"`
 	LastSessionStartedAt     interface{} `json:"last_session_started_at"`

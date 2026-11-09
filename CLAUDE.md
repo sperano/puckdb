@@ -12,7 +12,7 @@ cd /Users/eric/code/puckdb-project/ws/puckdb && go build -o /tmp/puckdb .
 
 ### Run
 ```bash
-/tmp/puckdb api                      # GraphQL server (port 8787)
+/tmp/puckdb api --instance puckdb    # GraphQL server (port 8787); --instance is required
 /tmp/puckdb worker                   # Temporal worker (port 8788)
 /tmp/puckdb metrics                  # Prometheus exporter for cache/Redis/DB
 ```
@@ -106,7 +106,7 @@ Storage naming (see wiki `puckdb/plans/draft-storage-naming.md`): a concrete Pos
 | `internal/yahooaccess/` | Yahoo API access check: game key and league settings probes, AUTHORIZED / NOT AUTHORIZED / ERROR classification, email subject and report (see https://wiki.spe.quebec/en/puckdb/yahoo-access-check) |
 | `internal/yahookey/` | Canonical Yahoo league, team and player key value types, parsing and formatting; callers retain domain-specific ownership checks and error context |
 | `internal/notify/` | Plain-text notification emails over SMTP submission (STARTTLS when offered) |
-| `internal/appuser/` | PuckDB users and application sessions: identity from the trusted `X-authentik-uid` header (the proxy must strip client copies), a random `puckdb_session` cookie stored only as an HMAC (`--session-hash-key`), lazy per-request resolution for the GraphQL route (`appuser.Current`); cookie-less callers join the user's active session (30 min idle timeout) |
+| `internal/appuser/` | PuckDB users and application sessions, per API instance (`--instance` / `PUCKDB_INSTANCE`, required by `api`: the main API and each Maurice instance share the database, and the same identity on two instances is two users with separate sessions and conversations): identity from the trusted `X-authentik-uid` header (the proxy must strip client copies), a random `puckdb_session` cookie stored only as an HMAC (`--session-hash-key`), lazy per-request resolution for the GraphQL route (`appuser.Current`); cookie-less callers join the user's active session (30 min idle timeout) |
 | `internal/fixtures/yahoofixtures/` | Synthetic Yahoo XML fixtures shared by tests (test-only import) |
 | `internal/fixtures/metricsfixtures/` | Reads filesystem operation counts from the worker metrics registry for label assertions (test-only import) |
 | `internal/fixtures/draftfixtures/` | Synthetic draft ranking snapshot and in-memory store shared by the draftrank, GraphQL and CLI tests (test-only import) |
@@ -467,9 +467,9 @@ PostgreSQL database storing NHL game data and Yahoo Fantasy league data. Two mai
 
 | Table | Purpose | Key Columns |
 |-------|---------|-------------|
-| `app_users` | Local projection of an Authentik identity (UNIQUE `(auth_provider, auth_subject)`; username/display name are mutable snapshots) | `id` (uuid), `auth_provider`, `auth_subject` (`X-authentik-uid`), `username`, `display_name`, `first_seen_at`, `profile_updated_at`, `disabled_at` |
+| `app_users` | Local projection of an Authentik identity on one API instance (UNIQUE `(instance, auth_provider, auth_subject)`; users from before migration 000028 belong to `puckdb`; username/display name are mutable snapshots) | `id` (uuid), `instance`, `auth_provider`, `auth_subject` (`X-authentik-uid`), `username`, `display_name`, `first_seen_at`, `profile_updated_at`, `disabled_at` |
 | `app_sessions` | One PuckDB application session; only a keyed hash of the cookie is stored | `user_id`, `session_key_hash` (UNIQUE), `started_at`, `last_activity_at`, `ended_at` (idle expiry) |
-| `maurice_conversations` | One row per chat session, owned by a user (every query is scoped by `user_id`). Deleting sets `deleted_at` (hidden from the owner, rows and usage kept) | `id` (uuid), `user_id`, `title`, `created_at`, `updated_at`, `deleted_at` |
+| `maurice_conversations` | One row per chat session, owned by a user (every query is scoped by `user_id`, so by the user's instance). Deleting sets `deleted_at` (hidden from the owner, rows and usage kept) | `id` (uuid), `user_id`, `title`, `created_at`, `updated_at`, `deleted_at` |
 | `maurice_turns` | One prompt and all the work behind its answer. UNIQUE `(user_id, idempotency_key)`, one `running` turn per conversation (partial unique index); a running turn older than the stale cutoff is failed as `abandoned` | `conversation_id`, `turn_number`, `idempotency_key`, `request_hash`, `status` (`running`/`succeeded`/`failed`/`cancelled`), `started_at`, `completed_at`, `error_class` (bounded label) |
 | `maurice_messages` | Messages of a turn (UNIQUE `(turn_id, message_number)`). `role` ∈ `{system, user, assistant, tool}`, `tool_calls` JSONB. The transcript (history replayed to the LLM) is only the messages of `succeeded` turns; failed/cancelled turns keep theirs as exact prompts | `id` (uuid), `conversation_id`, `turn_id`, `message_number`, `role`, `content`, `tool_calls`, `tool_call_id`, `created_at` |
 | `maurice_llm_calls` | One provider request: `chat_round`, `forced_final`, or `title_generation` (no turn). Token counts are provider-reported and NULL when not reported | `turn_id`, `conversation_id`, `call_kind`, `round_number`, `provider`, `model`, `provider_request_id`, `status`, `finish_reason`, `started_at`, `completed_at`, `input_tokens`, `output_tokens`, `cache_creation_input_tokens`, `cache_read_input_tokens`, `error_class`, `system_prompt`, `instruction`, `tool_definitions` |
@@ -502,7 +502,7 @@ All created by migration 000001 (window columns by 000002); per-type `sim_transa
 
 ### Views
 
-Reporting views (definitions in migrations): `skater_season_stats`, `skater_recent_stats`, `goalie_season_stats`, `goalie_recent_stats`, `yahoo_roster_players`, `yahoo_roto_standings`, `yahoo_season_team_totals`, `app_user_usage` (per user: `puckdb_session_count`, last session, turns, LLM calls, token sums including title generation, `active_seconds` = turn durations + title calls, i.e. time spent processing prompts).
+Reporting views (definitions in migrations): `skater_season_stats`, `skater_recent_stats`, `goalie_season_stats`, `goalie_recent_stats`, `yahoo_roster_players`, `yahoo_roto_standings`, `yahoo_season_team_totals`, `app_user_usage` (per user, with its `instance`: `puckdb_session_count`, last session, turns, LLM calls, token sums including title generation, `active_seconds` = turn durations + title calls, i.e. time spent processing prompts).
 
 ### Key Relationships
 

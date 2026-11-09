@@ -8,9 +8,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/sperano/puckdb/internal/config"
 	"github.com/sperano/puckdb/internal/graph"
 )
 
@@ -143,4 +145,14 @@ func TestAPIRouterDoesNotServeDraftBoardClientTests(t *testing.T) {
 		router.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, path, nil))
 		assert.Equal(t, http.StatusNotFound, recorder.Code, path)
 	}
+}
+
+// Users belong to one instance, so the API refuses to start without one.
+func TestNewAppUserMiddlewareRequiresInstance(t *testing.T) {
+	viper.Reset()
+	t.Cleanup(viper.Reset)
+	viper.Set(config.FlagInstance, "  ")
+
+	_, err := newAppUserMiddleware(nil)
+	require.ErrorContains(t, err, "--"+config.FlagInstance+" (PUCKDB_INSTANCE) is required")
 }

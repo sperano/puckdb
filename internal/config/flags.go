@@ -354,6 +354,12 @@ const (
 	// session cookies are stored. Empty uses a random per-process key, so
 	// sessions do not survive a restart.
 	FlagSessionHashKey = "session-hash-key"
+
+	// FlagInstance names the API instance (the main API, or a Maurice
+	// instance) sharing the database with the others. Users, and through
+	// them their sessions and conversations, belong to one instance.
+	// Required by the api command.
+	FlagInstance = "instance"
 )
 
 // API client basic-auth flags. CLI commands that call the GraphQL API
@@ -545,6 +551,7 @@ var ProvisionerFlags = FlagGroup{
 var AppSessionFlags = FlagGroup{
 	Flags: []FlagDef{
 		{FlagSessionHashKey, "", "", "Secret key for hashing PuckDB session cookies (empty: random per process, sessions do not survive a restart)", true},
+		{FlagInstance, "", "", "Name of this API instance; users and their conversations belong to one instance (required)", false},
 	},
 }
 

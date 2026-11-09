@@ -21,6 +21,10 @@ const (
 	testDBNameMarker = "test"
 	// concurrentResolves is how many cookie-less requests of one user race.
 	concurrentResolves = 8
+	// testInstance and otherInstance are two API instances sharing the
+	// database.
+	testInstance  = "puckdb"
+	otherInstance = "maurice-test"
 )
 
 var pgMigrateOnce struct {
@@ -29,6 +33,19 @@ var pgMigrateOnce struct {
 }
 
 func openStore(t *testing.T) (*PGStore, *pgxpool.Pool) {
+	t.Helper()
+	pool := openPool(t)
+	return newStore(t, pool, testInstance), pool
+}
+
+func newStore(t *testing.T, pool *pgxpool.Pool, instance string) *PGStore {
+	t.Helper()
+	store, err := NewPGStore(pool, instance, SessionIdleTimeout)
+	require.NoError(t, err)
+	return store
+}
+
+func openPool(t *testing.T) *pgxpool.Pool {
 	t.Helper()
 	dbURL := os.Getenv(envTestPGURL)
 	if dbURL == "" {
@@ -42,7 +59,7 @@ func openStore(t *testing.T) (*PGStore, *pgxpool.Pool) {
 	t.Cleanup(pool.Close)
 	// No truncation: other packages' tests share the database concurrently.
 	// Every test uses its own subjects (newSubject).
-	return NewPGStore(pool, SessionIdleTimeout), pool
+	return pool
 }
 
 // newSubject returns an Authentik subject no other test uses.
@@ -120,6 +137,39 @@ func TestPGStore_CookieIsBoundToItsUser(t *testing.T) {
 	assert.NotEqual(t, a.User.ID, b.User.ID)
 	assert.NotEqual(t, a.User.SessionID, b.User.SessionID)
 	assert.True(t, b.Created)
+}
+
+func TestNewPGStore_RequiresAnInstance(t *testing.T) {
+	_, err := NewPGStore(nil, "", SessionIdleTimeout)
+	require.ErrorIs(t, err, ErrNoInstance)
+}
+
+// The same identity on two instances is two users: neither one's session
+// cookie nor its conversations carry over to the other instance.
+func TestPGStore_UsersArePerInstance(t *testing.T) {
+	store, pool := openStore(t)
+	other := newStore(t, pool, otherInstance)
+	ctx := context.Background()
+	sub := newSubject()
+	first := sessionRequest(sub, nil)
+	main, err := store.Resolve(ctx, first)
+	require.NoError(t, err)
+
+	elsewhere, err := other.Resolve(ctx, sessionRequest(sub, first.FreshHash))
+	require.NoError(t, err)
+	assert.NotEqual(t, main.User.ID, elsewhere.User.ID)
+	assert.NotEqual(t, main.User.SessionID, elsewhere.User.SessionID)
+	assert.True(t, elsewhere.Created, "the other instance's cookie opens no session here")
+
+	again, err := store.Resolve(ctx, sessionRequest(sub, first.FreshHash))
+	require.NoError(t, err)
+	assert.Equal(t, main.User, again.User, "each instance keeps its own user and session")
+
+	for id, instance := range map[string]string{main.User.ID: testInstance, elsewhere.User.ID: otherInstance} {
+		var stored string
+		require.NoError(t, pool.QueryRow(ctx, `SELECT instance FROM app_users WHERE id = $1`, id).Scan(&stored))
+		assert.Equal(t, instance, stored)
+	}
 }
 
 func TestPGStore_ProfileIsASnapshot(t *testing.T) {

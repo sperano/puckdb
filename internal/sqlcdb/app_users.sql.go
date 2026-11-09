@@ -94,9 +94,9 @@ func (q *Queries) TouchSessionByHash(ctx context.Context, arg TouchSessionByHash
 }
 
 const upsertAppUser = `-- name: UpsertAppUser :one
-INSERT INTO app_users (auth_provider, auth_subject, username, display_name)
-VALUES ($1, $2, $3, $4)
-ON CONFLICT (auth_provider, auth_subject) DO UPDATE
+INSERT INTO app_users (instance, auth_provider, auth_subject, username, display_name)
+VALUES ($1, $2, $3, $4, $5)
+ON CONFLICT (instance, auth_provider, auth_subject) DO UPDATE
 SET username = EXCLUDED.username,
     display_name = EXCLUDED.display_name,
     profile_updated_at = CASE
@@ -109,6 +109,7 @@ RETURNING id, disabled_at
 `
 
 type UpsertAppUserParams struct {
+	Instance     string      `json:"instance"`
 	AuthProvider string      `json:"auth_provider"`
 	AuthSubject  string      `json:"auth_subject"`
 	Username     string      `json:"username"`
@@ -123,8 +124,11 @@ type UpsertAppUserRow struct {
 // profile_updated_at moves only when the username or display name changed.
 // The upsert always takes the row lock (DO UPDATE, never DO NOTHING), which
 // serializes session resolution per user for the rest of the transaction.
+// A user belongs to one instance: the same identity on another instance is
+// another user.
 func (q *Queries) UpsertAppUser(ctx context.Context, arg UpsertAppUserParams) (UpsertAppUserRow, error) {
 	row := q.db.QueryRow(ctx, upsertAppUser,
+		arg.Instance,
 		arg.AuthProvider,
 		arg.AuthSubject,
 		arg.Username,

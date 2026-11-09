@@ -13,19 +13,28 @@ import (
 	"github.com/sperano/puckdb/internal/sqlcdb"
 )
 
+// ErrNoInstance is returned by NewPGStore for an empty instance name.
+var ErrNoInstance = errors.New("instance name is empty")
+
 // PGStore keeps users in app_users and sessions in app_sessions.
 type PGStore struct {
 	pool        *pgxpool.Pool
+	instance    string
 	idleTimeout time.Duration
 }
 
-// NewPGStore returns a store whose sessions end after idleTimeout without a
-// resolved request.
-func NewPGStore(pool *pgxpool.Pool, idleTimeout time.Duration) *PGStore {
-	return &PGStore{pool: pool, idleTimeout: idleTimeout}
+// NewPGStore returns a store of instance's users, whose sessions end after
+// idleTimeout without a resolved request. Users belong to one instance: the
+// same identity resolved by a store of another instance is another user, with
+// its own sessions and conversations.
+func NewPGStore(pool *pgxpool.Pool, instance string, idleTimeout time.Duration) (*PGStore, error) {
+	if instance == "" {
+		return nil, ErrNoInstance
+	}
+	return &PGStore{pool: pool, instance: instance, idleTimeout: idleTimeout}, nil
 }
 
-// Resolve upserts the user, then in the same transaction (the upsert holds the
+// Resolve upserts the user of the store's instance, then in the same transaction (the upsert holds the
 // user row lock, so concurrent requests of one user agree on one session):
 //  1. continues the session named by the presented cookie, if it is open and
 //     not idle;
@@ -43,6 +52,7 @@ func (s *PGStore) Resolve(ctx context.Context, req SessionRequest) (Resolution, 
 	q := sqlcdb.New(tx)
 
 	user, err := q.UpsertAppUser(ctx, sqlcdb.UpsertAppUserParams{
+		Instance:     s.instance,
 		AuthProvider: ProviderAuthentik,
 		AuthSubject:  req.Identity.Subject,
 		Username:     req.Identity.Username,
