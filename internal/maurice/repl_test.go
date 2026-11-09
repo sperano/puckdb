@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"os"
+	"runtime"
 	"strings"
 	"testing"
 	"testing/iotest"
@@ -20,6 +21,9 @@ import (
 // readLinesTestTimeout bounds how long a test waits for the readLines
 // goroutine to deliver a line or close its channel.
 const readLinesTestTimeout = 2 * time.Second
+
+// goroutinePollInterval is how often a test rechecks the goroutine count.
+const goroutinePollInterval = 10 * time.Millisecond
 
 func TestReadLines_DeliversLinesThenClosesOnEOF(t *testing.T) {
 	lines, errFn := readLines(context.Background(), strings.NewReader("first\nsecond\n"))
@@ -170,6 +174,28 @@ func TestRunREPL_QuitAfterModelSwitchClosesEveryService(t *testing.T) {
 		assert.Empty(t, svc.chats, "nothing after /quit is read")
 	}
 	assert.Contains(t, out.String(), "(model-b)", "the prompt follows the switch")
+}
+
+func TestRunREPL_QuitReleasesInputGoroutine(t *testing.T) {
+	baseline := runtime.NumGoroutine()
+	cfg := REPLConfig{
+		Models:       testREPLModels,
+		InitialModel: "model-a",
+		// After /quit the input goroutine has scanned "never sent" and
+		// blocks delivering it until the REPL cancels its context.
+		In:     strings.NewReader("/quit\nnever sent\n"),
+		Out:    io.Discard,
+		ErrOut: io.Discard,
+	}
+
+	require.NoError(t, runREPL(context.Background(), cfg, (&serviceFactory{}).build))
+
+	// A manual poll: assert.Eventually runs its condition on a goroutine of
+	// its own, which the count would include.
+	for deadline := time.Now().Add(readLinesTestTimeout); runtime.NumGoroutine() > baseline; {
+		require.True(t, time.Now().Before(deadline), "the input goroutine is still running")
+		time.Sleep(goroutinePollInterval)
+	}
 }
 
 func TestRunREPL_UnknownInitialModel(t *testing.T) {

@@ -584,8 +584,8 @@ fails before calling the model.
 
 | Command | Action |
 |---------|--------|
-| `/model` | Show current model + suggestions |
-| `/model <name>` | Switch model (rebuilds LLM client) |
+| `/model` | Show current model + numbered model menu |
+| `/model <number>` | Switch to the model at that menu position (rebuilds LLM client) |
 | `/new` | Start new conversation |
 | `/history` | List recent conversations |
 | `/load <id>` | Resume a conversation |

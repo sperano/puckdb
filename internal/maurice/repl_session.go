@@ -6,6 +6,8 @@ import (
 	"io"
 	"strconv"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/charmbracelet/glamour"
 	"github.com/rs/zerolog/log"
@@ -61,9 +63,14 @@ func (r *repl) handle(ctx context.Context, input string) (quit bool) {
 }
 
 // isCommand reports whether input is the command name, alone or followed by
-// an argument.
+// whitespace and an argument (any whitespace, as commandArg trims).
 func isCommand(input, name string) bool {
-	return input == name || strings.HasPrefix(input, name+" ")
+	rest, ok := strings.CutPrefix(input, name)
+	if !ok {
+		return false
+	}
+	next, _ := utf8.DecodeRuneInString(rest)
+	return rest == "" || unicode.IsSpace(next)
 }
 
 // commandArg returns the trimmed argument after the command name.

@@ -321,7 +321,7 @@ func TestREPLNew_ClearsConversation(t *testing.T) {
 func TestREPLChat_PrintsAnswerWarningsAndTools(t *testing.T) {
 	r := newTestREPL(t, fakeService{chatResp: &ChatResponse{
 		ConversationID: "conv-9",
-		Content:        "Matthews leads with **42** goals.",
+		Content:        "Goal leaders:\n\n- Matthews\n- Draisaitl\n",
 		ToolsUsed:      []string{"get_skater_stats", "get_standings"},
 		Warnings:       []string{"MCP server news unavailable"},
 	}}, nil)
@@ -334,20 +334,59 @@ func TestREPLChat_PrintsAnswerWarningsAndTools(t *testing.T) {
 	out := r.out.String()
 	assert.Contains(t, out, "Warning: MCP server news unavailable")
 	assert.Contains(t, out, "tools: get_skater_stats, get_standings")
-	assert.Contains(t, out, "Matthews leads with")
-	assert.Contains(t, out, "42")
+	// Rendered Markdown, not the raw answer: list items get bullets.
+	assert.Contains(t, out, "• Matthews")
+	assert.Contains(t, out, "• Draisaitl")
+	assert.NotContains(t, out, "- Matthews")
 	require.NotNil(t, r.conversationID)
 	assert.Equal(t, "conv-9", *r.conversationID)
 	assert.Empty(t, r.errOut.String())
 }
 
 func TestREPLChat_ErrorKeepsConversation(t *testing.T) {
-	r := newTestREPL(t, fakeService{chatErr: errors.New("rate limited")}, nil)
+	r := newTestREPL(t, fakeService{convs: []*Conversation{{ID: "conv-1"}}}, nil)
+	r.handle(context.Background(), "/load conv-1")
+	svc := r.services.last(t)
+	svc.chatErr = errors.New("rate limited")
 
 	r.handle(context.Background(), "who leads in goals?")
 
 	assert.Contains(t, r.errOut.String(), "Error: rate limited")
-	assert.Nil(t, r.conversationID)
+	require.NotNil(t, r.conversationID)
+	assert.Equal(t, "conv-1", *r.conversationID)
+
+	svc.chatErr = nil
+	r.handle(context.Background(), "who leads in assists?")
+	require.Len(t, svc.chats, 2)
+	for _, chat := range svc.chats {
+		require.NotNil(t, chat.ConversationID, chat.Message)
+		assert.Equal(t, "conv-1", *chat.ConversationID, chat.Message)
+	}
+}
+
+func TestREPLHandle_CommandArgumentAfterAnyWhitespace(t *testing.T) {
+	r := newTestREPL(t, fakeService{convs: []*Conversation{{ID: "conv-1"}}}, nil)
+
+	r.handle(context.Background(), "/load\tconv-1")
+	r.handle(context.Background(), "/model\t2")
+
+	require.NotNil(t, r.conversationID)
+	assert.Equal(t, "conv-1", *r.conversationID)
+	assert.Equal(t, testREPLModels[1], r.entry)
+	for _, svc := range r.services.built {
+		assert.Empty(t, svc.chats, "a command is not a prompt")
+	}
+}
+
+func TestREPLHandle_CommandPrefixIsAPrompt(t *testing.T) {
+	r := newTestREPL(t, fakeService{}, nil)
+
+	r.handle(context.Background(), "/loadconv-1")
+
+	chats := r.services.last(t).chats
+	require.Len(t, chats, 1)
+	assert.Equal(t, "/loadconv-1", chats[0].Message)
+	assert.NotContains(t, r.out.String(), "Usage")
 }
 
 func TestREPLHandle_QuitAndEmptyInput(t *testing.T) {
