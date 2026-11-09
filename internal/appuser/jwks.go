@@ -109,8 +109,9 @@ func (s *keySet) key(ctx context.Context, kid string) (*rsa.PublicKey, error) {
 }
 
 // startRefresh starts a fetch of the key set; s.mu must be held. The fetch
-// does not end with the request that triggered it: other requests wait on
-// its result. A failed fetch keeps the cached keys.
+// does not end with the request that triggered it: requests for a key the
+// cache lacks wait on its result, while cached keys are served without
+// waiting. A failed fetch keeps the cached keys.
 func (s *keySet) startRefresh(ctx context.Context) {
 	done := make(chan struct{})
 	s.inflight, s.lastAttempt = done, s.now()

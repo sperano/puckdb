@@ -36,6 +36,10 @@ const (
 
 var errDraftNotConfigured = errors.New("draft rankings are not available: the API has no database connection")
 
+// errNoOverrideAuthor refuses an override whose request identity carries no
+// username to record as its author.
+var errNoOverrideAuthor = errors.New("override author unknown: the identity has no username")
+
 func (r *Resolver) draft() (*draftrank.Service, error) {
 	if r.Draft == nil {
 		return nil, errDraftNotConfigured
@@ -192,13 +196,17 @@ func (r *Resolver) createDraftOverride(ctx context.Context, input model.DraftOve
 	return gqlOverride(created), nil
 }
 
-// overrideAuthor is the username of the request's PuckDB user. Without one
-// (no user resolution on the route, or no identity) it falls back to the
+// overrideAuthor is the username of the request's PuckDB user. Without a
+// user (no user resolution on the route, or no identity) it falls back to the
 // Authentik username header, which a cloudflare instance strips; a request
-// with neither is refused, so no override is stored without an author.
+// with neither, or whose user has no username, is refused, so no override is
+// stored without an author.
 func overrideAuthor(ctx context.Context) (string, error) {
 	user, err := appuser.Current(ctx)
-	if !errors.Is(err, appuser.ErrUnauthenticated) {
+	switch {
+	case err == nil && user.Username == "":
+		return "", errNoOverrideAuthor
+	case !errors.Is(err, appuser.ErrUnauthenticated):
 		return user.Username, err
 	}
 	if author := httpx.HeadersFromContext(ctx).Get(headerAuthentikUsername); author != "" {
