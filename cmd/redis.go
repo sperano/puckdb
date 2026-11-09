@@ -20,12 +20,20 @@ func cmdRedis() *cobra.Command {
 	return cmd
 }
 
+// redisFlushFlagGroups lists every flag group `redis flush` exposes. Defined
+// once and shared by InitFlags and BindFlags so the two can never drift.
+var redisFlushFlagGroups = []*config.FlagGroup{
+	&config.APIServerAddrFlags,
+	&config.AdminAuthFlags,
+	&config.APIBasicAuthFlags,
+}
+
 func cmdRedisFlush() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "flush",
 		Short:   "Flush all keys in Redis DB",
 		Long:    `Flush all keys in the configured Redis database via GraphQL API.`,
-		PreRunE: bindFlagsPreRunE(&config.APIServerAddrFlags, &config.AdminAuthFlags, &config.APIBasicAuthFlags),
+		PreRunE: bindFlagsPreRunE(redisFlushFlagGroups...),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := getGraphQLClient()
 			if err != nil {
@@ -49,6 +57,6 @@ func cmdRedisFlush() *cobra.Command {
 			return nil
 		},
 	}
-	config.InitFlags(cmd.Flags(), &config.APIServerAddrFlags, &config.AdminAuthFlags, &config.APIBasicAuthFlags)
+	config.InitFlags(cmd.Flags(), redisFlushFlagGroups...)
 	return cmd
 }
