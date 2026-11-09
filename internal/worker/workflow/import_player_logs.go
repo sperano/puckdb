@@ -60,8 +60,8 @@ func ImportPlayerLogsWorkflow(ctx workflow.Context, input *model.SeasonsInput) e
 		return err
 	}
 	logger.Info("ImportPlayerLogsWorkflow started",
-		"startSeason", input.StartSeason,
-		"endSeason", input.EndSeason,
+		"start_season", input.StartSeason,
+		"end_season", input.EndSeason,
 		"concurrency", concurrency)
 
 	ctx = workflow.WithActivityOptions(ctx, shared.DefaultActivityOptions())
@@ -139,9 +139,9 @@ func warnIncompleteManifest(ctx workflow.Context, season nhl.SeasonInfo, m workn
 	workflow.GetLogger(ctx).Warn("Skater list built from an incomplete cache",
 		"season", season.Label(),
 		"skaters", len(m.PlayerIDs),
-		"unreadableSchedules", m.UnreadableSchedules,
-		"missingBoxscores", m.MissingBoxscores,
-		"unreadableBoxscores", m.UnreadableBoxscores)
+		"unreadable_schedules", m.UnreadableSchedules,
+		"missing_boxscores", m.MissingBoxscores,
+		"unreadable_boxscores", m.UnreadableBoxscores)
 }
 
 // scanSummary is the scan group's completion message: the skaters listed

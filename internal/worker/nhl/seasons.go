@@ -146,7 +146,7 @@ func (a *SeasonsActivities) FetchSeasonsManifest(ctx context.Context, input *mod
 			}
 			staleData = data
 			if statErr == nil {
-				log.Debug().Time("modTime", info.ModTime()).Msg("Seasons manifest is stale, will refresh")
+				log.Debug().Time("mod_time", info.ModTime()).Msg("Seasons manifest is stale, will refresh")
 			} else {
 				log.Debug().Err(statErr).Msg("Seasons manifest stat failed, will refresh")
 			}

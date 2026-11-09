@@ -28,7 +28,7 @@ func (a *SeasonsActivities) importClubStats(ctx context.Context, queries ClubSta
 	}
 
 	if len(teams) == 0 {
-		logger.Warn("No teams found for season", "season", input.Season, "seasonID", season.ID())
+		logger.Warn("No teams found for season", "season", input.Season, "season_id", season.ID())
 	}
 
 	var totalSkaters, totalGoalies int

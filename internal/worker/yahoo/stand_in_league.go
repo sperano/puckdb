@@ -64,11 +64,11 @@ func (a *ImportActivities) ImportYahooStandInLeague(ctx context.Context, input I
 
 	logger.Warn("Imported TEMPORARY stand-in Yahoo league settings",
 		"season", input.Season,
-		"leagueID", input.LeagueID,
-		"sourceSeason", input.Source.Season,
-		"sourceLeagueID", input.Source.LeagueID,
-		"rosterPositions", result.RosterPositions,
-		"statCategories", result.StatCategories)
+		"league_id", input.LeagueID,
+		"source_season", input.Source.Season,
+		"source_league_id", input.Source.LeagueID,
+		"roster_positions", result.RosterPositions,
+		"stat_categories", result.StatCategories)
 	return result, nil
 }
 
@@ -115,7 +115,7 @@ func (a *ImportActivities) clearStandInLeagueSettings(ctx context.Context, store
 	if !found || !isStandInLeagueKey(stored.LeagueKey) {
 		return nil
 	}
-	activity.GetLogger(ctx).Info("Replacing TEMPORARY stand-in Yahoo league settings", "leagueID", stored.ID)
+	activity.GetLogger(ctx).Info("Replacing TEMPORARY stand-in Yahoo league settings", "league_id", stored.ID)
 	return a.deleteLeagueSettings(ctx, int(stored.ID))
 }
 

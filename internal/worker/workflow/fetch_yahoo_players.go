@@ -144,13 +144,13 @@ func FetchYahooPlayersWorkflow(ctx workflow.Context, input *FetchYahooPlayersInp
 	batches := shared.NewBatchRanges(totalPlayers, activityBatchSize)
 
 	logger.Info("FetchYahooPlayersWorkflow started",
-		"startID", startID,
-		"endID", endID,
-		"maxPlayerID", maxPlayerID,
+		"start_id", startID,
+		"end_id", endID,
+		"max_player_id", maxPlayerID,
 		"concurrency", concurrency,
-		"activityBatchSize", activityBatchSize,
-		"numActivityBatches", batches.Count(),
-		"totalCompleted", totalCompleted)
+		"activity_batch_size", activityBatchSize,
+		"num_activity_batches", batches.Count(),
+		"total_completed", totalCompleted)
 
 	// Set up progress tracking with the new ReportTracker
 	tracker, err := shared.InitTracker(ctx, NewFetchYahooPlayersProgressReport(maxPlayerID, totalCompleted))
@@ -207,6 +207,6 @@ func FetchYahooPlayersWorkflow(ctx workflow.Context, input *FetchYahooPlayersInp
 	tracker.CompleteGroup(ctx, GroupFetchYahooPlayers,
 		fmt.Sprintf("Found %d/%d Yahoo! players in %s.", finalFound, finalCount, elapsed))
 
-	logger.Info("FetchYahooPlayersWorkflow completed", "maxPlayerID", maxPlayerID)
+	logger.Info("FetchYahooPlayersWorkflow completed", "max_player_id", maxPlayerID)
 	return nil
 }

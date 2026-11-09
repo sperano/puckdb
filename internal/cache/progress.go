@@ -154,7 +154,7 @@ func LoadProgressReportBatch(ctx context.Context, client *redis.Client, workflow
 			continue
 		}
 		if err != nil {
-			log.Warn().Err(err).Str("workflowID", workflowIDs[i]).Msg("Failed to get progress report")
+			log.Warn().Err(err).Str("workflow_id", workflowIDs[i]).Msg("Failed to get progress report")
 			continue
 		}
 		result[workflowIDs[i]] = data

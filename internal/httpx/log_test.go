@@ -2,15 +2,40 @@ package httpx
 
 import (
 	"bytes"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"testing"
 	"time"
 
+	"github.com/go-chi/chi/v5/middleware"
+	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// bufferLogger returns a JSON logger writing to a fresh buffer, so a test
+// reads the fields an entry logged without touching the global logger.
+func bufferLogger() (*zerolog.Logger, *bytes.Buffer) {
+	var buf bytes.Buffer
+	logger := zerolog.New(&buf)
+	return &logger, &buf
+}
+
+// logLines decodes each JSON line buf holds.
+func logLines(t *testing.T, buf *bytes.Buffer) []map[string]any {
+	t.Helper()
+	var lines []map[string]any
+	for _, raw := range bytes.Split(bytes.TrimSpace(buf.Bytes()), []byte("\n")) {
+		if len(raw) == 0 {
+			continue
+		}
+		var line map[string]any
+		require.NoError(t, json.Unmarshal(raw, &line))
+		lines = append(lines, line)
+	}
+	return lines
+}
 
 func TestChiLogger(t *testing.T) {
 	t.Parallel()
@@ -36,7 +61,8 @@ func TestChiLogger(t *testing.T) {
 func TestLogFormatter_NewLogEntry(t *testing.T) {
 	t.Parallel()
 
-	formatter := logFormatter{}
+	logger, _ := bufferLogger()
+	formatter := logFormatter{logger: logger}
 
 	req := httptest.NewRequest("POST", "/graphql", nil)
 	req.Header.Set("User-Agent", "TestClient/1.0")
@@ -48,184 +74,111 @@ func TestLogFormatter_NewLogEntry(t *testing.T) {
 	logEntry, ok := entry.(logEntry)
 	require.True(t, ok)
 
+	assert.Same(t, logger, logEntry.logger)
 	assert.Equal(t, "TestClient/1.0", logEntry.userAgent)
 	assert.Equal(t, "POST", logEntry.method)
 	assert.Equal(t, "192.0.2.10:54321", logEntry.addr)
 	assert.Equal(t, "/graphql", logEntry.path)
 }
 
-func TestLogEntry_Write_NormalPath(t *testing.T) {
+func TestLogEntry_Write_LogsRequestFields(t *testing.T) {
 	t.Parallel()
 
+	logger, buf := bufferLogger()
 	entry := logEntry{
+		logger:    logger,
 		userAgent: "TestClient/1.0",
 		method:    "GET",
 		addr:      "192.0.2.10:54321",
 		path:      "/api/games",
 	}
 
-	// Write should not panic
-	assert.NotPanics(t, func() {
-		entry.Write(200, 1024, nil, 100*time.Millisecond, nil)
-	})
+	entry.Write(http.StatusNotFound, 1024, nil, 100*time.Millisecond, nil)
+
+	lines := logLines(t, buf)
+	require.Len(t, lines, 1)
+	assert.Equal(t, "info", lines[0]["level"])
+	assert.Equal(t, "GET /api/games", lines[0]["message"])
+	assert.Equal(t, "TestClient/1.0", lines[0]["ua"])
+	assert.Equal(t, "192.0.2.10:54321", lines[0]["addr"])
+	assert.EqualValues(t, http.StatusNotFound, lines[0]["status"])
+	assert.EqualValues(t, 1024, lines[0]["bytes"])
+	assert.Contains(t, lines[0], "dur")
 }
 
-func TestLogEntry_Write_PingPath(t *testing.T) {
+func TestLogEntry_Write_SkipsPingPaths(t *testing.T) {
 	t.Parallel()
 
-	entry := logEntry{
-		userAgent: "HealthChecker/1.0",
-		method:    "GET",
-		addr:      "192.0.2.1:12345",
-		path:      "/ping",
-	}
+	for _, path := range []string{"/ping", "/ping/deep"} {
+		logger, buf := bufferLogger()
+		entry := logEntry{logger: logger, method: "GET", path: path}
 
-	// Write should return early for ping paths (no logging)
-	assert.NotPanics(t, func() {
-		entry.Write(200, 0, nil, 10*time.Millisecond, nil)
-	})
+		entry.Write(http.StatusOK, 0, nil, 10*time.Millisecond, nil)
+
+		assert.Empty(t, buf.String(), path)
+	}
 }
 
-func TestLogEntry_Write_PingSubpath(t *testing.T) {
+func TestLogEntry_Panic_LogsStructuredError(t *testing.T) {
 	t.Parallel()
 
+	logger, buf := bufferLogger()
 	entry := logEntry{
-		userAgent: "HealthChecker/1.0",
-		method:    "GET",
-		addr:      "192.0.2.1:12345",
-		path:      "/ping/deep",
-	}
-
-	// Write should return early for paths starting with /ping
-	assert.NotPanics(t, func() {
-		entry.Write(200, 0, nil, 10*time.Millisecond, nil)
-	})
-}
-
-func TestLogEntry_Write_VariousStatuses(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name   string
-		status int
-		bytes  int
-	}{
-		{"200 OK", 200, 1024},
-		{"201 Created", 201, 256},
-		{"204 No Content", 204, 0},
-		{"400 Bad Request", 400, 128},
-		{"404 Not Found", 404, 64},
-		{"500 Internal Server Error", 500, 512},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			entry := logEntry{
-				userAgent: "TestClient/1.0",
-				method:    "GET",
-				addr:      "127.0.0.1:8080",
-				path:      "/test",
-			}
-
-			assert.NotPanics(t, func() {
-				entry.Write(tt.status, tt.bytes, nil, 50*time.Millisecond, nil)
-			})
-		})
-	}
-}
-
-// TestLogEntry_Panic and TestLogEntry_Panic_WithError both swap os.Stdout to
-// capture Panic's output. They must NOT run in parallel — concurrent stdout
-// swaps race for the global, causing one test's pipe to capture nothing.
-func TestLogEntry_Panic(t *testing.T) {
-	entry := logEntry{
-		userAgent: "TestClient/1.0",
-		method:    "GET",
-		addr:      "127.0.0.1:8080",
-		path:      "/api/crash",
-	}
-
-	// Capture stdout
-	oldStdout := os.Stdout
-	r, w, _ := os.Pipe()
-	os.Stdout = w
-
-	panicValue := "something went wrong"
-	stack := []byte("goroutine 1 [running]:\nmain.handler()")
-
-	entry.Panic(panicValue, stack)
-
-	w.Close()
-	os.Stdout = oldStdout
-
-	var buf bytes.Buffer
-	buf.ReadFrom(r)
-	output := buf.String()
-
-	assert.Contains(t, output, "panic")
-	assert.Contains(t, output, panicValue)
-	assert.Contains(t, output, "goroutine")
-}
-
-func TestLogEntry_Panic_WithError(t *testing.T) {
-	entry := logEntry{
+		logger:    logger,
 		userAgent: "TestClient/1.0",
 		method:    "POST",
 		addr:      "127.0.0.1:8080",
 		path:      "/api/submit",
 	}
-
-	// Capture stdout
-	oldStdout := os.Stdout
-	r, w, _ := os.Pipe()
-	os.Stdout = w
-
 	panicValue := struct {
 		Code    int
 		Message string
 	}{500, "internal error"}
-	stack := []byte("stack trace here")
 
-	entry.Panic(panicValue, stack)
+	entry.Panic(panicValue, []byte("goroutine 1 [running]:\nmain.handler()"))
 
-	w.Close()
-	os.Stdout = oldStdout
-
-	var buf bytes.Buffer
-	buf.ReadFrom(r)
-	output := buf.String()
-
-	assert.Contains(t, output, "panic")
-	assert.Contains(t, output, "internal error")
+	lines := logLines(t, buf)
+	require.Len(t, lines, 1)
+	assert.Equal(t, "error", lines[0]["level"])
+	assert.Equal(t, "POST", lines[0]["method"])
+	assert.Equal(t, "/api/submit", lines[0]["path"])
+	assert.Equal(t, "{Code:500 Message:internal error}", lines[0]["panic"])
+	assert.Equal(t, "goroutine 1 [running]:\nmain.handler()", lines[0]["stack"])
 }
 
-func TestChiLogger_Integration(t *testing.T) {
+// TestRecovererLogsPanicThroughRequestLogger runs the middleware order the
+// API router uses: the recovered panic reaches the structured logger and
+// the client gets a 500.
+func TestRecovererLogsPanicThroughRequestLogger(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		name   string
-		method string
-		path   string
-		status int
-	}{
-		{"GET request", "GET", "/api/v1/games", http.StatusOK},
-		{"POST request", "POST", "/graphql", http.StatusOK},
-		{"Not found", "GET", "/nonexistent", http.StatusNotFound},
-	}
+	logger, buf := bufferLogger()
+	panicking := http.HandlerFunc(func(http.ResponseWriter, *http.Request) { panic("boom") })
+	handler := middleware.RequestLogger(logFormatter{logger: logger})(middleware.Recoverer(panicking))
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				w.WriteHeader(tt.status)
-			})
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/draft/api/board", nil))
 
-			loggedHandler := ChiLogger(handler)
-			req := httptest.NewRequest(tt.method, tt.path, nil)
-			rr := httptest.NewRecorder()
+	assert.Equal(t, http.StatusInternalServerError, rr.Code)
+	lines := logLines(t, buf)
+	require.Len(t, lines, 2, "the panic, then the request")
+	assert.Equal(t, "boom", lines[0]["panic"])
+	assert.Equal(t, "/draft/api/board", lines[0]["path"])
+	assert.EqualValues(t, http.StatusInternalServerError, lines[1]["status"])
+}
 
-			loggedHandler.ServeHTTP(rr, req)
+func TestServerErrorWriter_LogsOneWarningPerLine(t *testing.T) {
+	t.Parallel()
 
-			assert.Equal(t, tt.status, rr.Code)
-		})
-	}
+	logger, buf := bufferLogger()
+	w := serverErrorWriter{logger: logger}
+
+	n, err := w.Write([]byte("http: TLS handshake error from 192.0.2.1:5000: EOF\n"))
+
+	require.NoError(t, err)
+	assert.Equal(t, len("http: TLS handshake error from 192.0.2.1:5000: EOF\n"), n)
+	lines := logLines(t, buf)
+	require.Len(t, lines, 1)
+	assert.Equal(t, "warn", lines[0]["level"])
+	assert.Equal(t, "http: TLS handshake error from 192.0.2.1:5000: EOF", lines[0]["message"])
 }

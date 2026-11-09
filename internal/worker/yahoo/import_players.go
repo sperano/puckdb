@@ -72,7 +72,7 @@ func (a *ImportActivities) ImportYahooLeaguePlayers(ctx context.Context, input I
 		return ImportYahooLeaguePlayersResult{}, fmt.Errorf("remove stale players of league %s: %w", manifest.LeagueKey, err)
 	}
 	activity.GetLogger(ctx).Info("Imported Yahoo league player pool",
-		"season", input.Season, "leagueID", input.LeagueID, "players", len(params), "removed", removed)
+		"season", input.Season, "league_id", input.LeagueID, "players", len(params), "removed", removed)
 	return ImportYahooLeaguePlayersResult{Players: len(params), Removed: removed}, nil
 }
 

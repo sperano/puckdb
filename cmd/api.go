@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"runtime/debug"
 	"time"
 
 	"github.com/99designs/gqlgen/graphql"
@@ -13,8 +14,10 @@ import (
 	"github.com/99designs/gqlgen/graphql/handler/transport"
 	"github.com/99designs/gqlgen/graphql/playground"
 	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-redis/redis/v8"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"github.com/sperano/puckdb/internal/appuser"
 	"github.com/sperano/puckdb/internal/config"
@@ -31,6 +34,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/vektah/gqlparser/v2/ast"
+	"github.com/vektah/gqlparser/v2/gqlerror"
 )
 
 const (
@@ -39,6 +43,9 @@ const (
 	graphQLPath   = "/graphql"
 	// draftBoardPath is where the API mounts the embedded live draft board.
 	draftBoardPath = "/draft"
+	// graphQLInternalError is the message a client gets for a resolver
+	// panic, the same as gqlgen's default.
+	graphQLInternalError = "internal system error"
 )
 
 // apiFlagGroups lists every flag group the api command exposes. Defined
@@ -129,7 +136,7 @@ func cmdAPI() *cobra.Command {
 				return err
 			}
 			r := setupAPIRouter(redisClient, resolver, sessions, auth)
-			srv := &http.Server{Addr: listen, Handler: r}
+			srv := &http.Server{Addr: listen, Handler: r, ErrorLog: httpx.ServerErrorLog()}
 			return runHTTPServer(cmd.Context(), srv,
 				viper.GetBool(config.FlagAPITLSEnabled),
 				viper.GetString(config.FlagTLSCertificate),
@@ -240,6 +247,9 @@ func setupAPIRouter(redisClient *redis.Client, resolver *graph.Resolver, session
 	r := chi.NewRouter()
 	r.Use(metrics.HTTPMetricsMiddleware)
 	r.Use(httpx.ChiLogger)
+	// After the logger: Recoverer reports the panic on the request's log
+	// entry and answers 500 instead of dropping the connection.
+	r.Use(middleware.Recoverer)
 	r.Use(httpx.HeaderContext)
 
 	r.Get("/ping", func(w http.ResponseWriter, r *http.Request) {
@@ -280,6 +290,7 @@ func graphqlHandler(resolver *graph.Resolver, admin graph.AdminAuth) http.Handle
 		Cache: lru.New[string](config.DefaultGraphQLAPQCacheSize),
 	})
 	server.AroundResponses(aroundResponsesLogger)
+	server.SetRecoverFunc(newGraphQLRecover(&log.Logger))
 	return server
 }
 
@@ -374,4 +385,23 @@ func aroundResponsesLogger(ctx context.Context, next graphql.ResponseHandler) *g
 		log.Debug().Str("operation", req.OperationName).Str("duration", diff.String()).Msg("graphql operation successful")
 	}
 	return res
+}
+
+// newGraphQLRecover returns the resolver panic handler: gqlgen's default
+// prints the panic and stack to stderr, this one logs them to logger with
+// the operation and field path, and answers with the same generic error.
+func newGraphQLRecover(logger *zerolog.Logger) graphql.RecoverFunc {
+	return func(ctx context.Context, recovered any) error {
+		event := logger.Error().
+			Str("panic", fmt.Sprintf("%+v", recovered)).
+			Str("stack", string(debug.Stack()))
+		if graphql.HasOperationContext(ctx) {
+			event = event.Str("operation", graphql.GetOperationContext(ctx).OperationName)
+		}
+		if field := graphql.GetFieldContext(ctx); field != nil {
+			event = event.Str("path", field.Path().String())
+		}
+		event.Msg("Recovered panic in GraphQL resolver")
+		return gqlerror.Errorf(graphQLInternalError)
+	}
 }

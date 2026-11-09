@@ -58,7 +58,7 @@ func LoadYahooIDPool(ctx context.Context, client *redis.Client) (map[store.Yahoo
 
 		var player store.YahooPlayer
 		if err := gob.NewDecoder(bytes.NewReader([]byte(encoded))).Decode(&player); err != nil {
-			log.Warn().Err(err).Int("yahooID", id).Msg("Failed to decode Yahoo player from Redis")
+			log.Warn().Err(err).Int("yahoo_id", id).Msg("Failed to decode Yahoo player from Redis")
 			continue
 		}
 		pool[store.YahooPlayerID(id)] = &player

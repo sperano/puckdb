@@ -130,7 +130,7 @@ func (a *SeasonsActivities) edgeRoster(ctx context.Context, scope edgeImportScop
 	if ctxErr := ctx.Err(); ctxErr != nil {
 		return nil, false, fmt.Errorf("load roster %s: %w", team.abbrev, ctxErr)
 	}
-	activity.GetLogger(ctx).Debug("No roster found for team", "team", team.abbrev, "season", scope.season.StartYear(), "err", err)
+	activity.GetLogger(ctx).Debug("No roster found for team", "team", team.abbrev, "season", scope.season.StartYear(), "error", err)
 	return nil, false, nil
 }
 
@@ -189,7 +189,7 @@ func (a *SeasonsActivities) importCachedEdgeDetail[T any](
 		if ctxErr := ctx.Err(); ctxErr != nil {
 			return 0, fmt.Errorf("import edge %s %s: %w", kind, subject, ctxErr)
 		}
-		activity.GetLogger(ctx).Warn("Failed to read edge detail from cache", "kind", kind, "subject", subject, "err", err)
+		activity.GetLogger(ctx).Warn("Failed to read edge detail from cache", "kind", kind, "subject", subject, "error", err)
 		return 0, nil
 	}
 

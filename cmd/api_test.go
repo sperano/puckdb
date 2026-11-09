@@ -1,17 +1,23 @@
 package cmd
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
+	"github.com/99designs/gqlgen/graphql"
+	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/sperano/puckdb/internal/graph"
+	"github.com/vektah/gqlparser/v2/ast"
+	"github.com/vektah/gqlparser/v2/gqlerror"
 )
 
 // runHTTPServerTestTimeout bounds how long a test waits for runHTTPServer to
@@ -106,6 +112,44 @@ func TestRunHTTPServer_ReturnsListenError(t *testing.T) {
 func newTestAPIRouter() http.Handler {
 	passThrough := func(next http.Handler) http.Handler { return next }
 	return setupAPIRouter(nil, &graph.Resolver{}, passThrough, apiAuth{})
+}
+
+// TestAPIRouterRecoversHandlerPanics answers 500 for a panicking route
+// instead of letting the panic reach net/http, which drops the connection
+// and logs outside zerolog.
+func TestAPIRouterRecoversHandlerPanics(t *testing.T) {
+	passThrough := func(next http.Handler) http.Handler { return next }
+	router := setupAPIRouter(nil, &graph.Resolver{}, passThrough, apiAuth{})
+	router.Get("/test-panic", func(http.ResponseWriter, *http.Request) { panic("boom") })
+
+	recorder := httptest.NewRecorder()
+	require.NotPanics(t, func() {
+		router.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/test-panic", nil))
+	})
+	assert.Equal(t, http.StatusInternalServerError, recorder.Code)
+}
+
+// TestGraphQLRecoverLogsPanicThroughZerolog checks that a resolver panic
+// becomes one structured error line with its field path, and the client
+// sees only the generic error.
+func TestGraphQLRecoverLogsPanicThroughZerolog(t *testing.T) {
+	var buf bytes.Buffer
+	logger := zerolog.New(&buf)
+	ctx := graphql.WithOperationContext(context.Background(), &graphql.OperationContext{OperationName: "Boards"})
+	ctx = graphql.WithFieldContext(ctx, &graphql.FieldContext{Field: graphql.CollectedField{Field: &ast.Field{Alias: "draftLeagues"}}})
+
+	err := newGraphQLRecover(&logger)(ctx, "boom")
+
+	var gqlErr *gqlerror.Error
+	require.ErrorAs(t, err, &gqlErr)
+	assert.Equal(t, graphQLInternalError, gqlErr.Message)
+	var line map[string]any
+	require.NoError(t, json.Unmarshal(buf.Bytes(), &line))
+	assert.Equal(t, "error", line["level"])
+	assert.Equal(t, "boom", line["panic"])
+	assert.Equal(t, "Boards", line["operation"])
+	assert.Equal(t, "draftLeagues", line["path"])
+	assert.Contains(t, line["stack"], "newGraphQLRecover")
 }
 
 // TestAPIRouterServesDraftBoard requests the mounted board through the API

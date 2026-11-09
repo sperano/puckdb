@@ -77,7 +77,7 @@ func NewClient(o Options) (client.Client, error) {
 	if err := o.Validate(); err != nil {
 		return nil, err
 	}
-	log.Info().Str("host/port", o.HostPort).Str("namespace", o.Namespace).Msg("Initializing Temporal")
+	log.Info().Str("host_port", o.HostPort).Str("namespace", o.Namespace).Msg("Initializing Temporal")
 	cl, err := client.Dial(clientOptions(o))
 	if err != nil {
 		return nil, fmt.Errorf("unable to create temporal client: %w", err)

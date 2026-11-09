@@ -74,7 +74,7 @@ func (a *ImportActivities) ImportGameStoryForDate(ctx context.Context, input Imp
 	logger.Debug("Imported game story data for date",
 		"date", input.Date.Format(config.DateFormat),
 		"games", result.GamesProcessed,
-		"threeStars", result.ThreeStarsImported,
+		"three_stars", result.ThreeStarsImported,
 		"highlights", result.HighlightsImported,
 		"shootouts", result.ShootoutsImported,
 		"errors", len(result.Errors))

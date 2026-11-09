@@ -128,7 +128,7 @@ func fetchYahooPlayerPool(ctx workflow.Context, startYear, leagueID int, bar yah
 	bar.resize(ctx, yahooPoolUnits(plan.Refresh, pages)-yahooPoolUnits(true, yahooPoolPages(0)))
 	if !plan.Refresh {
 		workflow.GetLogger(ctx).Info("Skipping Yahoo player pool download",
-			"season", startYear, "leagueID", leagueID, "reason", plan.Reason)
+			"season", startYear, "league_id", leagueID, "reason", plan.Reason)
 		return false, nil
 	}
 	fetchedAt := workflow.Now(ctx)

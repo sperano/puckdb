@@ -275,7 +275,7 @@ func logUnmatchedReport(logger log.Logger, unmatchedReport *workplayer.Unmatched
 	// Log truly unmatched players
 	for _, p := range unmatchedReport.TrulyUnmatched {
 		logger.Warn("Truly unmatched player with NHL games",
-			"yahooID", p.YahooID,
+			"yahoo_id", p.YahooID,
 			"yahoo_name", p.FirstName+" "+p.LastName,
 			"nhl_name", p.NHLName,
 			"nhl_games", p.NHLGames)

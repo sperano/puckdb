@@ -110,7 +110,7 @@ func NewFetchEdgeProgressReport(season nhl.SeasonInfo) *shared.ProgressReport {
 func FetchEdgeWorkflow(ctx workflow.Context, input FetchEdgeWorkflowInput) (core.OriginCounts, error) {
 	season := input.Season
 	logger := workflow.GetLogger(ctx)
-	logger.Info("FetchEdgeWorkflow started", "season", season.ID.StartYear(), "refreshCurrent", input.RefreshCurrent)
+	logger.Info("FetchEdgeWorkflow started", "season", season.ID.StartYear(), "refresh_current", input.RefreshCurrent)
 
 	// Set up progress tracking so parent can query our progress
 	tracker, err := shared.InitTracker(ctx, NewFetchEdgeProgressReport(season))

@@ -151,7 +151,7 @@ func (a *Activities) rebuildYahooIDPool(ctx context.Context, result EnsureYahooI
 	}
 	if parsed.ReadErrors > 0 || parsed.ParseErrors > 0 {
 		activity.GetLogger(ctx).Warn("Some Yahoo player files failed during the pool rebuild",
-			"readErrors", parsed.ReadErrors, "parseErrors", parsed.ParseErrors)
+			"read_errors", parsed.ReadErrors, "parse_errors", parsed.ParseErrors)
 	}
 	matched, err := a.Manifests.MatchedYahooIDs(ctx)
 	if err != nil {

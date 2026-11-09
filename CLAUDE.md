@@ -239,6 +239,15 @@ Flags follow a strict pattern in `internal/config/`:
 
 Season config: `seasons.yaml` (start/end dates, game keys, league IDs, team IDs)
 
+## Logging
+
+Everything logs through the global zerolog logger (`config.SetupLogger`); the Temporal client wraps the same logger. Full convention on wiki `puckdb/logging.md`, enforced by `internal/config/log_convention_test.go`:
+- Workflow code logs only through `workflow.GetLogger(ctx)` (silent during replay); a worker file with `workflow.Context` code must not import `github.com/rs/zerolog/log`
+- An activity method logs through `activity.GetLogger(ctx)` (adds the workflow and activity IDs), never mixed with the global logger in one function; helpers that also run outside an activity keep zerolog (`activity.GetLogger` panics on a non-activity context)
+- Keys are snake_case string literals (`player_id`, `start_year`), the error key is `error`, Temporal calls pass paired keys and values
+- Library packages never write to the process's stdio (`fmt.Print*`, `os.Stdout`, ...): user output goes to an `io.Writer` from the caller (the Maurice REPL's `REPLConfig.In`/`Out`/`Err`); CLI output in `cmd/` is not logging and stays on `fmt`
+- HTTP and GraphQL panics reach zerolog: `middleware.Recoverer` after `httpx.ChiLogger`, `newGraphQLRecover` on the GraphQL server, `httpx.ServerErrorLog()` as the API server's `ErrorLog`
+
 ## GraphQL API
 
 Schema lives in `internal/graph/schema.graphqls`. Each long-running workflow follows the same pattern: a `start` mutation, a matching `cancel*` mutation, a `*Result` query, and a `*Progress` query.

@@ -1,6 +1,7 @@
 package maurice
 
 import (
+	"bytes"
 	"context"
 	"io"
 	"strings"
@@ -110,4 +111,68 @@ func TestFindModel(t *testing.T) {
 			assert.Equal(t, tt.want, got)
 		})
 	}
+}
+
+// replTestModels are the models the REPL tests can switch between; Ollama
+// needs no API key, so switching prints no warning.
+var replTestModels = []ModelEntry{
+	{ID: "first-model", Description: "first", Provider: llm.ProviderOllama},
+	{ID: "second-model", Description: "second", Provider: llm.ProviderOllama},
+}
+
+// runTestREPL runs the REPL on input with an in-memory SQLite store and
+// returns what it wrote to Out and Err. No prompt reaches the model.
+func runTestREPL(t *testing.T, input string) (string, string) {
+	t.Helper()
+	var out, errOut bytes.Buffer
+	err := RunREPL(context.Background(), REPLConfig{
+		DB:              openTestDB(t),
+		Models:          replTestModels,
+		InitialModel:    replTestModels[0].ID,
+		ProviderConfigs: map[llm.Provider]llm.ProviderConfig{llm.ProviderOllama: {BaseURL: "http://127.0.0.1:1/v1"}},
+		ListLimit:       10,
+		In:              strings.NewReader(input),
+		Out:             &out,
+		Err:             &errOut,
+	})
+	require.NoError(t, err)
+	return out.String(), errOut.String()
+}
+
+func TestRunREPL_WritesCommandsToConfiguredStreams(t *testing.T) {
+	out, errOut := runTestREPL(t, "/new\n/history\n/model 9\n/model 2\n/load missing-id\n/quit\n")
+
+	assert.Contains(t, out, "Maurice — Hockey AI Chat")
+	assert.Contains(t, out, "Started new conversation.")
+	assert.Contains(t, out, "No conversations yet.")
+	assert.Contains(t, out, "Invalid selection: 9")
+	assert.Contains(t, out, "Switched to")
+	assert.Contains(t, out, "(second-model)", "the prompt after the switch names the new model")
+	assert.NotContains(t, out, "Error:", "errors go to Err, not Out")
+	assert.Contains(t, errOut, "Error:", "the failed /load is reported on Err")
+}
+
+func TestRunREPL_EndsAtEndOfInput(t *testing.T) {
+	out, errOut := runTestREPL(t, "/new\n")
+
+	assert.Contains(t, out, "Started new conversation.")
+	assert.Empty(t, errOut)
+}
+
+func TestRunREPL_RequiresStreams(t *testing.T) {
+	err := RunREPL(context.Background(), REPLConfig{Models: replTestModels, InitialModel: replTestModels[0].ID})
+
+	assert.ErrorIs(t, err, errREPLStreams)
+}
+
+func TestSpinnerStop_ClearsLineBeforeReturning(t *testing.T) {
+	var out bytes.Buffer
+	spin := &spinner{out: &out}
+
+	spin.Start("thinking...")
+	spin.Stop()
+
+	// Stop waits for the animation goroutine, so its last write is
+	// visible here without synchronisation.
+	assert.True(t, strings.HasSuffix(out.String(), "\r\033[K"), "got %q", out.String())
 }
