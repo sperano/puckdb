@@ -106,7 +106,7 @@ func importYahooLeaguesAndTeams(ctx workflow.Context, yahooCfg config.Season, st
 	if len(yahooCfg.Leagues) == 0 {
 		return nil // Season not in Yahoo config
 	}
-	workflow.GetLogger(ctx).Info("Importing Yahoo data for season", "startYear", startYear)
+	workflow.GetLogger(ctx).Info("Importing Yahoo data for season", "start_year", startYear)
 	var yia *yahoo.ImportActivities
 	var teamIDs []yahoo.TeamInfo
 	var leaguesWithTeams []int

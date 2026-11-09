@@ -431,7 +431,7 @@ func (d draftActivity) chooseDraftPlayer(ctx context.Context, in DraftPickInput)
 	if runErr != nil {
 		// Provider-level failure (network, 5xx, etc.). Fall through to
 		// fallback so the draft makes progress.
-		activity.GetLogger(ctx).Warn("DraftPick agentloop failed", "err", runErr.Error())
+		activity.GetLogger(ctx).Warn("DraftPick agentloop failed", "error", runErr.Error())
 	}
 	if ctxErr := ctx.Err(); ctxErr != nil {
 		// The activity ended mid-turn: DraftPick records the billed

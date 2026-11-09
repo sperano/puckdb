@@ -70,7 +70,7 @@ func (a *FetchActivities) fetchOptionalLeagueResource(ctx context.Context, res R
 		}
 		return FetchYahooLeagueResourceResult{Unavailable: true}, nil
 	}
-	logFetched(activity.GetLogger(ctx), origin, logName, "season", input.Season, "leagueID", input.LeagueID)
+	logFetched(activity.GetLogger(ctx), origin, logName, "season", input.Season, "league_id", input.LeagueID)
 	return FetchYahooLeagueResourceResult{}, nil
 }
 
@@ -94,6 +94,6 @@ func (a *FetchActivities) FetchYahooMatchupWeek(ctx context.Context, input Fetch
 		return FetchYahooMatchupWeekResult{}, fmt.Errorf("fetch matchups %d/%d week %d: %w",
 			input.Season, input.LeagueID, input.Week, err)
 	}
-	logFetched(logger, origin, "Matchups", "season", input.Season, "leagueID", input.LeagueID, "week", input.Week)
+	logFetched(logger, origin, "Matchups", "season", input.Season, "league_id", input.LeagueID, "week", input.Week)
 	return FetchYahooMatchupWeekResult{}, nil
 }

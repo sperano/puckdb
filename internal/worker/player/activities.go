@@ -302,9 +302,9 @@ func (a *Activities) DownloadPlayerGameLogsBatch(ctx context.Context, input Down
 
 	log.Info().
 		Int("players", len(input.PlayerIDs)).
-		Int("startSeason", input.StartSeason).
+		Int("start_season", input.StartSeason).
 		Int("downloaded", result.Downloaded).
-		Int("cacheHits", result.CacheHits).
+		Int("cache_hits", result.CacheHits).
 		Int("errors", len(result.Errors)).
 		Msg("Download player game logs batch complete")
 
@@ -332,18 +332,18 @@ func (a *Activities) downloadPlayerGameLogToCache(ctx context.Context, playerID 
 	if fileExists {
 		if !opts.refresh {
 			log.Debug().
-				Str("playerID", playerID.String()).
+				Str("player_id", playerID.String()).
 				Str("season", season.String()).
-				Str("gameType", gameType.String()).
+				Str("game_type", gameType.String()).
 				Msg("PlayerGameLog already cached")
 			metrics.IncDownload(core.PlayerGameLog, metrics.ResultHit)
 			return gameLogCached, nil
 		}
 
 		log.Debug().
-			Str("playerID", playerID.String()).
+			Str("player_id", playerID.String()).
 			Str("season", season.String()).
-			Str("gameType", gameType.String()).
+			Str("game_type", gameType.String()).
 			Msg("Refreshing cached player log")
 	}
 
@@ -365,9 +365,9 @@ func (a *Activities) downloadPlayerGameLogToCache(ctx context.Context, playerID 
 	}
 
 	log.Info().
-		Str("playerID", playerID.String()).
+		Str("player_id", playerID.String()).
 		Str("season", season.String()).
-		Str("gameType", gameType.String()).
+		Str("game_type", gameType.String()).
 		Str("path", gameLogRes.Path()).
 		Msg("Saved player game log")
 	metrics.IncDownload(core.PlayerGameLog, metrics.ResultMiss)

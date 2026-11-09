@@ -40,7 +40,7 @@ type ImportSeasonPlayerLogsInput struct {
 func ImportSeasonPlayerLogsV2Workflow(ctx workflow.Context, input ImportSeasonPlayerLogsInput) (core.OriginCounts, error) {
 	season := input.Season
 	workflow.GetLogger(ctx).Info("ImportSeasonPlayerLogsV2Workflow started",
-		"startYear", season.ID.StartYear(),
+		"start_year", season.ID.StartYear(),
 		"players", len(input.PlayerIDs))
 
 	dayConcurrency, err := shared.SnapshotConfigInt(ctx, nil, shared.DayConcurrencyParam, nil)
@@ -56,7 +56,7 @@ func ImportSeasonPlayerLogsV2Workflow(ctx workflow.Context, input ImportSeasonPl
 func importSeasonPlayerLogBatches(ctx workflow.Context, season nhl.SeasonInfo, playerIDs []int64, concurrency int) (core.OriginCounts, error) {
 	logger := workflow.GetLogger(ctx)
 	if len(playerIDs) == 0 {
-		logger.Info("No players found for season", "startYear", season.ID.StartYear())
+		logger.Info("No players found for season", "start_year", season.ID.StartYear())
 		return nil, nil
 	}
 
@@ -68,8 +68,8 @@ func importSeasonPlayerLogBatches(ctx workflow.Context, season nhl.SeasonInfo, p
 	tracker.StartGroup(ctx, GroupImportPlayerLogs)
 
 	logger.Info("Importing player game logs",
-		"startYear", season.ID.StartYear(),
-		"playerCount", len(playerIDs),
+		"start_year", season.ID.StartYear(),
+		"player_count", len(playerIDs),
 		"batches", batches.Count(),
 		"concurrency", concurrency)
 
@@ -101,10 +101,10 @@ func importSeasonPlayerLogBatches(ctx workflow.Context, season nhl.SeasonInfo, p
 	tracker.CompleteGroup(ctx, GroupImportPlayerLogs,
 		totals.summary(len(playerIDs), tracker.GetElapsed(ctx, GroupImportPlayerLogs)))
 	logger.Info("Imported season player logs",
-		"startYear", season.ID.StartYear(),
+		"start_year", season.ID.StartYear(),
 		"players", len(playerIDs),
 		"imported", totals.imported,
-		"withoutLog", totals.withoutLog,
+		"without_log", totals.withoutLog,
 		"unreadable", totals.unreadable)
 	return totals.origins, nil
 }

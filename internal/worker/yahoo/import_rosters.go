@@ -81,7 +81,7 @@ func (a *ImportActivities) collectRosterParams(ctx context.Context, teams []Team
 		fantasy, origin, err := a.GobCache.ReadParsedCached(ctx, a.Storage, rosterRes)
 		if err != nil {
 			log.Debug().Err(err).
-				Int("teamID", teamInfo.TeamID).
+				Int("team_id", teamInfo.TeamID).
 				Str("date", date.Format(config.DateFormat)).
 				Msg("Failed to read roster file")
 			readFailures++

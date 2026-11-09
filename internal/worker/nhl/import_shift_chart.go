@@ -70,7 +70,7 @@ func (a *ImportActivities) ImportShiftChartForDate(ctx context.Context, input Im
 		"date", input.Date.Format(config.DateFormat),
 		"games", result.GamesProcessed,
 		"shifts", result.ShiftsImported,
-		"evenStrengthRows", result.EvenStrengthRowsImported)
+		"even_strength_rows", result.EvenStrengthRowsImported)
 
 	return result, nil
 }

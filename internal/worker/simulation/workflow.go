@@ -101,7 +101,7 @@ func SimPoolWorkflow(ctx workflow.Context, in SimPoolWorkflowInput) (retErr erro
 			cleanupCtx, cancel := workflow.NewDisconnectedContext(ctx)
 			defer cancel()
 			if err := writePoolStatus(cleanupCtx, in.PoolID, PoolStatusCancelled); err != nil {
-				logger.Warn("Failed to write status=cancelled on cancel", "err", err)
+				logger.Warn("Failed to write status=cancelled on cancel", "error", err)
 			}
 		}
 	}()
@@ -267,7 +267,7 @@ func setupTracker(ctx workflow.Context, in SimPoolWorkflowInput, state simState)
 	// that pre-dates the tracker's introduction).
 	tracker, err := shared.LoadReportTracker(ctx)
 	if err != nil {
-		workflow.GetLogger(ctx).Warn("LoadReportTracker failed, falling back to fresh tracker", "err", err)
+		workflow.GetLogger(ctx).Warn("LoadReportTracker failed, falling back to fresh tracker", "error", err)
 		return shared.InitTracker(ctx, NewProgressReport(state))
 	}
 	if err := tracker.RegisterQueryHandler(ctx); err != nil {

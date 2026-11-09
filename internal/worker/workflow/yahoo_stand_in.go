@@ -21,7 +21,7 @@ import (
 func fetchStandInLeagueSource(ctx workflow.Context, league config.League) error {
 	source := league.TemporaryMetadataFrom
 	workflow.GetLogger(ctx).Warn("Using TEMPORARY stand-in Yahoo league settings",
-		"leagueID", league.LeagueID, "sourceSeason", source.Season, "sourceLeagueID", source.LeagueID)
+		"league_id", league.LeagueID, "source_season", source.Season, "source_league_id", source.LeagueID)
 	var act *yahoo.FetchActivities
 	if err := workflow.ExecuteActivity(ctx, act.FetchLeague, source.Season, source.LeagueID).Get(ctx, nil); err != nil {
 		return fmt.Errorf("fetch stand-in source league %d/%d for league %d: %w",

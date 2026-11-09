@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/rs/zerolog/log"
 	nhlapi "github.com/sperano/nhl-api-go/nhl"
 	"github.com/sperano/puckdb/internal/core"
 	"github.com/sperano/puckdb/internal/metrics"
@@ -54,7 +53,7 @@ func (a *ImportActivities) ImportPlayerGameLogsBatch(ctx context.Context, input 
 
 		gameLog, origin, err := a.GobCache.ReadParsedCached(ctx, a.Storage, gameLogRes)
 		if err != nil {
-			log.Warn().Err(err).Int64("playerID", playerID).Msg("Failed to read player game log")
+			logger.Warn("Failed to read player game log", "error", err, "player_id", playerID)
 			result.PlayersUnreadable++
 			continue
 		}
@@ -70,7 +69,7 @@ func (a *ImportActivities) ImportPlayerGameLogsBatch(ctx context.Context, input 
 
 	logger.Info("Imported player game logs batch",
 		"players", result.PlayersProcessed,
-		"withoutLog", result.PlayersWithoutLog,
+		"without_log", result.PlayersWithoutLog,
 		"unreadable", result.PlayersUnreadable,
 		"games", result.GamesUpdated)
 

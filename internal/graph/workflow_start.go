@@ -58,13 +58,13 @@ func (r *Resolver) clearStaleProgress(ctx context.Context, workflowID, liveRunID
 	deleted, err := cache.DeleteStaleProgressReport(ctx, r.RedisClient, workflowID, liveRunID)
 	if err != nil {
 		log.Warn().Err(err).
-			Str("workflowID", workflowID).
-			Str("runID", liveRunID).
+			Str("workflow_id", workflowID).
+			Str("run_id", liveRunID).
 			Msg("Workflow started but stale progress cleanup failed")
 		return
 	}
 	if deleted {
-		log.Debug().Str("workflowID", workflowID).Str("runID", liveRunID).Msg("Cleared previous run's progress report")
+		log.Debug().Str("workflow_id", workflowID).Str("run_id", liveRunID).Msg("Cleared previous run's progress report")
 	}
 }
 

@@ -152,7 +152,7 @@ func (a *FetchActivities) FetchYahooLeaguePlayersPage(ctx context.Context, input
 	if err != nil {
 		if input.Start == 0 && isPreseasonResourceUnavailable(err) {
 			activity.GetLogger(ctx).Warn("Yahoo league player pool is not available yet",
-				"season", input.Season, "leagueID", input.LeagueID)
+				"season", input.Season, "league_id", input.LeagueID)
 			return FetchYahooLeaguePlayersPageResult{Unavailable: true}, nil
 		}
 		return FetchYahooLeaguePlayersPageResult{}, fmt.Errorf("fetch league players %d/%d start %d: %w",
@@ -160,7 +160,7 @@ func (a *FetchActivities) FetchYahooLeaguePlayersPage(ctx context.Context, input
 	}
 	players := len(content.League.Players.Slice)
 	activity.GetLogger(ctx).Info("League players page downloaded",
-		"season", input.Season, "leagueID", input.LeagueID, "start", input.Start, "players", players)
+		"season", input.Season, "league_id", input.LeagueID, "start", input.Start, "players", players)
 	return FetchYahooLeaguePlayersPageResult{Players: players, LeagueKey: content.League.Key, GameKey: gameKey}, nil
 }
 
@@ -181,7 +181,7 @@ func (a *FetchActivities) CommitYahooLeaguePlayerPool(ctx context.Context, input
 	}
 	logger := activity.GetLogger(ctx)
 	logger.Info("League player pool downloaded",
-		"season", input.Season, "leagueID", input.LeagueID, "players", input.Players, "pages", len(input.Starts))
+		"season", input.Season, "league_id", input.LeagueID, "players", input.Players, "pages", len(input.Starts))
 	if hadPrevious && previous.DownloadID != input.DownloadID {
 		a.deletePoolPages(ctx, input.Season, input.LeagueID, previous.DownloadID, previous.Starts)
 	}

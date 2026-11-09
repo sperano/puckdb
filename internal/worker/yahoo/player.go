@@ -36,17 +36,17 @@ func fetchYahooPlayerImpl(ctx context.Context, storage store.Storage, downloader
 	missingRes := resource.MissingYahooPlayer{PlayerID: playerID}
 	// Check if missing player file already exists (most common case)
 	if resource.Exists(ctx, storage, missingRes) {
-		log.Debug().Int("playerID", int(playerID)).Msg("Yahoo player already marked as missing")
+		log.Debug().Int("player_id", int(playerID)).Msg("Yahoo player already marked as missing")
 		metrics.IncDownload(core.YahooPlayer, metrics.ResultHit)
 		return fetchStatusMissing, nil
 	}
 	// Check if player file already exists
 	if resource.Exists(ctx, storage, playerRes) {
-		log.Debug().Int("playerID", int(playerID)).Msg("Yahoo player already cached")
+		log.Debug().Int("player_id", int(playerID)).Msg("Yahoo player already cached")
 		metrics.IncDownload(core.YahooPlayer, metrics.ResultHit)
 		return fetchStatusCached, nil
 	}
-	log.Info().Int("playerID", int(playerID)).Msg("Downloading Yahoo player")
+	log.Info().Int("player_id", int(playerID)).Msg("Downloading Yahoo player")
 	// Download the player page
 	content, err := downloader(ctx, playerRes.URL())
 	if err != nil {
@@ -58,7 +58,7 @@ func fetchYahooPlayerImpl(ctx context.Context, storage store.Storage, downloader
 					metrics.IncDownload(core.YahooPlayer, metrics.ResultError)
 					return 0, fmt.Errorf("save missing player: %w", writeErr)
 				}
-				log.Info().Int("playerID", int(playerID)).Msg("Saved as missing Yahoo player")
+				log.Info().Int("player_id", int(playerID)).Msg("Saved as missing Yahoo player")
 				metrics.IncDownload(core.YahooPlayer, metrics.ResultMiss)
 				return fetchStatusMissing, nil
 			}
@@ -71,7 +71,7 @@ func fetchYahooPlayerImpl(ctx context.Context, storage store.Storage, downloader
 		metrics.IncDownload(core.YahooPlayer, metrics.ResultError)
 		return 0, fmt.Errorf("save player: %w", err)
 	}
-	log.Info().Int("playerID", int(playerID)).Str("path", playerRes.Path()).Msg("Saved Yahoo player")
+	log.Info().Int("player_id", int(playerID)).Str("path", playerRes.Path()).Msg("Saved Yahoo player")
 	metrics.IncDownload(core.YahooPlayer, metrics.ResultMiss)
 	return fetchStatusDownloaded, nil
 }

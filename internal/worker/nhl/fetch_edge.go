@@ -118,7 +118,7 @@ func (a *SeasonsActivities) FetchEdgeLandings(ctx context.Context, input FetchEd
 		logger.Warn("No edge team landing available", "season", input.Season)
 	}
 
-	logger.Info("Fetched edge landings", "season", input.Season, "gameType", input.GameType)
+	logger.Info("Fetched edge landings", "season", input.Season, "game_type", input.GameType)
 	return nil
 }
 
@@ -131,7 +131,7 @@ func (a *SeasonsActivities) FetchEdgeTeamSkaters(ctx context.Context, input Fetc
 
 	roster, err := a.loadSeasonRoster(ctx, input.TeamAbbrev, season)
 	if err != nil {
-		logger.Warn("No roster for edge skater fetch", "team", input.TeamAbbrev, "err", err)
+		logger.Warn("No roster for edge skater fetch", "team", input.TeamAbbrev, "error", err)
 		return nil // not an error - team might not have roster cached yet
 	}
 
@@ -203,7 +203,7 @@ func (a *SeasonsActivities) FetchEdgeTeamGoalies(ctx context.Context, input Fetc
 
 	roster, err := a.loadSeasonRoster(ctx, input.TeamAbbrev, season)
 	if err != nil {
-		logger.Warn("No roster for edge goalie fetch", "team", input.TeamAbbrev, "err", err)
+		logger.Warn("No roster for edge goalie fetch", "team", input.TeamAbbrev, "error", err)
 		return nil // not an error - team might not have roster cached yet
 	}
 
@@ -273,7 +273,7 @@ func (a *SeasonsActivities) FetchEdgeTeam(ctx context.Context, input FetchEdgeTe
 			return a.NHLClient.EdgeTeamDetail(ctx, teamID, season, gameType)
 		}); err != nil {
 		if errors.Is(err, nhlapi.ErrNotFound) {
-			logger.Warn("No edge team detail", "team", input.TeamAbbrev, "gameType", input.GameType)
+			logger.Warn("No edge team detail", "team", input.TeamAbbrev, "game_type", input.GameType)
 			return nil
 		}
 		return fmt.Errorf("fetch edge team detail %s: %w", input.TeamAbbrev, err)
@@ -317,7 +317,7 @@ func (a *SeasonsActivities) fetchOptional[T any](ctx context.Context, r core.Rea
 	a.invalidateIfNeeded(ctx, r, invalidate)
 	_, _, err := shared.FetchOrCache(ctx, a.Storage, a.GobCache, r, fetch)
 	if err != nil && !errors.Is(err, nhlapi.ErrNotFound) {
-		activity.GetLogger(ctx).Warn("Failed to fetch optional edge resource", "path", r.Path(), "err", err)
+		activity.GetLogger(ctx).Warn("Failed to fetch optional edge resource", "path", r.Path(), "error", err)
 	}
 }
 

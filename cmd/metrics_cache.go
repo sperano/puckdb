@@ -396,7 +396,7 @@ func filterFinalNonPreseasonGames(gameIDs []nhl.GameID) []nhl.GameID {
 	for _, id := range gameIDs {
 		gameType, err := id.GameType()
 		if err != nil {
-			log.Warn().Str("gameid", id.String()).Err(err).Msg("Skipping game with invalid ID")
+			log.Warn().Str("game_id", id.String()).Err(err).Msg("Skipping game with invalid ID")
 			continue
 		}
 		if nhl.GameType(gameType) == nhl.GameTypePreseason {

@@ -172,7 +172,7 @@ func (a *Activities) verifyUnmatchedBatch(ctx context.Context, players []Unmatch
 			if ctxErr := ctx.Err(); ctxErr != nil {
 				return result, ctxErr
 			}
-			log.Warn().Err(err).Int("yahooID", int(player.YahooID)).Msg("Player verification failed, leaving unverified")
+			log.Warn().Err(err).Int("yahoo_id", int(player.YahooID)).Msg("Player verification failed, leaving unverified")
 			result.Unverified = append(result.Unverified, verified)
 		} else if result.classify(verified) {
 			newlyVerifiedNonNHL = append(newlyVerifiedNonNHL, player.YahooID)

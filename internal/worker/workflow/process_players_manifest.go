@@ -144,9 +144,9 @@ func runManifestFirstExecution(ctx workflow.Context, cfg processPlayersConfig) (
 	}
 
 	logger.Info("ProcessPlayersWorkflow started",
-		"totalPlayers", manifest.Count,
+		"total_players", manifest.Count,
 		"manifest", manifest.ID,
-		"batchSize", cfg.BatchSize,
+		"batch_size", cfg.BatchSize,
 		"concurrency", cfg.Concurrency)
 
 	state := &processPlayersState{
@@ -213,7 +213,7 @@ func ensureYahooPool(ctx workflow.Context, state *processPlayersState) error {
 		workflow.GetLogger(ctx).Warn("Rebuilt the lost Yahoo ID pool",
 			"expected", state.YahooPool.PoolSize, "found", result.FoundSize,
 			"rebuilt", result.PoolSize, "available", result.Available,
-			"readErrors", result.ReadErrors, "parseErrors", result.ParseErrors)
+			"read_errors", result.ReadErrors, "parse_errors", result.ParseErrors)
 	}
 	state.YahooPool.PoolSize = result.PoolSize
 	return nil
@@ -330,13 +330,13 @@ func runManifestVerify(ctx workflow.Context, tracker *shared.ReportTracker, stat
 
 	result := manifestResult(state, unmatchedReport)
 	logger.Info("ProcessPlayersWorkflow completed",
-		"totalPlayers", result.TotalPlayers,
+		"total_players", result.TotalPlayers,
 		"downloaded", result.Downloaded,
-		"cacheHits", result.CacheHits,
+		"cache_hits", result.CacheHits,
 		"missing", result.Missing,
 		"imported", result.ImportedPlayers,
-		"matchedWithYahoo", result.MatchedWithYahoo,
-		"trulyUnmatched", len(result.TrulyUnmatched))
+		"matched_with_yahoo", result.MatchedWithYahoo,
+		"truly_unmatched", len(result.TrulyUnmatched))
 
 	// Fail the chain when any player failed, so the sync halts visibly: a
 	// 'success' with silent errors is how the FK-violation gap

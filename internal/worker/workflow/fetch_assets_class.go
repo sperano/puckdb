@@ -219,7 +219,7 @@ func FetchAssetsClassWorkflow(ctx workflow.Context, input FetchAssetsClassInput)
 	logger := workflow.GetLogger(ctx)
 	logger.Info("FetchAssetsClassWorkflow started",
 		"class", input.Class.Label,
-		"refreshCurrent", input.RefreshCurrent)
+		"refresh_current", input.RefreshCurrent)
 
 	cfg, err := snapshotFetchAssetsClassConfig(ctx, logger, input.BatchSize, input.Concurrency)
 	if err != nil {
@@ -286,7 +286,7 @@ func FetchAssetsClassWorkflow(ctx workflow.Context, input FetchAssetsClassInput)
 			// failing the workflow.
 			for _, r := range result.Results {
 				if r.Err != "" {
-					logger.Warn("asset fetch error", "class", input.Class.Label, "err", r.Err)
+					logger.Warn("asset fetch error", "class", input.Class.Label, "error", r.Err)
 					continue
 				}
 				if r.Origin != core.OriginUnknown {

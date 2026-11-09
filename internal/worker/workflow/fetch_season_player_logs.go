@@ -62,10 +62,10 @@ func FetchSeasonPlayerLogsWorkflow(ctx workflow.Context, input FetchSeasonPlayer
 	season := input.Season
 
 	logger.Info("FetchSeasonPlayerLogsWorkflow started",
-		"startYear", season.ID.StartYear(),
-		"startDate", season.StandingsStart.Format(config.DateFormat),
-		"endDate", season.StandingsEnd.Format(config.DateFormat),
-		"refreshCurrent", input.RefreshCurrent)
+		"start_year", season.ID.StartYear(),
+		"start_date", season.StandingsStart.Format(config.DateFormat),
+		"end_date", season.StandingsEnd.Format(config.DateFormat),
+		"refresh_current", input.RefreshCurrent)
 
 	cfg, err := snapshotFetchSeasonPlayerLogsConfig(ctx)
 	if err != nil {
@@ -83,7 +83,7 @@ func FetchSeasonPlayerLogsWorkflow(ctx workflow.Context, input FetchSeasonPlayer
 
 	playerCount := len(players)
 	if playerCount == 0 {
-		logger.Warn("No players found for season", "startYear", season.ID.StartYear())
+		logger.Warn("No players found for season", "start_year", season.ID.StartYear())
 		return nil
 	}
 
@@ -100,10 +100,10 @@ func FetchSeasonPlayerLogsWorkflow(ctx workflow.Context, input FetchSeasonPlayer
 	tracker.StartGroup(ctx, GroupFetchSeasonPlayerLogs)
 
 	logger.Info("Fetching player game logs",
-		"startYear", season.ID.StartYear(),
-		"playerCount", playerCount,
+		"start_year", season.ID.StartYear(),
+		"player_count", playerCount,
 		"batches", batches.Count(),
-		"batchSize", batchSize,
+		"batch_size", batchSize,
 		"concurrency", concurrency)
 
 	gameTypes := []int{nhl.GameTypeRegularSeason.Int(), nhl.GameTypePlayoffs.Int()}
@@ -134,7 +134,7 @@ func FetchSeasonPlayerLogsWorkflow(ctx workflow.Context, input FetchSeasonPlayer
 			playerCount, tracker.GetElapsed(ctx, GroupFetchSeasonPlayerLogs)))
 
 	logger.Info("FetchSeasonPlayerLogsWorkflow completed",
-		"startYear", season.ID.StartYear(),
+		"start_year", season.ID.StartYear(),
 		"players", playerCount)
 
 	return nil

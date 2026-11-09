@@ -109,7 +109,7 @@ func (a *ImportActivities) ImportDayIfChanged(ctx context.Context, input ImportD
 	}
 	if imported.SkippedRows > 0 {
 		logger.Warn("Imported day with skipped rows, not recorded so the next run retries it",
-			"date", dayLabel, "reason", reason, "skippedRows", imported.SkippedRows)
+			"date", dayLabel, "reason", reason, "skipped_rows", imported.SkippedRows)
 		return result, nil
 	}
 	if err := a.DayImports.UpsertNHLDayImport(ctx, sqlcdb.UpsertNHLDayImportParams{

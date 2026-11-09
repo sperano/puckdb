@@ -85,7 +85,7 @@ func FetchPlayerLandingsWorkflow(ctx workflow.Context, input *FetchPlayerLanding
 	concurrency := cfg.Concurrency
 
 	logger.Info("FetchPlayerLandingsWorkflow started",
-		"batchSize", batchSize,
+		"batch_size", batchSize,
 		"concurrency", concurrency)
 
 	// Activity options for loading players from Redis
@@ -136,9 +136,9 @@ func FetchPlayerLandingsWorkflow(ctx workflow.Context, input *FetchPlayerLanding
 			tracker.GetElapsed(ctx, GroupFetchPlayerLandings)))
 
 	logger.Info("FetchPlayerLandingsWorkflow completed",
-		"totalPlayers", result.TotalPlayers,
+		"total_players", result.TotalPlayers,
 		"downloaded", result.Downloaded,
-		"cacheHits", result.CacheHits,
+		"cache_hits", result.CacheHits,
 		"missing", result.Missing)
 
 	return result, nil

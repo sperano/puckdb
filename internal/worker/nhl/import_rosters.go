@@ -40,7 +40,7 @@ func (a *SeasonsActivities) importSeasonRosters(ctx context.Context, queries Sea
 	counts := rosterImportCounts{teams: len(teams)}
 
 	if len(teams) == 0 {
-		logger.Warn("No teams found for season", "season", input.Season, "seasonID", season.ID())
+		logger.Warn("No teams found for season", "season", input.Season, "season_id", season.ID())
 	}
 
 	var totalPlayers int

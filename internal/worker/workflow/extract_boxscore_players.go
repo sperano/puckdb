@@ -63,8 +63,8 @@ func ExtractBoxscorePlayersWorkflow(ctx workflow.Context, input *model.SeasonsIn
 		return err
 	}
 	logger.Info("ExtractBoxscorePlayersWorkflow started",
-		"startSeason", input.StartSeason,
-		"endSeason", input.EndSeason,
+		"start_season", input.StartSeason,
+		"end_season", input.EndSeason,
 		"concurrency", concurrency)
 
 	if len(seasons) == 0 {
@@ -115,6 +115,6 @@ func ExtractBoxscorePlayersWorkflow(ctx workflow.Context, input *model.SeasonsIn
 
 	logger.Info("ExtractBoxscorePlayersWorkflow completed",
 		"seasons", len(seasons),
-		"uniquePlayers", consolidateResult.UniquePlayers)
+		"unique_players", consolidateResult.UniquePlayers)
 	return nil
 }

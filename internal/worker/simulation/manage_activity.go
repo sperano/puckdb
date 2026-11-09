@@ -316,7 +316,7 @@ func runDailyAgent(ctx context.Context, agent *Agent, in ManageRosterInput) dail
 
 	msgs, err := agent.DailyMessages(in.DailyPrompt)
 	if err != nil {
-		logger.Error("ManageRoster build daily messages failed", "err", err)
+		logger.Error("ManageRoster build daily messages failed", "error", err)
 		outcome.errored = true
 		outcome.errorKind = ErrorKindLLMError
 		outcome.errorDetail = fmt.Sprintf("build daily messages: %v", err)
@@ -345,7 +345,7 @@ func runDailyAgent(ctx context.Context, agent *Agent, in ManageRosterInput) dail
 
 	if err != nil {
 		logger.Warn("ManageRoster agent loop failed",
-			"err", err,
+			"error", err,
 		)
 		// agentloop wraps the underlying error; classify into
 		// llm_error vs tool_use_failure based on whether the

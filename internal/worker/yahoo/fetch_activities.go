@@ -82,7 +82,7 @@ func (a *FetchActivities) FetchLeague(ctx context.Context, season int, leagueID 
 	}
 	if err := res.Validate(content); err != nil && origin == core.OriginRedis {
 		logger.Warn("Cached Yahoo league identity is invalid; evicting it", "season", season,
-			"leagueID", leagueID, "error", err)
+			"league_id", leagueID, "error", err)
 		if deleteErr := a.GobCache.Delete(ctx, core.RedisKey(res)); deleteErr != nil {
 			return FetchLeagueResult{}, fmt.Errorf("evict invalid cached league %d/%d: %w", season, leagueID, deleteErr)
 		}
@@ -95,7 +95,7 @@ func (a *FetchActivities) FetchLeague(ctx context.Context, season int, leagueID 
 	if err := res.Validate(content); err != nil {
 		return FetchLeagueResult{}, fmt.Errorf("validate league %d/%d: %w", season, leagueID, err)
 	}
-	logFetched(logger, origin, "League", "season", season, "leagueID", leagueID)
+	logFetched(logger, origin, "League", "season", season, "league_id", leagueID)
 	return FetchLeagueResult{EndWeek: content.League.EndWeek}, nil
 }
 
@@ -116,7 +116,7 @@ func classifyLeagueFetchError(season, leagueID int, err error) error {
 func (a *FetchActivities) FetchYahooPlayerBatch(ctx context.Context, startID, endID store.YahooPlayerID) (shared.FetchStats, error) {
 	var result shared.FetchStats
 	logger := activity.GetLogger(ctx)
-	logger.Debug("FetchYahooPlayerBatch started", "startID", startID, "endID", endID)
+	logger.Debug("FetchYahooPlayerBatch started", "start_id", startID, "end_id", endID)
 
 	for playerID := startID; playerID <= endID; playerID++ {
 		select {
@@ -157,8 +157,8 @@ func (a *FetchActivities) FetchTeams(ctx context.Context, input FetchTeamsInput)
 
 	logger.Debug("FetchTeams started",
 		"season", input.StartSeason,
-		"gameKey", gameKey,
-		"numTeams", len(input.Teams))
+		"game_key", gameKey,
+		"num_teams", len(input.Teams))
 
 	fetcher := a.fetcher()
 	for _, team := range input.Teams {
@@ -186,7 +186,7 @@ func (a *FetchActivities) FetchTeams(ctx context.Context, input FetchTeamsInput)
 			}
 			return fmt.Errorf("fetch team %d/%d/%d: %w", input.StartSeason, team.LeagueID, team.TeamID, err)
 		}
-		logFetched(logger, origin, "Team", "leagueID", team.LeagueID, "teamID", team.TeamID)
+		logFetched(logger, origin, "Team", "league_id", team.LeagueID, "team_id", team.TeamID)
 	}
 
 	return nil
