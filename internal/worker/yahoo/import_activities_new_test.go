@@ -12,11 +12,15 @@ import (
 	"github.com/sperano/puckdb/internal/resource"
 	"github.com/sperano/puckdb/internal/sqlcdb"
 	"github.com/sperano/puckdb/internal/store"
+	"github.com/sperano/puckdb/internal/worker/shared"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
+	"go.temporal.io/sdk/interceptor"
+	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/testsuite"
+	"go.temporal.io/sdk/worker"
 )
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -283,6 +287,9 @@ type ImportYahooTeamsSuite struct {
 
 func (s *ImportYahooTeamsSuite) SetupTest() {
 	s.env = s.NewTestActivityEnvironment()
+	s.env.SetWorkerOptions(worker.Options{
+		Interceptors: []interceptor.WorkerInterceptor{&shared.FailureClassifierInterceptor{}},
+	})
 }
 
 func TestImportYahooTeamsSuite(t *testing.T) {
@@ -317,6 +324,27 @@ func (s *ImportYahooTeamsSuite) TestMissingFile_ReturnsActionableError() {
 
 	require.Error(s.T(), err)
 	assert.Contains(s.T(), err.Error(), "required Yahoo team cache is missing")
+	var appErr *temporal.ApplicationError
+	require.ErrorAs(s.T(), err, &appErr)
+	assert.False(s.T(), appErr.NonRetryable(), "a Yahoo fetch running next to the import may still write it")
+	q.AssertNotCalled(s.T(), "UpsertYahooTeamBatch")
+}
+
+func (s *ImportYahooTeamsSuite) TestCorruptFile_IsPermanent() {
+	mem := store.NewMemStorage()
+	q := &MockQueries{}
+	teamRes := resource.Team{Season: 2023, LeagueID: 12345, TeamID: 1}
+	require.NoError(s.T(), mem.Write(context.Background(), teamRes.Path(), []byte("<fantasy_content><team>")))
+	a := &ImportActivities{Storage: mem, GobCache: cache.NewGobCache(nil), Queries: q}
+
+	teams := []TeamInfo{{LeagueID: 12345, TeamID: 1}}
+	s.env.RegisterActivity(a.ImportYahooTeams)
+	_, err := s.env.ExecuteActivity(a.ImportYahooTeams, ImportYahooTeamsInput{Season: 2023, Teams: teams})
+
+	var appErr *temporal.ApplicationError
+	require.ErrorAs(s.T(), err, &appErr)
+	assert.True(s.T(), appErr.NonRetryable(), "a retry reads the same corrupt file")
+	assert.Equal(s.T(), shared.ErrTypeCorruptCachedFile, appErr.Type())
 	q.AssertNotCalled(s.T(), "UpsertYahooTeamBatch")
 }
 

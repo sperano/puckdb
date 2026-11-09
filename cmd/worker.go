@@ -114,9 +114,7 @@ func runWorker(cmd *cobra.Command, _ []string) error {
 	defer closeTemporal()
 
 	options := workerOptions()
-	// Keeps an activity's progress in the heartbeats it sends
-	// while waiting for the Yahoo rate limit.
-	options.Interceptors = []interceptor.WorkerInterceptor{&shared.HeartbeatDetailsInterceptor{}}
+	options.Interceptors = workerInterceptors()
 	w := worker.New(tclient, queueName, options)
 
 	if queueType == workerQueueTypeAdmin {
@@ -223,6 +221,17 @@ func workerOptions() worker.Options {
 		MaxConcurrentActivityTaskPollers:       viper.GetInt(config.FlagWorkerMaxActivityPollers),
 		MaxConcurrentWorkflowTaskExecutionSize: viper.GetInt(config.FlagWorkerMaxWorkflowExecution),
 		MaxConcurrentActivityExecutionSize:     viper.GetInt(config.FlagWorkerMaxActivityExecution),
+	}
+}
+
+// workerInterceptors returns the activity interceptors of every worker queue.
+func workerInterceptors() []interceptor.WorkerInterceptor {
+	return []interceptor.WorkerInterceptor{
+		// Keeps an activity's progress in the heartbeats it sends
+		// while waiting for the Yahoo rate limit.
+		&shared.HeartbeatDetailsInterceptor{},
+		// Ends an activity at its first attempt when no retry can succeed.
+		&shared.FailureClassifierInterceptor{},
 	}
 }
 
