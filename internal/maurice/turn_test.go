@@ -357,3 +357,82 @@ func TestErrorClass(t *testing.T) {
 	assert.Equal(t, TurnCancelled, failedStatus(ErrorClassCancelled))
 	assert.Equal(t, TurnFailed, failedStatus(ErrorClassTimeout))
 }
+
+// A turn whose tool rounds ran out keeps the same contract as a normal one:
+// every round's tool request and result precede the forced answer in one
+// commit, the forced call references them all, the tools it ran are reported,
+// and the title is generated from the forced answer.
+func TestChat_ForcedFinalTurn_PersistsWholeTurnInOrder(t *testing.T) {
+	const maxRounds = 2
+	db := newTestDB(t)
+	mcpMock := newMockMCP()
+	mcpMock.callResults["first_tool"] = "rows 1"
+	mcpMock.callResults["second_tool"] = "rows 2"
+	llmMock := &mockLLMClient{responses: []*llm.Response{
+		toolCallResponse("first_tool", "c1"),
+		toolCallResponse("second_tool", "c2"),
+		{Content: "forced"},
+		{Content: "Title"},
+	}}
+	cfg := testConfig
+	cfg.MaxToolRounds = maxRounds
+
+	svc := NewService(llmMock, mcpMock, db, cfg)
+	resp, err := svc.Chat(context.Background(), ask("q"))
+	require.NoError(t, err)
+	require.NoError(t, svc.Close())
+
+	assert.Equal(t, "forced", resp.Content)
+	assert.Equal(t, []string{"first_tool", "second_tool"}, resp.ToolsUsed)
+	finished := db.finishedTurns()
+	require.Len(t, finished, 1, "the whole turn is one commit")
+	record := finished[0]
+	assert.Equal(t, TurnSucceeded, record.Status)
+	assert.Equal(t, []CallKind{CallChatRound, CallChatRound, CallForcedFinal}, callKinds(record.Calls))
+	assert.Equal(t, []MessageRef{{TurnIndex: 0}, {TurnIndex: 1}, {TurnIndex: 2}, {TurnIndex: 3}, {TurnIndex: 4}},
+		record.Calls[maxRounds].Inputs, "the forced call is sent the prompt and every round")
+
+	msgs, err := db.GetMessages(context.Background(), testUser, resp.ConversationID)
+	require.NoError(t, err)
+	require.Len(t, msgs, 6)
+	var got []string
+	for _, m := range msgs {
+		got = append(got, m.Role+":"+m.ToolCallID+":"+m.Content)
+	}
+	assert.Equal(t, []string{"user::q", "assistant::", "tool:c1:rows 1", "assistant::", "tool:c2:rows 2", "assistant::forced"}, got)
+	assert.Equal(t, msgs[5].ID, resp.MessageID)
+
+	titles := db.titleRecords()
+	require.Len(t, titles, 1)
+	assert.Equal(t, []MessageRef{{MessageID: msgs[0].ID}, {MessageID: msgs[5].ID}}, titles[0].Call.Inputs)
+	assert.Equal(t, "forced", llmMock.requests[maxRounds+1].Messages[1].Content, "title from the forced answer")
+}
+
+// A response without tool calls is the answer even when empty: no forced
+// completion runs, the empty answer is stored, and no title is generated.
+func TestChat_EmptyFinalAnswerIsNotForced(t *testing.T) {
+	db := newTestDB(t)
+	llmMock := &mockLLMClient{responses: []*llm.Response{{Content: ""}}}
+
+	svc := NewService(llmMock, newMockMCP(), db, testConfig)
+	resp, err := svc.Chat(context.Background(), ask("q"))
+	require.NoError(t, err)
+	require.NoError(t, svc.Close())
+
+	assert.Empty(t, resp.Content)
+	assert.Equal(t, 1, llmMock.callCount(), "no forced completion and no title")
+	assert.Empty(t, db.titleRecords())
+	msgs, err := db.GetMessages(context.Background(), testUser, resp.ConversationID)
+	require.NoError(t, err)
+	require.Len(t, msgs, 2)
+	assert.Equal(t, "assistant", msgs[1].Role)
+	assert.Empty(t, msgs[1].Content)
+}
+
+func callKinds(calls []LLMCallRecord) []CallKind {
+	kinds := make([]CallKind, 0, len(calls))
+	for _, c := range calls {
+		kinds = append(kinds, c.Kind)
+	}
+	return kinds
+}
