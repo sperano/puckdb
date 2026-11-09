@@ -365,16 +365,26 @@ func TestREPLChat_ErrorKeepsConversation(t *testing.T) {
 }
 
 func TestREPLHandle_CommandArgumentAfterAnyWhitespace(t *testing.T) {
-	r := newTestREPL(t, fakeService{convs: []*Conversation{{ID: "conv-1"}}}, nil)
+	separators := map[string]string{
+		"tab":            "\t",
+		"vertical tab":   "\v",
+		"form feed":      "\f",
+		"no-break space": "\u00a0",
+	}
+	for name, sep := range separators {
+		t.Run(name, func(t *testing.T) {
+			r := newTestREPL(t, fakeService{convs: []*Conversation{{ID: "conv-1"}}}, nil)
 
-	r.handle(context.Background(), "/load\tconv-1")
-	r.handle(context.Background(), "/model\t2")
+			r.handle(context.Background(), "/load"+sep+"conv-1")
+			r.handle(context.Background(), "/model"+sep+"2")
 
-	require.NotNil(t, r.conversationID)
-	assert.Equal(t, "conv-1", *r.conversationID)
-	assert.Equal(t, testREPLModels[1], r.entry)
-	for _, svc := range r.services.built {
-		assert.Empty(t, svc.chats, "a command is not a prompt")
+			require.NotNil(t, r.conversationID)
+			assert.Equal(t, "conv-1", *r.conversationID)
+			assert.Equal(t, testREPLModels[1], r.entry)
+			for _, svc := range r.services.built {
+				assert.Empty(t, svc.chats, "a command is not a prompt")
+			}
+		})
 	}
 }
 
