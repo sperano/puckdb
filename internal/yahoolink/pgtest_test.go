@@ -46,7 +46,7 @@ func openPool(t *testing.T) *pgxpool.Pool {
 func newLeagueID() int32 { return 10_000_000 + rand.Int32N(1_000_000_000-10_000_000) }
 
 // seedLeagueTeam inserts a minimal league and team (team ID 1), returning
-// the league ID.
+// the league and team IDs.
 func seedLeagueTeam(t *testing.T, pool *pgxpool.Pool, teamName string) (leagueID, teamID int32) {
 	t.Helper()
 	leagueID, teamID = newLeagueID(), 1
@@ -56,11 +56,19 @@ func seedLeagueTeam(t *testing.T, pool *pgxpool.Pool, teamName string) (leagueID
 		`INSERT INTO yahoo_leagues (id, league_key, name, season) VALUES ($1, $2, 'yahoolink test', 20262027)`,
 		leagueID, key)
 	require.NoError(t, err)
-	_, err = pool.Exec(ctx,
-		`INSERT INTO yahoo_teams (league_id, id, team_key, name) VALUES ($1, $2, $3, $4)`,
-		leagueID, teamID, key+".t.1", teamName)
-	require.NoError(t, err)
+	seedTeam(t, pool, leagueID, teamID, teamName)
 	return leagueID, teamID
+}
+
+// seedTeam adds another team to an already-seeded league, for tests that
+// must tell two teams apart by team_id within one league_id.
+func seedTeam(t *testing.T, pool *pgxpool.Pool, leagueID, teamID int32, teamName string) {
+	t.Helper()
+	key := fmt.Sprintf("465.l.%d", leagueID)
+	_, err := pool.Exec(context.Background(),
+		`INSERT INTO yahoo_teams (league_id, id, team_key, name) VALUES ($1, $2, $3, $4)`,
+		leagueID, teamID, fmt.Sprintf("%s.t.%d", key, teamID), teamName)
+	require.NoError(t, err)
 }
 
 // seedManager gives leagueID/teamID a manager with email.
@@ -72,16 +80,23 @@ func seedManager(t *testing.T, pool *pgxpool.Pool, leagueID, teamID, managerID i
 	require.NoError(t, err)
 }
 
-// insertUser inserts a minimal app_users row under username (which may
-// repeat, deliberately, in an ambiguity test) and returns its ID. Every
-// call gets its own auth_subject, so distinct calls are always distinct
-// users regardless of username.
+// insertUser inserts a minimal app_users row on testInstance under username
+// (which may repeat, deliberately, in an ambiguity test) and returns its ID.
+// Every call gets its own auth_subject, so distinct calls are always
+// distinct users regardless of username.
 func insertUser(t *testing.T, pool *pgxpool.Pool, username string) pgtype.UUID {
+	t.Helper()
+	return insertUserOnInstance(t, pool, testInstance, username)
+}
+
+// insertUserOnInstance is insertUser for a caller that must name the
+// instance, such as a test of instance scoping.
+func insertUserOnInstance(t *testing.T, pool *pgxpool.Pool, instance, username string) pgtype.UUID {
 	t.Helper()
 	var id pgtype.UUID
 	err := pool.QueryRow(context.Background(),
 		`INSERT INTO app_users (instance, auth_provider, auth_subject, username) VALUES ($1, 'authentik', $2, $3) RETURNING id`,
-		testInstance, fmt.Sprintf("sub-%d", newLeagueID()), username).Scan(&id)
+		instance, fmt.Sprintf("sub-%d", newLeagueID()), username).Scan(&id)
 	require.NoError(t, err)
 	return id
 }

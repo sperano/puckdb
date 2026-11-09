@@ -31,10 +31,10 @@ func TestPrintUserTeamLinks(t *testing.T) {
 		{LeagueID: 29249, TeamID: 8, TeamName: "Les Peter Stastny", Source: yahoolink.SourceEmail, LinkedAt: time.Date(2026, 1, 2, 0, 0, 0, 0, time.UTC)},
 	}
 	require.NoError(t, printUserTeamLinks(&buf, links, "alice"))
-	out := buf.String()
-	for _, want := range []string{"LEAGUE_ID", "29249", "8", "Les Peter Stastny", "email", "2026-01-02"} {
-		assert.Contains(t, out, want)
-	}
+	lines := strings.Split(strings.TrimRight(buf.String(), "\n"), "\n")
+	require.Len(t, lines, 2)
+	assert.Equal(t, []string{"LEAGUE_ID", "TEAM_ID", "TEAM_NAME", "SOURCE", "LINKED_AT"}, strings.Fields(lines[0]))
+	assert.Regexp(t, `^29249\s+8\s+Les Peter Stastny\s+email\s+2026-01-02$`, lines[1])
 }
 
 func TestPrintInstanceTeamLinks(t *testing.T) {
@@ -44,11 +44,11 @@ func TestPrintInstanceTeamLinks(t *testing.T) {
 
 	buf.Reset()
 	links := []yahoolink.InstanceLink{
-		{Username: "alice", Link: yahoolink.Link{LeagueID: 29249, TeamID: 8, TeamName: "Les Peter Stastny", Source: yahoolink.SourceManual, LinkedAt: time.Now()}},
+		{Username: "alice", Link: yahoolink.Link{LeagueID: 29249, TeamID: 8, TeamName: "Les Peter Stastny", Source: yahoolink.SourceManual, LinkedAt: time.Date(2026, 1, 2, 0, 0, 0, 0, time.UTC)}},
 	}
 	require.NoError(t, printInstanceTeamLinks(&buf, links))
-	out := buf.String()
-	for _, want := range []string{"USERNAME", "alice", "29249", "8", "Les Peter Stastny", "manual"} {
-		assert.True(t, strings.Contains(out, want), "missing %q in %q", want, out)
-	}
+	lines := strings.Split(strings.TrimRight(buf.String(), "\n"), "\n")
+	require.Len(t, lines, 2)
+	assert.Equal(t, []string{"USERNAME", "LEAGUE_ID", "TEAM_ID", "TEAM_NAME", "SOURCE", "LINKED_AT"}, strings.Fields(lines[0]))
+	assert.Regexp(t, `^alice\s+29249\s+8\s+Les Peter Stastny\s+manual\s+2026-01-02$`, lines[1])
 }

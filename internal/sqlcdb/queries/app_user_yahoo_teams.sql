@@ -1,6 +1,7 @@
 -- Links a Maurice user to the Yahoo teams they manage (app_user_yahoo_teams,
--- see its migration). Case-insensitive email matching and the allowlist
--- filter (empty = every league) are both done here, not by the caller.
+-- see its migration). Case-insensitive email matching is done below by
+-- ListManagerLeagueTeamsByEmail; the allowlist filter (empty = every
+-- league) by ListAppUserYahooTeams; neither is left to the caller.
 
 -- name: ListManagerLeagueTeamsByEmail :many
 -- Distinct (league, team) pairs a yahoo_team_managers row claims for email,

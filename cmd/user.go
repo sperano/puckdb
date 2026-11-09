@@ -75,7 +75,7 @@ func cmdUserUnlinkTeam() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "unlink-team <username> <league id> <team id>",
 		Short:   "Remove a user's link to a Yahoo team",
-		Long:    `Remove a user's link to a Yahoo team, whether it was made by email match or by hand.`,
+		Long:    `Remove a user's link to a Yahoo team, whether it was made by email match or by hand. Refuses an email-sourced link whose login email still matches it: fix the Yahoo manager's email instead, since a resync would just recreate the link.`,
 		Args:    cobra.ExactArgs(3),
 		PreRunE: bindFlagsPreRunE(userTeamLinkFlagGroups...),
 		RunE:    runUserUnlinkTeam,
@@ -100,7 +100,7 @@ func runUserUnlinkTeam(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	removed, err := store.Unlink(ctx, user.ID, leagueID, teamID)
+	removed, err := store.Unlink(ctx, user.ID, user.Email, leagueID, teamID)
 	if err != nil {
 		return err
 	}

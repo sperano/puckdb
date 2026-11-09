@@ -1,9 +1,11 @@
 package maurice
 
 import (
-	"strings"
+	"fmt"
 	"testing"
+	"time"
 
+	"github.com/sperano/nhl-api-go/nhl"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -45,5 +47,8 @@ func TestJoinWithAnd(t *testing.T) {
 
 func TestSystemPrompt_KeepsDateAndSeasonGuidelines(t *testing.T) {
 	prompt := SystemPrompt(nil)
-	assert.True(t, strings.Contains(prompt, "Guidelines:"))
+	season := nhl.Current()
+	assert.Contains(t, prompt, time.Now().Format("January 2, 2006"))
+	assert.Contains(t, prompt, fmt.Sprintf("The current NHL season ID is %d (%d-%d).", season.ID(), season.StartYear(), season.EndYear()))
+	assert.Contains(t, prompt, "Guidelines:")
 }

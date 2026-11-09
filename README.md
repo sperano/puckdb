@@ -161,6 +161,7 @@ Run `./puckdb <command> --help` for the complete flags and subcommands.
 | `metrics` | Export cache, Redis, and database metrics |
 | `mcp-server` | Serve curated read-only data tools over HTTP or stdio; `--mcp-toolsets` picks NHL, Yahoo and/or news tools ([below](#mcp-server)) |
 | `maurice` | Start the interactive AI hockey chat REPL |
+| `user` | Link, unlink, or list the Yahoo teams a Maurice user manages, for a user whose Yahoo email differs from their login email |
 | `sim` | Create and operate fantasy-pool simulations |
 | `yahoo` | Yahoo account operations; `yahoo check-access` reports (and can email) whether the Yahoo API serves a season's leagues yet ([notes](https://wiki.spe.quebec/en/puckdb/yahoo-access-check)) |
 

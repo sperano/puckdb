@@ -86,3 +86,90 @@ func TestSyncEmailLinks_EmptyEmailMatchesNothing(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, links)
 }
+
+// TestSyncEmailLinks_EmptyEmailClearsExistingEmailLink: an empty login
+// email (the identity header was blank this time) drops every email-sourced
+// link an earlier, non-empty login created.
+func TestSyncEmailLinks_EmptyEmailClearsExistingEmailLink(t *testing.T) {
+	pool := openPool(t)
+	q := sqlcdb.New(pool)
+	ctx := context.Background()
+	store := NewPGStore(pool)
+
+	email := uniqueUsername("hadone") + "@example.com"
+	league, team := seedLeagueTeam(t, pool, "Had One")
+	seedManager(t, pool, league, team, 1, email)
+	user := insertUser(t, pool, "hadone")
+	require.NoError(t, SyncEmailLinks(ctx, q, user, email))
+	links, err := store.ListUserTeams(ctx, user, nil)
+	require.NoError(t, err)
+	require.Len(t, links, 1)
+
+	require.NoError(t, SyncEmailLinks(ctx, q, user, ""))
+	links, err = store.ListUserTeams(ctx, user, nil)
+	require.NoError(t, err)
+	assert.Empty(t, links)
+}
+
+// TestSyncEmailLinks_ManualLinkNeverDemotedByMatchingResync: a manual link
+// whose pair a manager email now also matches stays manual (ON CONFLICT DO
+// NOTHING never promotes it to email), and still survives once that email
+// no longer matches.
+func TestSyncEmailLinks_ManualLinkNeverDemotedByMatchingResync(t *testing.T) {
+	pool := openPool(t)
+	q := sqlcdb.New(pool)
+	ctx := context.Background()
+	store := NewPGStore(pool)
+
+	email := uniqueUsername("ownsit") + "@example.com"
+	league, team := seedLeagueTeam(t, pool, "Owned Manually")
+	seedManager(t, pool, league, team, 1, email)
+	user := insertUser(t, pool, "ownsit")
+	_, err := store.Link(ctx, user, league, team)
+	require.NoError(t, err)
+
+	require.NoError(t, SyncEmailLinks(ctx, q, user, email))
+	links, err := store.ListUserTeams(ctx, user, nil)
+	require.NoError(t, err)
+	require.Len(t, links, 1)
+	assert.Equal(t, SourceManual, links[0].Source, "a matching resync never demotes a manual link")
+
+	require.NoError(t, SyncEmailLinks(ctx, q, user, uniqueUsername("someoneelse")+"@example.com"))
+	links, err = store.ListUserTeams(ctx, user, nil)
+	require.NoError(t, err)
+	require.Len(t, links, 1)
+	assert.Equal(t, SourceManual, links[0].Source)
+}
+
+// TestSyncEmailLinks_StaleDeleteMatchesLeagueAndTeam: two teams in the same
+// league must be told apart by team_id, not just league_id, when dropping a
+// stale email-sourced link.
+func TestSyncEmailLinks_StaleDeleteMatchesLeagueAndTeam(t *testing.T) {
+	pool := openPool(t)
+	q := sqlcdb.New(pool)
+	ctx := context.Background()
+	store := NewPGStore(pool)
+
+	email := uniqueUsername("twoteams") + "@example.com"
+	league, teamA := seedLeagueTeam(t, pool, "Team A")
+	teamB := teamA + 1
+	seedTeam(t, pool, league, teamB, "Team B")
+	seedManager(t, pool, league, teamA, 1, email)
+	seedManager(t, pool, league, teamB, 2, email)
+	user := insertUser(t, pool, "twoteams")
+
+	require.NoError(t, SyncEmailLinks(ctx, q, user, email))
+	links, err := store.ListUserTeams(ctx, user, nil)
+	require.NoError(t, err)
+	require.Len(t, links, 2)
+
+	_, err = pool.Exec(ctx, `UPDATE yahoo_team_managers SET email = $1 WHERE league_id = $2 AND team_id = $3`,
+		uniqueUsername("someoneelse")+"@example.com", league, teamB)
+	require.NoError(t, err)
+
+	require.NoError(t, SyncEmailLinks(ctx, q, user, email))
+	links, err = store.ListUserTeams(ctx, user, nil)
+	require.NoError(t, err)
+	require.Len(t, links, 1, "only team B's link, in the same league as team A's, must be dropped")
+	assert.Equal(t, teamA, links[0].TeamID)
+}
