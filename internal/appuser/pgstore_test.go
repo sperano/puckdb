@@ -21,6 +21,10 @@ const (
 	testDBNameMarker = "test"
 	// concurrentResolves is how many cookie-less requests of one user race.
 	concurrentResolves = 8
+	// testInstance and otherInstance are two API instances sharing the
+	// database.
+	testInstance  = "puckdb"
+	otherInstance = "maurice-test"
 )
 
 var pgMigrateOnce struct {
@@ -29,6 +33,19 @@ var pgMigrateOnce struct {
 }
 
 func openStore(t *testing.T) (*PGStore, *pgxpool.Pool) {
+	t.Helper()
+	pool := openPool(t)
+	return newStore(t, pool, testInstance), pool
+}
+
+func newStore(t *testing.T, pool *pgxpool.Pool, instance string) *PGStore {
+	t.Helper()
+	store, err := NewPGStore(pool, instance, SessionIdleTimeout)
+	require.NoError(t, err)
+	return store
+}
+
+func openPool(t *testing.T) *pgxpool.Pool {
 	t.Helper()
 	dbURL := os.Getenv(envTestPGURL)
 	if dbURL == "" {
@@ -42,7 +59,7 @@ func openStore(t *testing.T) (*PGStore, *pgxpool.Pool) {
 	t.Cleanup(pool.Close)
 	// No truncation: other packages' tests share the database concurrently.
 	// Every test uses its own subjects (newSubject).
-	return NewPGStore(pool, SessionIdleTimeout), pool
+	return pool
 }
 
 // newSubject returns an Authentik subject no other test uses.
@@ -50,7 +67,7 @@ func newSubject() string { return "sub-" + uuid.NewString() }
 
 func sessionRequest(subject string, presented []byte) SessionRequest {
 	return SessionRequest{
-		Identity:      Identity{Subject: subject, Username: "eric"},
+		Identity:      Identity{Provider: ProviderAuthentik, Subject: subject, Username: "eric"},
 		PresentedHash: presented,
 		FreshHash:     []byte(uuid.NewString()),
 	}
@@ -122,6 +139,40 @@ func TestPGStore_CookieIsBoundToItsUser(t *testing.T) {
 	assert.True(t, b.Created)
 }
 
+func TestNewPGStore_RequiresAnInstance(t *testing.T) {
+	_, err := NewPGStore(nil, "", SessionIdleTimeout)
+	require.ErrorIs(t, err, ErrNoInstance)
+}
+
+// The same identity on two instances is two users: one's session cookie does
+// not carry over to the other instance. Conversations are scoped by user, so
+// they follow (internal/maurice's PostgreSQL contract tests that scoping).
+func TestPGStore_UsersArePerInstance(t *testing.T) {
+	store, pool := openStore(t)
+	other := newStore(t, pool, otherInstance)
+	ctx := context.Background()
+	sub := newSubject()
+	first := sessionRequest(sub, nil)
+	main, err := store.Resolve(ctx, first)
+	require.NoError(t, err)
+
+	elsewhere, err := other.Resolve(ctx, sessionRequest(sub, first.FreshHash))
+	require.NoError(t, err)
+	assert.NotEqual(t, main.User.ID, elsewhere.User.ID)
+	assert.NotEqual(t, main.User.SessionID, elsewhere.User.SessionID)
+	assert.True(t, elsewhere.Created, "the other instance's cookie opens no session here")
+
+	again, err := store.Resolve(ctx, sessionRequest(sub, first.FreshHash))
+	require.NoError(t, err)
+	assert.Equal(t, main.User, again.User, "each instance keeps its own user and session")
+
+	for id, instance := range map[string]string{main.User.ID: testInstance, elsewhere.User.ID: otherInstance} {
+		var stored string
+		require.NoError(t, pool.QueryRow(ctx, `SELECT instance FROM app_users WHERE id = $1`, id).Scan(&stored))
+		assert.Equal(t, instance, stored)
+	}
+}
+
 func TestPGStore_ProfileIsASnapshot(t *testing.T) {
 	store, pool := openStore(t)
 	ctx := context.Background()
@@ -181,4 +232,49 @@ func TestPGStore_ConcurrentRequestsShareOneSession(t *testing.T) {
 	}
 	assert.Equal(t, 1, created)
 	assert.Equal(t, 1, countSessions(t, pool, results[0].User.ID))
+}
+
+// A Cloudflare identity keeps its email; the provider is part of the key, so
+// the same subject under Authentik is another user.
+func TestPGStore_CloudflareUserStoresEmail(t *testing.T) {
+	store, pool := openStore(t)
+	ctx := context.Background()
+	sub := newSubject()
+	req := sessionRequest(sub, nil)
+	req.Identity = Identity{Provider: ProviderCloudflare, Subject: sub, Username: "eric@example.com", Email: "eric@example.com"}
+	cf, err := store.Resolve(ctx, req)
+	require.NoError(t, err)
+
+	authentik, err := store.Resolve(ctx, sessionRequest(sub, nil))
+	require.NoError(t, err)
+	assert.NotEqual(t, cf.User.ID, authentik.User.ID)
+
+	changed := sessionRequest(sub, nil)
+	changed.Identity = req.Identity
+	changed.Identity.Email = "eric@example.org"
+	again, err := store.Resolve(ctx, changed)
+	require.NoError(t, err)
+	assert.Equal(t, cf.User.ID, again.User.ID)
+
+	var provider string
+	var email, authentikEmail *string
+	var profileMoved bool
+	require.NoError(t, pool.QueryRow(ctx,
+		`SELECT auth_provider, email, profile_updated_at > first_seen_at FROM app_users WHERE id = $1`, cf.User.ID).
+		Scan(&provider, &email, &profileMoved))
+	assert.Equal(t, ProviderCloudflare, provider)
+	require.NotNil(t, email)
+	assert.Equal(t, "eric@example.org", *email)
+	assert.True(t, profileMoved, "an email change is a profile change")
+	require.NoError(t, pool.QueryRow(ctx, `SELECT email FROM app_users WHERE id = $1`, authentik.User.ID).Scan(&authentikEmail))
+	assert.Nil(t, authentikEmail, "no email is stored as NULL")
+}
+
+func TestPGStore_RequiresAProvider(t *testing.T) {
+	store, err := NewPGStore(nil, testInstance, SessionIdleTimeout)
+	require.NoError(t, err)
+	req := sessionRequest(newSubject(), nil)
+	req.Identity.Provider = ""
+	_, err = store.Resolve(context.Background(), req)
+	require.ErrorIs(t, err, errNoProvider)
 }

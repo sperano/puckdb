@@ -72,7 +72,7 @@ func newPgUser(t *testing.T, pool *pgxpool.Pool) string {
 	t.Helper()
 	var id string
 	err := pool.QueryRow(context.Background(),
-		`INSERT INTO app_users (auth_provider, auth_subject, username) VALUES ('authentik', $1, 'tester') RETURNING id::text`,
+		`INSERT INTO app_users (instance, auth_provider, auth_subject, username) VALUES ('puckdb', 'authentik', $1, 'tester') RETURNING id::text`,
 		uuid.NewString(),
 	).Scan(&id)
 	require.NoError(t, err)

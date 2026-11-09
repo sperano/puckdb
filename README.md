@@ -77,8 +77,16 @@ go build -o puckdb .
 Run the API and worker in separate terminals:
 
 ```bash
-./puckdb api
+./puckdb api --instance puckdb
 ```
+
+`--instance` (`PUCKDB_INSTANCE`) is required: it names this API among the
+instances sharing the database, and users belong to one instance.
+`--auth-provider` (`PUCKDB_AUTH_PROVIDER`) picks the instance's one login
+provider: `authentik` (default, the forward-auth headers) or `cloudflare`,
+which verifies the `Cf-Access-Jwt-Assertion` JWT and needs
+`--cloudflare-access-team-domain` (`<team>.cloudflareaccess.com`) and
+`--cloudflare-access-aud` (the Access application's AUD tag).
 
 ```bash
 ./puckdb worker --yahoo-seasons ""

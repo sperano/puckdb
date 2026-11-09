@@ -2,6 +2,7 @@ package graph
 
 import (
 	"bytes"
+	"context"
 	"encoding/csv"
 	"encoding/json"
 	"errors"
@@ -14,6 +15,7 @@ import (
 	"github.com/99designs/gqlgen/graphql/handler"
 	"github.com/99designs/gqlgen/graphql/handler/transport"
 	"github.com/google/uuid"
+	"github.com/sperano/puckdb/internal/appuser"
 	"github.com/sperano/puckdb/internal/config"
 	"github.com/sperano/puckdb/internal/draftrank"
 	"github.com/sperano/puckdb/internal/fixtures/draftfixtures"
@@ -34,6 +36,13 @@ var draftTestNow = draftfixtures.AsOf.Add(time.Hour)
 
 func newDraftTestServer(t *testing.T) (*httptest.Server, *draftfixtures.Store, *draftrank.Service) {
 	t.Helper()
+	return newDraftTestServerWith(t, func(h http.Handler) http.Handler { return h })
+}
+
+// newDraftTestServerWith is newDraftTestServer with wrap (user resolution)
+// around the GraphQL handler.
+func newDraftTestServerWith(t *testing.T, wrap func(http.Handler) http.Handler) (*httptest.Server, *draftfixtures.Store, *draftrank.Service) {
+	t.Helper()
 	store := draftfixtures.NewStore()
 	snapshot, err := draftfixtures.Snapshot(uuid.NewSHA1(uuid.NameSpaceOID, []byte("api")), draftfixtures.AsOf)
 	require.NoError(t, err)
@@ -44,7 +53,7 @@ func newDraftTestServer(t *testing.T) (*httptest.Server, *draftfixtures.Store, *
 		Directives: generated.DirectiveRoot{Admin: NewAdminDirective(AdminAuth{Group: config.DefaultAdminGroup})},
 	}))
 	schema.AddTransport(transport.POST{})
-	server := httptest.NewServer(httpx.HeaderContext(schema))
+	server := httptest.NewServer(wrap(httpx.HeaderContext(schema)))
 	t.Cleanup(server.Close)
 	return server, store, svc
 }
@@ -263,6 +272,23 @@ func TestDraftAPI_ExistingAuthenticationApplies(t *testing.T) {
 	assert.Contains(t, string(listed.Data), `"state":"RESET"`)
 }
 
+// The author is the resolved user's username, so a cloudflare instance,
+// which strips the Authentik headers, records the user's email.
+func TestCreateDraftOverride_AuthorIsTheResolvedUser(t *testing.T) {
+	_, store, svc := newDraftTestServer(t)
+	const cloudflareUser = "fan@example.com"
+	ctx := appuser.WithUser(t.Context(), appuser.User{ID: "user-1", Username: cloudflareUser})
+	value := 10.0
+	scenario := model.DraftScenarioBase
+	_, err := (&Resolver{Draft: svc}).createDraftOverride(ctx, model.DraftOverrideCreateInput{
+		PlayerKey: draftfixtures.SuspendedKey, Kind: model.DraftOverrideKindMissedGames,
+		Scenario: &scenario, Value: &value, Reason: "appeal reduced the suspension",
+	})
+	require.NoError(t, err)
+	require.Len(t, store.Overrides, 1)
+	assert.Equal(t, cloudflareUser, store.Overrides[0].CreatedBy)
+}
+
 func TestDraftAPI_ErrorsAndMissingDatabase(t *testing.T) {
 	server, _, _ := newDraftTestServer(t)
 	bad := postGraphQL(t, server, nil, draftRankingsQuery, map[string]any{"input": map[string]any{"league": draftfixtures.LeagueKey, "positions": []string{"UTIL"}}})
@@ -295,6 +321,80 @@ func TestConfiguredLeagueIDs(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			assert.Equal(t, tt.want, (&Resolver{YahooSeasons: tt.loader}).configuredLeagueIDs(season))
+		})
+	}
+}
+
+// failingUserStore fails every user resolution with err.
+type failingUserStore struct{ err error }
+
+func (s failingUserStore) Resolve(context.Context, appuser.SessionRequest) (appuser.Resolution, error) {
+	return appuser.Resolution{}, s.err
+}
+
+// namelessProvider authenticates every request as an identity without a
+// username, whatever Authentik username header the request carries.
+type namelessProvider struct{ appuser.AuthentikProvider }
+
+func (namelessProvider) Authenticate(context.Context, http.Header) (appuser.Identity, error) {
+	return appuser.Identity{Provider: appuser.ProviderAuthentik, Subject: "uid-1"}, nil
+}
+
+// namelessUserStore resolves every request to a user without a username.
+type namelessUserStore struct{}
+
+func (namelessUserStore) Resolve(context.Context, appuser.SessionRequest) (appuser.Resolution, error) {
+	return appuser.Resolution{User: appuser.User{ID: "user-1", SessionID: "session-1"}}, nil
+}
+
+// errUnexpectedResolve fails a test whose provider should refuse the request
+// before the store is reached.
+var errUnexpectedResolve = errors.New("user store reached")
+
+// A request whose identity is rejected or has no username, or that has none
+// and no Authentik username either, creates no override: the author never falls back to an
+// empty or forged header.
+func TestCreateDraftOverride_RefusesUnresolvedAuthor(t *testing.T) {
+	cloudflare, err := appuser.NewCloudflareProvider(appuser.CloudflareAccessConfig{
+		TeamDomain: "team.cloudflareaccess.com", Audience: "aud",
+	})
+	require.NoError(t, err)
+	hasher, err := appuser.NewHasher([]byte("draft-test-session-key"))
+	require.NoError(t, err)
+	for name, tc := range map[string]struct {
+		provider appuser.Provider
+		store    appuser.Store
+		headers  http.Header
+		want     error
+	}{
+		"rejected Cloudflare token": {
+			provider: cloudflare, store: failingUserStore{errUnexpectedResolve},
+			headers: http.Header{appuser.HeaderCfAccessJWT: []string{"not-a-jwt"}}, want: appuser.ErrInvalidToken,
+		},
+		"disabled user": {
+			provider: appuser.AuthentikProvider{}, store: failingUserStore{appuser.ErrUserDisabled},
+			headers: http.Header{appuser.HeaderUID: []string{"uid-1"}, appuser.HeaderUsername: []string{draftTestAuthor}},
+			want:    appuser.ErrUserDisabled,
+		},
+		"resolved identity without a username": {
+			provider: namelessProvider{}, store: namelessUserStore{},
+			headers: http.Header{appuser.HeaderUID: []string{"uid-1"}, appuser.HeaderUsername: []string{draftTestAuthor}},
+			want:    errNoOverrideAuthor,
+		},
+		"no identity on a cloudflare instance": {
+			provider: cloudflare, store: failingUserStore{errUnexpectedResolve}, want: appuser.ErrUnauthenticated,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			server, store, _ := newDraftTestServerWith(t, appuser.Middleware(tc.provider, tc.store, hasher))
+			created := postGraphQL(t, server, tc.headers, `mutation($input: DraftOverrideCreateInput!) { createDraftOverride(input: $input) { id } }`,
+				map[string]any{"input": map[string]any{
+					"playerKey": draftfixtures.SuspendedKey, "leagueKey": draftfixtures.LeagueKey, "kind": "MISSED_GAMES",
+					"scenario": "BASE", "value": 10, "reason": "appeal reduced the suspension",
+				}})
+			require.Len(t, created.Errors, 1)
+			assert.Contains(t, created.Errors[0].Message, tc.want.Error())
+			assert.Empty(t, store.Overrides)
 		})
 	}
 }
