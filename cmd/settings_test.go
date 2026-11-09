@@ -9,6 +9,7 @@ import (
 
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
+	"github.com/sperano/puckdb/internal/appuser"
 	"github.com/sperano/puckdb/internal/cache"
 	"github.com/sperano/puckdb/internal/config"
 	"github.com/sperano/puckdb/internal/database"
@@ -115,6 +116,19 @@ func TestAdminAuthFrom(t *testing.T) {
 	assert.Equal(t, graph.AdminAuth{Group: "puckdb-admins"}, adminAuthFrom(boundViper(t, nil, &config.AdminAuthFlags)))
 	v := boundViper(t, []string{"--admin-group=ops", "--admin-token=s3cr3t"}, &config.AdminAuthFlags)
 	assert.Equal(t, graph.AdminAuth{Group: "ops", Token: "s3cr3t"}, adminAuthFrom(v))
+}
+
+func TestAppAuthFrom(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, appuser.AuthConfig{Provider: appuser.ProviderAuthentik},
+		appAuthFrom(boundViper(t, nil, &config.AppSessionFlags)), "Authentik stays the default")
+	v := boundViper(t, []string{
+		"--auth-provider=cloudflare", "--cloudflare-access-team-domain= team.cloudflareaccess.com ", "--cloudflare-access-aud=aud-tag",
+	}, &config.AppSessionFlags)
+	assert.Equal(t, appuser.AuthConfig{
+		Provider:   appuser.ProviderCloudflare,
+		Cloudflare: appuser.CloudflareAccessConfig{TeamDomain: "team.cloudflareaccess.com", Audience: "aud-tag"},
+	}, appAuthFrom(v))
 }
 
 func TestYahooRateLimitFrom(t *testing.T) {

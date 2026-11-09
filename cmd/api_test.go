@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/sperano/puckdb/internal/appuser"
 	"github.com/sperano/puckdb/internal/config"
 	"github.com/sperano/puckdb/internal/graph"
 )
@@ -107,7 +108,7 @@ func TestRunHTTPServer_ReturnsListenError(t *testing.T) {
 // resolver and pass-through sessions: enough for routes that touch neither.
 func newTestAPIRouter() http.Handler {
 	passThrough := func(next http.Handler) http.Handler { return next }
-	return setupAPIRouter(nil, &graph.Resolver{}, passThrough, apiAuth{})
+	return setupAPIRouter(nil, &graph.Resolver{}, appSessions{filter: passThrough, resolve: passThrough}, apiAuth{})
 }
 
 // TestAPIRouterServesDraftBoard requests the mounted board through the API
@@ -148,11 +149,55 @@ func TestAPIRouterDoesNotServeDraftBoardClientTests(t *testing.T) {
 }
 
 // Users belong to one instance, so the API refuses to start without one.
-func TestNewAppUserMiddlewareRequiresInstance(t *testing.T) {
+func TestNewAppSessionsRequiresInstance(t *testing.T) {
 	viper.Reset()
 	t.Cleanup(viper.Reset)
 	viper.Set(config.FlagInstance, "  ")
 
-	_, err := newAppUserMiddleware(nil)
+	_, err := newAppSessions(nil)
 	require.ErrorContains(t, err, "--"+config.FlagInstance+" (PUCKDB_INSTANCE) is required")
+}
+
+// A misconfigured login provider stops the API before it serves anything.
+func TestNewAppSessionsRejectsBadProvider(t *testing.T) {
+	for name, settings := range map[string]map[string]string{
+		"unknown provider":           {config.FlagAuthProvider: "oidc"},
+		"cloudflare without its app": {config.FlagAuthProvider: appuser.ProviderCloudflare},
+		"cloudflare settings left on authentik": {
+			config.FlagAuthProvider:               appuser.ProviderAuthentik,
+			config.FlagCloudflareAccessTeamDomain: "team.cloudflareaccess.com",
+			config.FlagCloudflareAccessAUD:        "aud",
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			viper.Reset()
+			t.Cleanup(viper.Reset)
+			viper.Set(config.FlagInstance, "maurice-crapettes")
+			for k, v := range settings {
+				viper.Set(k, v)
+			}
+			_, err := newAppSessions(nil)
+			require.ErrorContains(t, err, "--"+config.FlagAuthProvider)
+		})
+	}
+}
+
+// The provider's header filter runs on every route: a request carrying both
+// identities is refused even where no user is resolved.
+func TestAPIRouterRejectsConflictingIdentities(t *testing.T) {
+	passThrough := func(next http.Handler) http.Handler { return next }
+	sessions := appSessions{filter: appuser.IgnoreForeignHeaders(appuser.AuthentikProvider{}), resolve: passThrough}
+	router := setupAPIRouter(nil, &graph.Resolver{}, sessions, apiAuth{})
+
+	req := httptest.NewRequest(http.MethodGet, "/ping", nil)
+	req.Header.Set(appuser.HeaderUID, "subject-1")
+	req.Header.Set(appuser.HeaderCfAccessJWT, "token")
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, req)
+	assert.Equal(t, http.StatusUnauthorized, recorder.Code)
+
+	req.Header.Del(appuser.HeaderCfAccessJWT)
+	recorder = httptest.NewRecorder()
+	router.ServeHTTP(recorder, req)
+	assert.Equal(t, http.StatusOK, recorder.Code)
 }

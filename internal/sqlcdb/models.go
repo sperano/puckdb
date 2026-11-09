@@ -760,6 +760,7 @@ type AppUser struct {
 	ProfileUpdatedAt pgtype.Timestamptz `json:"profile_updated_at"`
 	DisabledAt       pgtype.Timestamptz `json:"disabled_at"`
 	Instance         string             `json:"instance"`
+	Email            pgtype.Text        `json:"email"`
 }
 
 type AppUserUsage struct {

@@ -286,6 +286,13 @@ const (
 	DefaultAdminGroup = "puckdb-admins"
 )
 
+// Login provider defaults
+const (
+	// DefaultAuthProvider is the API's login provider: the Authentik
+	// forward-auth headers (appuser.ProviderAuthentik).
+	DefaultAuthProvider = "authentik"
+)
+
 // Draft helper report defaults
 const (
 	DefaultDraftSeason       = 0 // none named: each command says what it requires or falls back to

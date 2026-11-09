@@ -13,8 +13,12 @@ import (
 	"github.com/sperano/puckdb/internal/sqlcdb"
 )
 
-// ErrNoInstance is returned by NewPGStore for an empty instance name.
-var ErrNoInstance = errors.New("instance name is empty")
+var (
+	// ErrNoInstance is returned by NewPGStore for an empty instance name.
+	ErrNoInstance = errors.New("instance name is empty")
+	// errNoProvider is returned by Resolve for an identity without a provider.
+	errNoProvider = errors.New("identity has no login provider")
+)
 
 // PGStore keeps users in app_users and sessions in app_sessions.
 type PGStore struct {
@@ -43,6 +47,9 @@ func NewPGStore(pool *pgxpool.Pool, instance string, idleTimeout time.Duration) 
 //     callers) still count as one session per stretch of use;
 //  3. otherwise opens a session under FreshHash.
 func (s *PGStore) Resolve(ctx context.Context, req SessionRequest) (Resolution, error) {
+	if req.Identity.Provider == "" {
+		return Resolution{}, errNoProvider
+	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return Resolution{}, fmt.Errorf("begin tx: %w", err)
@@ -53,10 +60,11 @@ func (s *PGStore) Resolve(ctx context.Context, req SessionRequest) (Resolution, 
 
 	user, err := q.UpsertAppUser(ctx, sqlcdb.UpsertAppUserParams{
 		Instance:     s.instance,
-		AuthProvider: ProviderAuthentik,
+		AuthProvider: req.Identity.Provider,
 		AuthSubject:  req.Identity.Subject,
 		Username:     req.Identity.Username,
-		DisplayName:  pgtype.Text{String: req.Identity.DisplayName, Valid: req.Identity.DisplayName != ""},
+		DisplayName:  optionalText(req.Identity.DisplayName),
+		Email:        optionalText(req.Identity.Email),
 	})
 	if err != nil {
 		return Resolution{}, fmt.Errorf("upsert user: %w", err)
@@ -102,6 +110,11 @@ func (s *PGStore) resolveSession(ctx context.Context, q *sqlcdb.Queries, user pg
 		return pgtype.UUID{}, false, fmt.Errorf("create session: %w", err)
 	}
 	return id, true, nil
+}
+
+// optionalText stores an empty profile field as NULL.
+func optionalText(s string) pgtype.Text {
+	return pgtype.Text{String: s, Valid: s != ""}
 }
 
 func uuidString(u pgtype.UUID) string {

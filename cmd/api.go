@@ -78,8 +78,9 @@ func cmdAPI() *cobra.Command {
 				return fmt.Errorf("open database pool: %w", err)
 			}
 			defer pool.Close()
-			// Before any other client: a missing instance name fails fast.
-			sessions, err := newAppUserMiddleware(pool)
+			// Before any other client: a missing instance name or a bad
+			// login provider fails fast.
+			sessions, err := newAppSessions(pool)
 			if err != nil {
 				return err
 			}
@@ -212,31 +213,48 @@ func runHTTPServer(ctx context.Context, srv *http.Server, tlsEnabled bool, cert,
 	}
 }
 
-// newAppUserMiddleware resolves the PuckDB user and session of GraphQL
-// requests on demand (see appuser.Middleware), among the users of the
-// configured instance.
-func newAppUserMiddleware(pool *pgxpool.Pool) (func(http.Handler) http.Handler, error) {
+// appSessions authenticates API requests with the instance's login provider.
+type appSessions struct {
+	// filter removes the other provider's headers from every request and
+	// rejects a request carrying both (appuser.IgnoreForeignHeaders).
+	filter func(http.Handler) http.Handler
+	// resolve resolves the PuckDB user and session of GraphQL requests on
+	// demand (appuser.Middleware).
+	resolve func(http.Handler) http.Handler
+}
+
+// newAppSessions builds the configured login provider and the user and
+// session resolution among the users of the configured instance.
+func newAppSessions(pool *pgxpool.Pool) (appSessions, error) {
 	instance := strings.TrimSpace(viper.GetString(config.FlagInstance))
 	if instance == "" {
-		return nil, fmt.Errorf("--%s (PUCKDB_INSTANCE) is required: users and their conversations belong to one instance", config.FlagInstance)
+		return appSessions{}, fmt.Errorf("--%s (PUCKDB_INSTANCE) is required: users and their conversations belong to one instance", config.FlagInstance)
+	}
+	provider, err := appuser.NewProvider(appAuthFrom(viper.GetViper()))
+	if err != nil {
+		return appSessions{}, fmt.Errorf("--%s: %w", config.FlagAuthProvider, err)
 	}
 	store, err := appuser.NewPGStore(pool, instance, appuser.SessionIdleTimeout)
 	if err != nil {
-		return nil, err
+		return appSessions{}, err
 	}
 	key := []byte(viper.GetString(config.FlagSessionHashKey))
 	if len(key) == 0 {
 		log.Warn().Str("flag", config.FlagSessionHashKey).
 			Msg("no session hash key configured; using a random key, so PuckDB sessions restart with the process")
 		if key, err = appuser.RandomHashKey(); err != nil {
-			return nil, err
+			return appSessions{}, err
 		}
 	}
 	hasher, err := appuser.NewHasher(key)
 	if err != nil {
-		return nil, err
+		return appSessions{}, err
 	}
-	return appuser.Middleware(store, hasher), nil
+	log.Info().Str("instance", instance).Str("provider", provider.Name()).Msg("login provider")
+	return appSessions{
+		filter:  appuser.IgnoreForeignHeaders(provider),
+		resolve: appuser.Middleware(provider, store, hasher),
+	}, nil
 }
 
 // apiAuth is how the API server authenticates to Yahoo and authorizes
@@ -246,10 +264,13 @@ type apiAuth struct {
 	admin graph.AdminAuth
 }
 
-func setupAPIRouter(redisClient *redis.Client, resolver *graph.Resolver, sessions func(http.Handler) http.Handler, auth apiAuth) *chi.Mux {
+func setupAPIRouter(redisClient *redis.Client, resolver *graph.Resolver, sessions appSessions, auth apiAuth) *chi.Mux {
 	r := chi.NewRouter()
 	r.Use(metrics.HTTPMetricsMiddleware)
 	r.Use(httpx.ChiLogger)
+	// Before HeaderContext: nothing downstream sees the other provider's
+	// headers.
+	r.Use(sessions.filter)
 	r.Use(httpx.HeaderContext)
 
 	r.Get("/ping", func(w http.ResponseWriter, r *http.Request) {
@@ -261,7 +282,7 @@ func setupAPIRouter(redisClient *redis.Client, resolver *graph.Resolver, session
 	// GraphQL
 	r.Route(graphQLPath, func(r chi.Router) {
 		r.Get("/", playgroundHandler().ServeHTTP)
-		r.With(sessions).Post("/query", graphqlHandler(resolver, auth.admin).ServeHTTP)
+		r.With(sessions.resolve).Post("/query", graphqlHandler(resolver, auth.admin).ServeHTTP)
 	})
 	// Yahoo Oauth2
 	r.Route("/yahoo", func(r chi.Router) {
