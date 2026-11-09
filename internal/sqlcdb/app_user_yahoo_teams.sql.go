@@ -124,7 +124,7 @@ type ListAppUserYahooTeamsRow struct {
 	TeamName string             `json:"team_name"`
 }
 
-// One user's linked teams, newest first within a league, limited to
+// One user's linked teams, ordered by league then team, limited to
 // league_ids when it is non-empty (the instance's Yahoo league allowlist).
 func (q *Queries) ListAppUserYahooTeams(ctx context.Context, arg ListAppUserYahooTeamsParams) ([]ListAppUserYahooTeamsRow, error) {
 	rows, err := q.db.Query(ctx, listAppUserYahooTeams, arg.UserID, arg.LeagueIds)

@@ -35,7 +35,7 @@ WHERE user_id = sqlc.arg(user_id)::uuid AND source = 'email'
   );
 
 -- name: ListAppUserYahooTeams :many
--- One user's linked teams, newest first within a league, limited to
+-- One user's linked teams, ordered by league then team, limited to
 -- league_ids when it is non-empty (the instance's Yahoo league allowlist).
 SELECT l.league_id, l.team_id, l.source, l.linked_at, t.name AS team_name
 FROM app_user_yahoo_teams l
