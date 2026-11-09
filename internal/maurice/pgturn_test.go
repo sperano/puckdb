@@ -376,3 +376,32 @@ func TestPg_ServiceTurnStoresUsage(t *testing.T) {
 	assert.Equal(t, 1, pgCount(t, pool, `SELECT count(*) FROM maurice_llm_calls
 		WHERE conversation_id = $1 AND input_tokens = 12 AND cache_read_input_tokens = 0`, resp.ConversationID))
 }
+
+// A forced final completion is stored with the turn on PostgreSQL: its call
+// row, its links to every turn message it was sent, and the title call.
+func TestPg_ServiceForcedFinalTurnStoresUsage(t *testing.T) {
+	pool := openPgTestPool(t)
+	user := newPgUser(t, pool)
+	forced := &llm.Response{Content: "forced", Usage: &llm.Usage{PromptTokens: 21, CompletionTokens: 4}}
+	llmMock := &mockLLMClient{responses: []*llm.Response{toolCallResponse("pg_read_query", "c1"), forced}}
+	cfg := testConfig
+	cfg.MaxToolRounds = 1
+	svc := NewService(llmMock, newMockMCP(), NewPgDB(pool), cfg)
+	resp, err := svc.Chat(context.Background(), ChatRequest{UserID: user, Message: "q"})
+	require.NoError(t, err)
+	require.NoError(t, svc.Close())
+
+	for kind, want := range map[CallKind]int{CallChatRound: 1, CallForcedFinal: 1, CallTitleGeneration: 1} {
+		assert.Equal(t, want, pgCount(t, pool, `SELECT count(*) FROM maurice_llm_calls WHERE conversation_id = $1 AND call_kind = $2`,
+			resp.ConversationID, string(kind)), kind)
+	}
+	assert.Equal(t, 1, pgCount(t, pool, `SELECT count(*) FROM maurice_llm_calls
+		WHERE conversation_id = $1 AND call_kind = 'forced_final' AND input_tokens = 21 AND output_tokens = 4`, resp.ConversationID))
+	assert.Equal(t, 3, pgCount(t, pool, `SELECT count(*) FROM maurice_llm_call_messages l
+		JOIN maurice_llm_calls c ON c.id = l.llm_call_id WHERE c.conversation_id = $1 AND c.call_kind = 'forced_final'`, resp.ConversationID),
+		"prompt, tool request and tool result")
+	msgs, err := NewPgDB(pool).GetMessages(context.Background(), user, resp.ConversationID)
+	require.NoError(t, err)
+	require.Len(t, msgs, 4)
+	assert.Equal(t, "forced", msgs[3].Content)
+}
