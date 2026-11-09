@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/sperano/puckdb/internal/temporal"
+	"github.com/sperano/puckdb/internal/worker/shared"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -28,4 +29,13 @@ func TestWorkerErrChCap(t *testing.T) {
 	t.Parallel()
 	assert.Equal(t, 3, workerErrChCap(workerQueueTypeTasks), "metrics + main worker + asset worker")
 	assert.Equal(t, 2, workerErrChCap(workerQueueTypeAdmin), "metrics + main worker")
+}
+
+// The main, admin and asset workers are all built from workerOptions.
+// Not parallel: workerOptions reads the global viper.
+func TestWorkerOptions_ClassifyFailuresAndKeepHeartbeatDetails(t *testing.T) {
+	got := workerOptions().Interceptors
+
+	assert.Contains(t, got, &shared.FailureClassifierInterceptor{}, "permanent activity failures must not be retried")
+	assert.Contains(t, got, &shared.HeartbeatDetailsInterceptor{})
 }

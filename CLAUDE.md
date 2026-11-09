@@ -149,6 +149,8 @@ Task queue: `puckdb-tasks`
 
 Every activity the worker registers must be scheduled by workflow code or listed in `historyOnlyActivities` (`cmd/worker_registrations_test.go`) with the still-registered workflow whose histories recorded its name (`TestRegisteredActivitiesAreScheduledOrRecorded`); a method that only runs inside another activity (`ImportDay`'s per-file imports, `FetchDailySchedule`, `ExtractBoxscoreDataForSeason`) is not registered. Never unregister a name only because current code no longer schedules it: check the history first (see wiki `puckdb/worker-activity-registrations.md`)
 
+Activity failures are classified at the worker boundary: `shared.FailureClassifierInterceptor` (installed on every queue, asset queue included, by `workerOptions()` in `cmd/worker.go`) turns a cached file that does not parse (`resource.ParseError`, type `CorruptCachedFile`) and a value PostgreSQL rejects (SQLSTATE 22001/22003/22007/22008/22021/22P02/22P05/23502/23514, type `RejectedValue`) into non-retryable errors; cancellations, explicit Temporal errors, missing cached files (a concurrent fetch may still write them), foreign key/unique violations and transient database errors keep the retry policy. Keep wrapping causes with `%w` so the classifier sees them (see wiki `puckdb/activity-failure-classification.md`)
+
 ### Progress Tracking Pattern for Child Workflows
 
 When a parent workflow spawns child workflows and displays per-child progress bars, each **child workflow must have its own tracker** so the parent can query it for progress. Without this, progress bars stay at 0.
