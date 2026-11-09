@@ -59,9 +59,10 @@ func assertUnchanged(t *testing.T, want, got error) {
 
 func TestClassifyActivityError_Permanent(t *testing.T) {
 	t.Parallel()
+	// Spelled out, not the constants, so a change to the advice fails here.
 	hints := map[string]string{
-		ErrTypeCorruptCachedFile: corruptCachedFileHint,
-		ErrTypeRejectedValue:     rejectedValueHint,
+		ErrTypeCorruptCachedFile: "a retry reads the same bytes; delete the cached file (for a Yahoo player pool page, the pool manifest) and re-run the fetch",
+		ErrTypeRejectedValue:     "every retry sends the same value",
 	}
 	tests := []struct {
 		name    string
