@@ -131,3 +131,34 @@ func TestNormalizeSeasonsInput(t *testing.T) {
 	explicit := explicitSeasonsInput()
 	assert.Same(t, explicit, normalizeSeasonsInput(explicit))
 }
+
+// Each season child runs under the workflow ID its parent bar reads progress
+// from; a bar keyed to any other ID would stay at 0.
+func TestSeasonSync_ChildWorkflowIDsAreBarSourceKeys(t *testing.T) {
+	for _, mode := range []seasonSyncMode{seasonSyncFetch, seasonSyncImport} {
+		t.Run(seasonSyncVerb(mode), func(t *testing.T) {
+			env, tl := newGroupsTestEnv(t, mode, nil, nil)
+
+			executeSeasonSyncParent(env, mode)
+
+			require.NoError(t, env.GetWorkflowError())
+			report := queryProgress(t, env)
+			var sourceKeys []string
+			for _, group := range []int{groupYahooMetadata, groupNHLSeasons} {
+				for _, bar := range report.Groups[group].Bars {
+					sourceKeys = append(sourceKeys, bar.ProgressSourceKey)
+				}
+			}
+			startedIDs := make([]string, 0, len(tl.started))
+			for id := range tl.started {
+				startedIDs = append(startedIDs, id)
+			}
+			assert.ElementsMatch(t, []string{yahooSeasonSourceKey(mode)(preseasonTestYear),
+				nhlSeasonSourceKey(mode)(preseasonTestYear)}, startedIDs)
+			for _, key := range sourceKeys {
+				assert.Contains(t, startedIDs, key)
+			}
+			assert.NotEmpty(t, sourceKeys)
+		})
+	}
+}

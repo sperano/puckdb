@@ -44,72 +44,74 @@ type dayImportResult struct {
 }
 
 // importDay is ImportDay without its activity metric, shared with
-// ImportDayIfChanged.
+// ImportDayIfChanged. It runs dayImportSteps in order and stops at the first
+// failure; the result then holds what the steps before it imported.
 func (a *ImportActivities) importDay(ctx context.Context, input ImportDayInput) (dayImportResult, error) {
-	logger := activity.GetLogger(ctx)
-	counts := core.OriginCounts{}
-	result := dayImportResult{Origins: counts}
-	activity.RecordHeartbeat(ctx, "boxscores")
-
-	boxscoreInput := ImportBoxscoresForDateInput{shared.DateSeasonInput{Date: input.Date, Season: input.Season}}
-	boxResult, err := a.ImportBoxscoresForDate(ctx, boxscoreInput)
-	if err != nil {
-		return result, fmt.Errorf("import boxscores for %s: %w", input.Date.Format(config.DateFormat), err)
-	}
-	counts.Add(boxResult.Origins)
-	activity.RecordHeartbeat(ctx, "game-stories")
-
-	gameStoryInput := ImportGameStoryForDateInput{Season: input.SeasonID, Date: input.Date}
-	gsResult, err := a.ImportGameStoryForDate(ctx, gameStoryInput)
-	if err != nil {
-		return result, fmt.Errorf("import game story for %s: %w", input.Date.Format(config.DateFormat), err)
-	}
-	counts.Add(gsResult.Origins)
-	result.SkippedRows += len(gsResult.Errors)
-	activity.RecordHeartbeat(ctx, "play-by-play")
-
-	pbpInput := ImportPlayByPlayForDateInput{shared.DateSeasonInput{Date: input.Date, Season: input.Season}}
-	pbpResult, err := a.ImportPlayByPlayForDate(ctx, pbpInput)
-	if err != nil {
-		return result, fmt.Errorf("import play-by-play for %s: %w", input.Date.Format(config.DateFormat), err)
-	}
-	counts.Add(pbpResult.Origins)
-	activity.RecordHeartbeat(ctx, "shift-charts")
-
-	scInput := ImportShiftChartForDateInput{shared.DateSeasonInput{Date: input.Date, Season: input.Season}}
-	scResult, err := a.ImportShiftChartForDate(ctx, scInput)
-	if err != nil {
-		return result, fmt.Errorf("import shift chart for %s: %w", input.Date.Format(config.DateFormat), err)
-	}
-	counts.Add(scResult.Origins)
-	activity.RecordHeartbeat(ctx, "season-series")
-
-	ssInput := ImportSeasonSeriesForDateInput{Date: input.Date}
-	ssResult, err := a.ImportSeasonSeriesForDate(ctx, ssInput)
-	if err != nil {
-		return result, fmt.Errorf("import season series for %s: %w", input.Date.Format(config.DateFormat), err)
-	}
-	counts.Add(ssResult.Origins)
-	result.SkippedRows += len(ssResult.Errors)
-	activity.RecordHeartbeat(ctx, "standings")
-
-	standingsInput := shared.DateSeasonInput{Date: input.Date, Season: input.Season}
-	if err := a.ImportStandingsForDate(ctx, standingsInput); err != nil {
-		return result, fmt.Errorf("import standings for %s: %w", input.Date.Format(config.DateFormat), err)
-	}
-	activity.RecordHeartbeat(ctx, "yahoo")
-
-	if len(input.TeamIDs) > 0 {
-		yahooResult, err := a.Yahoo.ImportYahooDataForDate(ctx, yahooDateInput(input))
+	result := dayImportResult{Origins: core.OriginCounts{}}
+	for _, step := range a.dayImportSteps(input) {
+		activity.RecordHeartbeat(ctx, step.heartbeat)
+		stepResult, err := step.run(ctx)
 		if err != nil {
-			return result, fmt.Errorf("import Yahoo data for %s: %w", input.Date.Format(config.DateFormat), err)
+			return result, fmt.Errorf("import %s for %s: %w", step.what, input.Date.Format(config.DateFormat), err)
 		}
-		counts.Add(yahooResult.Origins)
-		result.SkippedRows += yahooResult.ReadFailures
+		result.Origins.Add(stepResult.Origins)
+		result.SkippedRows += stepResult.SkippedRows
 	}
-
-	logger.Debug("Imported day data", "date", input.Date.Format(config.DateFormat))
+	activity.GetLogger(ctx).Debug("Imported day data", "date", input.Date.Format(config.DateFormat))
 	return result, nil
+}
+
+// dayImportStep is one importer of a day: the heartbeat recorded before it
+// runs, the data it names in an error, and the import itself.
+type dayImportStep struct {
+	heartbeat string
+	what      string
+	run       func(context.Context) (dayImportResult, error)
+}
+
+// dayImportSteps lists a day's importers in the order they must run (game
+// rows before the rows that reference them). The Yahoo step imports nothing
+// when the day has no Yahoo teams configured.
+func (a *ImportActivities) dayImportSteps(input ImportDayInput) []dayImportStep {
+	dateSeason := shared.DateSeasonInput{Date: input.Date, Season: input.Season}
+	return []dayImportStep{
+		{heartbeat: "boxscores", what: "boxscores", run: func(ctx context.Context) (dayImportResult, error) {
+			r, err := a.ImportBoxscoresForDate(ctx, ImportBoxscoresForDateInput{dateSeason})
+			return dayImportResult{Origins: r.Origins}, err
+		}},
+		{heartbeat: "game-stories", what: "game story", run: func(ctx context.Context) (dayImportResult, error) {
+			r, err := a.ImportGameStoryForDate(ctx, ImportGameStoryForDateInput{Season: input.SeasonID, Date: input.Date})
+			if err != nil {
+				return dayImportResult{}, err
+			}
+			return dayImportResult{Origins: r.Origins, SkippedRows: len(r.Errors)}, nil
+		}},
+		{heartbeat: "play-by-play", what: "play-by-play", run: func(ctx context.Context) (dayImportResult, error) {
+			r, err := a.ImportPlayByPlayForDate(ctx, ImportPlayByPlayForDateInput{dateSeason})
+			return dayImportResult{Origins: r.Origins}, err
+		}},
+		{heartbeat: "shift-charts", what: "shift chart", run: func(ctx context.Context) (dayImportResult, error) {
+			r, err := a.ImportShiftChartForDate(ctx, ImportShiftChartForDateInput{dateSeason})
+			return dayImportResult{Origins: r.Origins}, err
+		}},
+		{heartbeat: "season-series", what: "season series", run: func(ctx context.Context) (dayImportResult, error) {
+			r, err := a.ImportSeasonSeriesForDate(ctx, ImportSeasonSeriesForDateInput{Date: input.Date})
+			if err != nil {
+				return dayImportResult{}, err
+			}
+			return dayImportResult{Origins: r.Origins, SkippedRows: len(r.Errors)}, nil
+		}},
+		{heartbeat: "standings", what: "standings", run: func(ctx context.Context) (dayImportResult, error) {
+			return dayImportResult{}, a.ImportStandingsForDate(ctx, dateSeason)
+		}},
+		{heartbeat: "yahoo", what: "Yahoo data", run: func(ctx context.Context) (dayImportResult, error) {
+			if len(input.TeamIDs) == 0 {
+				return dayImportResult{}, nil
+			}
+			r, err := a.Yahoo.ImportYahooDataForDate(ctx, yahooDateInput(input))
+			return dayImportResult{Origins: r.Origins, SkippedRows: r.ReadFailures}, err
+		}},
+	}
 }
 
 // yahooDateInput is the Yahoo part of a day import, shared by the import and

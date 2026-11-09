@@ -39,12 +39,6 @@ func loadFetchSeasonPlayerLogsConfig() fetchSeasonPlayerLogsConfig {
 	}
 }
 
-// snapshotFetchSeasonPlayerLogsConfig records fetchSeasonPlayerLogsConfig in
-// history once per execution (see shared.SnapshotConfig).
-func snapshotFetchSeasonPlayerLogsConfig(ctx workflow.Context) (fetchSeasonPlayerLogsConfig, error) {
-	return shared.SnapshotConfig(ctx, loadFetchSeasonPlayerLogsConfig)
-}
-
 // NewFetchSeasonPlayerLogsReport creates the progress report for a single season.
 func NewFetchSeasonPlayerLogsReport(playerCount int) *shared.ProgressReport {
 	return &shared.ProgressReport{
@@ -67,7 +61,7 @@ func FetchSeasonPlayerLogsWorkflow(ctx workflow.Context, input FetchSeasonPlayer
 		"endDate", season.StandingsEnd.Format(config.DateFormat),
 		"refreshCurrent", input.RefreshCurrent)
 
-	cfg, err := snapshotFetchSeasonPlayerLogsConfig(ctx)
+	cfg, err := shared.SnapshotConfig(ctx, loadFetchSeasonPlayerLogsConfig)
 	if err != nil {
 		return err
 	}

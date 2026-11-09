@@ -231,13 +231,14 @@ func yahooCompletionMessage(mode seasonSyncMode, seasons []YahooSeasonWorkflowIn
 	return message
 }
 
+// startYahooSeasonChild starts the season's Yahoo child under the workflow ID
+// its parent bars read progress from (yahooSeasonSourceKey).
 func startYahooSeasonChild(ctx workflow.Context, input YahooSeasonWorkflowInput, mode seasonSyncMode) workflow.ChildWorkflowFuture {
+	ctx = shared.WithChildOptions(ctx, yahooSeasonSourceKey(mode)(input.StartYear))
 	if mode == seasonSyncImport {
-		return workflow.ExecuteChildWorkflow(
-			shared.WithChildOptions(ctx, WorkflowIDImportYahooSeason(input.StartYear)), ImportYahooSeasonWorkflow, input)
+		return workflow.ExecuteChildWorkflow(ctx, ImportYahooSeasonWorkflow, input)
 	}
-	return workflow.ExecuteChildWorkflow(
-		shared.WithChildOptions(ctx, WorkflowIDFetchYahooSeason(input.StartYear)), FetchYahooSeasonWorkflow, input)
+	return workflow.ExecuteChildWorkflow(ctx, FetchYahooSeasonWorkflow, input)
 }
 
 func processNHLSeasonGroup(ctx workflow.Context, tracker *shared.ReportTracker, seasons []nhl.SeasonInfo,
@@ -263,17 +264,19 @@ func processNHLSeasonGroup(ctx workflow.Context, tracker *shared.ReportTracker, 
 	return err
 }
 
+// startNHLSeasonChild starts the season's NHL child under the workflow ID its
+// parent bar reads progress from (nhlSeasonSourceKey).
 func startNHLSeasonChild(ctx workflow.Context, season nhl.SeasonInfo, mode seasonSyncMode,
 	importOpts ImportNHLSeasonOptions) workflow.ChildWorkflowFuture {
+	ctx = shared.WithChildOptions(ctx, nhlSeasonSourceKey(mode)(season.ID.StartYear()))
 	if mode == seasonSyncImport {
-		return workflow.ExecuteChildWorkflow(
-			shared.WithChildOptions(ctx, WorkflowIDImportNHLSeason(season.ID.StartYear())), ImportNHLSeasonWorkflow,
-			season, importOpts)
+		return workflow.ExecuteChildWorkflow(ctx, ImportNHLSeasonWorkflow, season, importOpts)
 	}
-	return workflow.ExecuteChildWorkflow(
-		shared.WithChildOptions(ctx, WorkflowIDFetchNHLSeason(season.ID.StartYear())), FetchNHLSeasonWorkflow, season)
+	return workflow.ExecuteChildWorkflow(ctx, FetchNHLSeasonWorkflow, season)
 }
 
+// nhlSeasonSourceKey maps a start year to the NHL season child's workflow ID,
+// which is also the key its parent bar reads progress from.
 func nhlSeasonSourceKey(mode seasonSyncMode) shared.ProgressSourceKeyFunc {
 	if mode == seasonSyncImport {
 		return WorkflowIDImportNHLSeason

@@ -134,7 +134,9 @@ func ProcessPlayersWorkflow(ctx workflow.Context, input *ProcessPlayersInput) (*
 		batchOverride = input.BatchSize
 		concurrencyOverride = input.Concurrency
 	}
-	cfg, err := snapshotProcessPlayersConfig(ctx, logger, batchOverride, concurrencyOverride)
+	cfg, err := shared.SnapshotConfig(ctx, func() processPlayersConfig {
+		return loadProcessPlayersConfig(logger, batchOverride, concurrencyOverride)
+	})
 	if err != nil {
 		return nil, err
 	}

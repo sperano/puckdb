@@ -188,14 +188,6 @@ func loadFetchAssetsClassConfig(logger log.Logger, batchOverride, concurrencyOve
 	}
 }
 
-// snapshotFetchAssetsClassConfig records fetchAssetsClassConfig in history
-// once per execution (see shared.SnapshotConfig).
-func snapshotFetchAssetsClassConfig(ctx workflow.Context, logger log.Logger, batchOverride, concurrencyOverride *int) (fetchAssetsClassConfig, error) {
-	return shared.SnapshotConfig(ctx, func() fetchAssetsClassConfig {
-		return loadFetchAssetsClassConfig(logger, batchOverride, concurrencyOverride)
-	})
-}
-
 const (
 	// fetchAssetsProgressGroupIdx is the index of the single progress group
 	// used by FetchAssetsClassWorkflow.
@@ -221,7 +213,9 @@ func FetchAssetsClassWorkflow(ctx workflow.Context, input FetchAssetsClassInput)
 		"class", input.Class.Label,
 		"refreshCurrent", input.RefreshCurrent)
 
-	cfg, err := snapshotFetchAssetsClassConfig(ctx, logger, input.BatchSize, input.Concurrency)
+	cfg, err := shared.SnapshotConfig(ctx, func() fetchAssetsClassConfig {
+		return loadFetchAssetsClassConfig(logger, input.BatchSize, input.Concurrency)
+	})
 	if err != nil {
 		return nil, fmt.Errorf("snapshot config for %s: %w", input.Class.Label, err)
 	}
