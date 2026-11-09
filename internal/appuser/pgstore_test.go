@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/sperano/puckdb/internal/database"
+	"github.com/sperano/puckdb/internal/maurice"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -21,6 +22,11 @@ const (
 	testDBNameMarker = "test"
 	// concurrentResolves is how many cookie-less requests of one user race.
 	concurrentResolves = 8
+	// conversationListLimit is above the one conversation the per-instance
+	// test opens, so a leaked one would show.
+	conversationListLimit = 10
+	// turnStaleAfter keeps the per-instance test's open turn running.
+	turnStaleAfter = time.Hour
 	// testInstance and otherInstance are two API instances sharing the
 	// database.
 	testInstance  = "puckdb"
@@ -170,6 +176,34 @@ func TestPGStore_UsersArePerInstance(t *testing.T) {
 		require.NoError(t, pool.QueryRow(ctx, `SELECT instance FROM app_users WHERE id = $1`, id).Scan(&stored))
 		assert.Equal(t, instance, stored)
 	}
+	assertConversationsStayWithUser(t, pool, main.User.ID, elsewhere.User.ID)
+}
+
+// assertConversationsStayWithUser opens a conversation for owner and checks
+// that other, the same identity on another instance, can neither list nor
+// read it.
+func assertConversationsStayWithUser(t *testing.T, pool *pgxpool.Pool, owner, other string) {
+	t.Helper()
+	ctx := context.Background()
+	db := maurice.NewPgDB(pool)
+	start, err := db.BeginTurn(ctx, maurice.BeginTurnParams{
+		UserID:         owner,
+		IdempotencyKey: uuid.NewString(),
+		RequestHash:    []byte("per-instance"),
+		StaleAfter:     turnStaleAfter,
+	})
+	require.NoError(t, err)
+
+	owned, err := db.ListConversations(ctx, owner, conversationListLimit)
+	require.NoError(t, err)
+	require.Len(t, owned, 1)
+	assert.Equal(t, start.ConversationID, owned[0].ID)
+
+	visible, err := db.ListConversations(ctx, other, conversationListLimit)
+	require.NoError(t, err)
+	assert.Empty(t, visible, "the other instance's user lists none of the conversations")
+	_, err = db.GetConversation(ctx, other, start.ConversationID)
+	assert.ErrorIs(t, err, maurice.ErrConversationNotFound)
 }
 
 func TestPGStore_ProfileIsASnapshot(t *testing.T) {
