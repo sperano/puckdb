@@ -132,6 +132,49 @@ func TestPGStore_UnlinkRefusesManualLinkStillMatched(t *testing.T) {
 	assert.Equal(t, SourceManual, links[0].Source)
 }
 
+// TestPGStore_UnlinkOtherTeamNotRefusedByEmailMatch: the still-matches
+// check compares both LeagueID and TeamID, not just one of them: a second
+// team in the same league the login email does not manage unlinks
+// normally even though the email matches team 1 in that league.
+func TestPGStore_UnlinkOtherTeamNotRefusedByEmailMatch(t *testing.T) {
+	pool := openPool(t)
+	ctx := context.Background()
+	store := NewPGStore(pool)
+
+	email := uniqueUsername("other-team") + "@example.com"
+	league, matchedTeam := seedLeagueTeam(t, pool, "Matched Team")
+	otherTeam := int32(2)
+	seedTeam(t, pool, league, otherTeam, "Other Team")
+	seedManager(t, pool, league, matchedTeam, 1, email)
+	user := insertUser(t, pool, "other-team-user")
+
+	_, err := store.Link(ctx, user, league, otherTeam)
+	require.NoError(t, err)
+
+	removed, err := store.Unlink(ctx, user, email, league, otherTeam)
+	require.NoError(t, err)
+	assert.True(t, removed, "a different team in the same league is not refused by the email match on team 1")
+}
+
+// TestPGStore_UnlinkNotHeldPairWithMatchingEmailReturnsFalse: Unlink checks
+// whether the user holds the pair before checking the email match, so an
+// unheld pair the login email matches still reports "nothing to remove",
+// not ErrEmailLinkStillMatches.
+func TestPGStore_UnlinkNotHeldPairWithMatchingEmailReturnsFalse(t *testing.T) {
+	pool := openPool(t)
+	ctx := context.Background()
+	store := NewPGStore(pool)
+
+	email := uniqueUsername("not-held") + "@example.com"
+	league, team := seedLeagueTeam(t, pool, "Not Held")
+	seedManager(t, pool, league, team, 1, email)
+	user := insertUser(t, pool, "not-held-user")
+
+	removed, err := store.Unlink(ctx, user, email, league, team)
+	require.NoError(t, err)
+	assert.False(t, removed)
+}
+
 func TestPGStore_LinkRefusesUnknownTeam(t *testing.T) {
 	pool := openPool(t)
 	store := NewPGStore(pool)
