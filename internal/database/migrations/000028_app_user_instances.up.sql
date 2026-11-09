@@ -9,11 +9,12 @@
 --
 -- Existing users belong to the main instance, 'puckdb'.
 --
--- Rollout: run it together with moving every API instance to the build that
--- ships it. An older API's login upsert (ON CONFLICT (auth_provider,
--- auth_subject), no instance) fails once it has run, and the newer one's
--- fails until it has, so user resolution (Maurice, sessions) fails on any
--- instance whose build does not match the schema in between.
+-- Rollout: run it and 000029 together with moving every API instance to the
+-- build that ships them. An older API's login upsert (ON CONFLICT
+-- (auth_provider, auth_subject), no instance) fails once 000028 has run, and
+-- the newer one's (which also writes 000029's email column) fails until both
+-- have, so user resolution (Maurice, sessions) fails on any instance whose
+-- build does not match the schema in between.
 
 ALTER TABLE app_users ADD COLUMN instance text NOT NULL DEFAULT 'puckdb' CHECK (instance <> '');
 ALTER TABLE app_users ALTER COLUMN instance DROP DEFAULT;

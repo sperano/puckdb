@@ -45,7 +45,7 @@ var errUnknownKey = errors.New("unknown signing key")
 
 // keySet caches a JWKS by key id. An unknown key id, or keys older than
 // jwksMaxAge, trigger a refetch, at most once per jwksMinRefetchInterval.
-// Cached fresh keys are served without waiting on a fetch in flight.
+// Cached keys are served without waiting on a fetch another request started.
 type keySet struct {
 	url    string
 	client *http.Client
@@ -69,9 +69,10 @@ func newKeySet(url string, client *http.Client, now func() time.Time) *keySet {
 }
 
 // key returns the key named kid. A request needing a fetch starts one, or
-// joins the one in flight, and waits for it until ctx ends. While the last
-// fetch failed, a kid the cache lacks returns that fetch error, not
-// ErrInvalidToken.
+// joins the one in flight, and waits for it until ctx ends, except that a
+// cached key older than jwksMaxAge is returned at once while a fetch another
+// request started runs. While the last fetch failed, a kid the cache lacks
+// returns that fetch error, not ErrInvalidToken.
 func (s *keySet) key(ctx context.Context, kid string) (*rsa.PublicKey, error) {
 	for {
 		s.mu.Lock()
@@ -80,10 +81,12 @@ func (s *keySet) key(ctx context.Context, kid string) (*rsa.PublicKey, error) {
 			s.mu.Unlock()
 			return key, nil
 		}
+		started := false
 		if s.inflight == nil && s.now().Sub(s.lastAttempt) >= jwksMinRefetchInterval {
 			s.startRefresh(ctx)
+			started = true
 		}
-		if done := s.inflight; done != nil {
+		if done := s.inflight; done != nil && (started || !known) {
 			s.mu.Unlock()
 			select {
 			case <-done:

@@ -81,13 +81,14 @@ func normalizeTeamDomain(domain string) string {
 	return strings.TrimSuffix(strings.ToLower(strings.TrimSpace(domain)), ".")
 }
 
-// validTeamDomain accepts a bare host name such as team.cloudflareaccess.com.
+// validTeamDomain accepts a bare host name such as team.cloudflareaccess.com,
+// with no final dot left after normalizeTeamDomain.
 func validTeamDomain(domain string) error {
 	if domain == "" {
 		return errors.New("cloudflare access team domain is empty")
 	}
 	u, err := url.Parse("https://" + domain)
-	if err != nil || u.Host != domain || u.Hostname() != domain || u.Path != "" || u.User != nil {
+	if err != nil || strings.HasSuffix(domain, ".") || u.Host != domain || u.Hostname() != domain || u.Path != "" || u.User != nil {
 		return fmt.Errorf("cloudflare access team domain %q is not a bare host name (want <team>.cloudflareaccess.com)", domain)
 	}
 	return nil

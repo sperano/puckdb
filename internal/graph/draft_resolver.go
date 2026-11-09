@@ -194,17 +194,17 @@ func (r *Resolver) createDraftOverride(ctx context.Context, input model.DraftOve
 
 // overrideAuthor is the username of the request's PuckDB user. Without one
 // (no user resolution on the route, or no identity) it falls back to the
-// Authentik username header, which a cloudflare instance strips.
+// Authentik username header, which a cloudflare instance strips; a request
+// with neither is refused, so no override is stored without an author.
 func overrideAuthor(ctx context.Context) (string, error) {
 	user, err := appuser.Current(ctx)
-	switch {
-	case err == nil:
-		return user.Username, nil
-	case errors.Is(err, appuser.ErrUnauthenticated):
-		return httpx.HeadersFromContext(ctx).Get(headerAuthentikUsername), nil
-	default:
-		return "", err
+	if !errors.Is(err, appuser.ErrUnauthenticated) {
+		return user.Username, err
 	}
+	if author := httpx.HeadersFromContext(ctx).Get(headerAuthentikUsername); author != "" {
+		return author, nil
+	}
+	return "", err
 }
 
 func (r *Resolver) resetDraftOverride(ctx context.Context, id, reason string) (bool, error) {

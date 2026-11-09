@@ -135,11 +135,13 @@ func TestKeySet_ConcurrentRefetchIsShared(t *testing.T) {
 	assert.Equal(t, int32(2), srv.fetches.Load())
 }
 
-// A fetch in flight neither delays cached keys nor outlives a waiting
-// request's context.
+// A fetch in flight neither delays cached keys, even stale ones, nor ends
+// with a waiting request's context: a later request gets its keys.
 func TestKeySet_FetchInFlightDoesNotBlock(t *testing.T) {
 	a, b := signingKeys(t)
 	release := make(chan struct{})
+	var releaseOnce sync.Once
+	releaseFetch := func() { releaseOnce.Do(func() { close(release) }) }
 	var fetches int
 	var mu sync.Mutex
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -147,25 +149,43 @@ func TestKeySet_FetchInFlightDoesNotBlock(t *testing.T) {
 		fetches++
 		first := fetches == 1
 		mu.Unlock()
+		keys := map[string]*rsa.PublicKey{kidA: &a.PublicKey}
 		if !first {
 			<-release
+			keys[kidB] = &b.PublicKey
 		}
-		_ = json.NewEncoder(w).Encode(jwksDocument(map[string]*rsa.PublicKey{kidA: &a.PublicKey}))
+		_ = json.NewEncoder(w).Encode(jwksDocument(keys))
 	}))
 	t.Cleanup(srv.Close)
-	t.Cleanup(func() { close(release) })
+	// Registered after srv.Close so it runs first: Close waits for the
+	// stalled handler.
+	t.Cleanup(releaseFetch)
 	clk := newClock()
 	v := newAccessVerifier(testIssuer, testAudience, newKeySet(srv.URL, srv.Client(), clk.Now), clk.Now)
-	_, err := v.Verify(context.Background(), signToken(t, a, kidA, validClaims()))
+	sign := func(key *rsa.PrivateKey, kid string) string {
+		claims := validClaims()
+		claims["exp"] = clk.Now().Add(testTokenLifetime).Unix()
+		return signToken(t, key, kid, claims)
+	}
+	_, err := v.Verify(context.Background(), sign(a, kidA))
 	require.NoError(t, err)
 
-	clk.Advance(jwksMinRefetchInterval)
-	ctx, cancel := context.WithTimeout(context.Background(), inFlightWaitTimeout)
-	defer cancel()
-	_, err = v.Verify(ctx, signToken(t, b, kidB, validClaims()))
+	clk.Advance(jwksMaxAge)
+	waitCtx, cancelWait := context.WithTimeout(context.Background(), inFlightWaitTimeout)
+	defer cancelWait()
+	_, err = v.Verify(waitCtx, sign(b, kidB))
 	require.ErrorIs(t, err, context.DeadlineExceeded, "the waiting request ends with its context")
-	_, err = v.Verify(context.Background(), signToken(t, a, kidA, validClaims()))
-	require.NoError(t, err, "a cached key is served while the fetch is in flight")
+	staleCtx, cancelStale := context.WithTimeout(context.Background(), inFlightWaitTimeout)
+	defer cancelStale()
+	_, err = v.Verify(staleCtx, sign(a, kidA))
+	require.NoError(t, err, "a cached key past its max age is served while the fetch is in flight")
+
+	releaseFetch()
+	_, err = v.Verify(context.Background(), sign(b, kidB))
+	require.NoError(t, err, "the fetch outlived the request that started it")
+	mu.Lock()
+	defer mu.Unlock()
+	assert.Equal(t, 2, fetches)
 }
 
 // The key set response is bounded.

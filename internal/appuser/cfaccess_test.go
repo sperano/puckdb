@@ -251,7 +251,7 @@ func TestNewAccessVerifier_ValidatesConfig(t *testing.T) {
 		assert.Equal(t, testIssuer+"/cdn-cgi/access/certs", v.keys.url)
 	}
 
-	for _, domain := range []string{"", "https://" + testTeamDomain, testTeamDomain + "/", testTeamDomain + "/cdn-cgi", "user@" + testTeamDomain, testTeamDomain + ":8443"} {
+	for _, domain := range []string{"", "https://" + testTeamDomain, testTeamDomain + "/", testTeamDomain + "/cdn-cgi", "user@" + testTeamDomain, testTeamDomain + ":8443", testTeamDomain + ".."} {
 		_, err := NewAccessVerifier(CloudflareAccessConfig{TeamDomain: domain, Audience: testAudience})
 		require.Error(t, err, domain)
 	}
