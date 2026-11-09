@@ -780,6 +780,14 @@ type AppUserUsage struct {
 	ActiveSeconds            int32       `json:"active_seconds"`
 }
 
+type AppUserYahooTeam struct {
+	UserID   pgtype.UUID        `json:"user_id"`
+	LeagueID int32              `json:"league_id"`
+	TeamID   int32              `json:"team_id"`
+	Source   string             `json:"source"`
+	LinkedAt pgtype.Timestamptz `json:"linked_at"`
+}
+
 type ClubGoalieStat struct {
 	Season              int32              `json:"season"`
 	GameType            GameType           `json:"game_type"`

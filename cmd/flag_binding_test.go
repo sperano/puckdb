@@ -64,6 +64,9 @@ func commandFlagGroups() map[string][]*config.FlagGroup {
 		"puckdb sync draft":               draftSyncFlagGroups,
 		"puckdb yahoo signout":            {&config.RedisFlags},
 		"puckdb yahoo check-access":       yahooCheckFlagGroups,
+		"puckdb user link-team":           userTeamLinkFlagGroups,
+		"puckdb user unlink-team":         userTeamLinkFlagGroups,
+		"puckdb user list-teams":          userTeamLinkFlagGroups,
 	}
 }
 
