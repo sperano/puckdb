@@ -136,7 +136,7 @@ func cmdAPI() *cobra.Command {
 				return err
 			}
 			r := setupAPIRouter(redisClient, resolver, sessions, auth)
-			srv := &http.Server{Addr: listen, Handler: r, ErrorLog: httpx.ServerErrorLog()}
+			srv := &http.Server{Addr: listen, Handler: r, ErrorLog: config.ServerErrorLog()}
 			return runHTTPServer(cmd.Context(), srv,
 				viper.GetBool(config.FlagAPITLSEnabled),
 				viper.GetString(config.FlagTLSCertificate),

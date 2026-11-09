@@ -12,6 +12,7 @@ import (
 
 	"github.com/99designs/gqlgen/graphql"
 	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -116,8 +117,14 @@ func newTestAPIRouter() http.Handler {
 
 // TestAPIRouterRecoversHandlerPanics answers 500 for a panicking route
 // instead of letting the panic reach net/http, which drops the connection
-// and logs outside zerolog.
+// and logs outside zerolog, and logs the panic as one zerolog line: with
+// Recoverer above ChiLogger, chi would print it to stderr instead. Not
+// parallel: it replaces the global logger.
 func TestAPIRouterRecoversHandlerPanics(t *testing.T) {
+	var buf bytes.Buffer
+	previous := log.Logger
+	log.Logger = zerolog.New(&buf)
+	t.Cleanup(func() { log.Logger = previous })
 	passThrough := func(next http.Handler) http.Handler { return next }
 	router := setupAPIRouter(nil, &graph.Resolver{}, passThrough, apiAuth{})
 	router.Get("/test-panic", func(http.ResponseWriter, *http.Request) { panic("boom") })
@@ -126,7 +133,21 @@ func TestAPIRouterRecoversHandlerPanics(t *testing.T) {
 	require.NotPanics(t, func() {
 		router.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/test-panic", nil))
 	})
+
 	assert.Equal(t, http.StatusInternalServerError, recorder.Code)
+	var panics []map[string]any
+	for _, raw := range bytes.Split(bytes.TrimSpace(buf.Bytes()), []byte("\n")) {
+		var line map[string]any
+		require.NoError(t, json.Unmarshal(raw, &line), "%s", raw)
+		if _, ok := line["panic"]; ok {
+			panics = append(panics, line)
+		}
+	}
+	require.Len(t, panics, 1, "one zerolog line for the panic")
+	assert.Equal(t, "error", panics[0]["level"])
+	assert.Equal(t, "/test-panic", panics[0]["path"])
+	assert.Equal(t, "boom", panics[0]["panic"])
+	assert.NotEmpty(t, panics[0]["stack"])
 }
 
 // TestGraphQLRecoverLogsPanicThroughZerolog checks that a resolver panic
@@ -150,6 +171,26 @@ func TestGraphQLRecoverLogsPanicThroughZerolog(t *testing.T) {
 	assert.Equal(t, "Boards", line["operation"])
 	assert.Equal(t, "draftLeagues", line["path"])
 	assert.Contains(t, line["stack"], "newGraphQLRecover")
+}
+
+// TestGraphQLRecoverLogsPanicWithoutContext covers a panic outside an
+// operation and a field: the line has no operation or path.
+func TestGraphQLRecoverLogsPanicWithoutContext(t *testing.T) {
+	var buf bytes.Buffer
+	logger := zerolog.New(&buf)
+
+	err := newGraphQLRecover(&logger)(context.Background(), "boom")
+
+	var gqlErr *gqlerror.Error
+	require.ErrorAs(t, err, &gqlErr)
+	assert.Equal(t, graphQLInternalError, gqlErr.Message)
+	var line map[string]any
+	require.NoError(t, json.Unmarshal(buf.Bytes(), &line))
+	assert.Equal(t, "error", line["level"])
+	assert.Equal(t, "boom", line["panic"])
+	assert.NotEmpty(t, line["stack"])
+	assert.NotContains(t, line, "operation")
+	assert.NotContains(t, line, "path")
 }
 
 // TestAPIRouterServesDraftBoard requests the mounted board through the API

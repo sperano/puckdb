@@ -10,6 +10,7 @@ import (
 
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -56,6 +57,26 @@ func TestChiLogger(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, rr.Code)
 	assert.Equal(t, "ok", rr.Body.String())
+}
+
+// TestChiLogger_FollowsReplacedGlobalLogger replaces log.Logger after
+// building the handler: the request line still reaches the replacement.
+// Not parallel: it replaces the global logger.
+func TestChiLogger_FollowsReplacedGlobalLogger(t *testing.T) {
+	handler := ChiLogger(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusAccepted)
+	}))
+	var buf bytes.Buffer
+	previous := log.Logger
+	log.Logger = zerolog.New(&buf)
+	t.Cleanup(func() { log.Logger = previous })
+
+	handler.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/api/test", nil))
+
+	lines := logLines(t, &buf)
+	require.Len(t, lines, 1)
+	assert.Equal(t, "GET /api/test", lines[0]["message"])
+	assert.EqualValues(t, http.StatusAccepted, lines[0]["status"])
 }
 
 func TestLogFormatter_NewLogEntry(t *testing.T) {
@@ -165,20 +186,4 @@ func TestRecovererLogsPanicThroughRequestLogger(t *testing.T) {
 	assert.Equal(t, "boom", lines[0]["panic"])
 	assert.Equal(t, "/draft/api/board", lines[0]["path"])
 	assert.EqualValues(t, http.StatusInternalServerError, lines[1]["status"])
-}
-
-func TestServerErrorWriter_LogsOneWarningPerLine(t *testing.T) {
-	t.Parallel()
-
-	logger, buf := bufferLogger()
-	w := serverErrorWriter{logger: logger}
-
-	n, err := w.Write([]byte("http: TLS handshake error from 192.0.2.1:5000: EOF\n"))
-
-	require.NoError(t, err)
-	assert.Equal(t, len("http: TLS handshake error from 192.0.2.1:5000: EOF\n"), n)
-	lines := logLines(t, buf)
-	require.Len(t, lines, 1)
-	assert.Equal(t, "warn", lines[0]["level"])
-	assert.Equal(t, "http: TLS handshake error from 192.0.2.1:5000: EOF", lines[0]["message"])
 }

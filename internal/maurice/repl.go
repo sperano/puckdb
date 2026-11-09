@@ -230,8 +230,8 @@ func (r *repl) command(ctx context.Context, input string) bool {
 		r.history(ctx)
 	case input == "/model" || strings.HasPrefix(input, "/model "):
 		r.selectModel(strings.TrimSpace(strings.TrimPrefix(input, "/model")))
-	case strings.HasPrefix(input, "/load "):
-		r.load(ctx, strings.TrimSpace(strings.TrimPrefix(input, "/load ")))
+	case input == "/load" || strings.HasPrefix(input, "/load "):
+		r.load(ctx, strings.TrimSpace(strings.TrimPrefix(input, "/load")))
 	default:
 		return false
 	}

@@ -72,7 +72,7 @@ func (a *FetchActivities) fetchYahooLeagueStandings(ctx context.Context, input F
 		return FetchYahooLeagueStandingsResult{}, fmt.Errorf("fetch standings %d/%d for %s: %w",
 			input.Season, input.LeagueID, day, err)
 	}
-	logFetched(logger, origin, "Standings", "season", input.Season, "leagueID", input.LeagueID, "date", day)
+	logFetched(logger, origin, "Standings", "season", input.Season, "league_id", input.LeagueID, "date", day)
 	return FetchYahooLeagueStandingsResult{Date: day}, nil
 }
 

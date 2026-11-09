@@ -39,6 +39,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rs/zerolog/log"
+
+	"github.com/sperano/puckdb/internal/config"
 )
 
 const healthCheckTimeout = 5 * time.Second
@@ -164,7 +166,7 @@ func StartServer(ctx context.Context, addr string) {
 		w.Write([]byte("ok"))
 	})
 
-	srv := &http.Server{Addr: addr, Handler: mux}
+	srv := &http.Server{Addr: addr, Handler: mux, ErrorLog: config.ServerErrorLog()}
 	if err := serveWithShutdown(ctx, srv); err != nil {
 		log.Error().Err(err).Msg("Metrics server error")
 	}
@@ -207,7 +209,7 @@ func StartWorkerServer(ctx context.Context, addr, dataPath string) error {
 		}
 	})
 
-	srv := &http.Server{Addr: addr, Handler: mux}
+	srv := &http.Server{Addr: addr, Handler: mux, ErrorLog: config.ServerErrorLog()}
 	return serveWithShutdown(ctx, srv)
 }
 

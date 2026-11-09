@@ -95,7 +95,7 @@ func (a *FetchActivities) FetchLeague(ctx context.Context, season int, leagueID 
 	if err := res.Validate(content); err != nil {
 		return FetchLeagueResult{}, fmt.Errorf("validate league %d/%d: %w", season, leagueID, err)
 	}
-	logFetched(logger, origin, "League", "season", season, "leagueID", leagueID)
+	logFetched(logger, origin, "League", "season", season, "league_id", leagueID)
 	return FetchLeagueResult{EndWeek: content.League.EndWeek}, nil
 }
 
@@ -186,7 +186,7 @@ func (a *FetchActivities) FetchTeams(ctx context.Context, input FetchTeamsInput)
 			}
 			return fmt.Errorf("fetch team %d/%d/%d: %w", input.StartSeason, team.LeagueID, team.TeamID, err)
 		}
-		logFetched(logger, origin, "Team", "leagueID", team.LeagueID, "teamID", team.TeamID)
+		logFetched(logger, origin, "Team", "league_id", team.LeagueID, "team_id", team.TeamID)
 	}
 
 	return nil
