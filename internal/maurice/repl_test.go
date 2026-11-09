@@ -351,9 +351,35 @@ func TestRunREPL_EndsAtEndOfInput(t *testing.T) {
 }
 
 func TestRunREPL_RequiresStreams(t *testing.T) {
-	err := RunREPL(context.Background(), REPLConfig{Models: replTestModels, InitialModel: replTestModels[0].ID})
+	tests := []struct {
+		name string
+		nil  func(cfg *REPLConfig)
+	}{
+		{name: "in", nil: func(cfg *REPLConfig) { cfg.In = nil }},
+		{name: "out", nil: func(cfg *REPLConfig) { cfg.Out = nil }},
+		{name: "err", nil: func(cfg *REPLConfig) { cfg.Err = nil }},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := REPLConfig{
+				Models:       replTestModels,
+				InitialModel: replTestModels[0].ID,
+				In:           strings.NewReader("/quit\n"),
+				Out:          &bytes.Buffer{},
+				Err:          &bytes.Buffer{},
+			}
+			tt.nil(&cfg)
+			built := false
 
-	assert.ErrorIs(t, err, errREPLStreams)
+			err := runREPL(context.Background(), cfg, func(ModelEntry) Service {
+				built = true
+				return nil
+			})
+
+			assert.ErrorIs(t, err, errREPLStreams)
+			assert.False(t, built, "no service is built without every stream")
+		})
+	}
 }
 
 func TestRunREPL_HistoryListsConversations(t *testing.T) {
