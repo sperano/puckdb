@@ -175,6 +175,31 @@ func TestPGStore_UnlinkNotHeldPairWithMatchingEmailReturnsFalse(t *testing.T) {
 	assert.False(t, removed)
 }
 
+// TestPGStore_UnlinkSameTeamIDOtherLeagueNotRefusedByEmailMatch: the
+// still-matches check compares LeagueID and TeamID together, not TeamID
+// alone, which would wrongly collide across leagues (team IDs are unique
+// only within a league): a link to team 1 in league B unlinks normally even
+// though the email matches team 1 in a different league A.
+func TestPGStore_UnlinkSameTeamIDOtherLeagueNotRefusedByEmailMatch(t *testing.T) {
+	pool := openPool(t)
+	ctx := context.Background()
+	store := NewPGStore(pool)
+
+	email := uniqueUsername("cross-league") + "@example.com"
+	leagueA, teamA := seedLeagueTeam(t, pool, "League A Team")
+	seedManager(t, pool, leagueA, teamA, 1, email)
+	leagueB, teamB := seedLeagueTeam(t, pool, "League B Team")
+	require.Equal(t, teamA, teamB, "both leagues must assign the same team id for this test to be meaningful")
+	user := insertUser(t, pool, "cross-league-user")
+
+	_, err := store.Link(ctx, user, leagueB, teamB)
+	require.NoError(t, err)
+
+	removed, err := store.Unlink(ctx, user, email, leagueB, teamB)
+	require.NoError(t, err)
+	assert.True(t, removed, "a matching team id in a different league is not refused by the email match in league A")
+}
+
 func TestPGStore_LinkRefusesUnknownTeam(t *testing.T) {
 	pool := openPool(t)
 	store := NewPGStore(pool)
