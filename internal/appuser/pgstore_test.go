@@ -2,6 +2,8 @@ package appuser
 
 import (
 	"context"
+	"fmt"
+	"math/rand/v2"
 	"os"
 	"sync"
 	"testing"
@@ -268,6 +270,56 @@ func TestPGStore_CloudflareUserStoresEmail(t *testing.T) {
 	assert.True(t, profileMoved, "an email change is a profile change")
 	require.NoError(t, pool.QueryRow(ctx, `SELECT email FROM app_users WHERE id = $1`, authentik.User.ID).Scan(&authentikEmail))
 	assert.Nil(t, authentikEmail, "no email is stored as NULL")
+}
+
+// newYahooLeagueID returns a Yahoo league ID no fixture elsewhere in the
+// test suite uses: tests share the database and never truncate it.
+func newYahooLeagueID() int32 { return 10_000_000 + rand.Int32N(1_000_000_000-10_000_000) }
+
+// seedYahooTeamManager seeds a minimal league, team and manager email, for
+// a test of Resolve's email link sync.
+func seedYahooTeamManager(t *testing.T, pool *pgxpool.Pool, email string) (leagueID, teamID int32) {
+	t.Helper()
+	ctx := context.Background()
+	leagueID, teamID = newYahooLeagueID(), 1
+	key := fmt.Sprintf("465.l.%d", leagueID)
+	_, err := pool.Exec(ctx, `INSERT INTO yahoo_leagues (id, league_key, name, season) VALUES ($1, $2, 'appuser test', 20262027)`, leagueID, key)
+	require.NoError(t, err)
+	_, err = pool.Exec(ctx, `INSERT INTO yahoo_teams (league_id, id, team_key, name) VALUES ($1, $2, $3, 'Resolve Sync')`, leagueID, teamID, key+".t.1")
+	require.NoError(t, err)
+	_, err = pool.Exec(ctx, `INSERT INTO yahoo_team_managers (league_id, team_id, id, nickname, email) VALUES ($1, $2, 1, 'Manager', $3)`, leagueID, teamID, email)
+	require.NoError(t, err)
+	return leagueID, teamID
+}
+
+// Resolve links the user's Yahoo team in the same transaction as the login
+// upsert, and drops the link once the login email no longer matches.
+func TestPGStore_ResolveSyncsYahooTeamLinks(t *testing.T) {
+	store, pool := openStore(t)
+	ctx := context.Background()
+	sub := newSubject()
+	email := fmt.Sprintf("resolve-sync-%s@example.com", uuid.NewString())
+	seedYahooTeamManager(t, pool, email)
+
+	first := sessionRequest(sub, nil)
+	first.Identity.Email = email
+	res, err := store.Resolve(ctx, first)
+	require.NoError(t, err)
+	assert.Equal(t, 1, countRows(t, pool,
+		`SELECT count(*) FROM app_user_yahoo_teams WHERE user_id = $1 AND source = 'email'`, res.User.ID))
+
+	changed := sessionRequest(sub, first.FreshHash)
+	changed.Identity.Email = fmt.Sprintf("someoneelse-%s@example.com", uuid.NewString())
+	_, err = store.Resolve(ctx, changed)
+	require.NoError(t, err)
+	assert.Equal(t, 0, countRows(t, pool, `SELECT count(*) FROM app_user_yahoo_teams WHERE user_id = $1`, res.User.ID))
+}
+
+func countRows(t *testing.T, pool *pgxpool.Pool, sql string, args ...any) int {
+	t.Helper()
+	var n int
+	require.NoError(t, pool.QueryRow(context.Background(), sql, args...).Scan(&n))
+	return n
 }
 
 func TestPGStore_RequiresAProvider(t *testing.T) {

@@ -277,6 +277,8 @@ const (
 	DefaultMauriceMaxTokens     = 4096
 	DefaultMauriceMaxHistory    = 50
 	DefaultMauriceMaxToolRounds = 10
+	// DefaultMauriceYahooLeagues is empty: Maurice names teams of every league.
+	DefaultMauriceYahooLeagues = ""
 )
 
 // Admin authorization defaults

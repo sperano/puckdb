@@ -29,6 +29,7 @@ import (
 	"github.com/sperano/puckdb/internal/maurice"
 	"github.com/sperano/puckdb/internal/metrics"
 	"github.com/sperano/puckdb/internal/sqlcdb"
+	"github.com/sperano/puckdb/internal/yahoolink"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/vektah/gqlparser/v2/ast"
@@ -368,12 +369,19 @@ func initMaurice(_ context.Context, pool *pgxpool.Pool) (maurice.Service, func()
 	cfg := providerConfigs[entry.Provider]
 	llmClient := llm.NewClientForProvider(entry.Provider, cfg, entry.ID)
 
+	leagueIDs, err := yahoolink.ParseLeagueIDs(viper.GetString(config.FlagMauriceYahooLeagues))
+	if err != nil {
+		mcpClient.Close()
+		return nil, nil, fmt.Errorf("--%s: %w", config.FlagMauriceYahooLeagues, err)
+	}
+
 	svc := maurice.NewService(llmClient, mcpClient, maurice.NewPgDB(pool), maurice.ServiceConfig{
 		Provider:      entry.Provider.String(),
 		Model:         entry.ID,
 		MaxHistory:    viper.GetInt(config.FlagMauriceMaxHistory),
 		MaxTokens:     viper.GetInt(config.FlagMauriceMaxTokens),
 		MaxToolRounds: viper.GetInt(config.FlagMauriceMaxToolRounds),
+		Teams:         newMauriceTeamLister(pool, leagueIDs),
 	})
 
 	cleanup := func() {

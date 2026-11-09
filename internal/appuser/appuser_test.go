@@ -24,9 +24,10 @@ func TestIdentityFromHeaders(t *testing.T) {
 
 	h.Set(HeaderUID, " abc123 ")
 	h.Set(HeaderName, "Eric S")
+	h.Set(HeaderEmail, " eric@example.com ")
 	id, ok := IdentityFromHeaders(h)
 	require.True(t, ok)
-	assert.Equal(t, Identity{Provider: ProviderAuthentik, Subject: "abc123", Username: "eric", DisplayName: "Eric S"}, id)
+	assert.Equal(t, Identity{Provider: ProviderAuthentik, Subject: "abc123", Username: "eric", DisplayName: "Eric S", Email: "eric@example.com"}, id)
 }
 
 func TestHasher(t *testing.T) {
