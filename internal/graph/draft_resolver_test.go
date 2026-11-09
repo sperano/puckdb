@@ -332,6 +332,14 @@ func (s failingUserStore) Resolve(context.Context, appuser.SessionRequest) (appu
 	return appuser.Resolution{}, s.err
 }
 
+// namelessProvider authenticates every request as an identity without a
+// username, whatever Authentik username header the request carries.
+type namelessProvider struct{ appuser.AuthentikProvider }
+
+func (namelessProvider) Authenticate(context.Context, http.Header) (appuser.Identity, error) {
+	return appuser.Identity{Provider: appuser.ProviderAuthentik, Subject: "uid-1"}, nil
+}
+
 // namelessUserStore resolves every request to a user without a username.
 type namelessUserStore struct{}
 
@@ -369,8 +377,9 @@ func TestCreateDraftOverride_RefusesUnresolvedAuthor(t *testing.T) {
 			want:    appuser.ErrUserDisabled,
 		},
 		"resolved identity without a username": {
-			provider: appuser.AuthentikProvider{}, store: namelessUserStore{},
-			headers: http.Header{appuser.HeaderUID: []string{"uid-1"}}, want: errNoOverrideAuthor,
+			provider: namelessProvider{}, store: namelessUserStore{},
+			headers: http.Header{appuser.HeaderUID: []string{"uid-1"}, appuser.HeaderUsername: []string{draftTestAuthor}},
+			want:    errNoOverrideAuthor,
 		},
 		"no identity on a cloudflare instance": {
 			provider: cloudflare, store: failingUserStore{errUnexpectedResolve}, want: appuser.ErrUnauthenticated,
