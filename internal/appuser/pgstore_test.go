@@ -202,6 +202,9 @@ func assertConversationsStayWithUser(t *testing.T, pool *pgxpool.Pool, owner, ot
 	visible, err := db.ListConversations(ctx, other, conversationListLimit)
 	require.NoError(t, err)
 	assert.Empty(t, visible, "the other instance's user lists none of the conversations")
+	read, err := db.GetConversation(ctx, owner, start.ConversationID)
+	require.NoError(t, err)
+	assert.Equal(t, start.ConversationID, read.ID)
 	_, err = db.GetConversation(ctx, other, start.ConversationID)
 	assert.ErrorIs(t, err, maurice.ErrConversationNotFound)
 }
