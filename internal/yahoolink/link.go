@@ -1,10 +1,11 @@
 // Package yahoolink links a Maurice user (internal/appuser) to the Yahoo
 // fantasy teams they manage, several per user. A link's source is either
 // SourceEmail (the login email matched a yahoo_team_managers.email,
-// case-insensitively, kept in sync at every login by SyncEmailLinks) or
-// SourceManual (an operator added it for a user whose Yahoo email differs
-// from their login email). league_id/team_id are the legacy numeric Yahoo
-// identifiers yahoo_teams and yahoo_team_managers already use.
+// case-insensitively, kept in sync at every authenticated request by
+// SyncEmailLinks) or SourceManual (an operator added it for a user whose
+// Yahoo email differs from their login email). league_id/team_id are the
+// legacy numeric Yahoo identifiers yahoo_teams and yahoo_team_managers
+// already use.
 package yahoolink
 
 import (
@@ -42,10 +43,11 @@ var ErrUserNotFound = errors.New("no such user")
 // user: username is a mutable snapshot, not a unique key.
 var ErrAmbiguousUser = errors.New("username matches more than one user")
 
-// ErrEmailLinkStillMatches is returned by Unlink for an email-sourced link
-// whose pair the given login email still matches: removing it would only be
-// undone by SyncEmailLinks on the user's next login.
-var ErrEmailLinkStillMatches = errors.New("email-sourced link still matches the login email")
+// ErrEmailLinkStillMatches is returned by Unlink for a link, of either
+// source, whose pair the given login email still matches: removing it would
+// only be undone by SyncEmailLinks, as SourceEmail, on the user's next
+// authenticated request.
+var ErrEmailLinkStillMatches = errors.New("link still matches the login email")
 
 // Link is one Yahoo team a user manages.
 type Link struct {
@@ -154,37 +156,36 @@ func (s *PGStore) Link(ctx context.Context, userID pgtype.UUID, leagueID, teamID
 	return Link{LeagueID: row.LeagueID, TeamID: row.TeamID, Source: row.Source, LinkedAt: row.LinkedAt.Time}, nil
 }
 
-// Unlink removes userID's link to the given Yahoo team: a manual link, or
-// an email-sourced one the login email (email) no longer matches. For an
-// email-sourced link whose pair email still matches, it returns
-// ErrEmailLinkStillMatches instead of removing a link SyncEmailLinks would
-// simply recreate on the user's next login: fix the yahoo_team_managers
-// row's email instead. It reports whether a link existed.
+// Unlink removes userID's link to the given Yahoo team, of either source,
+// unless the login email (email) still matches that team's manager: a
+// manual link gets no exemption, since an operator's Link promotes a
+// matching email link to manual (and SyncEmailLinks would just recreate it,
+// as SourceEmail, on the user's next authenticated request either way). In
+// that case it returns ErrEmailLinkStillMatches instead of removing the
+// link: fix the yahoo_team_managers row's email instead. It reports whether
+// a link existed.
 func (s *PGStore) Unlink(ctx context.Context, userID pgtype.UUID, email string, leagueID, teamID int32) (bool, error) {
 	links, err := s.ListUserTeams(ctx, userID, nil)
 	if err != nil {
 		return false, err
 	}
-	var source string
 	var found bool
 	for _, l := range links {
 		if l.LeagueID == leagueID && l.TeamID == teamID {
-			source, found = l.Source, true
+			found = true
 			break
 		}
 	}
 	if !found {
 		return false, nil
 	}
-	if source == SourceEmail {
-		matches, err := s.queries.ListManagerLeagueTeamsByEmail(ctx, email)
-		if err != nil {
-			return false, fmt.Errorf("check email match: %w", err)
-		}
-		for _, m := range matches {
-			if m.LeagueID == leagueID && m.TeamID == teamID {
-				return false, fmt.Errorf("%w: league %d team %d", ErrEmailLinkStillMatches, leagueID, teamID)
-			}
+	matches, err := s.queries.ListManagerLeagueTeamsByEmail(ctx, email)
+	if err != nil {
+		return false, fmt.Errorf("check email match: %w", err)
+	}
+	for _, m := range matches {
+		if m.LeagueID == leagueID && m.TeamID == teamID {
+			return false, fmt.Errorf("%w: league %d team %d", ErrEmailLinkStillMatches, leagueID, teamID)
 		}
 	}
 	n, err := s.queries.UnlinkAppUserYahooTeam(ctx, sqlcdb.UnlinkAppUserYahooTeamParams{

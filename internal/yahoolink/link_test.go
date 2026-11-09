@@ -102,6 +102,36 @@ func TestPGStore_LinkPromotesEmailLinkToManual(t *testing.T) {
 	assert.Equal(t, SourceManual, links[0].Source)
 }
 
+// TestPGStore_UnlinkRefusesManualLinkStillMatched: a manual link (an
+// operator's promotion of a matching email link, here) is refused the same
+// as an email-sourced one, since SyncEmailLinks would otherwise recreate it
+// as SourceEmail on the user's next authenticated request, undoing the
+// unlink.
+func TestPGStore_UnlinkRefusesManualLinkStillMatched(t *testing.T) {
+	pool := openPool(t)
+	ctx := context.Background()
+	q := sqlcdb.New(pool)
+	store := NewPGStore(pool)
+
+	email := uniqueUsername("manual-stays") + "@example.com"
+	league, team := seedLeagueTeam(t, pool, "Manual Stays Linked")
+	seedManager(t, pool, league, team, 1, email)
+	user := insertUser(t, pool, "manual-stays-linked")
+	require.NoError(t, SyncEmailLinks(ctx, q, user, email))
+
+	link, err := store.Link(ctx, user, league, team)
+	require.NoError(t, err)
+	require.Equal(t, SourceManual, link.Source)
+
+	_, err = store.Unlink(ctx, user, email, league, team)
+	require.ErrorIs(t, err, ErrEmailLinkStillMatches)
+
+	links, err := store.ListUserTeams(ctx, user, nil)
+	require.NoError(t, err)
+	require.Len(t, links, 1, "the refused unlink changed nothing")
+	assert.Equal(t, SourceManual, links[0].Source)
+}
+
 func TestPGStore_LinkRefusesUnknownTeam(t *testing.T) {
 	pool := openPool(t)
 	store := NewPGStore(pool)
@@ -217,9 +247,13 @@ func TestPGStore_ListInstanceLinksScopedToInstance(t *testing.T) {
 
 	links, err := store.ListInstanceLinks(ctx, testInstance)
 	require.NoError(t, err)
+	var matches []InstanceLink
 	for _, l := range links {
 		if l.Username == username {
-			assert.Equal(t, team, l.Link.TeamID, "only this instance's link for the shared username must appear")
+			matches = append(matches, l)
 		}
 	}
+	require.Len(t, matches, 1, "only this instance's link for the shared username must appear")
+	assert.Equal(t, league, matches[0].Link.LeagueID, "must be this instance's league, not the other instance's")
+	assert.NotEqual(t, otherLeague, matches[0].Link.LeagueID)
 }

@@ -28,6 +28,9 @@ func TestIntegration_AppUserYahooTeamsMigration(t *testing.T) {
 	migrateTo(t, dbURL, appUserYahooTeamsVersion)
 	execSQL(t, conn, `INSERT INTO app_user_yahoo_teams (user_id, league_id, team_id, source) VALUES ($1, 1, 1, 'email')`, appUserYahooTeamsUser1)
 
+	requireRejected(t, conn, "a duplicate (user, league, team) row",
+		rejection{code: sqlStateUniqueViolation, constraint: "app_user_yahoo_teams_pkey"},
+		`INSERT INTO app_user_yahoo_teams (user_id, league_id, team_id, source) VALUES ($1, 1, 1, 'manual')`, appUserYahooTeamsUser1)
 	requireRejected(t, conn, "an unknown source",
 		checkViolation("app_user_yahoo_teams_source_check"),
 		`INSERT INTO app_user_yahoo_teams (user_id, league_id, team_id, source) VALUES ($1, 1, 1, 'bogus')`, appUserYahooTeamsUser2)
