@@ -280,6 +280,30 @@ func (s *ImportDayIfChangedSuite) TestDayWithSkippedRowsIsNotRecorded() {
 	q.AssertExpectations(s.T())
 }
 
+// A three-star row that fails on database state is skipped by the game story
+// importer without failing the day; like a skipped season-series row, it
+// keeps the day unrecorded.
+func (s *ImportDayIfChangedSuite) TestDayWithSkippedGameStoryRowsIsNotRecorded() {
+	seedGameStoryWithThreeStar(s.T(), s.mem, s.day)
+	q := &MockQueries{}
+	q.On("UpsertGame", mock.Anything, mock.Anything).Return(nil).Once()
+	q.On("UpsertGameThreeStar", mock.Anything, mock.AnythingOfType("sqlcdb.UpsertGameThreeStarParams")).
+		Return(errors.New("player not imported yet")).Once()
+	act := &ImportActivities{Storage: s.mem, GobCache: newImportTestGobCache(), Queries: q, DayImports: s.records}
+	env := s.NewTestActivityEnvironment()
+	env.RegisterActivity(act.ImportDayIfChanged)
+
+	future, err := env.ExecuteActivity(act.ImportDayIfChanged, s.input(false))
+
+	s.Require().NoError(err)
+	var result ImportDayIfChangedResult
+	s.Require().NoError(future.Get(&result))
+	s.False(result.Skipped)
+	s.Equal(1, result.SkippedRows)
+	s.Empty(s.records.records)
+	q.AssertExpectations(s.T())
+}
+
 // newStaleScheduleGobCache returns a cache whose Redis entry for the day's
 // schedule is an older schedule without games, as left by a fetch whose Redis
 // write failed after it rewrote the file. Every other read misses.
