@@ -1,8 +1,14 @@
 // Package appuser resolves the PuckDB user and application session behind a
-// request. Identity comes from the Authentik forward-auth headers, which the
-// reverse proxy must set and strip from client requests: PuckDB trusts them
-// as is. Authentik tokens, cookies and JWTs are never stored; a PuckDB
+// request. Identity comes from the instance's one login Provider: Authentik
+// (the forward-auth headers, which the reverse proxy must set and strip from
+// client requests: PuckDB trusts them as is) or Cloudflare Access (the
+// Cf-Access-Jwt-Assertion JWT, verified against the team's signing keys).
+// Each provider ignores the other's headers, and a request carrying both is
+// rejected. Provider tokens, cookies and JWTs are never stored; a PuckDB
 // session is an opaque random cookie of which only a keyed hash is kept.
+//
+// Users belong to one API instance (PGStore's instance): API instances share
+// the database, and the same identity on two of them is two users.
 package appuser
 
 import (
@@ -28,6 +34,8 @@ const (
 const (
 	// ProviderAuthentik is the auth_provider of Authentik identities.
 	ProviderAuthentik = "authentik"
+	// ProviderCloudflare is the auth_provider of Cloudflare Access identities.
+	ProviderCloudflare = "cloudflare"
 	// SessionCookieName carries the opaque PuckDB session token.
 	SessionCookieName = "puckdb_session"
 	// SessionIdleTimeout ends a session after this long without a resolved
@@ -40,25 +48,35 @@ const (
 )
 
 var (
-	// ErrUnauthenticated is returned when the request carries no trusted
-	// Authentik subject.
-	ErrUnauthenticated = errors.New("authentication required: missing " + HeaderUID)
+	// ErrUnauthenticated is returned when the request carries no identity of
+	// the instance's provider.
+	ErrUnauthenticated = errors.New("authentication required")
+	// ErrConflictingIdentities is returned for a request carrying both an
+	// Authentik and a Cloudflare Access identity: neither is chosen.
+	ErrConflictingIdentities = errors.New("request carries both Authentik and Cloudflare Access identities")
+	// ErrInvalidToken is returned for a Cloudflare Access JWT that fails
+	// verification.
+	ErrInvalidToken = errors.New("invalid Cloudflare Access token")
 	// ErrUserDisabled is returned for a user whose access was disabled.
 	ErrUserDisabled = errors.New("user is disabled")
 )
 
-// Identity is the trusted Authentik identity of a request. Subject is the
-// stable key; Username and DisplayName are mutable snapshots.
+// Identity is the trusted identity of a request. Provider and Subject are
+// the stable key; Username, DisplayName and Email are mutable snapshots
+// (empty when the provider gives none).
 type Identity struct {
+	Provider    string
 	Subject     string
 	Username    string
 	DisplayName string
+	Email       string
 }
 
 // IdentityFromHeaders reads the Authentik headers. ok is false when the
 // subject is missing.
 func IdentityFromHeaders(h http.Header) (Identity, bool) {
 	id := Identity{
+		Provider:    ProviderAuthentik,
 		Subject:     strings.TrimSpace(h.Get(HeaderUID)),
 		Username:    strings.TrimSpace(h.Get(HeaderUsername)),
 		DisplayName: strings.TrimSpace(h.Get(HeaderName)),
@@ -70,6 +88,9 @@ func IdentityFromHeaders(h http.Header) (Identity, bool) {
 type User struct {
 	ID        string
 	SessionID string
+	// Username is the request identity's username (the Authentik username,
+	// or the Cloudflare Access email).
+	Username string
 }
 
 // SessionRequest asks the store to resolve a user's session.

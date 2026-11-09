@@ -1,15 +1,19 @@
 -- name: UpsertAppUser :one
--- profile_updated_at moves only when the username or display name changed.
+-- profile_updated_at moves only when the username, display name or email
+-- changed.
 -- The upsert always takes the row lock (DO UPDATE, never DO NOTHING), which
 -- serializes session resolution per user for the rest of the transaction.
-INSERT INTO app_users (auth_provider, auth_subject, username, display_name)
-VALUES ($1, $2, $3, $4)
-ON CONFLICT (auth_provider, auth_subject) DO UPDATE
+-- A user belongs to one instance: the same identity on another instance is
+-- another user.
+INSERT INTO app_users (instance, auth_provider, auth_subject, username, display_name, email)
+VALUES ($1, $2, $3, $4, $5, $6)
+ON CONFLICT (instance, auth_provider, auth_subject) DO UPDATE
 SET username = EXCLUDED.username,
     display_name = EXCLUDED.display_name,
+    email = EXCLUDED.email,
     profile_updated_at = CASE
-        WHEN (app_users.username, app_users.display_name)
-             IS DISTINCT FROM (EXCLUDED.username, EXCLUDED.display_name)
+        WHEN (app_users.username, app_users.display_name, app_users.email)
+             IS DISTINCT FROM (EXCLUDED.username, EXCLUDED.display_name, EXCLUDED.email)
         THEN now()
         ELSE app_users.profile_updated_at
     END

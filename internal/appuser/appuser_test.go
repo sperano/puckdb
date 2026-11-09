@@ -26,7 +26,7 @@ func TestIdentityFromHeaders(t *testing.T) {
 	h.Set(HeaderName, "Eric S")
 	id, ok := IdentityFromHeaders(h)
 	require.True(t, ok)
-	assert.Equal(t, Identity{Subject: "abc123", Username: "eric", DisplayName: "Eric S"}, id)
+	assert.Equal(t, Identity{Provider: ProviderAuthentik, Subject: "abc123", Username: "eric", DisplayName: "Eric S"}, id)
 }
 
 func TestHasher(t *testing.T) {
@@ -62,14 +62,22 @@ func (f *fakeStore) Resolve(_ context.Context, req SessionRequest) (Resolution, 
 	return f.res, f.err
 }
 
-// serve runs one request through Middleware, calling Current calls times.
+// serve runs one request through Middleware with the Authentik provider,
+// calling Current calls times.
 func serve(t *testing.T, store Store, req *http.Request, calls int) (*httptest.ResponseRecorder, []User, []error) {
+	t.Helper()
+	return serveWith(t, AuthentikProvider{}, store, req, calls)
+}
+
+// serveWith runs one request through Middleware with provider, calling
+// Current calls times.
+func serveWith(t *testing.T, provider Provider, store Store, req *http.Request, calls int) (*httptest.ResponseRecorder, []User, []error) {
 	t.Helper()
 	hasher, err := NewHasher([]byte("test-key"))
 	require.NoError(t, err)
 	var users []User
 	var errs []error
-	handler := Middleware(store, hasher)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := Middleware(provider, store, hasher)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		for range calls {
 			u, err := Current(r.Context())
 			users, errs = append(users, u), append(errs, err)
@@ -93,11 +101,11 @@ func TestMiddleware_NewSessionSetsCookieOnce(t *testing.T) {
 	rec, users, errs := serve(t, store, authenticated(), 2)
 
 	require.NoError(t, errs[0])
-	assert.Equal(t, User{ID: "u1", SessionID: "s1"}, users[0])
+	assert.Equal(t, User{ID: "u1", SessionID: "s1", Username: "eric"}, users[0])
 	assert.Equal(t, users[0], users[1])
 	require.Len(t, store.requests, 1, "resolution happens once per request")
 	assert.Nil(t, store.requests[0].PresentedHash)
-	assert.Equal(t, Identity{Subject: "subject-1", Username: "eric"}, store.requests[0].Identity)
+	assert.Equal(t, Identity{Provider: ProviderAuthentik, Subject: "subject-1", Username: "eric"}, store.requests[0].Identity)
 
 	cookies := rec.Result().Cookies()
 	require.Len(t, cookies, 1)

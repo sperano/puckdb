@@ -3,11 +3,13 @@ package cmd
 import (
 	"context"
 	"io"
+	"strings"
 	"time"
 
 	"github.com/go-redis/redis/v8"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog/log"
+	"github.com/sperano/puckdb/internal/appuser"
 	"github.com/sperano/puckdb/internal/cache"
 	"github.com/sperano/puckdb/internal/config"
 	"github.com/sperano/puckdb/internal/database"
@@ -98,6 +100,17 @@ func adminAuthFrom(v *viper.Viper) graph.AdminAuth {
 	return graph.AdminAuth{
 		Group: v.GetString(config.FlagAdminGroup),
 		Token: v.GetString(config.FlagAdminToken),
+	}
+}
+
+// appAuthFrom reads --auth-provider and the Cloudflare Access settings.
+func appAuthFrom(v *viper.Viper) appuser.AuthConfig {
+	return appuser.AuthConfig{
+		Provider: strings.TrimSpace(v.GetString(config.FlagAuthProvider)),
+		Cloudflare: appuser.CloudflareAccessConfig{
+			TeamDomain: strings.TrimSpace(v.GetString(config.FlagCloudflareAccessTeamDomain)),
+			Audience:   strings.TrimSpace(v.GetString(config.FlagCloudflareAccessAUD)),
+		},
 	}
 }
 

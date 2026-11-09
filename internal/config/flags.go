@@ -354,6 +354,27 @@ const (
 	// session cookies are stored. Empty uses a random per-process key, so
 	// sessions do not survive a restart.
 	FlagSessionHashKey = "session-hash-key"
+
+	// FlagInstance names the API instance (the main API, or a Maurice
+	// instance) sharing the database with the others. Users, and through
+	// them their sessions and conversations, belong to one instance.
+	// Required by the api command.
+	FlagInstance = "instance"
+
+	// FlagAuthProvider is the instance's one login provider: authentik
+	// (forward-auth headers) or cloudflare (a verified Cloudflare Access
+	// JWT). Each ignores the other's headers.
+	FlagAuthProvider = "auth-provider"
+
+	// FlagCloudflareAccessTeamDomain is the Cloudflare Zero Trust team
+	// domain (<team>.cloudflareaccess.com): the token issuer, and where its
+	// signing keys are served. Required by the cloudflare provider.
+	FlagCloudflareAccessTeamDomain = "cloudflare-access-team-domain"
+
+	// FlagCloudflareAccessAUD is the AUD tag of the instance's Cloudflare
+	// Access application, the audience its tokens must carry. Required by
+	// the cloudflare provider.
+	FlagCloudflareAccessAUD = "cloudflare-access-aud"
 )
 
 // API client basic-auth flags. CLI commands that call the GraphQL API
@@ -545,6 +566,10 @@ var ProvisionerFlags = FlagGroup{
 var AppSessionFlags = FlagGroup{
 	Flags: []FlagDef{
 		{FlagSessionHashKey, "", "", "Secret key for hashing PuckDB session cookies (empty: random per process, sessions do not survive a restart)", true},
+		{FlagInstance, "", "", "Name of this API instance; users and their conversations belong to one instance (required)", false},
+		{FlagAuthProvider, "", DefaultAuthProvider, "Login provider of this instance: authentik (forward-auth headers) or cloudflare (verified Cloudflare Access JWT)", false},
+		{FlagCloudflareAccessTeamDomain, "", "", "Cloudflare Zero Trust team domain (<team>.cloudflareaccess.com), required by the cloudflare login provider", false},
+		{FlagCloudflareAccessAUD, "", "", "AUD tag of this instance's Cloudflare Access application, required by the cloudflare login provider", false},
 	},
 }
 

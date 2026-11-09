@@ -16,7 +16,10 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
+	"go.temporal.io/sdk/interceptor"
+	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/testsuite"
+	"go.temporal.io/sdk/worker"
 )
 
 // MockBoxscoreUpserter implements BoxscoreUpserter for testing.
@@ -370,6 +373,14 @@ func TestImportBoxscoresSuite(t *testing.T) {
 	suite.Run(t, new(ImportBoxscoresSuite))
 }
 
+// classifyFailures installs the worker's failure classification on the
+// test environment.
+func (s *ImportBoxscoresSuite) classifyFailures() {
+	s.env.SetWorkerOptions(worker.Options{
+		Interceptors: []interceptor.WorkerInterceptor{&shared.FailureClassifierInterceptor{}},
+	})
+}
+
 func (s *ImportBoxscoresSuite) runImport(act *ImportActivities, queries BoxscoreUpserter) (ImportBoxscoresForDateResult, error) {
 	input := s.testInput
 	wrapper := func(ctx context.Context, in ImportBoxscoresForDateInput) (ImportBoxscoresForDateResult, error) {
@@ -444,10 +455,14 @@ func (s *ImportBoxscoresSuite) TestBoxscoreFileMissing() {
 	scheduleJSON := []byte(`{"games":[{"id":2024020001,"gameState":"OFF"}]}`)
 	mem.Write(context.Background(), resource.DailySchedule{Date: s.testDate}.Path(), scheduleJSON)
 
+	s.classifyFailures()
 	_, err := s.runImport(&ImportActivities{Storage: mem}, upserter)
 
 	s.Require().Error(err)
 	s.Assert().Contains(err.Error(), "boxscore file missing")
+	var appErr *temporal.ApplicationError
+	s.Require().ErrorAs(err, &appErr)
+	s.Assert().False(appErr.NonRetryable(), "a fetch running next to the import writes the schedule before its games")
 }
 
 func (s *ImportBoxscoresSuite) TestBoxscoreFileParseError() {
@@ -458,10 +473,15 @@ func (s *ImportBoxscoresSuite) TestBoxscoreFileParseError() {
 	mem.Write(context.Background(), resource.DailySchedule{Date: s.testDate}.Path(), scheduleJSON)
 	mem.Write(context.Background(), resource.Boxscore{Date: s.testDate, GameID: nhlapi.GameID(2024020001)}.Path(), []byte("invalid json"))
 
+	s.classifyFailures()
 	_, err := s.runImport(&ImportActivities{Storage: mem}, upserter)
 
 	s.Require().Error(err)
 	s.Assert().Contains(err.Error(), "read boxscore")
+	var appErr *temporal.ApplicationError
+	s.Require().ErrorAs(err, &appErr)
+	s.Assert().True(appErr.NonRetryable(), "a retry reads the same corrupt file")
+	s.Assert().Equal(shared.ErrTypeCorruptCachedFile, appErr.Type())
 }
 
 func (s *ImportBoxscoresSuite) TestUpsertGameError() {

@@ -113,11 +113,7 @@ func runWorker(cmd *cobra.Command, _ []string) error {
 	}
 	defer closeTemporal()
 
-	options := workerOptions()
-	// Keeps an activity's progress in the heartbeats it sends
-	// while waiting for the Yahoo rate limit.
-	options.Interceptors = []interceptor.WorkerInterceptor{&shared.HeartbeatDetailsInterceptor{}}
-	w := worker.New(tclient, queueName, options)
+	w := worker.New(tclient, queueName, workerOptions())
 
 	if queueType == workerQueueTypeAdmin {
 		registerAdminQueue(w, pool, redisClient)
@@ -215,14 +211,27 @@ func newWorkerTemporalClient() (client.Client, func(), error) {
 	}, nil
 }
 
-// workerOptions returns the poller and execution limits shared by the main
-// and asset workers.
+// workerOptions returns the poller and execution limits and the activity
+// interceptors shared by the main and asset workers.
 func workerOptions() worker.Options {
 	return worker.Options{
+		Interceptors:                           workerInterceptors(),
 		MaxConcurrentWorkflowTaskPollers:       viper.GetInt(config.FlagWorkerMaxWorkflowPollers),
 		MaxConcurrentActivityTaskPollers:       viper.GetInt(config.FlagWorkerMaxActivityPollers),
 		MaxConcurrentWorkflowTaskExecutionSize: viper.GetInt(config.FlagWorkerMaxWorkflowExecution),
 		MaxConcurrentActivityExecutionSize:     viper.GetInt(config.FlagWorkerMaxActivityExecution),
+	}
+}
+
+// workerInterceptors returns the activity interceptors of every worker queue
+// (main, admin and asset), installed through workerOptions.
+func workerInterceptors() []interceptor.WorkerInterceptor {
+	return []interceptor.WorkerInterceptor{
+		// Keeps an activity's progress in the heartbeats it sends
+		// while waiting for the Yahoo rate limit.
+		&shared.HeartbeatDetailsInterceptor{},
+		// Ends an activity at its first attempt when no retry can succeed.
+		&shared.FailureClassifierInterceptor{},
 	}
 }
 
