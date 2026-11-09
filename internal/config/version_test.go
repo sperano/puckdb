@@ -23,6 +23,6 @@ func TestLogIntro(t *testing.T) {
 
 	output := buf.String()
 	assert.Contains(t, output, "PuckDB")
-	assert.Contains(t, output, "CPUs")
+	assert.Contains(t, output, `"cpus":`)
 	assert.Contains(t, output, "build")
 }

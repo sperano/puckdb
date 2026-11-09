@@ -102,6 +102,9 @@ func runMaurice(cmd *cobra.Command) error {
 		MaxTokens:       maxTokens,
 		MaxToolRounds:   viper.GetInt(config.FlagMauriceMaxToolRounds),
 		ListLimit:       mauriceListLimit,
+		In:              cmd.InOrStdin(),
+		Out:             cmd.OutOrStdout(),
+		Err:             cmd.ErrOrStderr(),
 	})
 }
 

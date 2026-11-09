@@ -59,9 +59,9 @@ func (a *ImportActivities) ImportYahooLeagueData(ctx context.Context, input Impo
 
 	logger.Info("Imported Yahoo league data",
 		"season", input.Season,
-		"leagueID", input.LeagueID,
+		"league_id", input.LeagueID,
 		"transactions", result.TransactionsImported,
-		"draftPicks", result.DraftPicksImported,
+		"draft_picks", result.DraftPicksImported,
 		"matchups", result.MatchupsImported)
 
 	return result, nil

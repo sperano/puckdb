@@ -29,6 +29,11 @@ const (
 	HeaderUID      = "X-authentik-uid"
 	HeaderUsername = "X-authentik-username"
 	HeaderName     = "X-authentik-name"
+	// HeaderEmail carries the user's email, used to link them to the Yahoo
+	// teams they manage (internal/yahoolink). Absent on a reverse proxy that
+	// does not forward it: the identity's Email then stays empty, same as
+	// today.
+	HeaderEmail = "X-authentik-email"
 )
 
 const (
@@ -80,6 +85,7 @@ func IdentityFromHeaders(h http.Header) (Identity, bool) {
 		Subject:     strings.TrimSpace(h.Get(HeaderUID)),
 		Username:    strings.TrimSpace(h.Get(HeaderUsername)),
 		DisplayName: strings.TrimSpace(h.Get(HeaderName)),
+		Email:       strings.TrimSpace(h.Get(HeaderEmail)),
 	}
 	return id, id.Subject != ""
 }

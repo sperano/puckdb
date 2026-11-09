@@ -131,8 +131,8 @@ func iterateSeasons(ctx workflow.Context, input *model.SeasonsInput, progReport 
 	}
 
 	logger.Info("iterateSeasons started",
-		"startSeason", input.StartSeason,
-		"endSeason", input.EndSeason,
+		"start_season", input.StartSeason,
+		"end_season", input.EndSeason,
 		"concurrency", concurrency)
 
 	ctx = workflow.WithActivityOptions(ctx, shared.DefaultActivityOptions())

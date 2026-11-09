@@ -51,7 +51,7 @@ func (a *SeasonsActivities) FetchClubStats(ctx context.Context, input FetchClubS
 				}, gameType)
 			if err != nil {
 				if errors.Is(err, nhlapi.ErrNotFound) {
-					logger.Warn("No club stats available", "team", team.Abbrev, "gameType", gameType)
+					logger.Warn("No club stats available", "team", team.Abbrev, "game_type", gameType)
 					continue
 				}
 				return fmt.Errorf("fetch club stats for %s (gameType %d): %w", team.Abbrev, gameType, err)

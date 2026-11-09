@@ -54,7 +54,7 @@ func (a *DailyScheduleActivities) FetchDailySchedule(ctx context.Context, day ti
 		return FetchDailyScheduleResult{Origin: origin}, nil
 	}
 
-	log.Info().Str("day", day.Format(time.DateOnly)).Msg("Daily schedule fetched from API")
+	logger.Info("Daily schedule fetched from API", "day", day.Format(time.DateOnly))
 
 	filtered := filterFinalNonPreseasonGames(schedule.Games)
 	g, gctx := errgroup.WithContext(ctx)
@@ -134,7 +134,7 @@ func shouldSkipGame(game nhlapi.ScheduleGame) bool {
 	}
 	gameType, err := game.ID.GameType()
 	if err != nil {
-		log.Warn().Str("game.ID", game.ID.String()).Err(err).Msg("Skipping game with invalid ID")
+		log.Warn().Str("game_id", game.ID.String()).Err(err).Msg("Skipping game with invalid ID")
 		return true
 	}
 	return nhlapi.GameType(gameType) == nhlapi.GameTypePreseason

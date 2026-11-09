@@ -58,7 +58,7 @@ func (a *Activities) loadUnmatchedYahooPlayersImpl(ctx context.Context) ([]Unmat
 	for _, id := range unmatchedIDs {
 		player, err := GetYahooPlayerByID(ctx, a.RedisClient, id)
 		if err != nil {
-			log.Warn().Err(err).Int("yahooID", int(id)).Msg("Failed to load unmatched Yahoo player details")
+			log.Warn().Err(err).Int("yahoo_id", int(id)).Msg("Failed to load unmatched Yahoo player details")
 			unmatched = append(unmatched, UnmatchedYahooPlayer{YahooID: id})
 			continue
 		}

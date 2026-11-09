@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
 	"strings"
 
 	"github.com/charmbracelet/glamour"
@@ -49,13 +48,17 @@ type REPLConfig struct {
 	MaxTokens       int
 	MaxToolRounds   int
 	ListLimit       int
-	// In, Out and ErrOut are the REPL's input, output (prompt, menus,
-	// answers) and error streams; nil means os.Stdin, os.Stdout and
-	// os.Stderr.
-	In     io.Reader
-	Out    io.Writer
-	ErrOut io.Writer
+
+	// In is read line by line; Out receives the conversation and Err the
+	// error lines. The command passes the process's stdin, stdout and
+	// stderr: this package never touches them itself.
+	In  io.Reader
+	Out io.Writer
+	Err io.Writer
 }
+
+// errREPLStreams reports a REPLConfig without its In, Out or Err stream.
+var errREPLStreams = errors.New("maurice REPL needs In, Out and Err")
 
 // markdownWrapWidth is the column at which rendered answers wrap.
 const markdownWrapWidth = 100
@@ -94,6 +97,9 @@ func RunREPL(ctx context.Context, cfg REPLConfig) error {
 // runREPL is RunREPL with the service factory injected, so tests can drive
 // the loop without an LLM provider.
 func runREPL(ctx context.Context, cfg REPLConfig, newService func(ModelEntry) Service) error {
+	if cfg.In == nil || cfg.Out == nil || cfg.Err == nil {
+		return errREPLStreams
+	}
 	entry, err := FindModel(cfg.Models, cfg.InitialModel)
 	if err != nil {
 		return fmt.Errorf("select initial model: %w", err)
@@ -102,15 +108,14 @@ func runREPL(ctx context.Context, cfg REPLConfig, newService func(ModelEntry) Se
 	if err != nil {
 		return fmt.Errorf("init markdown renderer: %w", err)
 	}
-	in, out, errOut := cfg.streams()
 	r := &repl{
 		models:          cfg.Models,
 		providerConfigs: cfg.ProviderConfigs,
 		listLimit:       cfg.ListLimit,
-		out:             out,
-		errOut:          errOut,
+		out:             cfg.Out,
+		errOut:          cfg.Err,
 		markdown:        mdRenderer,
-		spin:            newSpinner(out),
+		spin:            newSpinner(cfg.Out),
 		newService:      newService,
 		entry:           entry,
 		svc:             newService(entry),
@@ -127,16 +132,16 @@ func runREPL(ctx context.Context, cfg REPLConfig, newService func(ModelEntry) Se
 	// nobody reads any more.
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	lines, scanErr := readLines(ctx, in)
+	lines, scanErr := readLines(ctx, cfg.In)
 	for {
-		fmt.Fprint(out, formatPrompt(r.entry.ID))
+		fmt.Fprint(r.out, formatPrompt(r.entry.ID))
 		select {
 		case <-ctx.Done():
 			// First SIGINT/SIGTERM cancels the root signal context (see
 			// cmd.SignalContext). Return cleanly so the deferred service,
 			// MCP and DB cleanup in the callers runs; the stdin goroutine
 			// stays blocked in Scan and exits with the process.
-			fmt.Fprintln(out)
+			fmt.Fprintln(r.out)
 			return nil
 		case line, ok := <-lines:
 			if !ok {
@@ -162,26 +167,6 @@ func (cfg REPLConfig) modelService(entry ModelEntry) Service {
 			MaxToolRounds: cfg.MaxToolRounds,
 		},
 	)
-}
-
-// streams returns the REPL's input, output and error streams, defaulting to
-// the process's standard streams.
-func (cfg REPLConfig) streams() (io.Reader, io.Writer, io.Writer) {
-	var (
-		in     io.Reader = os.Stdin
-		out    io.Writer = os.Stdout
-		errOut io.Writer = os.Stderr
-	)
-	if cfg.In != nil {
-		in = cfg.In
-	}
-	if cfg.Out != nil {
-		out = cfg.Out
-	}
-	if cfg.ErrOut != nil {
-		errOut = cfg.ErrOut
-	}
-	return in, out, errOut
 }
 
 // readLines scans r line by line from a dedicated goroutine into the

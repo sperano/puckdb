@@ -100,7 +100,7 @@ func FetchAssetsWorkflow(ctx workflow.Context, input *FetchAssetsInput) (core.Or
 		input = &FetchAssetsInput{}
 	}
 	logger := workflow.GetLogger(ctx)
-	logger.Info("FetchAssetsWorkflow started", "refreshCurrent", input.refreshCurrent())
+	logger.Info("FetchAssetsWorkflow started", "refresh_current", input.refreshCurrent())
 
 	cfg, err := snapshotFetchAssetsConfig(ctx, logger, input.MaxClassConcurrency)
 	if err != nil {
@@ -127,7 +127,7 @@ func FetchAssetsWorkflow(ctx workflow.Context, input *FetchAssetsInput) (core.Or
 		fmt.Sprintf("Fetched all assets in %s. %d files downloaded.",
 			tracker.GetElapsed(ctx, fetchAssetsGroupIdx), counts.Total()))
 
-	logger.Info("FetchAssetsWorkflow completed", "totalDownloads", counts.Total())
+	logger.Info("FetchAssetsWorkflow completed", "total_downloads", counts.Total())
 	return counts, nil
 }
 

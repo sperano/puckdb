@@ -113,7 +113,7 @@ func recordErroredTurn(ctx context.Context, tx Transactor[abortedTurnQueries], t
 	if activity.IsActivity(ctx) {
 		activity.GetLogger(ctx).Error("aborted turn spend not recorded",
 			"pool_id", t.Header.PoolID, "agent_id", t.Header.AgentID,
-			"cost_usd", t.Header.Spend.CostUsd, "err", err)
+			"cost_usd", t.Header.Spend.CostUsd, "error", err)
 	}
 	return err
 }

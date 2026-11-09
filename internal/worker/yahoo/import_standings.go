@@ -79,7 +79,7 @@ func (a *ImportActivities) collectStandingParams(ctx context.Context, input Impo
 		}
 		rows, err := a.readLeagueStandings(ctx, res, input.Teams)
 		if err != nil {
-			log.Warn().Err(err).Int("leagueID", leagueID).
+			log.Warn().Err(err).Int("league_id", leagueID).
 				Str("date", input.Date.Format(config.DateFormat)).
 				Msg("Failed to read standings snapshot")
 			readFailures++

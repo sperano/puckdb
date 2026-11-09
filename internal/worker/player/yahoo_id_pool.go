@@ -64,8 +64,8 @@ func (a *Activities) ParseYahooPlayerBatch(ctx context.Context, playerIDs []stor
 
 	if result.ReadErrors > 0 || result.ParseErrors > 0 {
 		logger.Warn("Some players failed to parse",
-			"readErrors", result.ReadErrors,
-			"parseErrors", result.ParseErrors)
+			"read_errors", result.ReadErrors,
+			"parse_errors", result.ParseErrors)
 	}
 	logger.Debug("Parsed Yahoo player batch", "requested", len(playerIDs), "parsed", len(result.Players))
 	return result.Players, nil

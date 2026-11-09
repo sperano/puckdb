@@ -82,9 +82,9 @@ func importPlayerLogsLegacy(ctx workflow.Context, input *model.SeasonsInput) err
 func ImportSeasonPlayerLogsWorkflow(ctx workflow.Context, season nhl.SeasonInfo) (core.OriginCounts, error) {
 	logger := workflow.GetLogger(ctx)
 	logger.Info("ImportSeasonPlayerLogsWorkflow started",
-		"startYear", season.ID.StartYear(),
-		"startDate", season.StandingsStart.Format(config.DateFormat),
-		"endDate", season.StandingsEnd.Format(config.DateFormat))
+		"start_year", season.ID.StartYear(),
+		"start_date", season.StandingsStart.Format(config.DateFormat),
+		"end_date", season.StandingsEnd.Format(config.DateFormat))
 
 	dayConcurrency, err := shared.SnapshotConfigInt(ctx, nil, shared.DayConcurrencyParam, nil)
 	if err != nil {

@@ -47,9 +47,9 @@ func FetchNHLSeasonWorkflow(ctx workflow.Context, season nhl.SeasonInfo) (core.O
 	logger := workflow.GetLogger(ctx)
 
 	logger.Debug("FetchNHLSeasonWorkflow started",
-		"seasonID", season.ID,
-		"startDate", season.StandingsStart.Format(config.DateFormat),
-		"endDate", season.StandingsEnd.Format(config.DateFormat))
+		"season_id", season.ID,
+		"start_date", season.StandingsStart.Format(config.DateFormat),
+		"end_date", season.StandingsEnd.Format(config.DateFormat))
 
 	cfg, err := snapshotSeasonConfig(ctx)
 	if err != nil {
@@ -89,7 +89,7 @@ func FetchNHLSeasonWorkflow(ctx workflow.Context, season nhl.SeasonInfo) (core.O
 	concurrency := cfg.DayConcurrency
 
 	logger.Info("Processing days in parallel",
-		"numDays", numDays,
+		"num_days", numDays,
 		"concurrency", concurrency)
 
 	// Process days in parallel using RunWorkerPool
@@ -158,8 +158,8 @@ func FetchNHLSeasonWorkflow(ctx workflow.Context, season nhl.SeasonInfo) (core.O
 		fmt.Sprintf("Fetched %d playoff games for %s in %s.", playoffGames, season.Label(), tracker.GetElapsed(ctx, GroupFetchSeasonPlayoff)))
 
 	logger.Info("FetchNHLSeasonWorkflow completed",
-		"startYear", season.ID.StartYear(),
-		"playoffGames", playoffGames)
+		"start_year", season.ID.StartYear(),
+		"playoff_games", playoffGames)
 	return counts, nil
 }
 

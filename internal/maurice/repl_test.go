@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"io"
-	"os"
 	"runtime"
 	"strings"
 	"testing"
@@ -131,7 +130,7 @@ func TestRunREPL_DrivesCommandsAndChatFromInput(t *testing.T) {
 		ListLimit:    testListLimit,
 		In:           strings.NewReader("/history\n\n/load conv-1\n  hello  \n"),
 		Out:          &out,
-		ErrOut:       &errOut,
+		Err:          &errOut,
 	}
 
 	require.NoError(t, runREPL(context.Background(), cfg, services.build), "EOF ends the REPL cleanly")
@@ -163,7 +162,7 @@ func TestRunREPL_QuitAfterModelSwitchClosesEveryService(t *testing.T) {
 		InitialModel: "model-a",
 		In:           strings.NewReader("/model 2\n/quit\nnever sent\n"),
 		Out:          &out,
-		ErrOut:       io.Discard,
+		Err:          io.Discard,
 	}
 
 	require.NoError(t, runREPL(context.Background(), cfg, services.build))
@@ -183,9 +182,9 @@ func TestRunREPL_QuitReleasesInputGoroutine(t *testing.T) {
 		InitialModel: "model-a",
 		// After /quit the input goroutine has scanned "never sent" and
 		// blocks delivering it until the REPL cancels its context.
-		In:     strings.NewReader("/quit\nnever sent\n"),
-		Out:    io.Discard,
-		ErrOut: io.Discard,
+		In:  strings.NewReader("/quit\nnever sent\n"),
+		Out: io.Discard,
+		Err: io.Discard,
 	}
 
 	require.NoError(t, runREPL(context.Background(), cfg, (&serviceFactory{}).build))
@@ -200,7 +199,7 @@ func TestRunREPL_QuitReleasesInputGoroutine(t *testing.T) {
 
 func TestRunREPL_UnknownInitialModel(t *testing.T) {
 	services := &serviceFactory{}
-	cfg := REPLConfig{Models: testREPLModels, InitialModel: "model-z", In: strings.NewReader(""), Out: io.Discard}
+	cfg := REPLConfig{Models: testREPLModels, InitialModel: "model-z", In: strings.NewReader(""), Out: io.Discard, Err: io.Discard}
 
 	err := runREPL(context.Background(), cfg, services.build)
 
@@ -211,7 +210,7 @@ func TestRunREPL_UnknownInitialModel(t *testing.T) {
 func TestRunREPL_ReturnsInputError(t *testing.T) {
 	readErr := errors.New("tty gone")
 	services := &serviceFactory{}
-	cfg := REPLConfig{Models: testREPLModels, InitialModel: "model-a", In: iotest.ErrReader(readErr), Out: io.Discard}
+	cfg := REPLConfig{Models: testREPLModels, InitialModel: "model-a", In: iotest.ErrReader(readErr), Out: io.Discard, Err: io.Discard}
 
 	err := runREPL(context.Background(), cfg, services.build)
 
@@ -224,7 +223,7 @@ func TestRunREPL_ReturnsOnContextCancel(t *testing.T) {
 	t.Cleanup(func() { _ = pw.Close() })
 	ctx, cancel := context.WithCancel(context.Background())
 	services := &serviceFactory{}
-	cfg := REPLConfig{Models: testREPLModels, InitialModel: "model-a", In: pr, Out: io.Discard}
+	cfg := REPLConfig{Models: testREPLModels, InitialModel: "model-a", In: pr, Out: io.Discard, Err: io.Discard}
 
 	done := make(chan error, 1)
 	go func() { done <- runREPL(ctx, cfg, services.build) }()
@@ -284,16 +283,124 @@ func TestREPLConfigModelService_Limits(t *testing.T) {
 	}
 }
 
-func TestREPLConfigStreams(t *testing.T) {
-	in, out, errOut := REPLConfig{}.streams()
-	assert.Same(t, os.Stdin, in)
-	assert.Same(t, os.Stdout, out)
-	assert.Same(t, os.Stderr, errOut)
+// replTestModels are the models the REPL tests can switch between; Ollama
+// needs no API key, so switching prints no warning.
+var replTestModels = []ModelEntry{
+	{ID: "first-model", Description: "first", Provider: llm.ProviderOllama},
+	{ID: "second-model", Description: "second", Provider: llm.ProviderOllama},
+}
 
-	var r strings.Reader
-	var w, e bytes.Buffer
-	in, out, errOut = REPLConfig{In: &r, Out: &w, ErrOut: &e}.streams()
-	assert.Same(t, &r, in)
-	assert.Same(t, &w, out)
-	assert.Same(t, &e, errOut)
+// runTestREPL runs the REPL on input with an in-memory SQLite store and
+// returns what it wrote to Out and Err. No prompt reaches the model.
+func runTestREPL(t *testing.T, input string) (string, string) {
+	t.Helper()
+	out, errOut, err := runTestREPLOn(context.Background(), openTestDB(t), strings.NewReader(input))
+	require.NoError(t, err)
+	return out, errOut
+}
+
+// runTestREPLOn runs the REPL on in with db and returns what it wrote to
+// Out and Err and its error.
+func runTestREPLOn(ctx context.Context, db DB, in io.Reader) (string, string, error) {
+	var out, errOut bytes.Buffer
+	err := RunREPL(ctx, REPLConfig{
+		DB:              db,
+		Models:          replTestModels,
+		InitialModel:    replTestModels[0].ID,
+		ProviderConfigs: map[llm.Provider]llm.ProviderConfig{llm.ProviderOllama: {BaseURL: "http://127.0.0.1:1/v1"}},
+		ListLimit:       10,
+		In:              in,
+		Out:             &out,
+		Err:             &errOut,
+	})
+	return out.String(), errOut.String(), err
+}
+
+// seedREPLConversation stores a conversation of LocalUserID with one answered
+// turn, titled title unless it is empty, and returns its ID.
+func seedREPLConversation(t *testing.T, db DB, title string) string {
+	t.Helper()
+	start := beginTurn(t, db, LocalUserID, "", "hello")
+	ids := finishTurn(t, db, start, "hello", TurnMessage{Role: "assistant", Content: "hi"})
+	if title != "" {
+		require.NoError(t, db.RecordTitle(context.Background(), TitleRecord{
+			UserID: LocalUserID, ConversationID: start.ConversationID, Title: title, Call: titleCallRecord(ids),
+		}))
+	}
+	return start.ConversationID
+}
+
+func TestRunREPL_WritesCommandsToConfiguredStreams(t *testing.T) {
+	out, errOut := runTestREPL(t, "/new\n/history\n/model 9\n/model 2\n/load missing-id\n/quit\n")
+
+	assert.Contains(t, out, "Maurice — Hockey AI Chat")
+	assert.Contains(t, out, "Started new conversation.")
+	assert.Contains(t, out, "No conversations yet.")
+	assert.Contains(t, out, "Invalid selection: 9")
+	assert.Contains(t, out, "Switched to")
+	assert.Contains(t, out, "(second-model)", "the prompt after the switch names the new model")
+	assert.NotContains(t, out, "Error:", "errors go to Err, not Out")
+	assert.Contains(t, errOut, "Error:", "the failed /load is reported on Err")
+}
+
+func TestRunREPL_EndsAtEndOfInput(t *testing.T) {
+	out, errOut := runTestREPL(t, "/new\n")
+
+	assert.Contains(t, out, "Started new conversation.")
+	assert.Empty(t, errOut)
+}
+
+func TestRunREPL_RequiresStreams(t *testing.T) {
+	err := RunREPL(context.Background(), REPLConfig{Models: replTestModels, InitialModel: replTestModels[0].ID})
+
+	assert.ErrorIs(t, err, errREPLStreams)
+}
+
+func TestRunREPL_HistoryListsConversations(t *testing.T) {
+	db := openTestDB(t)
+	untitled := seedREPLConversation(t, db, "")
+	titled := seedREPLConversation(t, db, "Hockey Chat")
+
+	out, errOut, err := runTestREPLOn(context.Background(), db, strings.NewReader("/history\n/quit\n"))
+
+	require.NoError(t, err)
+	assert.Empty(t, errOut)
+	assert.Contains(t, out, untitled)
+	assert.Contains(t, out, "(untitled)")
+	assert.Contains(t, out, titled)
+	assert.Contains(t, out, "Hockey Chat")
+	assert.NotContains(t, out, "No conversations yet.")
+}
+
+func TestRunREPL_LoadResumesConversation(t *testing.T) {
+	db := openTestDB(t)
+	id := seedREPLConversation(t, db, "Hockey Chat")
+
+	out, errOut, err := runTestREPLOn(context.Background(), db, strings.NewReader("/load "+id+"\n/quit\n"))
+
+	require.NoError(t, err)
+	assert.Empty(t, errOut)
+	assert.Contains(t, out, "Resumed: Hockey Chat")
+}
+
+func TestRunREPL_LoadWithoutIDPrintsUsage(t *testing.T) {
+	for _, input := range []string{"/load\n/quit\n", "/load   \n/quit\n"} {
+		out, errOut := runTestREPL(t, input)
+
+		assert.Contains(t, out, "Usage: /load <conversation-id>", "input %q", input)
+		assert.Empty(t, errOut, "input %q: nothing is sent to the model", input)
+	}
+}
+
+func TestRunREPL_ReturnsOnCancellation(t *testing.T) {
+	in, w := io.Pipe()
+	t.Cleanup(func() { w.Close() })
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	out, errOut, err := runTestREPLOn(ctx, openTestDB(t), in)
+
+	require.NoError(t, err)
+	assert.True(t, strings.HasSuffix(out, formatPrompt(replTestModels[0].ID)+"\n"), "got %q", out)
+	assert.Empty(t, errOut)
 }

@@ -76,8 +76,8 @@ func runLegacyFirstExecution(ctx workflow.Context, logger log.Logger, cfg proces
 	}
 
 	logger.Info("ProcessPlayersWorkflow started",
-		"totalPlayers", len(players),
-		"batchSize", batchSize,
+		"total_players", len(players),
+		"batch_size", batchSize,
 		"concurrency", concurrency)
 
 	// Create and save progress tracker
@@ -305,13 +305,13 @@ func runPhaseVerifyUnmatched(ctx workflow.Context, tracker *shared.ReportTracker
 			unmatchedReport.UnverifiedCount, len(input.AllErrors), tracker.GetElapsed(ctx, GroupVerifyUnmatched)))
 
 	logger.Info("ProcessPlayersWorkflow completed",
-		"totalPlayers", len(input.Players),
+		"total_players", len(input.Players),
 		"downloaded", input.TotalDownloaded,
-		"cacheHits", cacheHits,
+		"cache_hits", cacheHits,
 		"missing", input.TotalMissing,
 		"imported", input.TotalImported,
-		"matchedWithYahoo", input.TotalMatched,
-		"trulyUnmatched", len(unmatchedReport.TrulyUnmatched))
+		"matched_with_yahoo", input.TotalMatched,
+		"truly_unmatched", len(unmatchedReport.TrulyUnmatched))
 
 	yahooPoolResult := input.YahooPoolResult
 	if yahooPoolResult == nil {

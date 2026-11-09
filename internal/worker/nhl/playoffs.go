@@ -106,8 +106,7 @@ func (a *PlayoffActivities) FetchTeamPlayoffGames(ctx context.Context, input Fet
 	// over on July 1, which froze mid-playoff caches fetched in May once the
 	// next sync ran in the offseason.
 	if cached, _, err := a.GobCache.ReadParsedCached(ctx, a.Storage, res); err == nil && scheduleIncomplete(cached) {
-		log.Debug().Str("team", input.TeamAbbrev).Int("season", input.Season).
-			Msg("Cached club schedule has non-final games, refetching")
+		logger.Debug("Cached club schedule has non-final games, refetching", "team", input.TeamAbbrev, "season", input.Season)
 		_ = resource.Delete(ctx, a.Storage, res)
 		_ = a.GobCache.Delete(ctx, core.RedisKey(res))
 	}
@@ -118,7 +117,7 @@ func (a *PlayoffActivities) FetchTeamPlayoffGames(ctx context.Context, input Fet
 			return a.NHLClient.ClubScheduleSeason(ctx, input.TeamAbbrev, season)
 		})
 	if errors.Is(err, nhlapi.ErrNotFound) {
-		log.Debug().Str("team", input.TeamAbbrev).Int("season", input.Season).Msg("Club schedule not found, skipping")
+		logger.Debug("Club schedule not found, skipping", "team", input.TeamAbbrev, "season", input.Season)
 		return result, nil
 	}
 	if err != nil {
@@ -177,7 +176,7 @@ func fetchGameData(ctx context.Context, storage store.Storage, gobCache *cache.G
 		covidBubbleSeason := nhlapi.NewSeason(2019)
 		season, _ := gameID.Season()
 		if errors.Is(err, nhlapi.ErrServerError) && season == covidBubbleSeason {
-			log.Error().Err(err).Str("gameID", gameID.String()).
+			log.Error().Err(err).Str("game_id", gameID.String()).
 				Msg("Season series unavailable due to COVID bubble format, skipping")
 		} else {
 			return fmt.Errorf("season-series %s: %w", gameID, err)
@@ -213,8 +212,7 @@ func (a *PlayoffActivities) ImportTeamPlayoffGames(ctx context.Context, input Im
 
 	res := resource.ClubScheduleSeason{Season: nhlapi.NewSeason(input.Season), TeamAbbrev: input.TeamAbbrev}
 	if !resource.Exists(ctx, a.Storage, res) {
-		log.Warn().Str("team", input.TeamAbbrev).Int("season", input.Season).
-			Msg("Club schedule not cached, skipping playoff import for team")
+		logger.Warn("Club schedule not cached, skipping playoff import for team", "team", input.TeamAbbrev, "season", input.Season)
 		return result, nil
 	}
 
@@ -337,7 +335,7 @@ func homePlayoffGames(schedule *nhlapi.TeamScheduleResponse, teamAbbrev string) 
 		}
 		gameDate, err := parseGameDate(game)
 		if err != nil {
-			log.Warn().Str("gameID", game.ID.String()).Err(err).Msg("Skipping playoff game with unparseable date")
+			log.Warn().Str("game_id", game.ID.String()).Err(err).Msg("Skipping playoff game with unparseable date")
 			continue
 		}
 		games = append(games, playoffGame{ID: game.ID, Date: gameDate})

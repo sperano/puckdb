@@ -83,15 +83,32 @@ type Message struct {
 	CreatedAt  time.Time
 }
 
+// TeamLister reports the Yahoo fantasy teams a user manages, for the system
+// prompt (SystemPrompt). Implementations limit the result to the leagues
+// the instance allows; an empty allowlist means every league
+// (internal/yahoolink.PGStore.ListUserTeams, wired in by the caller).
+type TeamLister interface {
+	ListUserTeams(ctx context.Context, userID string) ([]UserTeam, error)
+}
+
+// UserTeam is one Yahoo team a user manages, named in the system prompt.
+type UserTeam struct {
+	LeagueID int32
+	TeamID   int32
+	TeamName string
+}
+
 // ServiceConfig configures NewService. Provider and Model name the LLM the
 // client talks to; they are recorded on every LLM call. Zero limits fall back
-// to the defaults.
+// to the defaults. Teams is nil when the instance has no Yahoo team linking
+// (the REPL's single local user): the system prompt then names no team.
 type ServiceConfig struct {
 	Provider      string
 	Model         string
 	MaxHistory    int
 	MaxTokens     int
 	MaxToolRounds int
+	Teams         TeamLister
 }
 
 type service struct {
@@ -116,6 +133,7 @@ type service struct {
 	// abandon its LLM/DB work.
 	shutdownCtx    context.Context
 	shutdownCancel context.CancelFunc
+	teams          TeamLister
 }
 
 // NewService creates a new Maurice service.
@@ -147,6 +165,7 @@ func NewService(llmClient llm.Client, mcpClient mcp.Client, db DB, cfg ServiceCo
 		titleGroup:     titleGroup,
 		shutdownCtx:    shutdownCtx,
 		shutdownCancel: shutdownCancel,
+		teams:          cfg.Teams,
 	}
 }
 
@@ -226,9 +245,14 @@ func (s *service) loadHistory(ctx context.Context, userID, convID, currentUserMe
 		msgs = msgs[1:]
 	}
 
+	teams, err := s.userTeams(ctx, userID)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	messages := make([]llm.Message, 0, len(msgs)+1)
 	ids := make([]string, 0, len(msgs)+1)
-	messages = append(messages, llm.Message{Role: "system", Content: SystemPrompt()})
+	messages = append(messages, llm.Message{Role: "system", Content: SystemPrompt(teams)})
 	ids = append(ids, "")
 	for _, m := range msgs {
 		messages = append(messages, llm.Message{
@@ -240,4 +264,17 @@ func (s *service) loadHistory(ctx context.Context, userID, convID, currentUserMe
 		ids = append(ids, m.ID)
 	}
 	return messages, ids, nil
+}
+
+// userTeams returns the Yahoo teams userID manages, or nil when the service
+// has no TeamLister configured.
+func (s *service) userTeams(ctx context.Context, userID string) ([]UserTeam, error) {
+	if s.teams == nil {
+		return nil, nil
+	}
+	teams, err := s.teams.ListUserTeams(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("list user's yahoo teams: %w", err)
+	}
+	return teams, nil
 }

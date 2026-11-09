@@ -64,8 +64,8 @@ func (a *DailyScheduleActivities) FetchDay(ctx context.Context, input FetchDayIn
 
 	log.Debug().
 		Time("day", input.Day).
-		Int("startYear", input.StartSeason).
-		Int("numTeams", len(input.TeamIDs)).
+		Int("start_year", input.StartSeason).
+		Int("num_teams", len(input.TeamIDs)).
 		Msg("FetchDay started")
 
 	counts := core.OriginCounts{}

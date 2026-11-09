@@ -65,10 +65,10 @@ func (a *ImportActivities) ImportYahooLeague(ctx context.Context, input ImportYa
 
 	logger.Info("Imported Yahoo league",
 		"season", input.Season,
-		"leagueID", input.LeagueID,
-		"rosterPositions", result.RosterPositions,
-		"statCategories", result.StatCategories,
-		"newRulesVersion", result.NewRulesVersion)
+		"league_id", input.LeagueID,
+		"roster_positions", result.RosterPositions,
+		"stat_categories", result.StatCategories,
+		"new_rules_version", result.NewRulesVersion)
 
 	return result, nil
 }

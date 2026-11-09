@@ -44,7 +44,7 @@ func (a *ImportActivities) collectSummaryParams(ctx context.Context, teams []Tea
 		fantasy, origin, err := a.GobCache.ReadParsedCached(ctx, a.Storage, summaryRes)
 		if err != nil {
 			log.Debug().Err(err).
-				Int("teamID", teamInfo.TeamID).
+				Int("team_id", teamInfo.TeamID).
 				Str("date", date.Format(config.DateFormat)).
 				Msg("Failed to read summary file")
 			readFailures++
@@ -183,7 +183,7 @@ func summaryStatSet(leagueID, teamID int32, date pgtype.Date, stats []store.Stat
 	for _, stat := range stats {
 		statID, err := strconv.Atoi(stat.StatID)
 		if err != nil || statID < 0 || statID > math.MaxInt32 {
-			log.Warn().Int32("leagueID", leagueID).Int32("teamID", teamID).Str("statID", stat.StatID).
+			log.Warn().Int32("league_id", leagueID).Int32("team_id", teamID).Str("stat_id", stat.StatID).
 				Msg("Skipping Yahoo summary stat whose stat ID is not an integer in [0, MaxInt32]")
 			continue
 		}

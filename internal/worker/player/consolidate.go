@@ -53,8 +53,8 @@ func (a *Activities) ConsolidateBoxscorePlayersActivity(ctx context.Context, inp
 
 	logger.Info("Consolidated boxscore players",
 		"seasons", len(input.Seasons),
-		"totalPlayers", totalPlayers,
-		"uniquePlayers", len(uniquePlayers))
+		"total_players", totalPlayers,
+		"unique_players", len(uniquePlayers))
 
 	return ConsolidatePlayersResult{
 		TotalPlayers:  totalPlayers,

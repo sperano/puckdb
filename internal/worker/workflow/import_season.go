@@ -51,10 +51,10 @@ func ImportNHLSeasonWorkflow(ctx workflow.Context, season nhl.SeasonInfo, opts I
 	logger := workflow.GetLogger(ctx)
 
 	logger.Info("ImportNHLSeasonWorkflow started",
-		"startYear", season.ID.StartYear(),
-		"startDate", season.StandingsStart.Format(config.DateFormat),
-		"endDate", season.StandingsEnd.Format(config.DateFormat),
-		"reimportDays", opts.ReimportDays)
+		"start_year", season.ID.StartYear(),
+		"start_date", season.StandingsStart.Format(config.DateFormat),
+		"end_date", season.StandingsEnd.Format(config.DateFormat),
+		"reimport_days", opts.ReimportDays)
 
 	cfg, err := snapshotSeasonConfig(ctx)
 	if err != nil {
@@ -91,8 +91,8 @@ func ImportNHLSeasonWorkflow(ctx workflow.Context, season nhl.SeasonInfo, opts I
 	counts.Add(playoffs.Origins)
 
 	logger.Info("ImportNHLSeasonWorkflow completed",
-		"startYear", season.ID.StartYear(),
-		"playoffGames", playoffs.GamesImported)
+		"start_year", season.ID.StartYear(),
+		"playoff_games", playoffs.GamesImported)
 
 	return counts, nil
 }

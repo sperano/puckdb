@@ -111,7 +111,7 @@ func (a *SeasonsActivities) FetchUpcomingSeasonRosters(ctx context.Context, inpu
 		result.TeamsWithRosters++
 	}
 	logger.Info("Fetched upcoming season rosters", "season", startYear,
-		"teams", result.Teams, "teamsWithRosters", result.TeamsWithRosters)
+		"teams", result.Teams, "teams_with_rosters", result.TeamsWithRosters)
 	return result, nil
 }
 
