@@ -3,6 +3,7 @@ package projection
 import (
 	"bytes"
 	"encoding/json"
+	"math"
 	"strconv"
 	"strings"
 	"testing"
@@ -31,6 +32,11 @@ const (
 	// rounding keeps one pin valid on both while a model change still
 	// moves it.
 	pinOutputSignificantDigits = 9
+	// pinOutputZeroTolerance is the magnitude below which an output number
+	// is pinned as zero: an error that is zero in exact arithmetic comes out
+	// as rounding noise (around 1e-16) whose digits differ by machine, which
+	// relative rounding keeps.
+	pinOutputZeroTolerance = 1e-9
 )
 
 // pinnedHashes are the identities a published model version computed for
@@ -52,35 +58,35 @@ var publishedPins = map[string]pinnedHashes{
 		source:     "838b7587a64b84bf402eb757f8e0e7b232084879b219df00f393b4e42d76032e",
 		evaluation: "93cb839337dd23c49587a5425caff4079e09575912ceb0e38c7dc0d21198e432",
 		players:    "d87a909945f96add06bbb6304be5add58b28535144b133a98615d9def677acd3",
-		evaluated:  "bd60721122de95d99e4e5beb680cdb9437f96abbec5f85f46a285b04d6648f74",
+		evaluated:  "41b15477e4111dc97c6cd1b6d4cbe85b4fa9bf1e81bd0c88c349edf189f2a41b",
 	},
 	FaceoffModelVersion: {
 		config:     "bdddb53fe417d350d27bc40bd6aba04188b752e5a5c74c1ae021bafab4567870",
 		source:     "b43cb34295f4391dc406da26fc208adf7bcee7bbef821a267df95e05136fa14b",
 		evaluation: "502304c9615559a8638152ce23c0baab46f06168d760b5d3a004144010b6ea6f",
 		players:    "c1f69a605ce03b9c650db31f5e4b83d2d7c4b94eaa3014f36b2ec81b19c5d922",
-		evaluated:  "d2a3873f135b631ddcbebba3f578a96073bdd125cb2162b0225db2742f026d00",
+		evaluated:  "1ee698d3f65858a0f44e0964731c513291638757f0d37c7613751cb55fe7a7de",
 	},
 	LinemateModelVersion: {
 		config:     "6501fc75eacb50e375a1d4c63aa196e886c47d6b8cf990142674e9336d26a387",
 		source:     "39720d261a624def4845916cdc49ff947052ec4236c6ce66326559403c707dc0",
 		evaluation: "a1a875fa41ce2c235136208ca07f7dd35060fbacdf7b0bd21626b32334d2db49",
 		players:    "c1f69a605ce03b9c650db31f5e4b83d2d7c4b94eaa3014f36b2ec81b19c5d922",
-		evaluated:  "330c7f71837614c870015af42d1aec9e4b166f845749c78cf506ca0618faaa5f",
+		evaluated:  "1349f6b55766fe66791b4cda88a5b18868a80214f5725004576c39bfe378953f",
 	},
 	AgingModelVersion: {
 		config:     "be98d03df5b0e72cf6ca07e2c0308b11634014e6e9ad34ada9e2bfc2674ebbb6",
 		source:     "6a4f16e9b206e4c2e8e651526a8f202208a3e11e5dc988a88f5cd305ce59084e",
 		evaluation: "780b7d3d5135e9f0fd42a5234a2fe704218906cfa24029212ea8632a0b497e96",
 		players:    "c1f69a605ce03b9c650db31f5e4b83d2d7c4b94eaa3014f36b2ec81b19c5d922",
-		evaluated:  "b8fff5fbc9d23dfe0506fa83ce3d8f0f967e1981c6783fdc15445eea73ff94eb",
+		evaluated:  "fe472f8ba56c62e8b75884c1f5de5b193e1945053f4ef5d7d691b023cd81b057",
 	},
 	TeamEnvironmentModelVersion: {
 		config:     "fbfa9a9840b9fdee3b4a6c65b82c17e9a5c3b2613d957b86ead706024ec2e56b",
 		source:     "6a4f16e9b206e4c2e8e651526a8f202208a3e11e5dc988a88f5cd305ce59084e",
 		evaluation: "780b7d3d5135e9f0fd42a5234a2fe704218906cfa24029212ea8632a0b497e96",
 		players:    "c1f69a605ce03b9c650db31f5e4b83d2d7c4b94eaa3014f36b2ec81b19c5d922",
-		evaluated:  "c1e898d05b4a6fc3c3201423a60538ba4d178bbd09635596afdf956c55c97fa0",
+		evaluated:  "cd4dc585af3a8c9e504be3f66e2f2185dad7937423343468c283aa1083e54c6f",
 	},
 	// Captured before nhl-baseline-v7 added the goalie start share.
 	GoalieAppearancesModelVersion: {
@@ -88,7 +94,7 @@ var publishedPins = map[string]pinnedHashes{
 		source:     "72efb764d4666fe93c985b5def82181f97ee28993db8ae28c7eb141b6ec068a6",
 		evaluation: "c5594953513c0717518e984d5c545420a4d6808556352c75f531c886af4ddcb0",
 		players:    "d6f60db0b2e533cdcbf489b4c557c83aba3d64d61eabdd82e16e797d62d5915e",
-		evaluated:  "cf7b7fe14abac09104b92e9f9bacb76ec1f9bdc8386b9ffb41a36752454bc672",
+		evaluated:  "9c1420eb1fa4147b30140afe6d911d1ed9a414624f5136888c2445e978b82ebf",
 	},
 	// Captured before any later version, on goalieSharePinnedInput (see
 	// pinInputs) so the goalie start share is in every identity and output.
@@ -97,7 +103,7 @@ var publishedPins = map[string]pinnedHashes{
 		source:     "e06a1d5b84522520973284e8ad199653c23c6350d363e3cb5430f9a2223c0fc9",
 		evaluation: "0b02098b30487c8efdbdbbdac786fb5e35af26b448e74e198f950b34f7f1db25",
 		players:    "82cb05a4583482e52a02a9d1440d16c2ce71fc687ca488d9a3bad26e33cabc13",
-		evaluated:  "2727a1bcbbdcb80cbc59ba7141d51acdd78bcc4461a41fd197c2e0c62c5fc51e",
+		evaluated:  "bc7712df05257604ac26911f766d3c9c3f3c830bc2f9b3f2ef93b79e988bce52",
 	},
 }
 
@@ -157,7 +163,8 @@ func TestEveryModelVersionIsPinned(t *testing.T) {
 }
 
 // mustHashOutputs hashes a generated value with every non-integer number
-// rounded to pinOutputSignificantDigits.
+// rounded to pinOutputSignificantDigits, or to zero below
+// pinOutputZeroTolerance.
 func mustHashOutputs(t *testing.T, value any) string {
 	t.Helper()
 	encoded, err := json.Marshal(value)
@@ -186,6 +193,9 @@ func roundFloats(t *testing.T, node any) any {
 		}
 		f, err := value.Float64()
 		require.NoError(t, err)
+		if math.Abs(f) < pinOutputZeroTolerance {
+			return json.Number("0")
+		}
 		return json.Number(strconv.FormatFloat(f, 'g', pinOutputSignificantDigits, 64))
 	}
 	return node
