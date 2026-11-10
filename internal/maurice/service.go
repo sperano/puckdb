@@ -5,8 +5,9 @@
 // single local user) and a PostgreSQL store (the API, one user per login
 // provider identity and API instance via internal/appuser). LLM-call and
 // tool-call usage is persisted only by the PostgreSQL store; SQLite keeps
-// conversations, turns and messages alone. repl.go is the `maurice` CLI
-// command's REPL loop.
+// conversations, turns and messages alone. RunREPL (repl*.go) is the
+// `maurice` CLI command's REPL loop, its streams injectable through
+// REPLConfig.
 package maurice
 
 import (

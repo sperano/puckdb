@@ -3,9 +3,12 @@ package maurice
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
+	"runtime"
 	"strings"
 	"testing"
+	"testing/iotest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -17,6 +20,9 @@ import (
 // readLinesTestTimeout bounds how long a test waits for the readLines
 // goroutine to deliver a line or close its channel.
 const readLinesTestTimeout = 2 * time.Second
+
+// goroutinePollInterval is how often a test rechecks the goroutine count.
+const goroutinePollInterval = 10 * time.Millisecond
 
 func TestReadLines_DeliversLinesThenClosesOnEOF(t *testing.T) {
 	lines, errFn := readLines(context.Background(), strings.NewReader("first\nsecond\n"))
@@ -113,6 +119,170 @@ func TestFindModel(t *testing.T) {
 	}
 }
 
+func TestRunREPL_DrivesCommandsAndChatFromInput(t *testing.T) {
+	services := &serviceFactory{prototype: fakeService{convs: []*Conversation{
+		{ID: "conv-1", Title: strPtr("Leafs goalies")},
+	}}}
+	var out, errOut bytes.Buffer
+	cfg := REPLConfig{
+		Models:       testREPLModels,
+		InitialModel: "model-a",
+		ListLimit:    testListLimit,
+		In:           strings.NewReader("/history\n\n/load conv-1\n  hello  \n"),
+		Out:          &out,
+		Err:          &errOut,
+	}
+
+	require.NoError(t, runREPL(context.Background(), cfg, services.build), "EOF ends the REPL cleanly")
+
+	require.Len(t, services.built, 1)
+	svc := services.built[0]
+	assert.Equal(t, "model-a", svc.model)
+	assert.Equal(t, 1, svc.closed, "the service is closed on return")
+	assert.Equal(t, []int{testListLimit}, svc.listLimits)
+	require.Len(t, svc.chats, 1)
+	assert.Equal(t, "hello", svc.chats[0].Message, "input lines are trimmed")
+	require.NotNil(t, svc.chats[0].ConversationID)
+	assert.Equal(t, "conv-1", *svc.chats[0].ConversationID)
+
+	got := out.String()
+	assert.Contains(t, got, "Maurice — Hockey AI Chat")
+	assert.Contains(t, got, "(model-a)", "the prompt names the model")
+	assert.Contains(t, got, "Leafs goalies")
+	assert.Contains(t, got, "Resumed: Leafs goalies")
+	assert.Contains(t, got, "answer")
+	assert.Empty(t, errOut.String())
+}
+
+func TestRunREPL_QuitAfterModelSwitchClosesEveryService(t *testing.T) {
+	services := &serviceFactory{}
+	var out bytes.Buffer
+	cfg := REPLConfig{
+		Models:       testREPLModels,
+		InitialModel: "model-a",
+		In:           strings.NewReader("/model 2\n/quit\nnever sent\n"),
+		Out:          &out,
+		Err:          io.Discard,
+	}
+
+	require.NoError(t, runREPL(context.Background(), cfg, services.build))
+
+	require.Len(t, services.built, 2)
+	for _, svc := range services.built {
+		assert.Equal(t, 1, svc.closed, "service %s", svc.model)
+		assert.Empty(t, svc.chats, "nothing after /quit is read")
+	}
+	assert.Contains(t, out.String(), "(model-b)", "the prompt follows the switch")
+}
+
+func TestRunREPL_QuitReleasesInputGoroutine(t *testing.T) {
+	baseline := runtime.NumGoroutine()
+	cfg := REPLConfig{
+		Models:       testREPLModels,
+		InitialModel: "model-a",
+		// After /quit the input goroutine has scanned "never sent" and
+		// blocks delivering it until the REPL cancels its context.
+		In:  strings.NewReader("/quit\nnever sent\n"),
+		Out: io.Discard,
+		Err: io.Discard,
+	}
+
+	require.NoError(t, runREPL(context.Background(), cfg, (&serviceFactory{}).build))
+
+	// A manual poll: assert.Eventually runs its condition on a goroutine of
+	// its own, which the count would include.
+	for deadline := time.Now().Add(readLinesTestTimeout); runtime.NumGoroutine() > baseline; {
+		require.True(t, time.Now().Before(deadline), "the input goroutine is still running")
+		time.Sleep(goroutinePollInterval)
+	}
+}
+
+func TestRunREPL_UnknownInitialModel(t *testing.T) {
+	services := &serviceFactory{}
+	cfg := REPLConfig{Models: testREPLModels, InitialModel: "model-z", In: strings.NewReader(""), Out: io.Discard, Err: io.Discard}
+
+	err := runREPL(context.Background(), cfg, services.build)
+
+	require.ErrorIs(t, err, ErrUnknownModel)
+	assert.Empty(t, services.built)
+}
+
+func TestRunREPL_ReturnsInputError(t *testing.T) {
+	readErr := errors.New("tty gone")
+	services := &serviceFactory{}
+	cfg := REPLConfig{Models: testREPLModels, InitialModel: "model-a", In: iotest.ErrReader(readErr), Out: io.Discard, Err: io.Discard}
+
+	err := runREPL(context.Background(), cfg, services.build)
+
+	require.ErrorIs(t, err, readErr)
+	assert.Equal(t, 1, services.last(t).closed)
+}
+
+func TestRunREPL_ReturnsOnContextCancel(t *testing.T) {
+	pr, pw := io.Pipe()
+	t.Cleanup(func() { _ = pw.Close() })
+	ctx, cancel := context.WithCancel(context.Background())
+	services := &serviceFactory{}
+	cfg := REPLConfig{Models: testREPLModels, InitialModel: "model-a", In: pr, Out: io.Discard, Err: io.Discard}
+
+	done := make(chan error, 1)
+	go func() { done <- runREPL(ctx, cfg, services.build) }()
+	cancel()
+
+	select {
+	case err := <-done:
+		require.NoError(t, err)
+	case <-time.After(readLinesTestTimeout):
+		t.Fatal("RunREPL did not return after cancellation")
+	}
+	assert.Equal(t, 1, services.last(t).closed)
+}
+
+func TestREPLConfigModelService_Limits(t *testing.T) {
+	const (
+		explicitHistory    = 12
+		explicitTokens     = 2048
+		explicitToolRounds = 3
+	)
+	tests := []struct {
+		name                          string
+		cfg                           REPLConfig
+		wantHistory, wantTokens, want int
+	}{
+		{
+			name:        "explicit",
+			cfg:         REPLConfig{MaxHistory: explicitHistory, MaxTokens: explicitTokens, MaxToolRounds: explicitToolRounds},
+			wantHistory: explicitHistory, wantTokens: explicitTokens, want: explicitToolRounds,
+		},
+		{
+			name:        "zero falls back to defaults",
+			cfg:         REPLConfig{},
+			wantHistory: DefaultMaxHistory, wantTokens: DefaultMaxTokens, want: DefaultMaxToolRounds,
+		},
+		{
+			name:        "negative falls back to defaults",
+			cfg:         REPLConfig{MaxHistory: -1, MaxTokens: -1, MaxToolRounds: -1},
+			wantHistory: DefaultMaxHistory, wantTokens: DefaultMaxTokens, want: DefaultMaxToolRounds,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.cfg.DB = newTestDB(t)
+			tt.cfg.MCPClient = newMockMCP()
+
+			svc, ok := tt.cfg.modelService(testREPLModels[1]).(*service)
+			require.True(t, ok)
+			t.Cleanup(func() { require.NoError(t, svc.Close()) })
+
+			assert.Equal(t, tt.wantHistory, svc.maxHistory)
+			assert.Equal(t, tt.wantTokens, svc.maxTokens)
+			assert.Equal(t, tt.want, svc.maxToolRounds)
+			assert.Equal(t, "model-b", svc.model)
+			assert.Equal(t, llm.ProviderOllama.String(), svc.provider)
+		})
+	}
+}
+
 // replTestModels are the models the REPL tests can switch between; Ollama
 // needs no API key, so switching prints no warning.
 var replTestModels = []ModelEntry{
@@ -181,21 +351,35 @@ func TestRunREPL_EndsAtEndOfInput(t *testing.T) {
 }
 
 func TestRunREPL_RequiresStreams(t *testing.T) {
-	err := RunREPL(context.Background(), REPLConfig{Models: replTestModels, InitialModel: replTestModels[0].ID})
+	tests := []struct {
+		name string
+		nil  func(cfg *REPLConfig)
+	}{
+		{name: "in", nil: func(cfg *REPLConfig) { cfg.In = nil }},
+		{name: "out", nil: func(cfg *REPLConfig) { cfg.Out = nil }},
+		{name: "err", nil: func(cfg *REPLConfig) { cfg.Err = nil }},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := REPLConfig{
+				Models:       replTestModels,
+				InitialModel: replTestModels[0].ID,
+				In:           strings.NewReader("/quit\n"),
+				Out:          &bytes.Buffer{},
+				Err:          &bytes.Buffer{},
+			}
+			tt.nil(&cfg)
+			built := false
 
-	assert.ErrorIs(t, err, errREPLStreams)
-}
+			err := runREPL(context.Background(), cfg, func(ModelEntry) Service {
+				built = true
+				return nil
+			})
 
-func TestSpinnerStop_ClearsLineBeforeReturning(t *testing.T) {
-	var out bytes.Buffer
-	spin := &spinner{out: &out}
-
-	spin.Start("thinking...")
-	spin.Stop()
-
-	// Stop waits for the animation goroutine, so its last write is
-	// visible here without synchronisation.
-	assert.True(t, strings.HasSuffix(out.String(), "\r\033[K"), "got %q", out.String())
+			assert.ErrorIs(t, err, errREPLStreams)
+			assert.False(t, built, "no service is built without every stream")
+		})
+	}
 }
 
 func TestRunREPL_HistoryListsConversations(t *testing.T) {
