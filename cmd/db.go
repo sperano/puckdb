@@ -120,12 +120,19 @@ func cmdDBInit() *cobra.Command {
 	return cmd
 }
 
+// dbDropFlagGroups lists every flag group `db drop` exposes. Defined once and
+// shared by InitFlags and BindFlags so the two can never drift.
+var dbDropFlagGroups = []*config.FlagGroup{
+	&config.AdminAuthFlags,
+	&config.APIBasicAuthFlags,
+}
+
 func cmdDBDrop() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "drop",
 		Short:   "Drop database tables",
 		Long:    `Drop all database tables via GraphQL API. Use with caution.`,
-		PreRunE: bindFlagsPreRunE(&config.AdminAuthFlags, &config.APIBasicAuthFlags),
+		PreRunE: bindFlagsPreRunE(dbDropFlagGroups...),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := getGraphQLClient()
 			if err != nil {
@@ -141,7 +148,7 @@ func cmdDBDrop() *cobra.Command {
 			return nil
 		},
 	}
-	config.InitFlags(cmd.Flags(), &config.AdminAuthFlags, &config.APIBasicAuthFlags)
+	config.InitFlags(cmd.Flags(), dbDropFlagGroups...)
 	return cmd
 }
 

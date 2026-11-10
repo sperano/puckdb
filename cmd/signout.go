@@ -9,12 +9,16 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var signoutFlagGroups = []*config.FlagGroup{
+	&config.RedisFlags,
+}
+
 func cmdSignout() *cobra.Command {
 	var cmd = &cobra.Command{
 		Use:     "signout",
 		Short:   "Remove OAuth token",
 		Long:    `Remove Yahoo OAuth2 token from Redis.`,
-		PreRunE: bindFlagsPreRunE(&config.RedisFlags),
+		PreRunE: bindFlagsPreRunE(signoutFlagGroups...),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := context.Background()
 			redisClient := newRedisClient()
@@ -29,6 +33,6 @@ func cmdSignout() *cobra.Command {
 			return nil
 		},
 	}
-	config.RedisFlags.Init(cmd.Flags())
+	config.InitFlags(cmd.Flags(), signoutFlagGroups...)
 	return cmd
 }

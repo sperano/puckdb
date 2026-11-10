@@ -27,7 +27,6 @@ var preRunEExceptions = []string{"puckdb metrics"}
 // commandFlagGroups is every command whose PreRunE is built with
 // bindFlagsPreRunE, keyed by command path, with the groups it must bind.
 func commandFlagGroups() map[string][]*config.FlagGroup {
-	adminAuth := []*config.FlagGroup{&config.AdminAuthFlags, &config.APIBasicAuthFlags}
 	slot := &config.DraftManualSlotFlags
 	session := func(local ...*config.FlagGroup) []*config.FlagGroup {
 		return slices.Concat(draftSessionCLIFlagGroups, local)
@@ -40,7 +39,7 @@ func commandFlagGroups() map[string][]*config.FlagGroup {
 		"puckdb db migrate":               dbMigrateFlagGroups,
 		"puckdb db force-version":         dbMigrateFlagGroups,
 		"puckdb db init":                  dbInitFlagGroups,
-		"puckdb db drop":                  adminAuth,
+		"puckdb db drop":                  dbDropFlagGroups,
 		"puckdb db provision":             dbProvisionFlagGroups,
 		"puckdb db check-teams":           dbCheckTeamsFlagGroups,
 		"puckdb draft rules":              draftFlagGroups,
@@ -55,14 +54,14 @@ func commandFlagGroups() map[string][]*config.FlagGroup {
 		"puckdb news report":              newsReportFlagGroups,
 		"puckdb news events":              newsEventsFlagGroups,
 		"puckdb news eval":                newsEvalFlagGroups,
-		"puckdb redis flush":              slices.Concat([]*config.FlagGroup{&config.APIServerAddrFlags}, adminAuth),
+		"puckdb redis flush":              redisFlushFlagGroups,
 		"puckdb sim create":               simClientFlagGroups,
 		"puckdb sim cancel":               simClientFlagGroups,
 		"puckdb sim status":               simClientFlagGroups,
 		"puckdb sim draft":                simClientFlagGroups,
 		"puckdb sim tail":                 simClientFlagGroups,
 		"puckdb sync draft":               draftSyncFlagGroups,
-		"puckdb yahoo signout":            {&config.RedisFlags},
+		"puckdb yahoo signout":            signoutFlagGroups,
 		"puckdb yahoo check-access":       yahooCheckFlagGroups,
 		"puckdb user link-team":           userTeamLinkFlagGroups,
 		"puckdb user unlink-team":         userTeamLinkFlagGroups,
