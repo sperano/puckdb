@@ -216,6 +216,7 @@ func TestRoundFloatsFlushesNoiseOnly(t *testing.T) {
 		{name: "tolerance kept", in: "1e-9", want: "1e-09"},
 		{name: "negative tolerance kept", in: "-1e-9", want: "-1e-09"},
 		{name: "integer untouched", in: "42", want: "42"},
+		{name: "large integer untouched", in: "1234567890", want: "1234567890"},
 		{name: "normal float rounded", in: "1.23456789012", want: "1.23456789"},
 		{name: "negative float rounded", in: "-2.50000000049", want: "-2.5"},
 	} {
