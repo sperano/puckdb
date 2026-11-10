@@ -201,6 +201,44 @@ func roundFloats(t *testing.T, node any) any {
 	return node
 }
 
+// TestRoundFloatsFlushesNoiseOnly checks the zero threshold and its sign
+// directly, since the golden pins catch a wrong one only when a pinned
+// output happens to lie between the wrong and the right value.
+func TestRoundFloatsFlushesNoiseOnly(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name, in, want string
+	}{
+		{name: "positive noise", in: "5e-16", want: "0"},
+		{name: "negative noise", in: "-5e-16", want: "0"},
+		{name: "just below tolerance", in: "-9.99e-10", want: "0"},
+		{name: "tolerance kept", in: "1e-9", want: "1e-09"},
+		{name: "negative tolerance kept", in: "-1e-9", want: "-1e-09"},
+		{name: "integer untouched", in: "42", want: "42"},
+		{name: "normal float rounded", in: "1.23456789012", want: "1.23456789"},
+		{name: "negative float rounded", in: "-2.50000000049", want: "-2.5"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, json.Number(tc.want), roundFloats(t, json.Number(tc.in)))
+		})
+	}
+}
+
+func TestRoundFloatsWalksNestedValues(t *testing.T) {
+	t.Parallel()
+
+	tree := map[string]any{
+		"mae":  []any{json.Number("5e-16"), json.Number("0.1234567891")},
+		"name": "skater",
+	}
+	require.Equal(t, map[string]any{
+		"mae":  []any{json.Number("0"), json.Number("0.123456789")},
+		"name": "skater",
+	}, roundFloats(t, tree))
+}
+
 // TestGoalieSharePinReadsRecentStarts checks goalieSharePinnedInput
 // exercises the start share, so the nhl-baseline-v7 pin covers it: without
 // the recent starts the output differs, and the backup's late takeover
