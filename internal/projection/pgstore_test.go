@@ -205,7 +205,7 @@ func TestPreAgingInputHashesKeepVersionedSerialization(t *testing.T) {
 	const faceoffHash = "c9011420d645e7fc6cdbae1c9456dfb9ff9331c7943af1d04078640523321bf6"
 	require.Equal(t, legacyHash, mustInputDataHash(t, input, LegacyModelVersion))
 	require.Equal(t, faceoffHash, mustInputDataHash(t, input, FaceoffModelVersion))
-	require.NotEqual(t, legacyHash, mustInputDataHash(t, input, ModelVersion))
+	require.NotEqual(t, legacyHash, mustInputDataHash(t, input, CurrentModelVersion))
 }
 
 func TestFaceoffModelHashIncludesFaceoffsAndOmitsBirthDates(t *testing.T) {

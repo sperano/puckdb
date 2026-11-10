@@ -64,7 +64,7 @@ func TestV6PeerRatesIgnoreBenchGames(t *testing.T) {
 		return projected.Value(StatShotsAgainst).Mean / projected.Value(StatGamesPlayed).Mean
 	}
 	const shotsPerAppearance = 28
-	require.InDelta(t, shotsPerAppearance, perGame(ModelVersion), 1e-9)
+	require.InDelta(t, shotsPerAppearance, perGame(GoalieShareModelVersion), 1e-9)
 	require.Less(t, perGame(TeamEnvironmentModelVersion), float64(shotsPerAppearance)/2)
 }
 
@@ -110,7 +110,7 @@ func TestV6EvaluatesGoalieGamesAsAppearances(t *testing.T) {
 		require.Len(t, reports, 1)
 		return findMetric(t, reports[0], StatGamesPlayed).ModelMAE
 	}
-	require.InDelta(t, 45-40, gamesMAE(ModelVersion), 1e-9)
+	require.InDelta(t, 45-40, gamesMAE(GoalieShareModelVersion), 1e-9)
 	require.InDelta(t, 70-60, gamesMAE(TeamEnvironmentModelVersion), 1e-9)
 }
 
@@ -120,7 +120,7 @@ func TestGoalieSourceHashCoversAppearancesFromV6Only(t *testing.T) {
 	row := pinGoalie(benchGoalieID, time.Time{}, benchLastSeason, 60, 40, 38)
 	changed := row
 	changed.GamesAppeared++
-	for _, version := range []string{AgingModelVersion, TeamEnvironmentModelVersion, ModelVersion} {
+	for _, version := range []string{AgingModelVersion, TeamEnvironmentModelVersion, GoalieShareModelVersion} {
 		cfg := versionConfig(version)
 		same := mustSourceDataHash(t, cfg, benchInput(row)) == mustSourceDataHash(t, cfg, benchInput(changed))
 		sameEvaluation := mustEvaluationDataHash(t, cfg, benchInput(row)) == mustEvaluationDataHash(t, cfg, benchInput(changed))
@@ -144,9 +144,10 @@ func TestV6ConfigBuildsOnV5(t *testing.T) {
 		require.True(t, supports(TeamEnvironmentModelVersion))
 	}
 	require.True(t, countsGoalieAppearances(GoalieAppearancesModelVersion))
-	require.True(t, countsGoalieAppearances(ModelVersion))
+	require.True(t, countsGoalieAppearances(GoalieShareModelVersion))
 	for version := range publishedPins {
-		require.Equal(t, version == GoalieAppearancesModelVersion, countsGoalieAppearances(version), version)
+		appearances := version == GoalieAppearancesModelVersion || version == GoalieShareModelVersion
+		require.Equal(t, appearances, countsGoalieAppearances(version), version)
 		cfg := versionConfig(version)
 		if !supportsLinemateContext(version) {
 			cfg.LinemateRegressionStrength = 0

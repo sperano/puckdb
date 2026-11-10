@@ -9,7 +9,8 @@ import (
 // original baseline, v2 adds faceoffs, v3 the linemate correction, v4 the
 // aging curve and v5 the team-environment adjustment; v6 and v7 are described
 // below. A stored snapshot keeps the version that produced it, and Validate
-// refuses settings a version does not support.
+// refuses an unknown version and settings a version does not support;
+// modelVersions (versions.go) lists which capabilities each version has.
 const (
 	LegacyModelVersion          = "nhl-baseline-v1"
 	FaceoffModelVersion         = "nhl-baseline-v2"
@@ -21,10 +22,14 @@ const (
 	// (positive time on ice) rather than every boxscore he was dressed in;
 	// see goalie.go.
 	GoalieAppearancesModelVersion = "nhl-baseline-v6"
-	// ModelVersion (nhl-baseline-v7) builds on nhl-baseline-v6 and blends a
-	// goalie's share of his club's recent starts, playoffs included, into
-	// his projected starts; see goalie_share.go.
-	ModelVersion = "nhl-baseline-v7"
+	// GoalieShareModelVersion (nhl-baseline-v7) builds on nhl-baseline-v6
+	// and blends a goalie's share of his club's recent starts, playoffs
+	// included, into his projected starts; see goalie_share.go.
+	GoalieShareModelVersion = "nhl-baseline-v7"
+	// CurrentModelVersion is the version DefaultConfig produces. Bumping it
+	// means appending a version to modelVersions; it never changes what an
+	// earlier version supports.
+	CurrentModelVersion = GoalieShareModelVersion
 )
 
 // AgingCurveVersion, AgingTrainingFloorSeason and AgingAgeReference identify
@@ -122,7 +127,7 @@ type Config struct {
 // parameters.
 func DefaultConfig() Config {
 	return Config{
-		ModelVersion:               ModelVersion,
+		ModelVersion:               CurrentModelVersion,
 		LookbackSeasons:            DefaultLookbackSeasons,
 		SeasonDecay:                DefaultSeasonDecay,
 		SkaterPriorTOISeconds:      DefaultSkaterPriorTOISeconds,
@@ -158,12 +163,14 @@ func (c Config) HistoryFloorSeason(targetSeason int) int {
 	return historyFloorSeason(targetSeason, c.LookbackSeasons)
 }
 
-// Validate refuses a config with a missing model version, non-finite or
+// Validate refuses a config with a missing or unknown model version, non-finite or
 // out-of-range parameters, or settings its model version does not support.
 func (c Config) Validate() error {
 	switch {
 	case c.ModelVersion == "":
 		return fmt.Errorf("model version is required")
+	case !knownModelVersion(c.ModelVersion):
+		return fmt.Errorf("unknown model version %q", c.ModelVersion)
 	case c.LookbackSeasons <= 0:
 		return fmt.Errorf("lookback seasons must be positive")
 	case !finite(c.SeasonDecay) || !finite(c.SkaterPriorTOISeconds) ||
@@ -180,9 +187,7 @@ func (c Config) Validate() error {
 		return fmt.Errorf("skater prior TOI must not be negative")
 	case c.LinemateRegressionStrength < 0 || c.LinemateRegressionStrength > 1:
 		return fmt.Errorf("linemate regression strength must be in [0, 1]")
-	case c.ModelVersion == LegacyModelVersion && c.LinemateRegressionStrength != 0:
-		return fmt.Errorf("legacy model does not support linemate regression")
-	case c.ModelVersion == FaceoffModelVersion && c.LinemateRegressionStrength != 0:
+	case !supportsLinemateContext(c.ModelVersion) && c.LinemateRegressionStrength != 0:
 		return fmt.Errorf("model %q does not support linemate regression", c.ModelVersion)
 	case !supportsAgingCurve(c.ModelVersion) && c.AgingCurve != nil:
 		return fmt.Errorf("model %q does not support aging curves", c.ModelVersion)
@@ -215,35 +220,6 @@ func (c Config) Validate() error {
 		return validateAgingCurve(c.AgingCurve)
 	}
 	return nil
-}
-
-func supportsFaceoffs(modelVersion string) bool {
-	return modelVersion != LegacyModelVersion
-}
-
-func supportsLinemateContext(modelVersion string) bool {
-	return modelVersion == LinemateModelVersion || supportsAgingCurve(modelVersion)
-}
-
-func supportsAgingCurve(modelVersion string) bool {
-	return modelVersion == AgingModelVersion || supportsTeamEnvironment(modelVersion)
-}
-
-func supportsTeamEnvironment(modelVersion string) bool {
-	return modelVersion == TeamEnvironmentModelVersion || countsGoalieAppearances(modelVersion)
-}
-
-// countsGoalieAppearances reports whether a model counts a goalie's games as
-// his appearances (GoalieSeason.GamesAppeared) instead of every game he
-// dressed for (GamesPlayed, which includes games sat as the backup).
-func countsGoalieAppearances(modelVersion string) bool {
-	return modelVersion == GoalieAppearancesModelVersion || supportsGoalieStartShare(modelVersion)
-}
-
-// supportsGoalieStartShare reports whether a model blends a goalie's share
-// of his club's recent starts into his projected starts.
-func supportsGoalieStartShare(modelVersion string) bool {
-	return modelVersion == ModelVersion
 }
 
 func (c Config) validateGoalieShare() error {

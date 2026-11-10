@@ -102,7 +102,7 @@ func testRankingInput(scoringType string, categories []StatCategory, slots []Ros
 	}, Source: SourceYahooAPI}
 	projected := projection.Snapshot{
 		TargetSeason: rankingTestNHLSeason, SourceDataHash: "fixture-source",
-		Config: projection.Config{ModelVersion: projection.ModelVersion}, Players: players,
+		Config: projection.Config{ModelVersion: projection.CurrentModelVersion}, Players: players,
 	}
 	pool := make([]PoolPlayer, 0, len(players))
 	for _, player := range players {

@@ -50,7 +50,7 @@ func mustHashJSON(t testing.TB, value any) string {
 func TestSourceHashesRejectNonFiniteRows(t *testing.T) {
 	input := pinnedInput()
 	input.Skaters[0].LinematePointsPer60 = math.NaN()
-	cfg := versionConfig(ModelVersion)
+	cfg := versionConfig(CurrentModelVersion)
 	_, err := sourceDataHash(cfg, input)
 	require.ErrorContains(t, err, "unsupported value")
 	_, err = evaluationDataHash(cfg, input)
@@ -64,12 +64,12 @@ func TestSourceHashesRejectNonFiniteRows(t *testing.T) {
 func TestSourceHashesRejectNonFiniteOverride(t *testing.T) {
 	input := pinnedInput()
 	input.Overrides = []Override{{PlayerKey: "nhl:1", Values: map[Stat]Estimate{StatGoals: {Mean: math.Inf(1)}}}}
-	_, err := sourceDataHash(versionConfig(ModelVersion), input)
+	_, err := sourceDataHash(versionConfig(CurrentModelVersion), input)
 	require.ErrorContains(t, err, "unsupported value")
 }
 
 func TestConfigHashRejectsNonFiniteSetting(t *testing.T) {
-	cfg := versionConfig(ModelVersion)
+	cfg := versionConfig(CurrentModelVersion)
 	cfg.GoalieShareBlend = math.NaN()
 	_, err := configHash(cfg)
 	require.ErrorContains(t, err, "hash projection config")
