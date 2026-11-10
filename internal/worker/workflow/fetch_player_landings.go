@@ -48,14 +48,6 @@ func loadFetchPlayerLandingsConfig(logger log.Logger, batchOverride, concurrency
 	}
 }
 
-// snapshotFetchPlayerLandingsConfig records fetchPlayerLandingsConfig in
-// history once per execution (see shared.SnapshotConfig).
-func snapshotFetchPlayerLandingsConfig(ctx workflow.Context, logger log.Logger, batchOverride, concurrencyOverride *int) (fetchPlayerLandingsConfig, error) {
-	return shared.SnapshotConfig(ctx, func() fetchPlayerLandingsConfig {
-		return loadFetchPlayerLandingsConfig(logger, batchOverride, concurrencyOverride)
-	})
-}
-
 // NewFetchPlayerLandingsProgressReport creates the initial progress structure.
 func NewFetchPlayerLandingsProgressReport(total int) *shared.ProgressReport {
 	return &shared.ProgressReport{
@@ -77,7 +69,9 @@ func FetchPlayerLandingsWorkflow(ctx workflow.Context, input *FetchPlayerLanding
 		batchOverride = input.BatchSize
 		concurrencyOverride = input.Concurrency
 	}
-	cfg, err := snapshotFetchPlayerLandingsConfig(ctx, logger, batchOverride, concurrencyOverride)
+	cfg, err := shared.SnapshotConfig(ctx, func() fetchPlayerLandingsConfig {
+		return loadFetchPlayerLandingsConfig(logger, batchOverride, concurrencyOverride)
+	})
 	if err != nil {
 		return nil, err
 	}

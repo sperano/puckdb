@@ -3,7 +3,6 @@ package workflow
 import (
 	"github.com/sperano/puckdb/internal/worker/shared"
 	"go.temporal.io/sdk/log"
-	"go.temporal.io/sdk/workflow"
 )
 
 // processPlayersConfig is the configuration ProcessPlayersWorkflow snapshots
@@ -26,12 +25,4 @@ func loadProcessPlayersConfig(logger log.Logger, batchOverride, concurrencyOverr
 		Concurrency:    shared.ResolveConfigInt(logger, shared.ProcessPlayersConcurrencyParam, concurrencyOverride),
 		PlayersPerExec: shared.ResolveConfigInt(nil, shared.PlayerLandingPlayersPerExecParam, nil),
 	}
-}
-
-// snapshotProcessPlayersConfig records processPlayersConfig in history once
-// per execution (see shared.SnapshotConfig).
-func snapshotProcessPlayersConfig(ctx workflow.Context, logger log.Logger, batchOverride, concurrencyOverride *int) (processPlayersConfig, error) {
-	return shared.SnapshotConfig(ctx, func() processPlayersConfig {
-		return loadProcessPlayersConfig(logger, batchOverride, concurrencyOverride)
-	})
 }

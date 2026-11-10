@@ -38,14 +38,6 @@ func loadFetchAssetsConfig(logger log.Logger, maxClassConcurrencyOverride *int) 
 	}
 }
 
-// snapshotFetchAssetsConfig records fetchAssetsConfig in history once per
-// execution (see shared.SnapshotConfig).
-func snapshotFetchAssetsConfig(ctx workflow.Context, logger log.Logger, maxClassConcurrencyOverride *int) (fetchAssetsConfig, error) {
-	return shared.SnapshotConfig(ctx, func() fetchAssetsConfig {
-		return loadFetchAssetsConfig(logger, maxClassConcurrencyOverride)
-	})
-}
-
 // fetchAssetsClassFunc is the signature shared by the per-class entry-point
 // workflows. Constraining the registry's Workflow field to this type catches
 // signature drift at compile time rather than at Temporal replay.
@@ -102,7 +94,9 @@ func FetchAssetsWorkflow(ctx workflow.Context, input *FetchAssetsInput) (core.Or
 	logger := workflow.GetLogger(ctx)
 	logger.Info("FetchAssetsWorkflow started", "refresh_current", input.refreshCurrent())
 
-	cfg, err := snapshotFetchAssetsConfig(ctx, logger, input.MaxClassConcurrency)
+	cfg, err := shared.SnapshotConfig(ctx, func() fetchAssetsConfig {
+		return loadFetchAssetsConfig(logger, input.MaxClassConcurrency)
+	})
 	if err != nil {
 		return nil, err
 	}
