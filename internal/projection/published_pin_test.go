@@ -1,6 +1,10 @@
 package projection
 
 import (
+	"bytes"
+	"encoding/json"
+	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -20,11 +24,20 @@ const (
 	pinRecentStarts       = 40
 	pinBackupRecentStarts = 25
 	pinPlayoffStarts      = 6
+
+	// pinOutputSignificantDigits is the precision the generated players and
+	// evaluation metrics are pinned at. Go fuses multiply-adds on arm64 but
+	// not on amd64, so the last bits of a float depend on the machine;
+	// rounding keeps one pin valid on both while a model change still
+	// moves it.
+	pinOutputSignificantDigits = 9
 )
 
 // pinnedHashes are the identities a published model version computed for
-// pinnedInput (or its pinInputs entry) before the next version was added. They must never
-// change: stored snapshots and evaluations are looked up and verified by them.
+// pinnedInput (or its pinInputs entry) before the next version was added,
+// and the hashes of its outputs (mustHashOutputs). The identities must never
+// change: stored snapshots and evaluations are looked up and verified by
+// them.
 type pinnedHashes struct {
 	config     string
 	source     string
@@ -38,44 +51,44 @@ var publishedPins = map[string]pinnedHashes{
 		config:     "f65181e5f3856e50f4f71442d0aef10f2c69d37daf77f96476d1a3c81eebdcc6",
 		source:     "838b7587a64b84bf402eb757f8e0e7b232084879b219df00f393b4e42d76032e",
 		evaluation: "93cb839337dd23c49587a5425caff4079e09575912ceb0e38c7dc0d21198e432",
-		players:    "ad3465ba7e7c156def42b4a1f4902c6c9af373cedb5d0a5874b4debc7a365123",
-		evaluated:  "e445bf437834967d977f927193faa8f180a95090501ed51b702979cdb3121a39",
+		players:    "d87a909945f96add06bbb6304be5add58b28535144b133a98615d9def677acd3",
+		evaluated:  "bd60721122de95d99e4e5beb680cdb9437f96abbec5f85f46a285b04d6648f74",
 	},
 	FaceoffModelVersion: {
 		config:     "bdddb53fe417d350d27bc40bd6aba04188b752e5a5c74c1ae021bafab4567870",
 		source:     "b43cb34295f4391dc406da26fc208adf7bcee7bbef821a267df95e05136fa14b",
 		evaluation: "502304c9615559a8638152ce23c0baab46f06168d760b5d3a004144010b6ea6f",
-		players:    "4769257e0969147fc5d3cba8ea3e132fc0f077ae63c046470a0f3ce7dc25b0e4",
-		evaluated:  "6fb1094f53260ee70dcd37bc77953c5a3729e9f520c52d94e281b758f63a97cf",
+		players:    "c1f69a605ce03b9c650db31f5e4b83d2d7c4b94eaa3014f36b2ec81b19c5d922",
+		evaluated:  "d2a3873f135b631ddcbebba3f578a96073bdd125cb2162b0225db2742f026d00",
 	},
 	LinemateModelVersion: {
 		config:     "6501fc75eacb50e375a1d4c63aa196e886c47d6b8cf990142674e9336d26a387",
 		source:     "39720d261a624def4845916cdc49ff947052ec4236c6ce66326559403c707dc0",
 		evaluation: "a1a875fa41ce2c235136208ca07f7dd35060fbacdf7b0bd21626b32334d2db49",
-		players:    "4769257e0969147fc5d3cba8ea3e132fc0f077ae63c046470a0f3ce7dc25b0e4",
-		evaluated:  "6fa27b7081e2f5b39a5bef1ebbbd10cf64a9d19052433dadb674d4bca2bf9e89",
+		players:    "c1f69a605ce03b9c650db31f5e4b83d2d7c4b94eaa3014f36b2ec81b19c5d922",
+		evaluated:  "330c7f71837614c870015af42d1aec9e4b166f845749c78cf506ca0618faaa5f",
 	},
 	AgingModelVersion: {
 		config:     "be98d03df5b0e72cf6ca07e2c0308b11634014e6e9ad34ada9e2bfc2674ebbb6",
 		source:     "6a4f16e9b206e4c2e8e651526a8f202208a3e11e5dc988a88f5cd305ce59084e",
 		evaluation: "780b7d3d5135e9f0fd42a5234a2fe704218906cfa24029212ea8632a0b497e96",
-		players:    "4769257e0969147fc5d3cba8ea3e132fc0f077ae63c046470a0f3ce7dc25b0e4",
-		evaluated:  "a9026db8017eb822c61f28cbf7cf450ef611869453df9292db1ca65158430ac6",
+		players:    "c1f69a605ce03b9c650db31f5e4b83d2d7c4b94eaa3014f36b2ec81b19c5d922",
+		evaluated:  "b8fff5fbc9d23dfe0506fa83ce3d8f0f967e1981c6783fdc15445eea73ff94eb",
 	},
 	TeamEnvironmentModelVersion: {
 		config:     "fbfa9a9840b9fdee3b4a6c65b82c17e9a5c3b2613d957b86ead706024ec2e56b",
 		source:     "6a4f16e9b206e4c2e8e651526a8f202208a3e11e5dc988a88f5cd305ce59084e",
 		evaluation: "780b7d3d5135e9f0fd42a5234a2fe704218906cfa24029212ea8632a0b497e96",
-		players:    "4769257e0969147fc5d3cba8ea3e132fc0f077ae63c046470a0f3ce7dc25b0e4",
-		evaluated:  "55764c713b3ace2eb122ffe3c76fe7c0908022b299903940d9c4c9c9fa68f736",
+		players:    "c1f69a605ce03b9c650db31f5e4b83d2d7c4b94eaa3014f36b2ec81b19c5d922",
+		evaluated:  "c1e898d05b4a6fc3c3201423a60538ba4d178bbd09635596afdf956c55c97fa0",
 	},
 	// Captured before nhl-baseline-v7 added the goalie start share.
 	GoalieAppearancesModelVersion: {
 		config:     "a277dade264bc578d8e2fcb23835f5fd87e29cb8b7ce72541fd496c6aff005b2",
 		source:     "72efb764d4666fe93c985b5def82181f97ee28993db8ae28c7eb141b6ec068a6",
 		evaluation: "c5594953513c0717518e984d5c545420a4d6808556352c75f531c886af4ddcb0",
-		players:    "a8087c53934c842daaa22a13e588e1fdbdc9d997d796de9f8c8f4980352c9daf",
-		evaluated:  "39bf9443b6632aa5262af24aec5954d03045adf97c01e4720202290cf8ea0a70",
+		players:    "d6f60db0b2e533cdcbf489b4c557c83aba3d64d61eabdd82e16e797d62d5915e",
+		evaluated:  "cf7b7fe14abac09104b92e9f9bacb76ec1f9bdc8386b9ffb41a36752454bc672",
 	},
 	// Captured before any later version, on goalieSharePinnedInput (see
 	// pinInputs) so the goalie start share is in every identity and output.
@@ -83,8 +96,8 @@ var publishedPins = map[string]pinnedHashes{
 		config:     "34a4bf433bb420180dd3943bb530c7a13de36b2a3ff8b917c72df29c01211bec",
 		source:     "e06a1d5b84522520973284e8ad199653c23c6350d363e3cb5430f9a2223c0fc9",
 		evaluation: "0b02098b30487c8efdbdbbdac786fb5e35af26b448e74e198f950b34f7f1db25",
-		players:    "46b8829515db8a7c80b3108e0a4693694041c470769d9a78ea98f505f69fad59",
-		evaluated:  "352915819199ee73f63a8e2a7eeab2e723eb18f19740f241066eb67f45282ca7",
+		players:    "82cb05a4583482e52a02a9d1440d16c2ce71fc687ca488d9a3bad26e33cabc13",
+		evaluated:  "2727a1bcbbdcb80cbc59ba7141d51acdd78bcc4461a41fd197c2e0c62c5fc51e",
 	},
 }
 
@@ -127,9 +140,55 @@ func computePins(t *testing.T, version string) pinnedHashes {
 		config:     mustConfigHash(t, snapshot.Config),
 		source:     snapshot.SourceDataHash,
 		evaluation: mustEvaluationDataHash(t, snapshot.Config, input),
-		players:    mustHashJSON(t, snapshot.Players),
-		evaluated:  mustHashJSON(t, evaluations),
+		players:    mustHashOutputs(t, snapshot.Players),
+		evaluated:  mustHashOutputs(t, evaluations),
 	}
+}
+
+// TestEveryModelVersionIsPinned keeps a new version from shipping without
+// its pins, which the next version's change could otherwise move unseen.
+func TestEveryModelVersionIsPinned(t *testing.T) {
+	t.Parallel()
+
+	require.Len(t, publishedPins, len(modelVersions))
+	for _, v := range modelVersions {
+		require.Contains(t, publishedPins, v.version)
+	}
+}
+
+// mustHashOutputs hashes a generated value with every non-integer number
+// rounded to pinOutputSignificantDigits.
+func mustHashOutputs(t *testing.T, value any) string {
+	t.Helper()
+	encoded, err := json.Marshal(value)
+	require.NoError(t, err)
+	decoder := json.NewDecoder(bytes.NewReader(encoded))
+	decoder.UseNumber()
+	var tree any
+	require.NoError(t, decoder.Decode(&tree))
+	return mustHashJSON(t, roundFloats(t, tree))
+}
+
+func roundFloats(t *testing.T, node any) any {
+	t.Helper()
+	switch value := node.(type) {
+	case map[string]any:
+		for key, child := range value {
+			value[key] = roundFloats(t, child)
+		}
+	case []any:
+		for i, child := range value {
+			value[i] = roundFloats(t, child)
+		}
+	case json.Number:
+		if !strings.ContainsAny(value.String(), ".eE") {
+			return value
+		}
+		f, err := value.Float64()
+		require.NoError(t, err)
+		return json.Number(strconv.FormatFloat(f, 'g', pinOutputSignificantDigits, 64))
+	}
+	return node
 }
 
 // TestGoalieSharePinReadsRecentStarts checks goalieSharePinnedInput

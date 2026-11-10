@@ -161,11 +161,14 @@ type legacyGoalieSeason struct {
 	GoalsAgainst int
 }
 
+// encodedSkaterHashRows encodes rows in the shape the first version with
+// modelVersion's newest skater capability hashed, so a later version never
+// changes an earlier one's source hash.
 func encodedSkaterHashRows(rows []SkaterSeason, modelVersion string) ([]string, error) {
 	if supportsAgingCurve(modelVersion) {
 		return encodedValues(rows)
 	}
-	if modelVersion == LinemateModelVersion {
+	if supportsLinemateContext(modelVersion) {
 		linemates := make([]linemateSkaterSeason, len(rows))
 		for index, row := range rows {
 			linemates[index] = linemateSkaterSeason{
@@ -180,7 +183,7 @@ func encodedSkaterHashRows(rows []SkaterSeason, modelVersion string) ([]string, 
 		}
 		return encodedValues(linemates)
 	}
-	if modelVersion == FaceoffModelVersion {
+	if supportsFaceoffs(modelVersion) {
 		faceoffs := make([]faceoffSkaterSeason, len(rows))
 		for index, row := range rows {
 			faceoffs[index] = faceoffSkaterSeason{

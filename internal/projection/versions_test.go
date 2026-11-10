@@ -91,7 +91,10 @@ func TestUnknownModelVersionSupportsNothingAndIsRefused(t *testing.T) {
 }
 
 // TestDefaultConfigUsesCurrentModelVersion checks the default config is
-// valid for the current version and turns on every capability it adds.
+// valid for the current version, which supports every capability, and that
+// the settings a capability needs are not left at zero, which would turn it
+// off. Faceoffs and goalie appearances have no setting; the aging curve is
+// fitted from the input when the config has none (Generate).
 func TestDefaultConfigUsesCurrentModelVersion(t *testing.T) {
 	t.Parallel()
 
@@ -101,4 +104,11 @@ func TestDefaultConfigUsesCurrentModelVersion(t *testing.T) {
 	for c, gate := range gates {
 		require.True(t, gate(cfg.ModelVersion), "capability %d", c)
 	}
+	require.Positive(t, cfg.LinemateRegressionStrength, "linemate context")
+	require.Nil(t, cfg.AgingCurve, "aging curve is fitted per input")
+	require.Positive(t, cfg.TeamEnvironmentPriorGames, "team environment")
+	require.Positive(t, cfg.TeamEnvironmentMaxChange, "team environment")
+	require.Positive(t, cfg.GoalieShareWindowGames, "goalie start share")
+	require.Positive(t, cfg.GoalieShareHalfLifeGames, "goalie start share")
+	require.Positive(t, cfg.GoalieShareBlend, "goalie start share")
 }
