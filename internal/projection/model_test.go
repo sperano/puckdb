@@ -175,7 +175,7 @@ func TestConfigurationRejectsInvalidLinemateRegressionStrength(t *testing.T) {
 
 	cfg = versionConfig(LegacyModelVersion)
 	_, err = Generate(cfg, Input{TargetSeason: 20262027, AsOf: time.Now()})
-	require.EqualError(t, err, "legacy model does not support linemate regression")
+	require.EqualError(t, err, `model "nhl-baseline-v1" does not support linemate regression`)
 
 	cfg.ModelVersion = FaceoffModelVersion
 	_, err = Generate(cfg, Input{TargetSeason: 20262027, AsOf: time.Now()})

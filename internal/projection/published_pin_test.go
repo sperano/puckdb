@@ -12,10 +12,18 @@ const (
 	pinStarterID    = 8_001
 	pinBackupID     = 8_002
 	pinSkaterID     = 8_003
+	pinClubID       = 8
+
+	// pinRecentStarts and pinBackupRecentStarts shape the goalie start share
+	// of goalieSharePinnedInput: the backup took the most recent ones, the
+	// first pinPlayoffStarts of them in the playoffs.
+	pinRecentStarts       = 40
+	pinBackupRecentStarts = 25
+	pinPlayoffStarts      = 6
 )
 
 // pinnedHashes are the identities a published model version computed for
-// pinnedInput before nhl-baseline-v6 added goalie appearances. They must never
+// pinnedInput (or its pinInputs entry) before the next version was added. They must never
 // change: stored snapshots and evaluations are looked up and verified by them.
 type pinnedHashes struct {
 	config     string
@@ -69,6 +77,20 @@ var publishedPins = map[string]pinnedHashes{
 		players:    "a8087c53934c842daaa22a13e588e1fdbdc9d997d796de9f8c8f4980352c9daf",
 		evaluated:  "39bf9443b6632aa5262af24aec5954d03045adf97c01e4720202290cf8ea0a70",
 	},
+	// Captured before any later version, on goalieSharePinnedInput (see
+	// pinInputs) so the goalie start share is in every identity and output.
+	GoalieShareModelVersion: {
+		config:     "34a4bf433bb420180dd3943bb530c7a13de36b2a3ff8b917c72df29c01211bec",
+		source:     "e06a1d5b84522520973284e8ad199653c23c6350d363e3cb5430f9a2223c0fc9",
+		evaluation: "0b02098b30487c8efdbdbbdac786fb5e35af26b448e74e198f950b34f7f1db25",
+		players:    "46b8829515db8a7c80b3108e0a4693694041c470769d9a78ea98f505f69fad59",
+		evaluated:  "352915819199ee73f63a8e2a7eeab2e723eb18f19740f241066eb67f45282ca7",
+	},
+}
+
+// pinInputs gives the versions pinned on another input than pinnedInput.
+var pinInputs = map[string]func() Input{
+	GoalieShareModelVersion: goalieSharePinnedInput,
 }
 
 // TestPublishedVersionsKeepHashesAndOutputs pins every published version's
@@ -94,6 +116,9 @@ func computePins(t *testing.T, version string) pinnedHashes {
 		cfg.LinemateRegressionStrength = 0
 	}
 	input := pinnedInput()
+	if pinned, ok := pinInputs[version]; ok {
+		input = pinned()
+	}
 	snapshot, err := Generate(cfg, input)
 	require.NoError(t, err)
 	evaluations, err := Evaluate(cfg, input)
@@ -105,6 +130,23 @@ func computePins(t *testing.T, version string) pinnedHashes {
 		players:    mustHashJSON(t, snapshot.Players),
 		evaluated:  mustHashJSON(t, evaluations),
 	}
+}
+
+// TestGoalieSharePinReadsRecentStarts checks goalieSharePinnedInput
+// exercises the start share, so the nhl-baseline-v7 pin covers it: without
+// the recent starts the output differs, and the backup's late takeover
+// raises his projected starts.
+func TestGoalieSharePinReadsRecentStarts(t *testing.T) {
+	t.Parallel()
+
+	cfg := versionConfig(GoalieShareModelVersion)
+	with := mustGenerate(t, cfg, goalieSharePinnedInput())
+	withoutInput := goalieSharePinnedInput()
+	withoutInput.GoalieStarts = nil
+	without := mustGenerate(t, cfg, withoutInput)
+	require.NotEqual(t, mustHashJSON(t, without.Players), mustHashJSON(t, with.Players))
+	require.Greater(t, goalieStarts(t, with, pinBackupID), goalieStarts(t, without, pinBackupID))
+	require.Less(t, goalieStarts(t, with, pinStarterID), goalieStarts(t, without, pinStarterID))
 }
 
 // pinnedInput has a starter who sat on the bench in a third of the games he
@@ -133,6 +175,34 @@ func pinnedInput() Input {
 	}
 }
 
+// goalieSharePinnedInput is pinnedInput with both goalies rostered by
+// their club for the target season and the club's recent starts, which the
+// backup took over late in the season and in the playoffs.
+func goalieSharePinnedInput() Input {
+	input := pinnedInput()
+	input.TargetTeams = []PlayerTeam{
+		{PlayerID: pinStarterID, TeamID: pinClubID}, {PlayerID: pinBackupID, TeamID: pinClubID},
+	}
+	lastDay := time.Date(2025, time.May, 20, 0, 0, 0, 0, time.UTC)
+	for rank := 1; rank <= pinRecentStarts; rank++ {
+		goalie := int64(pinStarterID)
+		if rank <= pinBackupRecentStarts {
+			goalie = pinBackupID
+		}
+		playoff := rank <= pinPlayoffStarts
+		regularRank := 0
+		if !playoff {
+			regularRank = rank - pinPlayoffStarts
+		}
+		input.GoalieStarts = append(input.GoalieStarts, GoalieStart{
+			TeamID: pinClubID, PlayerID: goalie, Season: 20242025,
+			GameDate: lastDay.AddDate(0, 0, -2*rank), Playoff: playoff,
+			RecencyRank: rank, RegularSeasonRank: regularRank,
+		})
+	}
+	return input
+}
+
 // pinGoalie builds a season in which the goalie dressed for dressed games,
 // played appeared of them and started started. Per-appearance workload is
 // fixed so totals scale with appearances, as in real boxscores where a bench
@@ -144,7 +214,7 @@ func pinGoalie(id int64, birth time.Time, season, dressed, appeared, started int
 		savesPerAppearance = 25
 	)
 	return GoalieSeason{
-		PlayerID: id, BirthDate: birth, TeamID: 8, Season: season,
+		PlayerID: id, BirthDate: birth, TeamID: pinClubID, Season: season,
 		GamesPlayed: dressed, GamesAppeared: appeared, GamesStarted: started,
 		TOISeconds: appeared * toiPerAppearance, Wins: started / 2, Shutouts: started / 12,
 		ShotsAgainst: appeared * shotsPerAppearance, Saves: appeared * savesPerAppearance,
@@ -155,7 +225,7 @@ func pinGoalie(id int64, birth time.Time, season, dressed, appeared, started int
 func pinSkater(season, games, toi, points int) SkaterSeason {
 	return SkaterSeason{
 		PlayerID: pinSkaterID, BirthDate: time.Date(1999, time.May, 1, 0, 0, 0, 0, time.UTC),
-		TeamID: 8, Season: season, Position: "C", GamesPlayed: games, TOISeconds: toi,
+		TeamID: pinClubID, Season: season, Position: "C", GamesPlayed: games, TOISeconds: toi,
 		Goals: points / 2, Assists: points - points/2, ShotsOnGoal: 3 * points, Hits: games,
 		BlockedShots: games / 2, FaceoffsWon: 400, FaceoffsLost: 380,
 	}

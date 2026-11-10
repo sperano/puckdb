@@ -105,7 +105,7 @@ func TestValidateEvaluationRejectsEmptyMetrics(t *testing.T) {
 	t.Parallel()
 
 	err := validateEvaluation(Evaluation{
-		ModelVersion: ModelVersion, ConfigHash: "config", SourceDataHash: "source",
+		ModelVersion: CurrentModelVersion, ConfigHash: "config", SourceDataHash: "source",
 		TargetSeason: 20262027, AsOf: time.Now(), ObservedAt: time.Now(),
 		PlayerKind: PlayerKindSkater, ComparisonModel: PreviousSeasonComparison,
 	})
@@ -117,7 +117,7 @@ func TestValidateEvaluationRejectsInvalidObservationAndMetric(t *testing.T) {
 
 	asOf := time.Now()
 	evaluation := Evaluation{
-		ModelVersion: ModelVersion, ConfigHash: "config", SourceDataHash: "source",
+		ModelVersion: CurrentModelVersion, ConfigHash: "config", SourceDataHash: "source",
 		TargetSeason: 20262027, AsOf: asOf, ObservedAt: asOf.Add(-time.Hour),
 		PlayerKind: PlayerKindSkater, ComparisonModel: PreviousSeasonComparison,
 		Metrics: []Metric{{Stat: StatGoals, SampleSize: 1}},
@@ -134,7 +134,7 @@ func TestValidateEvaluationRejectsDuplicateStats(t *testing.T) {
 
 	now := time.Now()
 	evaluation := Evaluation{
-		ModelVersion: ModelVersion, ConfigHash: "config", SourceDataHash: "source",
+		ModelVersion: CurrentModelVersion, ConfigHash: "config", SourceDataHash: "source",
 		TargetSeason: 20262027, AsOf: now, ObservedAt: now,
 		PlayerKind: PlayerKindSkater, ComparisonModel: PreviousSeasonComparison,
 		Metrics: []Metric{

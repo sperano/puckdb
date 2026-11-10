@@ -96,7 +96,7 @@ func TestGoalieStartShareFollowsRecentStarter(t *testing.T) {
 
 	input := montrealInput()
 	v6 := mustGenerate(t, benchConfig(GoalieAppearancesModelVersion), input)
-	v7 := mustGenerate(t, benchConfig(ModelVersion), input)
+	v7 := mustGenerate(t, benchConfig(GoalieShareModelVersion), input)
 
 	require.Greater(t, goalieStarts(t, v7, shareDobes), goalieStarts(t, v6, shareDobes)+5)
 	require.Less(t, goalieStarts(t, v7, shareMontembeau), goalieStarts(t, v6, shareMontembeau)-5)
@@ -117,7 +117,7 @@ func TestGoalieStartShareFollowsRecentStarter(t *testing.T) {
 
 	// A zero playoff weight reads only the regular season, where Dobes's
 	// share is smaller.
-	noPlayoffs := benchConfig(ModelVersion)
+	noPlayoffs := benchConfig(GoalieShareModelVersion)
 	noPlayoffs.GoaliePlayoffWeight = 0
 	regular := mustGenerate(t, noPlayoffs, input)
 	require.Less(t, goalieStarts(t, regular, shareDobes), goalieStarts(t, v7, shareDobes))
@@ -128,5 +128,5 @@ func TestGoalieStartShareFollowsRecentStarter(t *testing.T) {
 	v6Without := mustGenerate(t, benchConfig(GoalieAppearancesModelVersion), without)
 	require.Equal(t, mustHashJSON(t, v6Without.Players), mustHashJSON(t, v6.Players))
 	require.Equal(t, v6Without.SourceDataHash, v6.SourceDataHash)
-	require.NotEqual(t, mustSourceDataHash(t, benchConfig(ModelVersion), without), v7.SourceDataHash)
+	require.NotEqual(t, mustSourceDataHash(t, benchConfig(GoalieShareModelVersion), without), v7.SourceDataHash)
 }

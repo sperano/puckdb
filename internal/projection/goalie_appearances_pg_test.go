@@ -119,7 +119,7 @@ func TestProjectionSnapshotsRequireV6AgingCurve(t *testing.T) {
 		execAll(t, pool, fmt.Sprintf(`DELETE FROM projection_snapshots WHERE target_season = %d`, appearanceSeason))
 	})
 	cfg := DefaultConfig()
-	require.Equal(t, ModelVersion, cfg.ModelVersion)
+	require.Equal(t, CurrentModelVersion, cfg.ModelVersion)
 	cfg.AgingCurve = testAgingCurve(AgingStep{Group: agingGroupGoalie, Stat: StatSaves, Age: 25, DeltaPer60: 1})
 	cfg.AgingCurve.ThroughSeason = appearanceSeason - 10_001
 	snapshot := Snapshot{
