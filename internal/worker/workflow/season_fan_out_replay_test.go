@@ -91,7 +91,10 @@ func seasonFanOutHistories() []seasonFanOutHistory {
 // TestSeasonFanOutParentsReplayRecordedHistories replays every recorded
 // parent history with the current code: a changed command sequence (order,
 // type) fails here with a nondeterminism error. Child and activity inputs
-// are not compared; TestSeasonFanOutWorkflowsInput guards them.
+// are not compared: TestSeasonFanOutWorkflowsInput checks only the manifest
+// input, the LoadSeasonBoxscorePlayers year and the RefreshCurrent flag of
+// the FetchEdge and FetchSeasonPlayerLogs children; every other input is
+// unchecked.
 func TestSeasonFanOutParentsReplayRecordedHistories(t *testing.T) {
 	for _, tc := range seasonFanOutHistories() {
 		t.Run(tc.path, func(t *testing.T) {
