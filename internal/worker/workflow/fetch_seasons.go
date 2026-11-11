@@ -12,6 +12,7 @@
 package workflow
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/sperano/nhl-api-go/nhl"
@@ -49,14 +50,55 @@ func FetchSeasonsWorkflow(ctx workflow.Context, input *model.SeasonsInput) error
 }
 
 // SeasonGroupConfig configures how processSeasonGroup processes a group of seasons.
+// After a successful pool the group is completed with Completion's message
+// or, without one, the standard "<GroupLabel> <n> seasons in <elapsed>."
+// message followed by the CountLabel summary; with neither, the group is
+// left for the caller to complete. Completion excludes GroupLabel and
+// CountLabel.
 type SeasonGroupConfig struct {
 	GroupIdx      int
 	Counter       shared.SeasonCounterFunc
 	SourceKeyFunc shared.ProgressSourceKeyFunc
 	GroupLabel    string // verb phrase for completion message (e.g., "Iterated", "Extracted players for")
 	CountLabel    string // label for OriginCounts summary (e.g., "children count", "boxscore reads")
+	// Completion, when set, builds the group's completion message instead
+	// of the GroupLabel/CountLabel formatting.
+	Completion CompletionMsgFunc
 	// CompleteOnlyOnSuccess preserves incomplete bars when a child fails.
 	CompleteOnlyOnSuccess bool
+}
+
+var (
+	errSeasonGroupNoCounter      = errors.New("season group: no Counter")
+	errSeasonGroupTwoCompletions = errors.New("season group: Completion set together with GroupLabel or CountLabel")
+)
+
+// validate rejects a config processSeasonGroup cannot run, before its first
+// command.
+func (cfg SeasonGroupConfig) validate() error {
+	if cfg.Counter == nil {
+		return errSeasonGroupNoCounter
+	}
+	if cfg.Completion != nil && (cfg.GroupLabel != "" || cfg.CountLabel != "") {
+		return errSeasonGroupTwoCompletions
+	}
+	return nil
+}
+
+// completionMessage is the group's completion message after a successful
+// pool, and false when the caller completes the group itself.
+func (cfg SeasonGroupConfig) completionMessage(n int, elapsed string, counts core.OriginCounts) (string, bool) {
+	switch {
+	case cfg.Completion != nil:
+		return cfg.Completion(n, elapsed, counts), true
+	case cfg.GroupLabel != "":
+		msg := fmt.Sprintf("%s %d seasons in %s.", cfg.GroupLabel, n, elapsed)
+		if summary := counts.Summary(cfg.CountLabel); summary != "" {
+			msg += " " + summary
+		}
+		return msg, true
+	}
+	return "", false
 }
 
 // processSeasonGroup runs concurrent work across seasons with progress tracking.
@@ -64,6 +106,9 @@ type SeasonGroupConfig struct {
 // formats a completion message, and saves progress to Redis at key points.
 func processSeasonGroup(ctx workflow.Context, tracker *shared.ReportTracker, seasons []nhl.SeasonInfo, concurrency int,
 	cfg SeasonGroupConfig, startWork shared.ActivityStarter) (core.OriginCounts, error) {
+	if err := cfg.validate(); err != nil {
+		return core.OriginCounts{}, err
+	}
 
 	// Clean up stale child progress reports from previous runs
 	if cfg.SourceKeyFunc != nil {
@@ -95,13 +140,8 @@ func processSeasonGroup(ctx workflow.Context, tracker *shared.ReportTracker, sea
 		return counts, err
 	}
 
-	// Complete the group if a label is configured (direct callers like ExtractBoxscorePlayers).
-	// iterateSeasons leaves GroupLabel empty and handles completion itself.
-	if cfg.GroupLabel != "" {
-		msg := fmt.Sprintf("%s %d seasons in %s.", cfg.GroupLabel, len(seasons), tracker.GetElapsed(ctx, cfg.GroupIdx))
-		if summary := counts.Summary(cfg.CountLabel); summary != "" {
-			msg += " " + summary
-		}
+	// iterateSeasons configures no completion and completes the group itself.
+	if msg, ok := cfg.completionMessage(len(seasons), tracker.GetElapsed(ctx, cfg.GroupIdx), counts); ok {
 		tracker.CompleteGroup(ctx, cfg.GroupIdx, msg)
 	}
 	return counts, nil
