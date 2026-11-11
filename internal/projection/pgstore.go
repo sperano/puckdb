@@ -82,9 +82,8 @@ func (r *PGStore) loadInput(
 	pool []PoolPlayer,
 	overrides []Override,
 ) (Input, error) {
-	lowerSeason := projectionLoadFloor(cfg, targetSeason)
-	cutoff := dateValue(asOf)
-	window := projectionWindow(targetSeason, lowerSeason, cutoff)
+	window := projectionLoadWindow(cfg, targetSeason, asOf)
+	lowerSeason, cutoff := window.floor, window.cutoff
 	skaters, err := r.queries.ListProjectionSkaterSeasons(ctx, window.skaterParams())
 	if err != nil {
 		return Input{}, fmt.Errorf("load skater projection history: %w", err)
@@ -136,7 +135,7 @@ func (r *PGStore) LoadEvaluationInput(
 	if err := validateEvaluationWindow(projectionAsOf, observedAt, season); err != nil {
 		return Input{}, err
 	}
-	window := evaluationWindow(targetSeason, projectionLoadFloor(cfg, targetSeason))
+	window := evaluationLoadWindow(cfg, targetSeason)
 	skaters, err := r.queries.ListProjectionSkaterSeasons(ctx, window.skaterParams())
 	if err != nil {
 		return Input{}, fmt.Errorf("load skater evaluation data: %w", err)

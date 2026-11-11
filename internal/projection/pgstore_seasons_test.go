@@ -29,6 +29,19 @@ func TestSeasonWindowParams(t *testing.T) {
 	}, evaluation.goalieParams(DefaultGoalieShutoutMinTOI))
 }
 
+// PGStore loads a projection from the projection window and an evaluation
+// from the evaluation window, both from the model's load floor.
+func TestLoadWindows(t *testing.T) {
+	cfg := DefaultConfig()
+	const target = 20242025
+	floor := projectionLoadFloor(cfg, target)
+	asOf := time.Date(2024, time.September, 1, 12, 0, 0, 0, time.UTC)
+	require.Equal(t, seasonWindow{target: target, floor: floor, cutoff: dateValue(asOf)},
+		projectionLoadWindow(cfg, target, asOf))
+	require.Equal(t, seasonWindow{target: target, floor: floor, includeTarget: true},
+		evaluationLoadWindow(cfg, target))
+}
+
 // Every row column reaches its season field: each carries a distinct value.
 func TestSeasonsFromRowsMapsEveryColumn(t *testing.T) {
 	birth := time.Date(1997, time.January, 13, 0, 0, 0, 0, time.UTC)

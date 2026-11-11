@@ -1,6 +1,8 @@
 package projection
 
 import (
+	"time"
+
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/sperano/puckdb/internal/sqlcdb"
 )
@@ -26,6 +28,19 @@ func projectionWindow(target, floor int, cutoff pgtype.Date) seasonWindow {
 // target reads.
 func evaluationWindow(target, floor int) seasonWindow {
 	return seasonWindow{target: target, floor: floor, includeTarget: true}
+}
+
+// projectionLoadWindow is the window PGStore loads a projection of target as
+// of asOf from: cfg's lookback floor up to the season before target, played
+// by asOf.
+func projectionLoadWindow(cfg Config, target int, asOf time.Time) seasonWindow {
+	return projectionWindow(target, projectionLoadFloor(cfg, target), dateValue(asOf))
+}
+
+// evaluationLoadWindow is the window PGStore.LoadEvaluationInput reads: cfg's
+// lookback floor through target, at any date.
+func evaluationLoadWindow(cfg Config, target int) seasonWindow {
+	return evaluationWindow(target, projectionLoadFloor(cfg, target))
 }
 
 func (w seasonWindow) skaterParams() sqlcdb.ListProjectionSkaterSeasonsParams {
