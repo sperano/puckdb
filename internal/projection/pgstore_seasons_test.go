@@ -4,7 +4,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/sperano/puckdb/internal/sqlcdb"
 	"github.com/stretchr/testify/require"
 )
@@ -33,6 +32,7 @@ func TestSeasonWindowParams(t *testing.T) {
 // Every row column reaches its season field: each carries a distinct value.
 func TestSeasonsFromRowsMapsEveryColumn(t *testing.T) {
 	birth := time.Date(1997, time.January, 13, 0, 0, 0, 0, time.UTC)
+	goalieBirth := time.Date(1992, time.May, 29, 0, 0, 0, 0, time.UTC)
 	skaters, goalies := seasonsFromRows(
 		[]sqlcdb.ListProjectionSkaterSeasonsRow{{
 			PlayerID: 8478402, BirthDate: dateValue(birth), Season: 20232024, TeamID: 22, Position: "C",
@@ -41,7 +41,7 @@ func TestSeasonsFromRowsMapsEveryColumn(t *testing.T) {
 		}},
 		nil,
 		[]sqlcdb.ListProjectionGoalieSeasonsRow{{
-			PlayerID: 8476945, BirthDate: pgtype.Date{}, Season: 20232024, TeamID: 6, GamesPlayed: 60,
+			PlayerID: 8476945, BirthDate: dateValue(goalieBirth), Season: 20232024, TeamID: 6, GamesPlayed: 60,
 			GamesAppeared: 58, GamesStarted: 57, TOISeconds: 3_400, Wins: 35, Shutouts: 4,
 			ShotsAgainst: 1_700, Saves: 1_560, GoalsAgainst: 140,
 		}},
@@ -52,7 +52,7 @@ func TestSeasonsFromRowsMapsEveryColumn(t *testing.T) {
 		PowerPlayPoints: 44, ShotsOnGoal: 300, Hits: 51, BlockedShots: 27, FaceoffsWon: 650, FaceoffsLost: 700,
 	}}, skaters)
 	require.Equal(t, []GoalieSeason{{
-		PlayerID: 8476945, Season: 20232024, TeamID: 6, GamesPlayed: 60,
+		PlayerID: 8476945, BirthDate: goalieBirth, Season: 20232024, TeamID: 6, GamesPlayed: 60,
 		GamesAppeared: 58, GamesStarted: 57, TOISeconds: 3_400, Wins: 35, Shutouts: 4,
 		ShotsAgainst: 1_700, Saves: 1_560, GoalsAgainst: 140,
 	}}, goalies)

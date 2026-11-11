@@ -4,7 +4,8 @@ package projection
 // and ListProjectionGoalieSeasons read: a projection reads only seasons before
 // its target, played by its as-of cutoff; an evaluation reads the target
 // season too, at any date. Each fixture game adds a distinct power of two to
-// the goals and saves, so a season's sums name exactly the games it counted.
+// the goals and saves, so a season's sums name exactly the games it counted,
+// and some goalie lines miss a shutout by one predicate each.
 // The legacy comparison runs the four queries the merged ones replaced on the
 // same fixture. Skips unless PUCKDB_TEST_PG_URL names a test database (see
 // CLAUDE.md "Database-backed tests"). Fixtures use seasons and IDs no other
@@ -42,7 +43,8 @@ const (
 	windowShutoutTOI = DefaultGoalieShutoutMinTOI
 )
 
-// windowCutoff falls inside the prior season, between its two games.
+// windowCutoff falls inside the prior season: one of its games is before
+// it, one on it and one after it.
 var windowCutoff = time.Date(1998, time.January, 15, 0, 0, 0, 0, time.UTC)
 
 // windowGame is one fixture game; bit is its power of two in the sums.
@@ -55,8 +57,9 @@ type windowGame struct {
 }
 
 // windowGames covers each predicate: a season below the floor, a playoff and
-// an unfinished game (never read), a prior-season game after the cutoff
-// (read only by an evaluation) and target-season games, one dated long
+// an unfinished game (never read), a prior-season game on the cutoff (read
+// by a projection as of that day, not the day before) and one after it
+// (read only by an evaluation), and target-season games, one dated long
 // after any as-of (read only by an evaluation).
 var windowGames = []windowGame{
 	{0, windowBelowFloorSeason, "regular_season", "FINAL", "1994-11-01"},
@@ -69,11 +72,40 @@ var windowGames = []windowGame{
 	{7, windowPriorSeason, "regular_season", "FINAL", "1998-03-01"},
 	{8, windowTargetSeason, "regular_season", "FINAL", "1998-11-01"},
 	{9, windowTargetSeason, "regular_season", "FINAL", "2030-01-01"},
+	{10, windowPriorSeason, "regular_season", "FINAL", "1998-01-15"},
 }
 
 // windowFaceoffBit is the game where the skater wins one faceoff: after the
 // cutoff, so only an evaluation counts it.
 const windowFaceoffBit = 7
+
+// windowGoalie is a fixture game's goalie line.
+type windowGoalie struct {
+	starter      bool
+	toiSeconds   int
+	goalsAgainst int
+}
+
+func (line windowGoalie) shutout() bool {
+	return line.starter && line.goalsAgainst == 0 && line.toiSeconds >= DefaultGoalieShutoutMinTOI
+}
+
+// windowGoalieVariants make each shutout predicate false once, in seasons
+// every window reads: a start one second short of the threshold, a full
+// game as the backup and a start with a goal against. Every other game is a
+// full start without a goal against.
+var windowGoalieVariants = map[int]windowGoalie{
+	2: {starter: true, toiSeconds: windowShutoutTOI - 1},
+	3: {starter: false, toiSeconds: windowShutoutTOI},
+	6: {starter: true, toiSeconds: windowShutoutTOI, goalsAgainst: 1},
+}
+
+func windowGoalieLine(bit int) windowGoalie {
+	if line, ok := windowGoalieVariants[bit]; ok {
+		return line
+	}
+	return windowGoalie{starter: true, toiSeconds: windowShutoutTOI}
+}
 
 func windowGameID(bit int) int64 { return windowFirstGame + int64(bit) }
 
@@ -100,7 +132,7 @@ func seedSeasonWindow(t *testing.T, pool *pgxpool.Pool) {
 }
 
 func seedWindowGame(game windowGame) []string {
-	id, value := windowGameID(game.bit), 1<<game.bit
+	id, value, goalie := windowGameID(game.bit), 1<<game.bit, windowGoalieLine(game.bit)
 	return []string{
 		fmt.Sprintf(`INSERT INTO games (id, season, game_type, game_date, home_team_id, away_team_id, game_state)
 			VALUES (%d, %d, '%s', DATE '%s', %d, %d, '%s')`,
@@ -110,14 +142,23 @@ func seedWindowGame(game windowGame) []string {
 			VALUES (%d, %d, %d, true, 9, 'C', %d, %d, 1000)`,
 			id, windowSkaterID, windowHomeTeamID, value, value),
 		fmt.Sprintf(`INSERT INTO game_goalie_stats
-			(game_id, player_id, team_id, is_home, sweater_number, starter, toi_seconds, shots_against, saves)
-			VALUES (%d, %d, %d, true, 30, true, %d, %d, %d)`,
-			id, windowGoalieID, windowHomeTeamID, windowShutoutTOI, value, value),
+			(game_id, player_id, team_id, is_home, sweater_number, starter, toi_seconds, shots_against, saves, goals_against)
+			VALUES (%d, %d, %d, true, 30, %t, %d, %d, %d, %d)`,
+			id, windowGoalieID, windowHomeTeamID, goalie.starter, goalie.toiSeconds, value, value, goalie.goalsAgainst),
 	}
 }
 
-// windowSums maps each season to the sum of its read games' bits.
-func windowSums(bits map[int][]int) map[int]int64 {
+// windowBits maps each season to the bits of the games a window reads.
+type windowBits map[int][]int
+
+// windowGoalieTotals is what a window reads of one goalie season.
+type windowGoalieTotals struct {
+	saves    int64
+	shutouts int
+}
+
+// goals is each season's skater goals (and goalie saves): its bits' sum.
+func (bits windowBits) goals() map[int]int64 {
 	sums := make(map[int]int64, len(bits))
 	for season, games := range bits {
 		for _, bit := range games {
@@ -127,16 +168,31 @@ func windowSums(bits map[int][]int) map[int]int64 {
 	return sums
 }
 
+func (bits windowBits) goalieTotals() map[int]windowGoalieTotals {
+	totals := make(map[int]windowGoalieTotals, len(bits))
+	for season, games := range bits {
+		var total windowGoalieTotals
+		for _, bit := range games {
+			total.saves += 1 << bit
+			if windowGoalieLine(bit).shutout() {
+				total.shutouts++
+			}
+		}
+		totals[season] = total
+	}
+	return totals
+}
+
 var (
-	// windowProjectionSums is what a projection as of windowCutoff reads.
-	windowProjectionSums = windowSums(map[int][]int{
-		windowFloorSeason: {1}, windowMiddleSeason: {2, 3}, windowPriorSeason: {6},
-	})
-	// windowEvaluationSums is what an evaluation of the target season reads.
-	windowEvaluationSums = windowSums(map[int][]int{
-		windowFloorSeason: {1}, windowMiddleSeason: {2, 3}, windowPriorSeason: {6, 7},
+	// windowProjectionBits is what a projection as of windowCutoff reads.
+	windowProjectionBits = windowBits{
+		windowFloorSeason: {1}, windowMiddleSeason: {2, 3}, windowPriorSeason: {6, 10},
+	}
+	// windowEvaluationBits is what an evaluation of the target season reads.
+	windowEvaluationBits = windowBits{
+		windowFloorSeason: {1}, windowMiddleSeason: {2, 3}, windowPriorSeason: {6, 7, 10},
 		windowTargetSeason: {8, 9},
-	})
+	}
 )
 
 func fixtureSkaterRows(rows []sqlcdb.ListProjectionSkaterSeasonsRow) []sqlcdb.ListProjectionSkaterSeasonsRow {
@@ -171,8 +227,8 @@ func loadWindow(
 	return fixtureSkaterRows(skaters), fixtureGoalieRows(goalies)
 }
 
-func requireWindowSums(
-	t *testing.T, want map[int]int64,
+func requireWindow(
+	t *testing.T, want windowBits,
 	skaters []sqlcdb.ListProjectionSkaterSeasonsRow, goalies []sqlcdb.ListProjectionGoalieSeasonsRow,
 ) {
 	t.Helper()
@@ -180,12 +236,12 @@ func requireWindowSums(
 	for _, row := range skaters {
 		gotGoals[int(row.Season)] = row.Goals
 	}
-	gotSaves := make(map[int]int64, len(goalies))
+	gotGoalies := make(map[int]windowGoalieTotals, len(goalies))
 	for _, row := range goalies {
-		gotSaves[int(row.Season)] = row.Saves
+		gotGoalies[int(row.Season)] = windowGoalieTotals{saves: row.Saves, shutouts: int(row.Shutouts)}
 	}
-	require.Equal(t, want, gotGoals, "skater goals per season")
-	require.Equal(t, want, gotSaves, "goalie saves per season")
+	require.Equal(t, want.goals(), gotGoals, "skater goals per season")
+	require.Equal(t, want.goalieTotals(), gotGoalies, "goalie saves and shutouts per season")
 }
 
 func TestProjectionWindowReadsPriorSeasonsThroughCutoff(t *testing.T) {
@@ -193,7 +249,7 @@ func TestProjectionWindowReadsPriorSeasonsThroughCutoff(t *testing.T) {
 	seedSeasonWindow(t, pool)
 	skaters, goalies := loadWindow(t, sqlcdb.New(pool),
 		projectionWindow(windowTargetSeason, windowFloorSeason, dateValue(windowCutoff)))
-	requireWindowSums(t, windowProjectionSums, skaters, goalies)
+	requireWindow(t, windowProjectionBits, skaters, goalies)
 	for _, row := range skaters {
 		require.Zero(t, row.FaceoffsWon, "the faceoff after the cutoff must not count, season %d", row.Season)
 	}
@@ -207,10 +263,21 @@ func TestProjectionWindowExcludesTargetSeasonAtAnyCutoff(t *testing.T) {
 	late := time.Date(2031, time.January, 1, 0, 0, 0, 0, time.UTC)
 	skaters, goalies := loadWindow(t, sqlcdb.New(pool),
 		projectionWindow(windowTargetSeason, windowFloorSeason, dateValue(late)))
-	want := windowSums(map[int][]int{
-		windowFloorSeason: {1}, windowMiddleSeason: {2, 3}, windowPriorSeason: {6, 7},
-	})
-	requireWindowSums(t, want, skaters, goalies)
+	requireWindow(t, windowBits{
+		windowFloorSeason: {1}, windowMiddleSeason: {2, 3}, windowPriorSeason: {6, 7, 10},
+	}, skaters, goalies)
+}
+
+// The cutoff is inclusive: a game on the as-of day counts, and the day
+// before leaves it out.
+func TestProjectionWindowCutoffDayIsInclusive(t *testing.T) {
+	pool := pgtest.Open(t)
+	seedSeasonWindow(t, pool)
+	skaters, goalies := loadWindow(t, sqlcdb.New(pool),
+		projectionWindow(windowTargetSeason, windowFloorSeason, dateValue(windowCutoff.AddDate(0, 0, -1))))
+	requireWindow(t, windowBits{
+		windowFloorSeason: {1}, windowMiddleSeason: {2, 3}, windowPriorSeason: {6},
+	}, skaters, goalies)
 }
 
 // A projection without an as-of cutoff reads nothing, as the legacy
@@ -228,12 +295,44 @@ func TestEvaluationWindowReadsTargetSeasonAtAnyDate(t *testing.T) {
 	pool := pgtest.Open(t)
 	seedSeasonWindow(t, pool)
 	skaters, goalies := loadWindow(t, sqlcdb.New(pool), evaluationWindow(windowTargetSeason, windowFloorSeason))
-	requireWindowSums(t, windowEvaluationSums, skaters, goalies)
+	requireWindow(t, windowEvaluationBits, skaters, goalies)
 	faceoffs := make(map[int]int64, len(skaters))
 	for _, row := range skaters {
 		faceoffs[int(row.Season)] = row.FaceoffsWon
 	}
 	require.EqualValues(t, 1, faceoffs[windowPriorSeason], "the evaluation counts the faceoff after the cutoff")
+}
+
+// LoadEvaluationInput reads the evaluation window, target season included,
+// from the default model's lookback floor.
+func TestLoadEvaluationInputReadsEvaluationWindow(t *testing.T) {
+	pool := pgtest.Open(t)
+	seedSeasonWindow(t, pool)
+	t.Cleanup(func() {
+		execAll(t, pool, fmt.Sprintf(`DELETE FROM seasons WHERE id = %d`, windowTargetSeason))
+	})
+	execAll(t, pool, fmt.Sprintf(`INSERT INTO seasons (id, standings_start, standings_end)
+		VALUES (%d, DATE '1998-10-09', DATE '1999-04-18')`, windowTargetSeason))
+	cfg := DefaultConfig()
+	require.Equal(t, windowFloorSeason, projectionLoadFloor(cfg, windowTargetSeason), "fixture floor")
+
+	input, err := NewPGStore(pool).LoadEvaluationInput(context.Background(), cfg, windowTargetSeason,
+		time.Date(1998, time.October, 1, 0, 0, 0, 0, time.UTC), time.Date(1999, time.June, 1, 0, 0, 0, 0, time.UTC))
+	require.NoError(t, err)
+	gotGoals := make(map[int]int64)
+	for _, season := range input.Skaters {
+		if season.PlayerID == windowSkaterID {
+			gotGoals[season.Season] = int64(season.Goals)
+		}
+	}
+	gotGoalies := make(map[int]windowGoalieTotals)
+	for _, season := range input.Goalies {
+		if season.PlayerID == windowGoalieID {
+			gotGoalies[season.Season] = windowGoalieTotals{saves: int64(season.Saves), shutouts: season.Shutouts}
+		}
+	}
+	require.Equal(t, windowEvaluationBits.goals(), gotGoals, "skater goals per season")
+	require.Equal(t, windowEvaluationBits.goalieTotals(), gotGoalies, "goalie saves and shutouts per season")
 }
 
 // legacyWindowCase is one window and the arguments the legacy query for it
@@ -256,6 +355,7 @@ func legacyWindowCases() []legacyWindowCase {
 	}
 	return []legacyWindowCase{
 		projectionCase("projection mid-season cutoff", dateValue(windowCutoff)),
+		projectionCase("projection day before cutoff", dateValue(windowCutoff.AddDate(0, 0, -1))),
 		projectionCase("projection late cutoff", dateValue(time.Date(2031, time.January, 1, 0, 0, 0, 0, time.UTC))),
 		projectionCase("projection without cutoff", pgtype.Date{}),
 		{
