@@ -52,6 +52,7 @@ func TestClassifyErrorDistinguishesAuthenticationAndRateLimit(t *testing.T) {
 	assert.Equal(t, ErrorClassAuthentication, ClassifyError(fmt.Errorf("wrapped: %w", &httpx.HTTPError{StatusCode: http.StatusUnauthorized})))
 	assert.Equal(t, ErrorClassRateLimited, ClassifyError(&httpx.HTTPError{StatusCode: http.StatusTooManyRequests}))
 	assert.Equal(t, ErrorClassUpstream, ClassifyError(&httpx.HTTPError{StatusCode: http.StatusServiceUnavailable}))
+	assert.Equal(t, ErrorClassUpstream, ClassifyError(&httpx.HTTPError{StatusCode: http.StatusInternalServerError}))
 	assert.Equal(t, ErrorClassHTTP, ClassifyError(&httpx.HTTPError{StatusCode: http.StatusNotFound}))
 	assert.Equal(t, ErrorClassCanceled, ClassifyError(fmt.Errorf("poll: %w", context.DeadlineExceeded)))
 	assert.Equal(t, ErrorClassTransport, ClassifyError(errors.New("connection reset")))
@@ -67,6 +68,7 @@ func TestClassifyErrorClassesTokenRefreshFailures(t *testing.T) {
 	assert.Equal(t, ErrorClassAuthentication, ClassifyError(&oauth2.RetrieveError{ErrorCode: "invalid_client"}))
 	assert.Equal(t, ErrorClassRateLimited, ClassifyError(refreshErr(http.StatusTooManyRequests, "")))
 	assert.Equal(t, ErrorClassUpstream, ClassifyError(refreshErr(http.StatusBadGateway, "")))
+	assert.Equal(t, ErrorClassUpstream, ClassifyError(refreshErr(http.StatusInternalServerError, "")))
 }
 
 // The stored class strings are read back by the capability report and must
