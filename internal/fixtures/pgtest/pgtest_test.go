@@ -69,6 +69,8 @@ func TestCheckURLRefusesAHostList(t *testing.T) {
 		"postgres://puckdb:foo@localhost,prod.internal/puckdb_test",
 		"postgres://puckdb:foo@localhost:5432,localhost:5433/puckdb_test",
 		"postgres://puckdb:foo@localhost/puckdb_test?host=localhost,prod.internal",
+		// pgx lets the query host win; only lib/pq keeps the list.
+		"postgres://puckdb:foo@localhost,prod.internal/puckdb_test?host=localhost",
 	} {
 		require.ErrorIs(t, CheckURL(dbURL), errSeveralServers, dbURL)
 	}
