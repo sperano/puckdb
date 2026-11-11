@@ -1,56 +1,56 @@
 # PuckDB
 
-PuckDB is a self-hosted hockey data pipeline and query service. It downloads
-NHL and Yahoo Fantasy Hockey data, keeps the raw responses in a local file
-cache, imports normalized records into PostgreSQL, and exposes the result
-through GraphQL and MCP. Temporal runs the long-lived fetch, import, and
-simulation workflows.
+PuckDB is a self-hosted NHL and Yahoo Fantasy Hockey data platform. It keeps
+the original API responses in a local cache, imports normalized data into
+PostgreSQL, and serves the result through GraphQL and the Model Context
+Protocol (MCP). Temporal makes the long-running download, import, draft, news,
+and simulation jobs observable and resumable.
 
-## What it provides
+PuckDB provides:
 
-- NHL schedules, rosters, boxscores, play-by-play, shifts, player totals, and
-  NHL Edge tracking data
-- Yahoo Fantasy leagues, teams, rosters, matchups, drafts, and transactions
-- Resumable, observable data workflows backed by Temporal
-- A GraphQL API for data queries and workflow control
-- A read-only MCP server for hockey-data tools
+- NHL schedules, rosters, box scores, play-by-play, shifts, player totals,
+  standings, and NHL Edge tracking data
+- Yahoo leagues, teams, rosters, matchups, drafts, transactions, rules, and
+  player eligibility
+- fantasy-draft projections, news adjustments, rankings, recommendations, and
+  a live draft board
+- GraphQL queries and workflow controls
+- read-only MCP tools for NHL, Yahoo, and player-news data
 - Prometheus metrics for the API, workers, cache, Redis, and PostgreSQL
-- Optional AI-assisted hockey chat and fantasy-pool simulation
+- optional LLM-backed hockey chat and historical fantasy-pool simulations
 
 ## Architecture
 
 ```text
 NHL API ─────┐                         ┌─ PostgreSQL ── GraphQL / MCP
              ├─ Temporal workflows ────┤
-Yahoo API ───┘        │                └─ file cache
+Yahoo API ───┘        │                └─ local response cache
                       │
                     Redis
               OAuth tokens and locks
 ```
 
-The API starts and observes workflows. Task workers perform downloads and
-imports, writing raw API responses to the file cache and queryable data to
-PostgreSQL. Redis stores Yahoo OAuth tokens and coordinates shared operations.
+The API starts and observes workflows. Workers fetch and import data, writing
+raw responses to the file cache and queryable records to PostgreSQL. Redis
+stores Yahoo OAuth tokens and coordinates shared work.
 
-## Local quick start
+## Local setup
 
-### Prerequisites
+### Requirements
 
 - Go 1.27 or newer
 - Docker with Docker Compose v2
 
-The bundled Compose services and credentials are intended for local
-development only.
+The Compose credentials below are for local development only.
 
-### 1. Start the core services
+### Start dependencies
 
 ```bash
 docker compose up -d --wait pgbouncer redis temporal temporal-ui
 ```
 
-This also starts the PostgreSQL instances required by PuckDB and Temporal.
-
-### 2. Configure PuckDB
+This also starts PuckDB's PostgreSQL database and Temporal's PostgreSQL
+database.
 
 Create `.env` in the repository root:
 
@@ -61,64 +61,49 @@ PUCKDB_TEMPORAL_NAMESPACE=default
 PUCKDB_DATA_PATH=.data/cache
 ```
 
-The namespace override is required for the bundled Temporal setup. Yahoo is
-disabled explicitly in the worker command below, so no Yahoo credentials are
-needed for an NHL-only installation.
+The namespace override matches the namespace created by the bundled Temporal
+environment.
 
-### 3. Build and migrate
+### Build and initialize
 
 ```bash
 go build -o puckdb .
 ./puckdb db migrate
 ```
 
-### 4. Start the application
-
-Run the API and worker in separate terminals:
+Start the API and worker in separate terminals:
 
 ```bash
 ./puckdb api --instance puckdb
 ```
 
-`--instance` (`PUCKDB_INSTANCE`) is required: it names this API among the
-instances sharing the database, and users belong to one instance.
-`--auth-provider` (`PUCKDB_AUTH_PROVIDER`) picks the instance's one login
-provider: `authentik` (default, the forward-auth headers) or `cloudflare`,
-which verifies the `Cf-Access-Jwt-Assertion` JWT and needs
-`--cloudflare-access-team-domain` (`<team>.cloudflareaccess.com`) and
-`--cloudflare-access-aud` (the Access application's AUD tag).
-
 ```bash
 ./puckdb worker --yahoo-seasons ""
 ```
 
-Initialize the NHL reference data from a third terminal:
+The empty Yahoo seasons value gives you an NHL-only worker without Yahoo
+credentials. In a third terminal, initialize reference data and import a
+season:
 
 ```bash
 ./puckdb sync init
-```
-
-The GraphQL console is now available at
-[http://localhost:8787/graphql/](http://localhost:8787/graphql/), and Temporal
-workflows can be inspected at
-[http://localhost:8080](http://localhost:8080).
-
-To fetch and import a season, pass its starting year:
-
-```bash
 ./puckdb sync seasons --season 2024
 ```
 
-Downloads can be large. Restrict the season range while evaluating the
-project, and keep the worker running until the sync command finishes.
+The season value is its starting year. A sync can download a large amount of
+data, so keep the worker running until it finishes.
 
-## Yahoo Fantasy setup
+Open the GraphQL console at
+[http://localhost:8787/graphql/](http://localhost:8787/graphql/) and inspect
+workflows in [Temporal UI](http://localhost:8080).
 
-Yahoo support is optional. To enable it:
+## Yahoo Fantasy Hockey
 
-1. Create a Yahoo developer application with
-   `http://localhost:8787/yahoo/authenticated` as its redirect URI.
-2. Add the following values to `.env`:
+Yahoo integration is optional. To enable it:
+
+1. Create a Yahoo developer application whose redirect URI is
+   `http://localhost:8787/yahoo/authenticated`.
+2. Add these settings to `.env`:
 
    ```dotenv
    PUCKDB_YAHOO_OAUTH2_CLIENT_ID=your-client-id
@@ -127,7 +112,7 @@ Yahoo support is optional. To enable it:
    PUCKDB_YAHOO_SEASONS=yahoo-seasons.yaml
    ```
 
-3. Create `yahoo-seasons.yaml`. Top-level keys are season start years:
+3. Create `yahoo-seasons.yaml`, keyed by season starting year:
 
    ```yaml
    2024:
@@ -136,36 +121,73 @@ Yahoo support is optional. To enable it:
          team_ids: [1, 2, 3]
    ```
 
-4. Restart the API and worker so they load the new environment values. Start
-   the worker without `--yahoo-seasons ""`, then visit
-   [http://localhost:8787/yahoo/login](http://localhost:8787/yahoo/login) to
-   authorize the application.
+4. Restart the API and worker without `--yahoo-seasons ""`, then visit
+   [http://localhost:8787/yahoo/login](http://localhost:8787/yahoo/login).
 
-The OAuth token is stored in Redis. Run `./puckdb yahoo signout` to remove it.
+The OAuth token is stored in Redis. `./puckdb yahoo signout` removes it.
 
-## CLI
+## Interfaces
 
-Run `./puckdb <command> --help` for the complete flags and subcommands.
+### GraphQL and draft board
+
+The API serves:
+
+| Path | Purpose |
+| --- | --- |
+| `/graphql/` | Interactive GraphQL console |
+| `/graphql/query` | GraphQL POST endpoint |
+| `/draft/` | Live fantasy-draft board |
+| `/metrics` | API Prometheus metrics |
+
+Run `./puckdb api --help` for authentication, TLS, draft, and server settings.
+`--instance` is required and isolates users when several API instances share a
+database. An instance can authenticate users through Authentik forward-auth
+headers or verified Cloudflare Access JWTs.
+
+### MCP
+
+`puckdb mcp-server` exposes read-only tools over HTTP or stdio. The
+`--mcp-toolsets` flag selects one or more toolsets:
+
+| Toolset | Data |
+| --- | --- |
+| `nhl` | Public NHL players, games, stats, standings, Edge, and play-by-play |
+| `yahoo` | Yahoo leagues, teams, rosters, standings, and drafts |
+| `news` | News-source coverage and validated player-news events |
+
+The default is `nhl`. For example:
+
+```bash
+./puckdb mcp-server --mcp-toolsets nhl --mcp-port 8790
+./puckdb mcp-server --mcp-toolsets yahoo --mcp-port 8791 \
+  --mcp-yahoo-leagues 465.l.1001
+```
+
+The HTTP endpoint has no built-in authentication. Keep Yahoo and news
+instances on trusted networks, and use one instance per audience when the data
+exposure differs.
+
+### CLI
+
+Run `./puckdb <command> --help` for flags and subcommands.
 
 | Command | Purpose |
 | --- | --- |
-| `api` | Serve GraphQL, Yahoo OAuth routes, and API metrics |
+| `api` | Serve GraphQL, OAuth routes, the draft board, and API metrics |
 | `worker` | Run Temporal workflows and activities |
-| `sync [steps...]` | Fetch and import all data or selected workflow steps |
-| `db` | Migrate, provision, initialize, inspect, or drop the database |
-| `draft` | Compare imported league rules and report player-pool coverage for the draft helper ([notes](https://wiki.spe.quebec/en/puckdb/draft/league-rules)); show or export (CSV/JSON) league rankings with `draft rankings`, refreshed by `sync refresh-draft-rankings` ([notes](https://wiki.spe.quebec/en/puckdb/draft/rankings-api)) |
-| `news report` | Player news coverage, incident candidates and unattached stories for the draft helper; refresh with `sync refresh-news` ([notes](https://wiki.spe.quebec/en/puckdb/draft/player-news)) |
-| `news events` | Validated news events (LLM extraction, off unless the worker runs with `--news-extract-enabled`), their evidence and lifecycle, and the review queue ([notes](https://wiki.spe.quebec/en/puckdb/draft/news-events)) |
-| `news eval` | Measure the extraction model on the labeled corpus against the release thresholds |
-| `redis` | Redis administration |
+| `sync` | Fetch and import all data or selected pipeline steps |
+| `db` | Migrate, initialize, inspect, provision, or drop the database |
+| `draft` | Inspect league rules, player pools, rankings, and draft sessions |
+| `news` | Report news coverage and events or evaluate extraction models |
+| `sim` | Create, inspect, and cancel historical fantasy-pool simulations |
+| `mcp-server` | Serve read-only NHL, Yahoo, and news tools |
+| `maurice` | Start the interactive LLM-backed hockey chat |
+| `user` | Manage links between application users and Yahoo teams |
 | `metrics` | Export cache, Redis, and database metrics |
-| `mcp-server` | Serve curated read-only data tools over HTTP or stdio; `--mcp-toolsets` picks NHL, Yahoo and/or news tools ([below](#mcp-server)) |
-| `maurice` | Start the interactive AI hockey chat REPL |
-| `user` | Link, unlink, or list the Yahoo teams a Maurice user manages, for a user whose Yahoo email differs from their login email |
-| `sim` | Create and operate fantasy-pool simulations |
-| `yahoo` | Yahoo account operations; `yahoo check-access` reports (and can email) whether the Yahoo API serves a season's leagues yet ([notes](https://wiki.spe.quebec/en/puckdb/yahoo-access-check)) |
+| `redis` | Run Redis administration commands |
+| `yahoo` | Manage Yahoo authorization and check season access |
 
-`sync` accepts individual steps or groups. Common examples:
+`sync` accepts individual steps or groups:
 
 ```bash
 ./puckdb sync init
@@ -174,75 +196,29 @@ Run `./puckdb <command> --help` for the complete flags and subcommands.
 ./puckdb sync edge --season 2024
 ```
 
-Running `./puckdb sync` without step names executes the full pipeline.
-
-## Services and ports
-
-| Service | Default address | Notes |
-| --- | --- | --- |
-| PuckDB API | `http://localhost:8787` | Home page, OAuth routes, and `/metrics` |
-| GraphQL console | `http://localhost:8787/graphql/` | Interactive query UI |
-| GraphQL endpoint | `http://localhost:8787/graphql/query` | POST endpoint used by the CLI |
-| Worker metrics | `http://localhost:8788/metrics` | Workflow and activity metrics |
-| Collector metrics | `http://localhost:8789/metrics` | Started with `puckdb metrics` |
-| MCP server | `http://localhost:8790/mcp` | Started with `puckdb mcp-server`; NHL tools only by default |
-| Temporal | `localhost:7233` | Workflow service |
-| Temporal UI | `http://localhost:8080` | Workflow inspection |
-| PostgreSQL | `localhost:5432` | Exposed through PgBouncer |
-| Redis | `localhost:6379` | Password `redis` in local Compose |
-
-Grafana (`localhost:3001`) and a restricted PostgreSQL MCP server
-(`localhost:8000`) are also defined in `docker-compose.yaml`, but they are not
-required for the quick start.
-
-## MCP server
-
-`puckdb mcp-server` serves read-only tools in three toolsets, chosen with
-`--mcp-toolsets` (`PUCKDB_MCP_TOOLSETS`):
-
-| Toolset | Tools | Server name |
-| --- | --- | --- |
-| `nhl` (default) | Public NHL data: players, games, stats, standings, Edge, playoffs, play-by-play | `puckdb-nhl` |
-| `yahoo` | Yahoo fantasy league data: leagues, teams, rosters, roto standings, season team totals, unrostered players, matchups, draft results | `puckdb-yahoo` |
-| `news` | Player news: source coverage (`get_news_coverage`), one player's validated news events (`get_player_news`) and the recent ones across the NHL (`get_recent_news_events`); the two event tools include short quotes of the third-party articles behind them | `puckdb-news` |
-
-A comma-separated list serves several from one instance: `--mcp-toolsets
-nhl,yahoo` is `puckdb-nhl-yahoo`, `nhl,news` is `puckdb-nhl-news`. The `news`
-toolset is not scoped to a Yahoo league, but it is kept out of `nhl` so an
-instance serves quoted article text only when asked to.
-To expose the Yahoo data only to some clients, run one instance per audience
-and point each client at the URL it may use:
-
-```bash
-./puckdb mcp-server --mcp-toolsets nhl --mcp-port 8790
-./puckdb mcp-server --mcp-toolsets yahoo --mcp-port 8791 --mcp-yahoo-leagues 465.l.1001
-```
-
-`--mcp-yahoo-leagues` (`PUCKDB_MCP_YAHOO_LEAGUES`) limits the `yahoo` toolset
-to a comma-separated list of league keys (`<game key>.l.<league ID>`; bare
-league IDs are refused because they repeat across seasons). Empty serves
-every league. A league outside the list is answered like a missing one
-(`unknown league_id`), and `get_yahoo_leagues` lists only the served leagues.
-
-The HTTP endpoint has no authentication: splitting the toolsets limits what
-an instance serves, not who can reach it. Keep a Yahoo instance's port off
-networks that untrusted clients can reach. Maurice answers Yahoo questions
-only when its `maurice.yaml` lists a server that serves the `yahoo` toolset.
+With no step names, `sync` runs the complete pipeline.
 
 ## Configuration
 
-Every CLI flag can be supplied as a `PUCKDB_` environment variable: uppercase
-the flag and replace hyphens with underscores. For example,
-`--postgres-password` becomes `PUCKDB_POSTGRES_PASSWORD`.
+Each command flag is also read from a `PUCKDB_` environment variable: uppercase
+the flag name and replace hyphens with underscores. For example,
+`--postgres-password` becomes `PUCKDB_POSTGRES_PASSWORD`; command-local flags
+such as `sim create --config`, `sim tail --pool`, and `sim draft --reasoning`
+use `PUCKDB_CONFIG`, `PUCKDB_POOL`, and `PUCKDB_REASONING`.
 
-PuckDB loads `.env` from the current working directory. Precedence is:
+The `metrics --port` flag accepts both `PUCKDB_PORT` and the aliased
+`PUCKDB_METRICS_PORT` configuration key. `PUCKDB_PORT` takes precedence when
+both are set.
 
-1. Explicit CLI flags
-2. Process environment variables
-3. Values in `.env`
-4. Built-in defaults
+PuckDB loads `.env` from the current directory. Values are resolved in this
+order:
 
-Use command help to discover the available settings:
+1. command-line flags
+2. process environment
+3. `.env`
+4. built-in defaults
+
+Use command help as the configuration reference:
 
 ```bash
 ./puckdb api --help
@@ -250,9 +226,22 @@ Use command help to discover the available settings:
 ./puckdb sync --help
 ```
 
+## Default ports
+
+| Service | Address |
+| --- | --- |
+| API | `http://localhost:8787` |
+| Worker metrics | `http://localhost:8788/metrics` |
+| Collector metrics | `http://localhost:8789/metrics` |
+| MCP HTTP server | `http://localhost:8790/mcp` |
+| Temporal | `localhost:7233` |
+| Temporal UI | `http://localhost:8080` |
+| PostgreSQL through PgBouncer | `localhost:5432` |
+| Redis | `localhost:6379` |
+
 ## Development
 
-Run commands from the repository root. The local CI-equivalent checks are:
+Run commands from the repository root. The local CI checks are:
 
 ```bash
 gofmt -l .
@@ -262,50 +251,34 @@ go build ./...
 go test ./...
 ```
 
-Database-backed tests use `PUCKDB_TEST_PG_URL` and skip when it is unset.
+Database-backed tests use `PUCKDB_TEST_PG_URL` and skip when it is unset. Run
+them one package at a time with `go test -p 1 ./...` when a test database is
+available.
 
-The simulation integration tests in `internal/worker/simulation/` sit behind
-the `integration` and `livellm` build tags, so `go test ./...` does not compile
-them. Vet them explicitly to catch compile errors:
+Simulation tests behind build tags need separate compile checks:
 
 ```bash
 go vet -tags=integration ./...
 go vet -tags=livellm ./...
 ```
 
-Running them needs PostgreSQL, Redis, and (for `livellm`) an Ollama host; see
-[the live-model smoke runbook](https://wiki.spe.quebec/en/puckdb/sim-livellm-smoke).
-
-After changing a GraphQL schema, regenerate the gqlgen output:
+After changing `internal/graph/schema.graphqls`, regenerate gqlgen output:
 
 ```bash
 go tool gqlgen generate
 ```
 
-Useful project references:
-
-- [Migration recovery](https://wiki.spe.quebec/en/puckdb/migration-recovery)
-- [NHL Edge API notes](https://wiki.spe.quebec/en/puckdb/nhl-edge-api)
-
-Application packages live under `internal/`; command wiring lives in `cmd/`.
-The GraphQL schemas are in `internal/graph/`, database migrations are in
-`internal/database/migrations/`, and Temporal workflows are in
-`internal/worker/`.
+Application packages live under `internal/`, command wiring under `cmd/`,
+database migrations under `internal/database/migrations/`, and Temporal
+workflows under `internal/worker/`.
 
 ## License
 
-Copyright (C) 2026 Éric Spérano. PuckDB is free software under the GNU General
-Public License, version 3 or (at your option) any later version: see
-[COPYRIGHT](COPYRIGHT) for the notice and [LICENSE](LICENSE) for the license
-text. The container image carries both under `/licenses/puckdb`.
+Copyright (C) 2026 Éric Spérano. PuckDB is licensed under the GNU General
+Public License, version 3 or, at your option, any later version. See
+[COPYRIGHT](COPYRIGHT) and [LICENSE](LICENSE).
 
-Third-party material keeps its own license:
-
-- Go dependencies are not vendored. The container image, which ships them
-  compiled into the binary, carries their license, notice and patent files and
-  those of the Go standard library under `/licenses`, collected at build time
-  by `scripts/collect-licenses.sh`, which fails on a module without a license
-  file.
-- `internal/cache/testdata/yahoo-players/` holds Yahoo Sports player pages
-  saved as parser fixtures. They are Yahoo's copyrighted pages and are not
-  covered by the GPL.
+The container image includes dependency license and notice files under
+`/licenses`. Saved Yahoo Sports pages in
+`internal/cache/testdata/yahoo-players/` are parser fixtures, remain Yahoo's
+copyrighted material, and are not covered by the GPL.
