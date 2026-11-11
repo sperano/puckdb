@@ -466,7 +466,8 @@ func (s *DailyScheduleTestSuite) TestPendingScheduleRefetchFailureUsesCachedCopy
 }
 
 // A cancelled activity does not fall back to the cached copy of a pending
-// schedule whose re-download it interrupted.
+// schedule whose re-download failed, even when the failure is not a context
+// error: the fallback keys on the activity context, not on the error kind.
 func (s *DailyScheduleTestSuite) TestPendingScheduleRefetchCancelledFails() {
 	mem := store.NewMemStorage()
 	mockClient := &MockNHLClient{}
@@ -477,13 +478,13 @@ func (s *DailyScheduleTestSuite) TestPendingScheduleRefetchCancelledFails() {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	s.env.SetWorkerOptions(worker.Options{BackgroundActivityContext: ctx})
-	mockClient.On("DailySchedule", mock.Anything, nhlapi.FromDate(day)).Return(nil, context.Canceled).Once()
+	mockClient.On("DailySchedule", mock.Anything, nhlapi.FromDate(day)).Return(nil, errors.New("API down")).Once()
 
 	a := s.newActivities(mem, mockClient)
 	s.env.RegisterActivity(a.FetchDailySchedule)
 	_, err := s.env.ExecuteActivity(a.FetchDailySchedule, day)
 	require.ErrorContains(s.T(), err, "download schedule")
-	require.ErrorContains(s.T(), err, context.Canceled.Error())
+	require.ErrorContains(s.T(), err, "API down")
 	mockClient.AssertExpectations(s.T())
 }
 

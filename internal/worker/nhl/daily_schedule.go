@@ -100,8 +100,8 @@ func (a *DailyScheduleActivities) fetchSchedule(ctx context.Context, day time.Ti
 		return nil, core.OriginUnknown, err
 	}
 	// The cached copy still lists every game that was final when it was
-	// written; their files are ensured, and the pending games wait for the
-	// next fetch, as they did before this re-download existed.
+	// written; their files are ensured, and the pending games are left to
+	// the next fetch, which retries the re-download.
 	logger.Warn("Re-downloading a pending daily schedule failed, using the cached copy", "day", day.Format(time.DateOnly), "error", err)
 	return schedule, origin, nil
 }
