@@ -200,9 +200,14 @@ With no step names, `sync` runs the complete pipeline.
 
 ## Configuration
 
-Every flag also has a `PUCKDB_` environment variable: uppercase the flag name
-and replace hyphens with underscores. For example, `--postgres-password`
-becomes `PUCKDB_POSTGRES_PASSWORD`.
+Flags backed by PuckDB configuration have a `PUCKDB_` environment variable:
+uppercase the configuration key and replace hyphens with underscores. For
+example, `--postgres-password` becomes `PUCKDB_POSTGRES_PASSWORD`.
+
+Command-local flags do not have environment-variable equivalents. These are
+`sim create --config`, `sim tail --pool`, and `sim draft --reasoning`. The
+`metrics --port` flag is an alias for the `metrics-port` configuration key, so
+its environment variable is `PUCKDB_METRICS_PORT`.
 
 PuckDB loads `.env` from the current directory. Values are resolved in this
 order:
