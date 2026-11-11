@@ -1,0 +1,1273 @@
+{
+ "events": [
+  {
+   "eventId": "1",
+   "eventTime": "2026-11-11T06:43:31.301492546Z",
+   "eventType": "EVENT_TYPE_WORKFLOW_EXECUTION_STARTED",
+   "taskId": "1048587",
+   "workflowExecutionStartedEventAttributes": {
+    "workflowType": {
+     "name": "FetchPlayerLogsWorkflow"
+    },
+    "taskQueue": {
+     "name": "season-fan-out-7659163078437212303",
+     "kind": "TASK_QUEUE_KIND_NORMAL"
+    },
+    "input": {
+     "payloads": [
+      {
+       "metadata": {
+        "encoding": "anNvbi9wbGFpbg=="
+       },
+       "data": "eyJzZWFzb25Db25jdXJyZW5jeSI6MiwicmVmcmVzaEN1cnJlbnRQbGF5ZXJMb2dzIjp0cnVlLCJyZWZyZXNoQ3VycmVudEVkZ2UiOnRydWV9"
+      }
+     ]
+    },
+    "workflowExecutionTimeout": "0s",
+    "workflowRunTimeout": "0s",
+    "workflowTaskTimeout": "10s",
+    "originalExecutionRunId": "01a1c958-ef65-7781-a06c-ad047638f38d",
+    "identity": "replay-recorder",
+    "firstExecutionRunId": "01a1c958-ef65-7781-a06c-ad047638f38d",
+    "attempt": 1,
+    "firstWorkflowTaskBackoff": "0s",
+    "header": {},
+    "workflowId": "season-fan-out-18709489707019931"
+   }
+  },
+  {
+   "eventId": "2",
+   "eventTime": "2026-11-11T06:43:31.301541837Z",
+   "eventType": "EVENT_TYPE_WORKFLOW_TASK_SCHEDULED",
+   "taskId": "1048588",
+   "workflowTaskScheduledEventAttributes": {
+    "taskQueue": {
+     "name": "season-fan-out-7659163078437212303",
+     "kind": "TASK_QUEUE_KIND_NORMAL"
+    },
+    "startToCloseTimeout": "10s",
+    "attempt": 1
+   }
+  },
+  {
+   "eventId": "3",
+   "eventTime": "2026-11-11T06:43:31.306285538Z",
+   "eventType": "EVENT_TYPE_WORKFLOW_TASK_STARTED",
+   "taskId": "1048593",
+   "workflowTaskStartedEventAttributes": {
+    "scheduledEventId": "2",
+    "identity": "replay-recorder",
+    "requestId": "589d01bc-3b4c-480d-9ed0-f108b91028af",
+    "historySizeBytes": "424",
+    "workerVersion": {
+     "buildId": "8db9a90d44f0bc4fabec9e8c5265f248"
+    }
+   }
+  },
+  {
+   "eventId": "4",
+   "eventTime": "2026-11-11T06:43:31.310481698Z",
+   "eventType": "EVENT_TYPE_WORKFLOW_TASK_COMPLETED",
+   "taskId": "1048598",
+   "workflowTaskCompletedEventAttributes": {
+    "scheduledEventId": "2",
+    "startedEventId": "3",
+    "identity": "replay-recorder",
+    "workerVersion": {
+     "buildId": "8db9a90d44f0bc4fabec9e8c5265f248"
+    },
+    "sdkMetadata": {
+     "langUsedFlags": [
+      3,
+      1
+     ],
+     "sdkName": "temporal-go",
+     "sdkVersion": "1.39.0"
+    },
+    "meteringMetadata": {}
+   }
+  },
+  {
+   "eventId": "5",
+   "eventTime": "2026-11-11T06:43:31.310597781Z",
+   "eventType": "EVENT_TYPE_MARKER_RECORDED",
+   "taskId": "1048599",
+   "markerRecordedEventAttributes": {
+    "markerName": "Version",
+    "details": {
+     "change-id": {
+      "payloads": [
+       {
+        "metadata": {
+         "encoding": "anNvbi9wbGFpbg=="
+        },
+        "data": "ImNvbmZpZy1zbmFwc2hvdCI="
+       }
+      ]
+     },
+     "version": {
+      "payloads": [
+       {
+        "metadata": {
+         "encoding": "anNvbi9wbGFpbg=="
+        },
+        "data": "MQ=="
+       }
+      ]
+     }
+    },
+    "workflowTaskCompletedEventId": "4"
+   }
+  },
+  {
+   "eventId": "6",
+   "eventTime": "2026-11-11T06:43:31.310853448Z",
+   "eventType": "EVENT_TYPE_UPSERT_WORKFLOW_SEARCH_ATTRIBUTES",
+   "taskId": "1048600",
+   "upsertWorkflowSearchAttributesEventAttributes": {
+    "workflowTaskCompletedEventId": "4",
+    "searchAttributes": {
+     "indexedFields": {
+      "TemporalChangeVersion": {
+       "metadata": {
+        "encoding": "anNvbi9wbGFpbg==",
+        "type": "S2V5d29yZExpc3Q="
+       },
+       "data": "WyJjb25maWctc25hcHNob3QtMSJd"
+      }
+     }
+    }
+   }
+  },
+  {
+   "eventId": "7",
+   "eventTime": "2026-11-11T06:43:31.310891489Z",
+   "eventType": "EVENT_TYPE_MARKER_RECORDED",
+   "taskId": "1048601",
+   "markerRecordedEventAttributes": {
+    "markerName": "SideEffect",
+    "details": {
+     "data": {
+      "payloads": [
+       {
+        "metadata": {
+         "encoding": "anNvbi9wbGFpbg=="
+        },
+        "data": "Mg=="
+       }
+      ]
+     },
+     "side-effect-id": {
+      "payloads": [
+       {
+        "metadata": {
+         "encoding": "anNvbi9wbGFpbg=="
+        },
+        "data": "MQ=="
+       }
+      ]
+     }
+    },
+    "workflowTaskCompletedEventId": "4"
+   }
+  },
+  {
+   "eventId": "8",
+   "eventTime": "2026-11-11T06:43:31.310920489Z",
+   "eventType": "EVENT_TYPE_ACTIVITY_TASK_SCHEDULED",
+   "taskId": "1048602",
+   "activityTaskScheduledEventAttributes": {
+    "activityId": "8",
+    "activityType": {
+     "name": "FetchSeasonsManifest"
+    },
+    "taskQueue": {
+     "name": "season-fan-out-7659163078437212303",
+     "kind": "TASK_QUEUE_KIND_NORMAL"
+    },
+    "header": {},
+    "input": {
+     "payloads": [
+      {
+       "metadata": {
+        "encoding": "anNvbi9wbGFpbg=="
+       },
+       "data": "eyJzZWFzb25Db25jdXJyZW5jeSI6MiwicmVmcmVzaEN1cnJlbnRQbGF5ZXJMb2dzIjp0cnVlLCJyZWZyZXNoQ3VycmVudEVkZ2UiOnRydWV9"
+      }
+     ]
+    },
+    "scheduleToCloseTimeout": "0s",
+    "scheduleToStartTimeout": "0s",
+    "startToCloseTimeout": "600s",
+    "heartbeatTimeout": "60s",
+    "workflowTaskCompletedEventId": "4",
+    "retryPolicy": {
+     "initialInterval": "30s",
+     "backoffCoefficient": 2,
+     "maximumInterval": "300s",
+     "maximumAttempts": 20
+    },
+    "useWorkflowBuildId": true
+   }
+  },
+  {
+   "eventId": "9",
+   "eventTime": "2026-11-11T06:43:31.311068989Z",
+   "eventType": "EVENT_TYPE_ACTIVITY_TASK_STARTED",
+   "taskId": "1048606",
+   "activityTaskStartedEventAttributes": {
+    "scheduledEventId": "8",
+    "identity": "replay-recorder",
+    "requestId": "ae98e6c4-5816-45cb-9751-f153d2c57aca",
+    "attempt": 1,
+    "workerVersion": {
+     "buildId": "8db9a90d44f0bc4fabec9e8c5265f248"
+    }
+   }
+  },
+  {
+   "eventId": "10",
+   "eventTime": "2026-11-11T06:43:31.312453653Z",
+   "eventType": "EVENT_TYPE_ACTIVITY_TASK_COMPLETED",
+   "taskId": "1048607",
+   "activityTaskCompletedEventAttributes": {
+    "result": {
+     "payloads": [
+      {
+       "metadata": {
+        "encoding": "anNvbi9wbGFpbg=="
+       },
+       "data": "eyJTZWFzb25zIjpbeyJpZCI6IjIwMjIyMDIzIiwic3RhbmRpbmdzU3RhcnQiOiIyMDIyLTEwLTA3Iiwic3RhbmRpbmdzRW5kIjoiMjAyMi0xMC0wOSJ9LHsiaWQiOiIyMDIzMjAyNCIsInN0YW5kaW5nc1N0YXJ0IjoiMjAyMy0xMC0xMCIsInN0YW5kaW5nc0VuZCI6IjIwMjMtMTAtMTIifSx7ImlkIjoiMjAyNDIwMjUiLCJzdGFuZGluZ3NTdGFydCI6IjIwMjQtMTAtMDQiLCJzdGFuZGluZ3NFbmQiOiIyMDI0LTEwLTA2In1dLCJPcmlnaW4iOjN9"
+      }
+     ]
+    },
+    "scheduledEventId": "8",
+    "startedEventId": "9",
+    "identity": "replay-recorder"
+   }
+  },
+  {
+   "eventId": "11",
+   "eventTime": "2026-11-11T06:43:31.312489612Z",
+   "eventType": "EVENT_TYPE_WORKFLOW_TASK_SCHEDULED",
+   "taskId": "1048608",
+   "workflowTaskScheduledEventAttributes": {
+    "taskQueue": {
+     "name": "season-fan-out-7659163078437212303",
+     "kind": "TASK_QUEUE_KIND_NORMAL"
+    },
+    "startToCloseTimeout": "10s",
+    "attempt": 1
+   }
+  },
+  {
+   "eventId": "12",
+   "eventTime": "2026-11-11T06:43:31.313663693Z",
+   "eventType": "EVENT_TYPE_WORKFLOW_TASK_STARTED",
+   "taskId": "1048611",
+   "workflowTaskStartedEventAttributes": {
+    "scheduledEventId": "11",
+    "identity": "replay-recorder",
+    "requestId": "abb4d927-6e84-4cbc-b2c1-fae162f3a66e",
+    "historySizeBytes": "1809",
+    "workerVersion": {
+     "buildId": "8db9a90d44f0bc4fabec9e8c5265f248"
+    }
+   }
+  },
+  {
+   "eventId": "13",
+   "eventTime": "2026-11-11T06:43:31.315389315Z",
+   "eventType": "EVENT_TYPE_WORKFLOW_TASK_COMPLETED",
+   "taskId": "1048616",
+   "workflowTaskCompletedEventAttributes": {
+    "scheduledEventId": "11",
+    "startedEventId": "12",
+    "identity": "replay-recorder",
+    "workerVersion": {
+     "buildId": "8db9a90d44f0bc4fabec9e8c5265f248"
+    },
+    "sdkMetadata": {},
+    "meteringMetadata": {}
+   }
+  },
+  {
+   "eventId": "14",
+   "eventTime": "2026-11-11T06:43:31.315404190Z",
+   "eventType": "EVENT_TYPE_MARKER_RECORDED",
+   "taskId": "1048617",
+   "markerRecordedEventAttributes": {
+    "markerName": "LocalActivity",
+    "details": {
+     "data": {
+      "payloads": [
+       {
+        "metadata": {
+         "encoding": "anNvbi9wbGFpbg=="
+        },
+        "data": "eyJBY3Rpdml0eUlEIjoiMSIsIkFjdGl2aXR5VHlwZSI6IkRlbGV0ZUJhdGNoIiwiUmVwbGF5VGltZSI6IjIwMjYtMTEtMTFUMDY6NDM6MzEuMzEzNzM1NjA5WiIsIkF0dGVtcHQiOjEsIkJhY2tvZmYiOjB9"
+       }
+      ]
+     }
+    },
+    "workflowTaskCompletedEventId": "13"
+   }
+  },
+  {
+   "eventId": "15",
+   "eventTime": "2026-11-11T06:43:31.315412190Z",
+   "eventType": "EVENT_TYPE_ACTIVITY_TASK_SCHEDULED",
+   "taskId": "1048618",
+   "activityTaskScheduledEventAttributes": {
+    "activityId": "15",
+    "activityType": {
+     "name": "LoadSeasonBoxscorePlayers"
+    },
+    "taskQueue": {
+     "name": "season-fan-out-7659163078437212303",
+     "kind": "TASK_QUEUE_KIND_NORMAL"
+    },
+    "header": {},
+    "input": {
+     "payloads": [
+      {
+       "metadata": {
+        "encoding": "anNvbi9wbGFpbg=="
+       },
+       "data": "MjAyMg=="
+      }
+     ]
+    },
+    "scheduleToCloseTimeout": "0s",
+    "scheduleToStartTimeout": "0s",
+    "startToCloseTimeout": "600s",
+    "heartbeatTimeout": "60s",
+    "workflowTaskCompletedEventId": "13",
+    "retryPolicy": {
+     "initialInterval": "30s",
+     "backoffCoefficient": 2,
+     "maximumInterval": "300s",
+     "maximumAttempts": 20
+    },
+    "useWorkflowBuildId": true
+   }
+  },
+  {
+   "eventId": "16",
+   "eventTime": "2026-11-11T06:43:31.315436607Z",
+   "eventType": "EVENT_TYPE_ACTIVITY_TASK_STARTED",
+   "taskId": "1048621",
+   "activityTaskStartedEventAttributes": {
+    "scheduledEventId": "15",
+    "identity": "replay-recorder",
+    "requestId": "1c2d14ee-27fd-4aeb-9125-e7da90be27c4",
+    "attempt": 1,
+    "workerVersion": {
+     "buildId": "8db9a90d44f0bc4fabec9e8c5265f248"
+    }
+   }
+  },
+  {
+   "eventId": "17",
+   "eventTime": "2026-11-11T06:43:31.316219897Z",
+   "eventType": "EVENT_TYPE_ACTIVITY_TASK_COMPLETED",
+   "taskId": "1048622",
+   "activityTaskCompletedEventAttributes": {
+    "result": {
+     "payloads": [
+      {
+       "metadata": {
+        "encoding": "anNvbi9wbGFpbg=="
+       },
+       "data": "W3siaWQiOjg0NzAwMDEsImZpcnN0TmFtZSI6IiIsImxhc3ROYW1lIjoiIiwicG9zaXRpb24iOiJDIn0seyJpZCI6ODQ3MDAwMiwiZmlyc3ROYW1lIjoiIiwibGFzdE5hbWUiOiIiLCJwb3NpdGlvbiI6IkMifV0="
+      }
+     ]
+    },
+    "scheduledEventId": "15",
+    "startedEventId": "16",
+    "identity": "replay-recorder"
+   }
+  },
+  {
+   "eventId": "18",
+   "eventTime": "2026-11-11T06:43:31.316236939Z",
+   "eventType": "EVENT_TYPE_WORKFLOW_TASK_SCHEDULED",
+   "taskId": "1048623",
+   "workflowTaskScheduledEventAttributes": {
+    "taskQueue": {
+     "name": "season-fan-out-7659163078437212303",
+     "kind": "TASK_QUEUE_KIND_NORMAL"
+    },
+    "startToCloseTimeout": "10s",
+    "attempt": 1
+   }
+  },
+  {
+   "eventId": "19",
+   "eventTime": "2026-11-11T06:43:31.317132063Z",
+   "eventType": "EVENT_TYPE_WORKFLOW_TASK_STARTED",
+   "taskId": "1048626",
+   "workflowTaskStartedEventAttributes": {
+    "scheduledEventId": "18",
+    "identity": "replay-recorder",
+    "requestId": "9ecf18fe-0ce5-44f9-91d4-7b8d27291e4e",
+    "historySizeBytes": "2793",
+    "workerVersion": {
+     "buildId": "8db9a90d44f0bc4fabec9e8c5265f248"
+    }
+   }
+  },
+  {
+   "eventId": "20",
+   "eventTime": "2026-11-11T06:43:31.318806185Z",
+   "eventType": "EVENT_TYPE_WORKFLOW_TASK_COMPLETED",
+   "taskId": "1048631",
+   "workflowTaskCompletedEventAttributes": {
+    "scheduledEventId": "18",
+    "startedEventId": "19",
+    "identity": "replay-recorder",
+    "workerVersion": {
+     "buildId": "8db9a90d44f0bc4fabec9e8c5265f248"
+    },
+    "sdkMetadata": {
+     "sdkName": "temporal-go",
+     "sdkVersion": "1.39.0"
+    },
+    "meteringMetadata": {}
+   }
+  },
+  {
+   "eventId": "21",
+   "eventTime": "2026-11-11T06:43:31.318840143Z",
+   "eventType": "EVENT_TYPE_ACTIVITY_TASK_SCHEDULED",
+   "taskId": "1048632",
+   "activityTaskScheduledEventAttributes": {
+    "activityId": "21",
+    "activityType": {
+     "name": "LoadSeasonBoxscorePlayers"
+    },
+    "taskQueue": {
+     "name": "season-fan-out-7659163078437212303",
+     "kind": "TASK_QUEUE_KIND_NORMAL"
+    },
+    "header": {},
+    "input": {
+     "payloads": [
+      {
+       "metadata": {
+        "encoding": "anNvbi9wbGFpbg=="
+       },
+       "data": "MjAyMw=="
+      }
+     ]
+    },
+    "scheduleToCloseTimeout": "0s",
+    "scheduleToStartTimeout": "0s",
+    "startToCloseTimeout": "600s",
+    "heartbeatTimeout": "60s",
+    "workflowTaskCompletedEventId": "20",
+    "retryPolicy": {
+     "initialInterval": "30s",
+     "backoffCoefficient": 2,
+     "maximumInterval": "300s",
+     "maximumAttempts": 20
+    },
+    "useWorkflowBuildId": true
+   }
+  },
+  {
+   "eventId": "22",
+   "eventTime": "2026-11-11T06:43:31.318849977Z",
+   "eventType": "EVENT_TYPE_ACTIVITY_TASK_STARTED",
+   "taskId": "1048635",
+   "activityTaskStartedEventAttributes": {
+    "scheduledEventId": "21",
+    "identity": "replay-recorder",
+    "requestId": "d85f1120-53e2-4432-a1d7-80e3299380dd",
+    "attempt": 1,
+    "workerVersion": {
+     "buildId": "8db9a90d44f0bc4fabec9e8c5265f248"
+    }
+   }
+  },
+  {
+   "eventId": "23",
+   "eventTime": "2026-11-11T06:43:31.319660267Z",
+   "eventType": "EVENT_TYPE_ACTIVITY_TASK_COMPLETED",
+   "taskId": "1048636",
+   "activityTaskCompletedEventAttributes": {
+    "result": {
+     "payloads": [
+      {
+       "metadata": {
+        "encoding": "anNvbi9wbGFpbg=="
+       },
+       "data": "W3siaWQiOjg0NzAwMDEsImZpcnN0TmFtZSI6IiIsImxhc3ROYW1lIjoiIiwicG9zaXRpb24iOiJDIn0seyJpZCI6ODQ3MDAwMiwiZmlyc3ROYW1lIjoiIiwibGFzdE5hbWUiOiIiLCJwb3NpdGlvbiI6IkMifSx7ImlkIjo4NDcwMDAzLCJmaXJzdE5hbWUiOiIiLCJsYXN0TmFtZSI6IiIsInBvc2l0aW9uIjoiQyJ9XQ=="
+      }
+     ]
+    },
+    "scheduledEventId": "21",
+    "startedEventId": "22",
+    "identity": "replay-recorder"
+   }
+  },
+  {
+   "eventId": "24",
+   "eventTime": "2026-11-11T06:43:31.319665809Z",
+   "eventType": "EVENT_TYPE_WORKFLOW_TASK_SCHEDULED",
+   "taskId": "1048637",
+   "workflowTaskScheduledEventAttributes": {
+    "taskQueue": {
+     "name": "season-fan-out-7659163078437212303",
+     "kind": "TASK_QUEUE_KIND_NORMAL"
+    },
+    "startToCloseTimeout": "10s",
+    "attempt": 1
+   }
+  },
+  {
+   "eventId": "25",
+   "eventTime": "2026-11-11T06:43:31.320383266Z",
+   "eventType": "EVENT_TYPE_WORKFLOW_TASK_STARTED",
+   "taskId": "1048640",
+   "workflowTaskStartedEventAttributes": {
+    "scheduledEventId": "24",
+    "identity": "replay-recorder",
+    "requestId": "d1b11bf9-440e-41d1-b184-57b1db0e0fd8",
+    "historySizeBytes": "3654",
+    "workerVersion": {
+     "buildId": "8db9a90d44f0bc4fabec9e8c5265f248"
+    }
+   }
+  },
+  {
+   "eventId": "26",
+   "eventTime": "2026-11-11T06:43:31.322280304Z",
+   "eventType": "EVENT_TYPE_WORKFLOW_TASK_COMPLETED",
+   "taskId": "1048645",
+   "workflowTaskCompletedEventAttributes": {
+    "scheduledEventId": "24",
+    "startedEventId": "25",
+    "identity": "replay-recorder",
+    "workerVersion": {
+     "buildId": "8db9a90d44f0bc4fabec9e8c5265f248"
+    },
+    "sdkMetadata": {},
+    "meteringMetadata": {}
+   }
+  },
+  {
+   "eventId": "27",
+   "eventTime": "2026-11-11T06:43:31.322292804Z",
+   "eventType": "EVENT_TYPE_ACTIVITY_TASK_SCHEDULED",
+   "taskId": "1048646",
+   "activityTaskScheduledEventAttributes": {
+    "activityId": "27",
+    "activityType": {
+     "name": "LoadSeasonBoxscorePlayers"
+    },
+    "taskQueue": {
+     "name": "season-fan-out-7659163078437212303",
+     "kind": "TASK_QUEUE_KIND_NORMAL"
+    },
+    "header": {},
+    "input": {
+     "payloads": [
+      {
+       "metadata": {
+        "encoding": "anNvbi9wbGFpbg=="
+       },
+       "data": "MjAyNA=="
+      }
+     ]
+    },
+    "scheduleToCloseTimeout": "0s",
+    "scheduleToStartTimeout": "0s",
+    "startToCloseTimeout": "600s",
+    "heartbeatTimeout": "60s",
+    "workflowTaskCompletedEventId": "26",
+    "retryPolicy": {
+     "initialInterval": "30s",
+     "backoffCoefficient": 2,
+     "maximumInterval": "300s",
+     "maximumAttempts": 20
+    },
+    "useWorkflowBuildId": true
+   }
+  },
+  {
+   "eventId": "28",
+   "eventTime": "2026-11-11T06:43:31.322301263Z",
+   "eventType": "EVENT_TYPE_ACTIVITY_TASK_STARTED",
+   "taskId": "1048649",
+   "activityTaskStartedEventAttributes": {
+    "scheduledEventId": "27",
+    "identity": "replay-recorder",
+    "requestId": "31cc72f7-4f03-4082-a4bb-7f08c9934615",
+    "attempt": 1,
+    "workerVersion": {
+     "buildId": "8db9a90d44f0bc4fabec9e8c5265f248"
+    }
+   }
+  },
+  {
+   "eventId": "29",
+   "eventTime": "2026-11-11T06:43:31.323121345Z",
+   "eventType": "EVENT_TYPE_ACTIVITY_TASK_COMPLETED",
+   "taskId": "1048650",
+   "activityTaskCompletedEventAttributes": {
+    "result": {
+     "payloads": [
+      {
+       "metadata": {
+        "encoding": "anNvbi9wbGFpbg=="
+       },
+       "data": "W3siaWQiOjg0NzAwMDEsImZpcnN0TmFtZSI6IiIsImxhc3ROYW1lIjoiIiwicG9zaXRpb24iOiJDIn0seyJpZCI6ODQ3MDAwMiwiZmlyc3ROYW1lIjoiIiwibGFzdE5hbWUiOiIiLCJwb3NpdGlvbiI6IkMifSx7ImlkIjo4NDcwMDAzLCJmaXJzdE5hbWUiOiIiLCJsYXN0TmFtZSI6IiIsInBvc2l0aW9uIjoiQyJ9LHsiaWQiOjg0NzAwMDQsImZpcnN0TmFtZSI6IiIsImxhc3ROYW1lIjoiIiwicG9zaXRpb24iOiJDIn1d"
+      }
+     ]
+    },
+    "scheduledEventId": "27",
+    "startedEventId": "28",
+    "identity": "replay-recorder"
+   }
+  },
+  {
+   "eventId": "30",
+   "eventTime": "2026-11-11T06:43:31.323127511Z",
+   "eventType": "EVENT_TYPE_WORKFLOW_TASK_SCHEDULED",
+   "taskId": "1048651",
+   "workflowTaskScheduledEventAttributes": {
+    "taskQueue": {
+     "name": "season-fan-out-7659163078437212303",
+     "kind": "TASK_QUEUE_KIND_NORMAL"
+    },
+    "startToCloseTimeout": "10s",
+    "attempt": 1
+   }
+  },
+  {
+   "eventId": "31",
+   "eventTime": "2026-11-11T06:43:31.324154718Z",
+   "eventType": "EVENT_TYPE_WORKFLOW_TASK_STARTED",
+   "taskId": "1048654",
+   "workflowTaskStartedEventAttributes": {
+    "scheduledEventId": "30",
+    "identity": "replay-recorder",
+    "requestId": "af622f09-2277-4960-ad9f-fa5e622de10d",
+    "historySizeBytes": "4553",
+    "workerVersion": {
+     "buildId": "8db9a90d44f0bc4fabec9e8c5265f248"
+    }
+   }
+  },
+  {
+   "eventId": "32",
+   "eventTime": "2026-11-11T06:43:31.326217840Z",
+   "eventType": "EVENT_TYPE_WORKFLOW_TASK_COMPLETED",
+   "taskId": "1048658",
+   "workflowTaskCompletedEventAttributes": {
+    "scheduledEventId": "30",
+    "startedEventId": "31",
+    "identity": "replay-recorder",
+    "workerVersion": {
+     "buildId": "8db9a90d44f0bc4fabec9e8c5265f248"
+    },
+    "sdkMetadata": {
+     "sdkName": "temporal-go",
+     "sdkVersion": "1.39.0"
+    },
+    "meteringMetadata": {}
+   }
+  },
+  {
+   "eventId": "33",
+   "eventTime": "2026-11-11T06:43:31.326236173Z",
+   "eventType": "EVENT_TYPE_MARKER_RECORDED",
+   "taskId": "1048659",
+   "markerRecordedEventAttributes": {
+    "markerName": "LocalActivity",
+    "details": {
+     "data": {
+      "payloads": [
+       {
+        "metadata": {
+         "encoding": "anNvbi9wbGFpbg=="
+        },
+        "data": "eyJBY3Rpdml0eUlEIjoiMiIsIkFjdGl2aXR5VHlwZSI6IlNhdmUiLCJSZXBsYXlUaW1lIjoiMjAyNi0xMS0xMVQwNjo0MzozMS4zMjQyODQzMDFaIiwiQXR0ZW1wdCI6MSwiQmFja29mZiI6MH0="
+       }
+      ]
+     }
+    },
+    "workflowTaskCompletedEventId": "32"
+   }
+  },
+  {
+   "eventId": "34",
+   "eventTime": "2026-11-11T06:43:31.326239548Z",
+   "eventType": "EVENT_TYPE_MARKER_RECORDED",
+   "taskId": "1048660",
+   "markerRecordedEventAttributes": {
+    "markerName": "LocalActivity",
+    "details": {
+     "data": {
+      "payloads": [
+       {
+        "metadata": {
+         "encoding": "anNvbi9wbGFpbg=="
+        },
+        "data": "eyJBY3Rpdml0eUlEIjoiMyIsIkFjdGl2aXR5VHlwZSI6IlNhdmUiLCJSZXBsYXlUaW1lIjoiMjAyNi0xMS0xMVQwNjo0MzozMS4zMjQzOTU1OTNaIiwiQXR0ZW1wdCI6MSwiQmFja29mZiI6MH0="
+       }
+      ]
+     }
+    },
+    "workflowTaskCompletedEventId": "32"
+   }
+  },
+  {
+   "eventId": "35",
+   "eventTime": "2026-11-11T06:43:31.326403256Z",
+   "eventType": "EVENT_TYPE_START_CHILD_WORKFLOW_EXECUTION_INITIATED",
+   "taskId": "1048661",
+   "startChildWorkflowExecutionInitiatedEventAttributes": {
+    "namespace": "default",
+    "namespaceId": "01a1c958-eed3-7bd0-ae2a-045730db78ce",
+    "workflowId": "fetch-season-player-logs-2022",
+    "workflowType": {
+     "name": "FetchSeasonPlayerLogsWorkflow"
+    },
+    "taskQueue": {
+     "name": "season-fan-out-7659163078437212303",
+     "kind": "TASK_QUEUE_KIND_NORMAL"
+    },
+    "input": {
+     "payloads": [
+      {
+       "metadata": {
+        "encoding": "anNvbi9wbGFpbg=="
+       },
+       "data": "eyJTZWFzb24iOnsiaWQiOiIyMDIyMjAyMyIsInN0YW5kaW5nc1N0YXJ0IjoiMjAyMi0xMC0wNyIsInN0YW5kaW5nc0VuZCI6IjIwMjItMTAtMDkifSwiUmVmcmVzaEN1cnJlbnQiOmZhbHNlfQ=="
+      }
+     ]
+    },
+    "workflowExecutionTimeout": "10800s",
+    "workflowRunTimeout": "10800s",
+    "workflowTaskTimeout": "60s",
+    "parentClosePolicy": "PARENT_CLOSE_POLICY_TERMINATE",
+    "workflowTaskCompletedEventId": "32",
+    "workflowIdReusePolicy": "WORKFLOW_ID_REUSE_POLICY_TERMINATE_IF_RUNNING",
+    "header": {},
+    "inheritBuildId": true
+   }
+  },
+  {
+   "eventId": "36",
+   "eventTime": "2026-11-11T06:43:31.326525923Z",
+   "eventType": "EVENT_TYPE_MARKER_RECORDED",
+   "taskId": "1048662",
+   "markerRecordedEventAttributes": {
+    "markerName": "LocalActivity",
+    "details": {
+     "data": {
+      "payloads": [
+       {
+        "metadata": {
+         "encoding": "anNvbi9wbGFpbg=="
+        },
+        "data": "eyJBY3Rpdml0eUlEIjoiNCIsIkFjdGl2aXR5VHlwZSI6IlNhdmUiLCJSZXBsYXlUaW1lIjoiMjAyNi0xMS0xMVQwNjo0MzozMS4zMjQ0NzU1NTJaIiwiQXR0ZW1wdCI6MSwiQmFja29mZiI6MH0="
+       }
+      ]
+     }
+    },
+    "workflowTaskCompletedEventId": "32"
+   }
+  },
+  {
+   "eventId": "37",
+   "eventTime": "2026-11-11T06:43:31.326623006Z",
+   "eventType": "EVENT_TYPE_START_CHILD_WORKFLOW_EXECUTION_INITIATED",
+   "taskId": "1048663",
+   "startChildWorkflowExecutionInitiatedEventAttributes": {
+    "namespace": "default",
+    "namespaceId": "01a1c958-eed3-7bd0-ae2a-045730db78ce",
+    "workflowId": "fetch-season-player-logs-2023",
+    "workflowType": {
+     "name": "FetchSeasonPlayerLogsWorkflow"
+    },
+    "taskQueue": {
+     "name": "season-fan-out-7659163078437212303",
+     "kind": "TASK_QUEUE_KIND_NORMAL"
+    },
+    "input": {
+     "payloads": [
+      {
+       "metadata": {
+        "encoding": "anNvbi9wbGFpbg=="
+       },
+       "data": "eyJTZWFzb24iOnsiaWQiOiIyMDIzMjAyNCIsInN0YW5kaW5nc1N0YXJ0IjoiMjAyMy0xMC0xMCIsInN0YW5kaW5nc0VuZCI6IjIwMjMtMTAtMTIifSwiUmVmcmVzaEN1cnJlbnQiOmZhbHNlfQ=="
+      }
+     ]
+    },
+    "workflowExecutionTimeout": "10800s",
+    "workflowRunTimeout": "10800s",
+    "workflowTaskTimeout": "60s",
+    "parentClosePolicy": "PARENT_CLOSE_POLICY_TERMINATE",
+    "workflowTaskCompletedEventId": "32",
+    "workflowIdReusePolicy": "WORKFLOW_ID_REUSE_POLICY_TERMINATE_IF_RUNNING",
+    "header": {},
+    "inheritBuildId": true
+   }
+  },
+  {
+   "eventId": "38",
+   "eventTime": "2026-11-11T06:43:31.328106629Z",
+   "eventType": "EVENT_TYPE_CHILD_WORKFLOW_EXECUTION_STARTED",
+   "taskId": "1048672",
+   "childWorkflowExecutionStartedEventAttributes": {
+    "namespace": "default",
+    "namespaceId": "01a1c958-eed3-7bd0-ae2a-045730db78ce",
+    "initiatedEventId": "37",
+    "workflowExecution": {
+     "workflowId": "fetch-season-player-logs-2023",
+     "runId": "01a1c958-ef7f-7a48-b968-7f406008b3dd"
+    },
+    "workflowType": {
+     "name": "FetchSeasonPlayerLogsWorkflow"
+    },
+    "header": {}
+   }
+  },
+  {
+   "eventId": "39",
+   "eventTime": "2026-11-11T06:43:31.328123670Z",
+   "eventType": "EVENT_TYPE_WORKFLOW_TASK_SCHEDULED",
+   "taskId": "1048673",
+   "workflowTaskScheduledEventAttributes": {
+    "taskQueue": {
+     "name": "season-fan-out-7659163078437212303",
+     "kind": "TASK_QUEUE_KIND_NORMAL"
+    },
+    "startToCloseTimeout": "10s",
+    "attempt": 1
+   }
+  },
+  {
+   "eventId": "40",
+   "eventTime": "2026-11-11T06:43:31.329366460Z",
+   "eventType": "EVENT_TYPE_CHILD_WORKFLOW_EXECUTION_STARTED",
+   "taskId": "1048685",
+   "childWorkflowExecutionStartedEventAttributes": {
+    "namespace": "default",
+    "namespaceId": "01a1c958-eed3-7bd0-ae2a-045730db78ce",
+    "initiatedEventId": "35",
+    "workflowExecution": {
+     "workflowId": "fetch-season-player-logs-2022",
+     "runId": "01a1c958-ef80-798b-a170-5a8b0d28b8d2"
+    },
+    "workflowType": {
+     "name": "FetchSeasonPlayerLogsWorkflow"
+    },
+    "header": {}
+   }
+  },
+  {
+   "eventId": "41",
+   "eventTime": "2026-11-11T06:43:31.330420167Z",
+   "eventType": "EVENT_TYPE_WORKFLOW_TASK_STARTED",
+   "taskId": "1048693",
+   "workflowTaskStartedEventAttributes": {
+    "scheduledEventId": "39",
+    "identity": "replay-recorder",
+    "requestId": "6bb046ac-637c-47fd-bc4b-3051fa65b889",
+    "historySizeBytes": "6508",
+    "workerVersion": {
+     "buildId": "8db9a90d44f0bc4fabec9e8c5265f248"
+    }
+   }
+  },
+  {
+   "eventId": "42",
+   "eventTime": "2026-11-11T06:43:31.333635120Z",
+   "eventType": "EVENT_TYPE_WORKFLOW_TASK_COMPLETED",
+   "taskId": "1048710",
+   "workflowTaskCompletedEventAttributes": {
+    "scheduledEventId": "39",
+    "startedEventId": "41",
+    "identity": "replay-recorder",
+    "workerVersion": {
+     "buildId": "8db9a90d44f0bc4fabec9e8c5265f248"
+    },
+    "sdkMetadata": {},
+    "meteringMetadata": {}
+   }
+  },
+  {
+   "eventId": "43",
+   "eventTime": "2026-11-11T06:43:31.332958829Z",
+   "eventType": "EVENT_TYPE_CHILD_WORKFLOW_EXECUTION_COMPLETED",
+   "taskId": "1048711",
+   "childWorkflowExecutionCompletedEventAttributes": {
+    "namespace": "default",
+    "namespaceId": "01a1c958-eed3-7bd0-ae2a-045730db78ce",
+    "workflowExecution": {
+     "workflowId": "fetch-season-player-logs-2023",
+     "runId": "01a1c958-ef7f-7a48-b968-7f406008b3dd"
+    },
+    "workflowType": {
+     "name": "FetchSeasonPlayerLogsWorkflow"
+    },
+    "initiatedEventId": "37",
+    "startedEventId": "38"
+   }
+  },
+  {
+   "eventId": "44",
+   "eventTime": "2026-11-11T06:43:31.333647495Z",
+   "eventType": "EVENT_TYPE_WORKFLOW_TASK_SCHEDULED",
+   "taskId": "1048712",
+   "workflowTaskScheduledEventAttributes": {
+    "taskQueue": {
+     "name": "season-fan-out-7659163078437212303",
+     "kind": "TASK_QUEUE_KIND_NORMAL"
+    },
+    "startToCloseTimeout": "10s",
+    "attempt": 1
+   }
+  },
+  {
+   "eventId": "45",
+   "eventTime": "2026-11-11T06:43:31.333649036Z",
+   "eventType": "EVENT_TYPE_WORKFLOW_TASK_STARTED",
+   "taskId": "1048713",
+   "workflowTaskStartedEventAttributes": {
+    "scheduledEventId": "44",
+    "identity": "replay-recorder",
+    "requestId": "request-from-RespondWorkflowTaskCompleted",
+    "historySizeBytes": "6630",
+    "workerVersion": {
+     "buildId": "8db9a90d44f0bc4fabec9e8c5265f248"
+    }
+   }
+  },
+  {
+   "eventId": "46",
+   "eventTime": "2026-11-11T06:43:31.335507117Z",
+   "eventType": "EVENT_TYPE_WORKFLOW_TASK_COMPLETED",
+   "taskId": "1048722",
+   "workflowTaskCompletedEventAttributes": {
+    "scheduledEventId": "44",
+    "startedEventId": "45",
+    "identity": "replay-recorder",
+    "workerVersion": {
+     "buildId": "8db9a90d44f0bc4fabec9e8c5265f248"
+    },
+    "sdkMetadata": {},
+    "meteringMetadata": {}
+   }
+  },
+  {
+   "eventId": "47",
+   "eventTime": "2026-11-11T06:43:31.335520033Z",
+   "eventType": "EVENT_TYPE_MARKER_RECORDED",
+   "taskId": "1048723",
+   "markerRecordedEventAttributes": {
+    "markerName": "LocalActivity",
+    "details": {
+     "data": {
+      "payloads": [
+       {
+        "metadata": {
+         "encoding": "anNvbi9wbGFpbg=="
+        },
+        "data": "eyJBY3Rpdml0eUlEIjoiNSIsIkFjdGl2aXR5VHlwZSI6IlNhdmUiLCJSZXBsYXlUaW1lIjoiMjAyNi0xMS0xMVQwNjo0MzozMS4zMzM3MjMzMjhaIiwiQXR0ZW1wdCI6MSwiQmFja29mZiI6MH0="
+       }
+      ]
+     }
+    },
+    "workflowTaskCompletedEventId": "46"
+   }
+  },
+  {
+   "eventId": "48",
+   "eventTime": "2026-11-11T06:43:31.335522450Z",
+   "eventType": "EVENT_TYPE_MARKER_RECORDED",
+   "taskId": "1048724",
+   "markerRecordedEventAttributes": {
+    "markerName": "LocalActivity",
+    "details": {
+     "data": {
+      "payloads": [
+       {
+        "metadata": {
+         "encoding": "anNvbi9wbGFpbg=="
+        },
+        "data": "eyJBY3Rpdml0eUlEIjoiNiIsIkFjdGl2aXR5VHlwZSI6IlNhdmUiLCJSZXBsYXlUaW1lIjoiMjAyNi0xMS0xMVQwNjo0MzozMS4zMzM3NjUwMzZaIiwiQXR0ZW1wdCI6MSwiQmFja29mZiI6MH0="
+       }
+      ]
+     }
+    },
+    "workflowTaskCompletedEventId": "46"
+   }
+  },
+  {
+   "eventId": "49",
+   "eventTime": "2026-11-11T06:43:31.335873366Z",
+   "eventType": "EVENT_TYPE_START_CHILD_WORKFLOW_EXECUTION_INITIATED",
+   "taskId": "1048725",
+   "startChildWorkflowExecutionInitiatedEventAttributes": {
+    "namespace": "default",
+    "namespaceId": "01a1c958-eed3-7bd0-ae2a-045730db78ce",
+    "workflowId": "fetch-season-player-logs-2024",
+    "workflowType": {
+     "name": "FetchSeasonPlayerLogsWorkflow"
+    },
+    "taskQueue": {
+     "name": "season-fan-out-7659163078437212303",
+     "kind": "TASK_QUEUE_KIND_NORMAL"
+    },
+    "input": {
+     "payloads": [
+      {
+       "metadata": {
+        "encoding": "anNvbi9wbGFpbg=="
+       },
+       "data": "eyJTZWFzb24iOnsiaWQiOiIyMDI0MjAyNSIsInN0YW5kaW5nc1N0YXJ0IjoiMjAyNC0xMC0wNCIsInN0YW5kaW5nc0VuZCI6IjIwMjQtMTAtMDYifSwiUmVmcmVzaEN1cnJlbnQiOnRydWV9"
+      }
+     ]
+    },
+    "workflowExecutionTimeout": "10800s",
+    "workflowRunTimeout": "10800s",
+    "workflowTaskTimeout": "60s",
+    "parentClosePolicy": "PARENT_CLOSE_POLICY_TERMINATE",
+    "workflowTaskCompletedEventId": "46",
+    "workflowIdReusePolicy": "WORKFLOW_ID_REUSE_POLICY_TERMINATE_IF_RUNNING",
+    "header": {},
+    "inheritBuildId": true
+   }
+  },
+  {
+   "eventId": "50",
+   "eventTime": "2026-11-11T06:43:31.336295782Z",
+   "eventType": "EVENT_TYPE_CHILD_WORKFLOW_EXECUTION_COMPLETED",
+   "taskId": "1048728",
+   "childWorkflowExecutionCompletedEventAttributes": {
+    "namespace": "default",
+    "namespaceId": "01a1c958-eed3-7bd0-ae2a-045730db78ce",
+    "workflowExecution": {
+     "workflowId": "fetch-season-player-logs-2022",
+     "runId": "01a1c958-ef80-798b-a170-5a8b0d28b8d2"
+    },
+    "workflowType": {
+     "name": "FetchSeasonPlayerLogsWorkflow"
+    },
+    "initiatedEventId": "35",
+    "startedEventId": "40"
+   }
+  },
+  {
+   "eventId": "51",
+   "eventTime": "2026-11-11T06:43:31.336299366Z",
+   "eventType": "EVENT_TYPE_WORKFLOW_TASK_SCHEDULED",
+   "taskId": "1048729",
+   "workflowTaskScheduledEventAttributes": {
+    "taskQueue": {
+     "name": "season-fan-out-7659163078437212303",
+     "kind": "TASK_QUEUE_KIND_NORMAL"
+    },
+    "startToCloseTimeout": "10s",
+    "attempt": 1
+   }
+  },
+  {
+   "eventId": "52",
+   "eventTime": "2026-11-11T06:43:31.338105988Z",
+   "eventType": "EVENT_TYPE_CHILD_WORKFLOW_EXECUTION_STARTED",
+   "taskId": "1048737",
+   "childWorkflowExecutionStartedEventAttributes": {
+    "namespace": "default",
+    "namespaceId": "01a1c958-eed3-7bd0-ae2a-045730db78ce",
+    "initiatedEventId": "49",
+    "workflowExecution": {
+     "workflowId": "fetch-season-player-logs-2024",
+     "runId": "01a1c958-ef89-7ae0-9f89-474e6014e08f"
+    },
+    "workflowType": {
+     "name": "FetchSeasonPlayerLogsWorkflow"
+    },
+    "header": {}
+   }
+  },
+  {
+   "eventId": "53",
+   "eventTime": "2026-11-11T06:43:31.338919820Z",
+   "eventType": "EVENT_TYPE_WORKFLOW_TASK_STARTED",
+   "taskId": "1048743",
+   "workflowTaskStartedEventAttributes": {
+    "scheduledEventId": "51",
+    "identity": "replay-recorder",
+    "requestId": "7fdd01d9-4a0f-4a73-907e-8b8346843237",
+    "historySizeBytes": "8367",
+    "workerVersion": {
+     "buildId": "8db9a90d44f0bc4fabec9e8c5265f248"
+    }
+   }
+  },
+  {
+   "eventId": "54",
+   "eventTime": "2026-11-11T06:43:31.342690480Z",
+   "eventType": "EVENT_TYPE_WORKFLOW_TASK_COMPLETED",
+   "taskId": "1048758",
+   "workflowTaskCompletedEventAttributes": {
+    "scheduledEventId": "51",
+    "startedEventId": "53",
+    "identity": "replay-recorder",
+    "workerVersion": {
+     "buildId": "8db9a90d44f0bc4fabec9e8c5265f248"
+    },
+    "sdkMetadata": {
+     "sdkName": "temporal-go",
+     "sdkVersion": "1.39.0"
+    },
+    "meteringMetadata": {}
+   }
+  },
+  {
+   "eventId": "55",
+   "eventTime": "2026-11-11T06:43:31.342704105Z",
+   "eventType": "EVENT_TYPE_MARKER_RECORDED",
+   "taskId": "1048759",
+   "markerRecordedEventAttributes": {
+    "markerName": "LocalActivity",
+    "details": {
+     "data": {
+      "payloads": [
+       {
+        "metadata": {
+         "encoding": "anNvbi9wbGFpbg=="
+        },
+        "data": "eyJBY3Rpdml0eUlEIjoiNyIsIkFjdGl2aXR5VHlwZSI6IlNhdmUiLCJSZXBsYXlUaW1lIjoiMjAyNi0xMS0xMVQwNjo0MzozMS4zMzg5NjQ4NjFaIiwiQXR0ZW1wdCI6MSwiQmFja29mZiI6MH0="
+       }
+      ]
+     }
+    },
+    "workflowTaskCompletedEventId": "54"
+   }
+  },
+  {
+   "eventId": "56",
+   "eventTime": "2026-11-11T06:43:31.341631232Z",
+   "eventType": "EVENT_TYPE_CHILD_WORKFLOW_EXECUTION_COMPLETED",
+   "taskId": "1048760",
+   "childWorkflowExecutionCompletedEventAttributes": {
+    "namespace": "default",
+    "namespaceId": "01a1c958-eed3-7bd0-ae2a-045730db78ce",
+    "workflowExecution": {
+     "workflowId": "fetch-season-player-logs-2024",
+     "runId": "01a1c958-ef89-7ae0-9f89-474e6014e08f"
+    },
+    "workflowType": {
+     "name": "FetchSeasonPlayerLogsWorkflow"
+    },
+    "initiatedEventId": "49",
+    "startedEventId": "52"
+   }
+  },
+  {
+   "eventId": "57",
+   "eventTime": "2026-11-11T06:43:31.342707355Z",
+   "eventType": "EVENT_TYPE_WORKFLOW_TASK_SCHEDULED",
+   "taskId": "1048761",
+   "workflowTaskScheduledEventAttributes": {
+    "taskQueue": {
+     "name": "season-fan-out-7659163078437212303",
+     "kind": "TASK_QUEUE_KIND_NORMAL"
+    },
+    "startToCloseTimeout": "10s",
+    "attempt": 1
+   }
+  },
+  {
+   "eventId": "58",
+   "eventTime": "2026-11-11T06:43:31.342709022Z",
+   "eventType": "EVENT_TYPE_WORKFLOW_TASK_STARTED",
+   "taskId": "1048762",
+   "workflowTaskStartedEventAttributes": {
+    "scheduledEventId": "57",
+    "identity": "replay-recorder",
+    "requestId": "request-from-RespondWorkflowTaskCompleted",
+    "historySizeBytes": "8489",
+    "workerVersion": {
+     "buildId": "8db9a90d44f0bc4fabec9e8c5265f248"
+    }
+   }
+  },
+  {
+   "eventId": "59",
+   "eventTime": "2026-11-11T06:43:31.343646396Z",
+   "eventType": "EVENT_TYPE_WORKFLOW_TASK_COMPLETED",
+   "taskId": "1048765",
+   "workflowTaskCompletedEventAttributes": {
+    "scheduledEventId": "57",
+    "startedEventId": "58",
+    "identity": "replay-recorder",
+    "workerVersion": {
+     "buildId": "8db9a90d44f0bc4fabec9e8c5265f248"
+    },
+    "sdkMetadata": {},
+    "meteringMetadata": {}
+   }
+  },
+  {
+   "eventId": "60",
+   "eventTime": "2026-11-11T06:43:31.343659729Z",
+   "eventType": "EVENT_TYPE_MARKER_RECORDED",
+   "taskId": "1048766",
+   "markerRecordedEventAttributes": {
+    "markerName": "LocalActivity",
+    "details": {
+     "data": {
+      "payloads": [
+       {
+        "metadata": {
+         "encoding": "anNvbi9wbGFpbg=="
+        },
+        "data": "eyJBY3Rpdml0eUlEIjoiOCIsIkFjdGl2aXR5VHlwZSI6IlNhdmUiLCJSZXBsYXlUaW1lIjoiMjAyNi0xMS0xMVQwNjo0MzozMS4zNDI3NzkzNTVaIiwiQXR0ZW1wdCI6MSwiQmFja29mZiI6MH0="
+       }
+      ]
+     }
+    },
+    "workflowTaskCompletedEventId": "59"
+   }
+  },
+  {
+   "eventId": "61",
+   "eventTime": "2026-11-11T06:43:31.343662771Z",
+   "eventType": "EVENT_TYPE_MARKER_RECORDED",
+   "taskId": "1048767",
+   "markerRecordedEventAttributes": {
+    "markerName": "LocalActivity",
+    "details": {
+     "data": {
+      "payloads": [
+       {
+        "metadata": {
+         "encoding": "anNvbi9wbGFpbg=="
+        },
+        "data": "eyJBY3Rpdml0eUlEIjoiOSIsIkFjdGl2aXR5VHlwZSI6IlNhdmUiLCJSZXBsYXlUaW1lIjoiMjAyNi0xMS0xMVQwNjo0MzozMS4zNDI4MjA5MzhaIiwiQXR0ZW1wdCI6MSwiQmFja29mZiI6MH0="
+       }
+      ]
+     }
+    },
+    "workflowTaskCompletedEventId": "59"
+   }
+  },
+  {
+   "eventId": "62",
+   "eventTime": "2026-11-11T06:43:31.343665729Z",
+   "eventType": "EVENT_TYPE_WORKFLOW_EXECUTION_COMPLETED",
+   "taskId": "1048768",
+   "workflowExecutionCompletedEventAttributes": {
+    "workflowTaskCompletedEventId": "59"
+   }
+  }
+ ]
+}

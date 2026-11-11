@@ -12,6 +12,10 @@ import (
 	"go.temporal.io/sdk/worker"
 )
 
+// seasonFanOutThreeSeasonsHistory is the one history with more seasons than
+// its concurrency.
+const seasonFanOutThreeSeasonsHistory = "testdata/season_fan_out_fetch_player_logs_three_seasons.json"
+
 // Version marker detail keys, as the SDK records them.
 const (
 	versionMarkerName       = "Version"
@@ -51,13 +55,19 @@ type seasonFanOutHistory struct {
 // true} and no range, so only the last season's child refreshes. The empty
 // manifest history runs ExtractBoxscorePlayersWorkflow with an omitted (nil)
 // input; the Edge history without an eligible season lists 2019-2020 and
-// 2020-2021 with the non-empty input.
+// 2020-2021 with the non-empty input. The three-season player-log fetch
+// history adds 2024-2025 (standings 2024-10-04 to 2024-10-06) to the
+// non-empty run, so its third child waits for a free concurrency slot.
 func seasonFanOutHistories() []seasonFanOutHistory {
 	configSnapshot := map[string]int{"config-snapshot": 1}
 	return []seasonFanOutHistory{
 		{"testdata/season_fan_out_fetch_player_logs.json", FetchPlayerLogsWorkflow,
 			[]string{"LoadSeasonBoxscorePlayers", "LoadSeasonBoxscorePlayers",
 				"FetchSeasonPlayerLogsWorkflow", "FetchSeasonPlayerLogsWorkflow"},
+			configSnapshot, true},
+		{seasonFanOutThreeSeasonsHistory, FetchPlayerLogsWorkflow,
+			[]string{"LoadSeasonBoxscorePlayers", "LoadSeasonBoxscorePlayers", "LoadSeasonBoxscorePlayers",
+				"FetchSeasonPlayerLogsWorkflow", "FetchSeasonPlayerLogsWorkflow", "FetchSeasonPlayerLogsWorkflow"},
 			configSnapshot, true},
 		{"testdata/season_fan_out_fetch_edge.json", FetchEdgeSeasonsWorkflow,
 			[]string{"FetchEdgeWorkflow", "FetchEdgeWorkflow"}, configSnapshot, true},
@@ -80,7 +90,8 @@ func seasonFanOutHistories() []seasonFanOutHistory {
 
 // TestSeasonFanOutParentsReplayRecordedHistories replays every recorded
 // parent history with the current code: a changed command sequence (order,
-// type, payload) fails here with a nondeterminism error.
+// type) fails here with a nondeterminism error. Child and activity inputs
+// are not compared; TestSeasonFanOutWorkflowsInput guards them.
 func TestSeasonFanOutParentsReplayRecordedHistories(t *testing.T) {
 	for _, tc := range seasonFanOutHistories() {
 		t.Run(tc.path, func(t *testing.T) {
@@ -107,6 +118,27 @@ func TestSeasonFanOutHistoriesCoverTheirCase(t *testing.T) {
 			assert.Equal(t, tc.savesProgress, hasMarker(history, localActivityMarkerName), "progress local activities")
 		})
 	}
+}
+
+// The three-season history runs at the recorded concurrency of 2: the
+// first two children start together and the third only after one of them
+// completed, so a parent that ignores the snapshotted concurrency (any other
+// value) dispatches a different number of children per task and fails replay.
+func TestSeasonFanOutThreeSeasonsHistoryHoldsBackTheThirdChild(t *testing.T) {
+	history := readHistoryFile(t, seasonFanOutThreeSeasonsHistory)
+	var started []int
+	firstCompleted := -1
+	for i, event := range history.Events {
+		if event.GetStartChildWorkflowExecutionInitiatedEventAttributes() != nil {
+			started = append(started, i)
+		}
+		if event.GetChildWorkflowExecutionCompletedEventAttributes() != nil && firstCompleted < 0 {
+			firstCompleted = i
+		}
+	}
+	require.Len(t, started, 3)
+	assert.Less(t, started[1], firstCompleted, "the first two children start before any completes")
+	assert.Greater(t, started[2], firstCompleted, "the third child waits for a completion")
 }
 
 func readHistoryFile(t *testing.T, path string) *historypb.History {

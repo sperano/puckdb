@@ -319,6 +319,16 @@ func TestRunSeasonFanOutRunsSelectedSeasons(t *testing.T) {
 	assert.Equal(t, 21+23, report.Total)
 }
 
+// The last flag marks the last selected season, not the manifest's last:
+// a selection that drops 2023 flags 2022.
+func TestRunSeasonFanOutFlagsLastSelectedSeason(t *testing.T) {
+	p := newFanOutProbe(t, fanOutTestSeasons(), nil)
+	p.opts.Select = func(seasons []nhl.SeasonInfo) []nhl.SeasonInfo { return seasons[:len(seasons)-1] }
+	p.run(t, nil)
+	require.NoError(t, p.env.GetWorkflowError())
+	assert.Equal(t, []startedSeason{{2021, 0, false}, {2022, 1, true}}, p.started)
+}
+
 // With GroupLabel and CountLabel the group completes with the standard
 // message; a Completion replaces it with its own, given the season count,
 // the elapsed time and the aggregated counts; with neither the group is
@@ -365,6 +375,7 @@ func TestRunSeasonFanOutCompletion(t *testing.T) {
 			group := p.group(t)
 			elapsed := shared.FormatElapsedMilli(group.CompletedAt - group.StartedAt)
 			assert.Equal(t, tc.want(elapsed), group.CompletedMsg)
+			assert.Equal(t, tc.name != "none", group.CompletedAt != 0, "group completed")
 			if tc.name == "completion" {
 				assert.Equal(t, []call{{3, elapsed, core.OriginCounts{core.OriginFileSystem: 3, core.OriginRedis: 1}}}, got)
 			}
@@ -425,15 +436,20 @@ func TestRunSeasonFanOutFailures(t *testing.T) {
 // report cleanup).
 func TestRunSeasonFanOutValidation(t *testing.T) {
 	t.Run("options", func(t *testing.T) {
-		for name, mutate := range map[string]func(*SeasonFanOut){
-			"no report":  func(o *SeasonFanOut) { o.Report = nil },
-			"no prepare": func(o *SeasonFanOut) { o.Prepare = nil },
+		for name, tc := range map[string]struct {
+			mutate func(*SeasonFanOut)
+			err    error
+		}{
+			"no report":  {func(o *SeasonFanOut) { o.Report = nil }, errSeasonFanOutNoReport},
+			"no prepare": {func(o *SeasonFanOut) { o.Prepare = nil }, errSeasonFanOutNoPrepare},
 		} {
 			t.Run(name, func(t *testing.T) {
 				p := newFanOutProbe(t, fanOutTestSeasons(), nil)
-				mutate(&p.opts)
+				tc.mutate(&p.opts)
 				p.run(t, nil)
-				require.ErrorContains(t, p.env.GetWorkflowError(), "season fan-out: no ")
+				// The error crosses the workflow boundary as an application
+				// error, so only its message survives.
+				require.ErrorContains(t, p.env.GetWorkflowError(), tc.err.Error())
 				assert.Zero(t, p.manifests)
 				assert.Empty(t, p.saved.last)
 			})

@@ -70,9 +70,9 @@ var (
 )
 
 // runSeasonFanOut runs the outer lifecycle shared by the season fan-out
-// parents: it normalizes an omitted input (all configured seasons, configured
-// concurrency), snapshots the season concurrency, registers the tracker,
-// installs the default activity options, loads the seasons manifest and
+// parents: it installs the default activity options, normalizes an omitted
+// input (all configured seasons, configured concurrency), snapshots the
+// season concurrency, registers the tracker, loads the seasons manifest and
 // applies Select. An empty selection is a successful no-op: Prepare, stale
 // report cleanup, bars and the group never run. Otherwise it calls Prepare
 // once and runs the plan through processSeasonGroup. The options are
