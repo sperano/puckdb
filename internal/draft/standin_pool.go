@@ -234,7 +234,7 @@ func standInPlayerName(row sqlcdb.ListSeasonRosterPoolCandidatesRow) string {
 // model reads for their kind: goalies from game_goalie_stats, every other
 // resolved position from game_skater_stats. ListSeasonRosterPoolCandidates
 // already restricts has_skater_history/has_goalie_history to that window
-// (see ListProjectionSkaterHistory/ListProjectionGoalieHistory in
+// (see ListProjectionSkaterSeasons/ListProjectionGoalieSeasons in
 // internal/sqlcdb/queries/projections.sql), so a player this returns false
 // for would also fail projection coverage if included.
 func standInHasHistory(row sqlcdb.ListSeasonRosterPoolCandidatesRow) bool {

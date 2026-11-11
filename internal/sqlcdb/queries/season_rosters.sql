@@ -93,8 +93,8 @@ SELECT
 -- 'F') rather than passing it through unpositioned, which would otherwise
 -- fail the whole league in the projection model (position is required).
 -- has_skater_history and has_goalie_history mirror the tables, state filter
--- and season window ListProjectionSkaterHistory/ListProjectionGoalieHistory
--- read (min_season is projection.Config.HistoryFloorSeason of the league's
+-- and projection season window ListProjectionSkaterSeasons/
+-- ListProjectionGoalieSeasons read (min_season is projection.Config.HistoryFloorSeason of the league's
 -- target season; target_season excludes the target season itself, which
 -- hasn't been read as history yet but would otherwise start passing once
 -- its games are played), so a player excluded here would also fail
