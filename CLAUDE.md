@@ -114,7 +114,7 @@ Storage naming (see wiki `puckdb/plans/draft-storage-naming.md`): a concrete Pos
 | `internal/fixtures/metricsfixtures/` | Reads filesystem operation counts from the worker metrics registry for label assertions (test-only import) |
 | `internal/fixtures/draftfixtures/` | Synthetic draft ranking snapshot and in-memory store shared by the draftrank, GraphQL and CLI tests (test-only import) |
 | `internal/fixtures/projectionfixtures/` | Default projection config with the aging curve the aging model versions must store, for tests that hand-build projection snapshots (test-only import) |
-| `internal/fixtures/pgtest/` | The shared PostgreSQL test harness: `PUCKDB_TEST_PG_URL` skip, `CheckURL` (the parsed database name must contain `test`; the marker elsewhere in the URL does not count), migrate once per test binary, `Open(t, truncate...)`, `Truncate`/`TruncateRestartIdentity`; every database-backed test reaches the database through it, except `internal/database` (import cycle; private schemas/databases only) (see wiki `puckdb/postgres-test-harness.md`) (test-only import) |
+| `internal/fixtures/pgtest/` | The shared PostgreSQL test harness: `PUCKDB_TEST_PG_URL` skip, `CheckURL` (a `postgres://`/`postgresql://` URL whose parsed database name contains `test`, case-sensitively; the marker elsewhere in the URL does not count), migrate once per test binary, `Open(t, truncate...)`, `Truncate`/`TruncateRestartIdentity`; every database-backed test reaches the database through it, except `internal/database` (import cycle; private schemas/databases only) (see wiki `puckdb/postgres-test-harness.md`) (test-only import) |
 | `internal/fixtures/simfixtures/` | A private, migrated PostgreSQL database per test (created next to `PUCKDB_TEST_PG_URL`, dropped at cleanup) and typed inserts for sim pools, agents, turns, tool calls, players and draft picks, shared by the GraphQL sim feed and `sim tail`/`sim draft` tests (test-only import) |
 | `internal/llm/` | LLM client and the shared `agentloop` tool loop (used by player enrichment, Maurice and the simulation) |
 | `internal/maurice/` | Prompt + service layer built on top of `internal/llm/` |
@@ -618,7 +618,7 @@ Always run the full test suite (`go test ./...`) and verify 100% pass rate befor
 
 ### Database-backed tests
 
-Tests that need a real PostgreSQL read `PUCKDB_TEST_PG_URL` through `internal/fixtures/pgtest` and skip when it is unset. Point it at a dedicated throwaway database whose name contains `test` — the harness refuses any other, then migrates it and each package truncates its own tables, so run packages one at a time (`go test -p 1 ./...`):
+Tests that need a real PostgreSQL read `PUCKDB_TEST_PG_URL` through `internal/fixtures/pgtest` (except `internal/database`, see the package table) and skip when it is unset. Point it at a dedicated throwaway database, as a `postgres://` URL, whose name contains `test` — the harness refuses any other, then migrates it and each package truncates the tables it names with `CASCADE` (so tables referencing them are emptied too), so run packages one at a time (`go test -p 1 ./...`):
 
 ```bash
 docker run -d --rm --name puckdb-test-pg -e POSTGRES_USER=puckdb -e POSTGRES_PASSWORD=foo \

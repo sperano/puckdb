@@ -4,9 +4,12 @@
 // database once per test binary, and opens a pool closed at cleanup.
 //
 // Every package's tests share that one database and truncate the tables they
-// own, so packages must run one at a time (`go test -p 1 ./...`). Tests that
-// delete rows other packages rely on, or drop the schema, use a private
-// database instead (simfixtures.NewDatabase). Only tests import this package.
+// name, with CASCADE, so every table referencing them is emptied too; packages
+// must therefore run one at a time (`go test -p 1 ./...`). Tests that delete
+// rows other packages rely on, or drop the schema, use a private database
+// instead (simfixtures.NewDatabase); the one exception is the simulation
+// integration TestMain, which migrates the named database down (see
+// CLAUDE.md, "Database-backed tests"). Only tests import this package.
 package pgtest
 
 import (
@@ -33,15 +36,27 @@ const (
 	DatabaseMarker = "test"
 )
 
+// urlSchemes are the prefixes database.MigrateUp accepts: golang-migrate
+// picks its driver from the scheme, so a keyword/value string cannot be
+// migrated.
+var urlSchemes = []string{"postgres://", "postgresql://"}
+
 // errNoDatabase reports a URL that names no database, so the server would
 // pick one (the role's name) the check never saw.
 var errNoDatabase = errors.New("names no database")
 
-// CheckURL returns an error unless rawURL, in URL or keyword/value form,
-// connects to a database whose name contains DatabaseMarker. The marker
+// errNotURL reports a keyword/value string or another scheme, which
+// golang-migrate cannot open.
+var errNotURL = errors.New("is not a postgres:// or postgresql:// URL")
+
+// CheckURL returns an error unless rawURL is a postgres:// or postgresql://
+// URL that connects to a database whose name contains DatabaseMarker. The marker
 // elsewhere in the URL (user, host, password, a query parameter) does not
 // count: only the database name tells which data a test would destroy.
 func CheckURL(rawURL string) error {
+	if !hasURLScheme(rawURL) {
+		return fmt.Errorf("%s %w", EnvURL, errNotURL)
+	}
 	cfg, err := pgconn.ParseConfig(rawURL)
 	if err != nil {
 		return fmt.Errorf("%s does not parse: %w", EnvURL, err)
@@ -54,6 +69,15 @@ func CheckURL(rawURL string) error {
 			EnvURL, cfg.Database, DatabaseMarker)
 	}
 	return nil
+}
+
+func hasURLScheme(rawURL string) bool {
+	for _, scheme := range urlSchemes {
+		if strings.HasPrefix(rawURL, scheme) {
+			return true
+		}
+	}
+	return false
 }
 
 // URL returns the checked PUCKDB_TEST_PG_URL without migrating it. It skips

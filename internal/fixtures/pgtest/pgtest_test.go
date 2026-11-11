@@ -22,7 +22,6 @@ func TestCheckURLAcceptsATestDatabaseName(t *testing.T) {
 		"postgres://puckdb:foo@localhost:5432/puckdb_test?sslmode=disable",
 		"postgresql://localhost/test",
 		"postgres://localhost/?dbname=puckdb_test",
-		"host=localhost user=puckdb dbname=puckdb_maurice_test sslmode=disable",
 	} {
 		assert.NoError(t, CheckURL(dbURL), dbURL)
 	}
@@ -38,11 +37,29 @@ func TestCheckURLRefusesTheMarkerOutsideTheDatabaseName(t *testing.T) {
 		"postgres://puckdb:foo@localhost:5432/puckdb?application_name=test",
 		"postgres://puckdb:foo@localhost:5432/test?dbname=puckdb",
 		"postgres://puckdb:foo@localhost/puckdb?options=-c%20search_path%3Dtest",
-		"host=test.internal user=tester dbname=puckdb",
 	} {
 		err := CheckURL(dbURL)
 		require.Error(t, err, dbURL)
 		assert.Contains(t, err.Error(), `database "puckdb"`, dbURL)
+	}
+}
+
+// worker/shared used to lower-case the URL first; the marker is now
+// case-sensitive, like the other copies.
+func TestCheckURLIsCaseSensitive(t *testing.T) {
+	err := CheckURL("postgres://puckdb:foo@localhost:5432/PUCKDB_TEST")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), `database "PUCKDB_TEST"`)
+}
+
+// golang-migrate picks its driver from the URL scheme, so MigratedURL could
+// not migrate a keyword/value string even when its dbname is a test database.
+func TestCheckURLRefusesANonURLForm(t *testing.T) {
+	for _, dbURL := range []string{
+		"host=localhost user=puckdb dbname=puckdb_maurice_test sslmode=disable",
+		"mysql://localhost/puckdb_test",
+	} {
+		require.ErrorIs(t, CheckURL(dbURL), errNotURL, dbURL)
 	}
 }
 
