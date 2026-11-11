@@ -109,7 +109,6 @@ func startExternalWatch(t *testing.T, identity draftwatch.Identity) func() {
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
 	go func() { done <- runner.Watch(ctx, identity, idleRefreshWatchOptions()) }()
-	source.awaitPoll(t)
 	var once sync.Once
 	stop := func() {
 		once.Do(func() {
@@ -122,7 +121,10 @@ func startExternalWatch(t *testing.T, identity draftwatch.Identity) func() {
 			}
 		})
 	}
+	// Registered before awaitPoll can stop the test, so the watch releases
+	// its connection before the external pool's Close waits for it.
 	t.Cleanup(stop)
+	source.awaitPoll(t)
 	return stop
 }
 

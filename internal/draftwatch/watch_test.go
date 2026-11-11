@@ -164,6 +164,9 @@ func TestSyncOnceReportsSyncInProgressWhileWatchHoldsLock(t *testing.T) {
 	refresh := make(chan RefreshRequest)
 	runner := Runner{Pool: pool, Store: &countingSessionStore{}, Source: source}
 	ctx, cancel := context.WithCancel(context.Background())
+	// Runs before pool.Close, which would wait forever for the watch's
+	// connection if a check below stops the test first.
+	t.Cleanup(cancel)
 	done := make(chan error, 1)
 	go func() { done <- runner.Watch(ctx, identity, idleWatchOptions(refresh)) }()
 	source.awaitPoll(t)
