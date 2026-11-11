@@ -10,6 +10,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/sperano/puckdb/internal/fixtures/pgtest"
 	"github.com/stretchr/testify/require"
 )
 
@@ -36,7 +37,7 @@ func showNestLoop(t *testing.T, q interface {
 // statement runs on the connection under test.
 func openNestLoopOnTestDB(t *testing.T) *pgxpool.Pool {
 	t.Helper()
-	cfg, err := pgxpool.ParseConfig(migratedTransactorTestURL(t))
+	cfg, err := pgxpool.ParseConfig(pgtest.MigratedURL(t))
 	require.NoError(t, err)
 	cfg.ConnConfig.RuntimeParams[nestLoopSetting] = settingOn
 	cfg.MaxConns = singleConn

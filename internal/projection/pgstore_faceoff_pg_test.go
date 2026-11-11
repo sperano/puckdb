@@ -8,21 +8,16 @@ package projection
 
 import (
 	"context"
-	"os"
-	"sync"
 	"testing"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/sperano/puckdb/internal/database"
+	"github.com/sperano/puckdb/internal/fixtures/pgtest"
 	"github.com/sperano/puckdb/internal/sqlcdb"
 	"github.com/stretchr/testify/require"
 )
 
 const (
-	envTestPGURL     = "PUCKDB_TEST_PG_URL"
-	testDBNameMarker = "test"
-
 	faceoffTestSeason  = 20252026
 	faceoffLowerSeason = 20242025
 	faceoffUpperSeason = 20262027
@@ -39,29 +34,6 @@ const (
 	faceoffPlayerOneTOI = 1_200
 	faceoffPlayerTwoTOI = 1_100
 )
-
-var pgFaceoffMigrateOnce struct {
-	sync.Once
-	err error
-}
-
-func openFaceoffTestDB(t *testing.T) *pgxpool.Pool {
-	t.Helper()
-	dbURL := os.Getenv(envTestPGURL)
-	if dbURL == "" {
-		t.Skipf("set %s to run the PostgreSQL faceoff projection tests", envTestPGURL)
-	}
-	require.Contains(t, dbURL, testDBNameMarker,
-		"%s must name a dedicated test database (URL containing %q)", envTestPGURL, testDBNameMarker)
-	pgFaceoffMigrateOnce.Do(func() { pgFaceoffMigrateOnce.err = database.MigrateUp(dbURL) })
-	require.NoError(t, pgFaceoffMigrateOnce.err, "migrate test database")
-
-	ctx := context.Background()
-	pool, err := pgxpool.New(ctx, dbURL)
-	require.NoError(t, err)
-	t.Cleanup(pool.Close)
-	return pool
-}
 
 // seedFaceoffGames inserts two completed regular-season games: game A gives
 // player one three faceoff wins and two losses against player two (five
@@ -141,7 +113,7 @@ func seedFaceoffGames(t *testing.T, pool *pgxpool.Pool) {
 }
 
 func TestListProjectionSkaterHistoryCountsFaceoffsWithoutInflatingOtherSums(t *testing.T) {
-	pool := openFaceoffTestDB(t)
+	pool := pgtest.Open(t)
 	seedFaceoffGames(t, pool)
 
 	rows, err := sqlcdb.New(pool).ListProjectionSkaterHistory(context.Background(), sqlcdb.ListProjectionSkaterHistoryParams{

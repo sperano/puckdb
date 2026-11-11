@@ -16,6 +16,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
+	"github.com/sperano/puckdb/internal/fixtures/pgtest"
 	"github.com/sperano/puckdb/internal/news"
 	"github.com/sperano/puckdb/internal/newsevent"
 	"github.com/sperano/puckdb/internal/sqlcdb"
@@ -307,7 +308,7 @@ func TestDurationCell(t *testing.T) {
 // TestPlayerNewsToolReadsDatabase runs the tool over the real queries: one
 // event with one quoted report, stored under the NHL ID only.
 func TestPlayerNewsToolReadsDatabase(t *testing.T) {
-	pool := openMCPTestDB(t)
+	pool := pgtest.Open(t)
 	cleanup := func() {
 		ctx := context.Background()
 		_, err := pool.Exec(ctx, `DELETE FROM news_events WHERE nhl_player_id = $1`, pgNewsNHLPlayerID)

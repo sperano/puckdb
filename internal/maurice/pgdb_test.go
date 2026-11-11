@@ -2,69 +2,27 @@ package maurice
 
 import (
 	"context"
-	"os"
-	"sync"
 	"testing"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/sperano/puckdb/internal/database"
+	"github.com/sperano/puckdb/internal/fixtures/pgtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// envTestPGURL names the Postgres URL the PostgreSQL contract tests run
-// against. Unset → the tests skip: a missing env var means the developer
-// didn't opt into a database-backed run, not that the suite is broken. The
-// schema is migrated up (never down) and the maurice tables are truncated
-// before each test, so point it at a dedicated test database, e.g.
+// openPgTestPool returns a pool on the migrated database PUCKDB_TEST_PG_URL
+// names (pgtest), with empty maurice tables, or skips the test when the
+// variable is unset. The schema is migrated up, never down, so point it at a
+// dedicated test database, e.g.
 //
 //	PUCKDB_TEST_PG_URL=postgres://puckdb:foo@localhost:5432/puckdb_maurice_test?sslmode=disable
-const envTestPGURL = "PUCKDB_TEST_PG_URL"
-
-// testDBNameMarker must appear in the URL so a developer's real database can't
-// be migrated and truncated by a mistyped env var.
-const testDBNameMarker = "test"
-
-// pgMigrateOnce runs the embedded migrations a single time per test process;
-// every openPgTestPool call after the first reuses the result.
-var pgMigrateOnce struct {
-	sync.Once
-	err error
-}
-
-// openPgTestURL returns the URL of the migrated test database, or skips the
-// test when envTestPGURL is unset.
-func openPgTestURL(t *testing.T) string {
-	t.Helper()
-	dbURL := os.Getenv(envTestPGURL)
-	if dbURL == "" {
-		t.Skipf("set %s to run the PostgreSQL contract tests", envTestPGURL)
-	}
-	// The harness migrates and truncates whatever database it is pointed at;
-	// refuse anything not obviously a test database.
-	require.Contains(t, dbURL, testDBNameMarker,
-		"%s must name a dedicated test database (URL containing %q)", envTestPGURL, testDBNameMarker)
-	pgMigrateOnce.Do(func() { pgMigrateOnce.err = database.MigrateUp(dbURL) })
-	require.NoError(t, pgMigrateOnce.err, "migrate test database")
-	return dbURL
-}
-
-// openPgTestPool returns a pool on a migrated database with empty maurice
-// tables, or skips the test when envTestPGURL is unset. app_users is left
-// alone (other packages' tests use it concurrently); every test makes its own
-// users with newPgUser.
+//
+// app_users is left alone (other packages' tests use it); every test makes
+// its own users with newPgUser.
 func openPgTestPool(t *testing.T) *pgxpool.Pool {
 	t.Helper()
-	dbURL := openPgTestURL(t)
-	ctx := context.Background()
-	pool, err := pgxpool.New(ctx, dbURL)
-	require.NoError(t, err)
-	t.Cleanup(pool.Close)
-
-	_, err = pool.Exec(ctx, "TRUNCATE maurice_conversations CASCADE")
-	require.NoError(t, err)
-	return pool
+	return pgtest.Open(t, "maurice_conversations")
 }
 
 // newPgUser inserts an app_users row and returns its ID.

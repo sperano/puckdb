@@ -6,42 +6,18 @@ package nhl
 import (
 	"context"
 	"errors"
-	"os"
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/sperano/puckdb/internal/database"
 	"github.com/sperano/puckdb/internal/evenstrength"
+	"github.com/sperano/puckdb/internal/fixtures/pgtest"
 	"github.com/stretchr/testify/require"
 )
 
 const (
-	transactorTestPGURL  = "PUCKDB_TEST_PG_URL"
-	transactorTestMarker = "test"
 	transactorTestGameID = 3_960_000_001
 	transactorTestPlayer = 9_960_001
 )
-
-// migratedTransactorTestURL skips the test unless PUCKDB_TEST_PG_URL is set,
-// migrates that database and returns its URL.
-func migratedTransactorTestURL(t *testing.T) string {
-	t.Helper()
-	dbURL := os.Getenv(transactorTestPGURL)
-	if dbURL == "" {
-		t.Skipf("set %s to run PostgreSQL import tests", transactorTestPGURL)
-	}
-	require.Contains(t, dbURL, transactorTestMarker, "test database URL must contain %q", transactorTestMarker)
-	require.NoError(t, database.MigrateUp(dbURL))
-	return dbURL
-}
-
-func openTransactorTestDB(t *testing.T) *pgxpool.Pool {
-	t.Helper()
-	pool, err := pgxpool.New(context.Background(), migratedTransactorTestURL(t))
-	require.NoError(t, err)
-	t.Cleanup(pool.Close)
-	return pool
-}
 
 // insertTransactorTestGame (re)creates the test game with no shifts and
 // deletes it, with its cascaded even-strength rows, when the test ends.
@@ -68,7 +44,7 @@ func countTransactorTestPairTOI(t *testing.T, pool *pgxpool.Pool) int {
 }
 
 func TestPgxTransactor_RollsBackRebuildOnError(t *testing.T) {
-	pool := openTransactorTestDB(t)
+	pool := pgtest.Open(t)
 	ctx := context.Background()
 	insertTransactorTestGame(t, pool)
 	_, err := pool.Exec(ctx, `

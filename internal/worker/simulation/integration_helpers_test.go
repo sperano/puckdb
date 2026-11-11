@@ -58,6 +58,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/sperano/puckdb/internal/database"
+	"github.com/sperano/puckdb/internal/fixtures/pgtest"
 	"github.com/sperano/puckdb/internal/llm"
 	"github.com/sperano/puckdb/internal/sqlcdb"
 	"github.com/sperano/puckdb/internal/worker/shared"
@@ -71,7 +72,7 @@ import (
 // test Postgres URL. Tests skip when unset rather than failing — a
 // missing env var means the developer didn't opt into integration
 // runs, not that the suite is broken.
-const envTestPGURL = "PUCKDB_TEST_PG_URL"
+const envTestPGURL = pgtest.EnvURL
 
 // integrationEnv is the per-process state TestMain sets up: a
 // migrated DB, a pgx pool, and the URL (kept for the migrate-down
@@ -84,6 +85,8 @@ var integrationEnv struct {
 // TestMain brings the schema up before the suite runs and tears it
 // down at exit. Skips entirely when PUCKDB_TEST_PG_URL is unset;
 // individual tests then short-circuit via integrationEnv.pool == nil.
+// A URL pgtest.CheckURL refuses ends the run before anything is
+// migrated.
 //
 // "Tear down" means migrating every migration back down to zero —
 // the test DB ends each run empty. Slower than per-test TRUNCATE but
@@ -94,6 +97,10 @@ func TestMain(m *testing.M) {
 		// Unset → skip the integration suite. Tests will short-
 		// circuit via t.Skip when integrationEnv.pool is nil.
 		os.Exit(m.Run())
+	}
+	if err := pgtest.CheckURL(dbURL); err != nil {
+		fmt.Fprintf(os.Stderr, "fatal: %v\n", err)
+		os.Exit(1)
 	}
 	integrationEnv.dbURL = dbURL
 

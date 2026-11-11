@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/sperano/puckdb/internal/fixtures/pgtest"
 	"github.com/sperano/puckdb/internal/sqlcdb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -14,7 +15,7 @@ import (
 // manages several teams (the owner's three pools) gets every one of them
 // linked at once, matched against a differently-cased stored email.
 func TestSyncEmailLinks_MatchesSeveralTeamsCaseInsensitively(t *testing.T) {
-	pool := openPool(t)
+	pool := pgtest.Open(t)
 	q := sqlcdb.New(pool)
 	ctx := context.Background()
 
@@ -40,7 +41,7 @@ func TestSyncEmailLinks_MatchesSeveralTeamsCaseInsensitively(t *testing.T) {
 // matches nothing never removes a manually-added link, and never promotes
 // one made by email either way.
 func TestSyncEmailLinks_ManualLinkSurvivesAResync(t *testing.T) {
-	pool := openPool(t)
+	pool := pgtest.Open(t)
 	q := sqlcdb.New(pool)
 	ctx := context.Background()
 
@@ -72,7 +73,7 @@ func TestSyncEmailLinks_ManualLinkSurvivesAResync(t *testing.T) {
 // TestSyncEmailLinks_EmptyEmailMatchesNothing: yahoo_team_managers.email
 // defaults to ”, which must never match an empty login email.
 func TestSyncEmailLinks_EmptyEmailMatchesNothing(t *testing.T) {
-	pool := openPool(t)
+	pool := pgtest.Open(t)
 	q := sqlcdb.New(pool)
 	ctx := context.Background()
 	league, team := seedLeagueTeam(t, pool, "No Email")
@@ -91,7 +92,7 @@ func TestSyncEmailLinks_EmptyEmailMatchesNothing(t *testing.T) {
 // email (the identity header was blank this time) drops every email-sourced
 // link an earlier, non-empty login created.
 func TestSyncEmailLinks_EmptyEmailClearsExistingEmailLink(t *testing.T) {
-	pool := openPool(t)
+	pool := pgtest.Open(t)
 	q := sqlcdb.New(pool)
 	ctx := context.Background()
 	store := NewPGStore(pool)
@@ -116,7 +117,7 @@ func TestSyncEmailLinks_EmptyEmailClearsExistingEmailLink(t *testing.T) {
 // NOTHING never promotes it to email), and still survives once that email
 // no longer matches.
 func TestSyncEmailLinks_ManualLinkNeverDemotedByMatchingResync(t *testing.T) {
-	pool := openPool(t)
+	pool := pgtest.Open(t)
 	q := sqlcdb.New(pool)
 	ctx := context.Background()
 	store := NewPGStore(pool)
@@ -145,7 +146,7 @@ func TestSyncEmailLinks_ManualLinkNeverDemotedByMatchingResync(t *testing.T) {
 // league must be told apart by team_id, not just league_id, when dropping a
 // stale email-sourced link.
 func TestSyncEmailLinks_StaleDeleteMatchesLeagueAndTeam(t *testing.T) {
-	pool := openPool(t)
+	pool := pgtest.Open(t)
 	q := sqlcdb.New(pool)
 	ctx := context.Background()
 	store := NewPGStore(pool)

@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/sperano/puckdb/internal/fixtures/pgtest"
 	"github.com/sperano/puckdb/internal/sqlcdb"
 	"github.com/stretchr/testify/require"
 )
@@ -81,7 +82,7 @@ func seedTeamEnvironment(t *testing.T, pool *pgxpool.Pool) {
 }
 
 func TestListProjectionTeamSeasonsDerivesClubRatesFromGames(t *testing.T) {
-	pool := openFaceoffTestDB(t)
+	pool := pgtest.Open(t)
 	seedTeamEnvironment(t, pool)
 
 	rows, err := sqlcdb.New(pool).ListProjectionTeamSeasons(context.Background(), sqlcdb.ListProjectionTeamSeasonsParams{
@@ -107,7 +108,7 @@ func TestListProjectionTeamSeasonsDerivesClubRatesFromGames(t *testing.T) {
 }
 
 func TestListProjectionSkaterClubGamesReturnsOnlySplitSeasons(t *testing.T) {
-	pool := openFaceoffTestDB(t)
+	pool := pgtest.Open(t)
 	seedTeamEnvironment(t, pool)
 	execAll(t, pool,
 		`INSERT INTO players (id, first_name, last_name, position) VALUES
@@ -139,7 +140,7 @@ func TestListProjectionSkaterClubGamesReturnsOnlySplitSeasons(t *testing.T) {
 }
 
 func TestListProjectionTargetTeamsKeepsMostRecentRosterRow(t *testing.T) {
-	pool := openFaceoffTestDB(t)
+	pool := pgtest.Open(t)
 	seedTeamEnvironment(t, pool)
 	execAll(t, pool,
 		`INSERT INTO players (id, first_name, last_name, position) VALUES (9100001, 'Target', 'Fixture', 'C')`,
@@ -161,7 +162,7 @@ func TestListProjectionTargetTeamsKeepsMostRecentRosterRow(t *testing.T) {
 }
 
 func TestCarryForwardSeasonTeamCopiesOneNHLClubUnderItsNewID(t *testing.T) {
-	pool := openFaceoffTestDB(t)
+	pool := pgtest.Open(t)
 	seedTeamEnvironment(t, pool)
 	queries := sqlcdb.New(pool)
 	carry := func(fromTeam, toTeam int64) int64 {

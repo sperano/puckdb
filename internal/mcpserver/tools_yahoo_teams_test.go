@@ -3,13 +3,12 @@ package mcpserver
 import (
 	"context"
 	"errors"
-	"os"
 	"reflect"
 	"strings"
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/sperano/puckdb/internal/database"
+	"github.com/sperano/puckdb/internal/fixtures/pgtest"
 	"github.com/sperano/puckdb/internal/sqlcdb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -18,9 +17,7 @@ import (
 const (
 	teamsToolName = "get_yahoo_teams_by_league"
 
-	// PostgreSQL-backed test settings (see CLAUDE.md "Database-backed tests").
-	envTestPGURL     = "PUCKDB_TEST_PG_URL"
-	testDBMarker     = "test"
+	// PostgreSQL-backed test fixture.
 	pgTestLeagueID   = 990763
 	pgTestLeagueKey  = "465.l.990763"
 	pgTestSeason     = 20262027
@@ -112,7 +109,7 @@ func TestYahooTeamRowsCarryNoPersonalData(t *testing.T) {
 // TestYahooTeamsToolOmitsPersonalDataFromDatabase stores a manager with a guid
 // and email and checks the tool output against the real query.
 func TestYahooTeamsToolOmitsPersonalDataFromDatabase(t *testing.T) {
-	pool := openMCPTestDB(t)
+	pool := pgtest.Open(t)
 	deleteTestLeague(t, pool)
 	t.Cleanup(func() { deleteTestLeague(t, pool) })
 	seedManagedTeam(t, pool)
@@ -138,20 +135,6 @@ func callTeamsTool(t *testing.T, q yahooQueries) [][]string {
 	result := callTool(t, tool.Handler, map[string]any{leagueIDArg: float64(allowedLeagueID)})
 	require.False(t, result.IsError, resultText(t, result))
 	return parseCSV(t, resultText(t, result))
-}
-
-func openMCPTestDB(t *testing.T) *pgxpool.Pool {
-	t.Helper()
-	dbURL := os.Getenv(envTestPGURL)
-	if dbURL == "" {
-		t.Skipf("set %s to run PostgreSQL MCP server tests", envTestPGURL)
-	}
-	require.Contains(t, dbURL, testDBMarker, "test database URL must contain %q", testDBMarker)
-	require.NoError(t, database.MigrateUp(dbURL))
-	pool, err := pgxpool.New(context.Background(), dbURL)
-	require.NoError(t, err)
-	t.Cleanup(pool.Close)
-	return pool
 }
 
 func seedManagedTeam(t *testing.T, pool *pgxpool.Pool) {

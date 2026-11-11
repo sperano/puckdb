@@ -4,42 +4,17 @@ import (
 	"context"
 	"fmt"
 	"math/rand/v2"
-	"os"
-	"sync"
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/sperano/puckdb/internal/database"
 	"github.com/stretchr/testify/require"
 )
 
 // PostgreSQL-backed test settings (see CLAUDE.md "Database-backed tests").
 const (
-	envTestPGURL     = "PUCKDB_TEST_PG_URL"
-	testDBNameMarker = "test"
-	testInstance     = "puckdb-test"
+	testInstance = "puckdb-test"
 )
-
-var pgMigrateOnce struct {
-	sync.Once
-	err error
-}
-
-func openPool(t *testing.T) *pgxpool.Pool {
-	t.Helper()
-	dbURL := os.Getenv(envTestPGURL)
-	if dbURL == "" {
-		t.Skipf("set %s to run the PostgreSQL tests", envTestPGURL)
-	}
-	require.Contains(t, dbURL, testDBNameMarker, "%s must name a dedicated test database", envTestPGURL)
-	pgMigrateOnce.Do(func() { pgMigrateOnce.err = database.MigrateUp(dbURL) })
-	require.NoError(t, pgMigrateOnce.err)
-	pool, err := pgxpool.New(context.Background(), dbURL)
-	require.NoError(t, err)
-	t.Cleanup(pool.Close)
-	return pool
-}
 
 // newLeagueID returns a Yahoo league ID no fixture elsewhere in the test
 // suite uses: tests share the database and never truncate it.

@@ -9,16 +9,14 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"os"
-	"sync"
 	"testing"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/sperano/puckdb/internal/cache"
 	"github.com/sperano/puckdb/internal/config"
-	"github.com/sperano/puckdb/internal/database"
 	"github.com/sperano/puckdb/internal/draft"
+	"github.com/sperano/puckdb/internal/fixtures/pgtest"
 	"github.com/sperano/puckdb/internal/fixtures/yahoofixtures"
 	"github.com/sperano/puckdb/internal/resource"
 	"github.com/sperano/puckdb/internal/sqlcdb"
@@ -29,8 +27,6 @@ import (
 )
 
 const (
-	envTestPGURL     = "PUCKDB_TEST_PG_URL"
-	testDBNameMarker = "test"
 	// pgTestNHLPlayerID is the NHL player mapped to fixture Yahoo player 7001.
 	pgTestNHLPlayerID   = 8470001
 	pgTestMappedYahooID = 7001
@@ -40,32 +36,12 @@ const (
 
 var pgTestFetchTime = time.Date(2026, time.September, 20, 12, 0, 0, 0, time.UTC)
 
-var pgMigrateOnce struct {
-	sync.Once
-	err error
-}
-
-// openDraftTestDB migrates the test database once and empties the tables
+// openDraftTestDB opens the migrated test database and empties the tables
 // these tests use.
 func openDraftTestDB(t *testing.T) *pgxpool.Pool {
 	t.Helper()
-	dbURL := os.Getenv(envTestPGURL)
-	if dbURL == "" {
-		t.Skipf("set %s to run the PostgreSQL draft rules tests", envTestPGURL)
-	}
-	require.Contains(t, dbURL, testDBNameMarker,
-		"%s must name a dedicated test database (URL containing %q)", envTestPGURL, testDBNameMarker)
-	pgMigrateOnce.Do(func() { pgMigrateOnce.err = database.MigrateUp(dbURL) })
-	require.NoError(t, pgMigrateOnce.err, "migrate test database")
-
-	ctx := context.Background()
-	pool, err := pgxpool.New(ctx, dbURL)
-	require.NoError(t, err)
-	t.Cleanup(pool.Close)
-	_, err = pool.Exec(ctx, `TRUNCATE yahoo_leagues, yahoo_league_roster_positions, yahoo_league_stat_categories,
-		yahoo_league_rule_snapshots, yahoo_league_players, yahoo_teams, players CASCADE`)
-	require.NoError(t, err)
-	return pool
+	return pgtest.Open(t, "yahoo_leagues", "yahoo_league_roster_positions", "yahoo_league_stat_categories",
+		"yahoo_league_rule_snapshots", "yahoo_league_players", "yahoo_teams", "players")
 }
 
 type draftPGFixture struct {

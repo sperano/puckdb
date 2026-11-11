@@ -8,7 +8,6 @@ package simfixtures
 import (
 	"context"
 	"net/url"
-	"os"
 	"strings"
 	"testing"
 	"time"
@@ -17,14 +16,12 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/sperano/puckdb/internal/database"
+	"github.com/sperano/puckdb/internal/fixtures/pgtest"
 	"github.com/stretchr/testify/require"
 )
 
 const (
-	// EnvTestPGURL names the throwaway server (see CLAUDE.md, "Database-backed
-	// tests"); tests skip without it.
-	EnvTestPGURL = "PUCKDB_TEST_PG_URL"
-	// databasePrefix keeps the "test" marker other harnesses look for.
+	// databasePrefix keeps pgtest.DatabaseMarker in the name.
 	databasePrefix = "puckdb_test_sim"
 	// setupTimeout bounds creating and migrating one database, and
 	// separately dropping it.
@@ -39,13 +36,10 @@ const (
 
 // NewDatabase creates and migrates an empty database and returns its URL.
 // It skips the test when PUCKDB_TEST_PG_URL is unset or the role cannot
-// create databases.
+// create databases, and fails it when pgtest.CheckURL refuses that URL.
 func NewDatabase(t testing.TB) string {
 	t.Helper()
-	baseURL := os.Getenv(EnvTestPGURL)
-	if baseURL == "" {
-		t.Skipf("%s not set", EnvTestPGURL)
-	}
+	baseURL := pgtest.URL(t)
 	ctx, cancel := context.WithTimeout(context.Background(), setupTimeout)
 	defer cancel()
 

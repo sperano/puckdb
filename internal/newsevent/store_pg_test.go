@@ -15,15 +15,13 @@ import (
 	"cmp"
 	"context"
 	"fmt"
-	"os"
 	"slices"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/sperano/puckdb/internal/database"
+	"github.com/sperano/puckdb/internal/fixtures/pgtest"
 	"github.com/sperano/puckdb/internal/news"
 	"github.com/sperano/puckdb/internal/sqlcdb"
 	"github.com/stretchr/testify/assert"
@@ -31,9 +29,6 @@ import (
 )
 
 const (
-	pgEnvTestPGURL     = "PUCKDB_TEST_PG_URL"
-	pgTestDBNameMarker = "test"
-
 	// Seed values of the article, version and extraction rows the evidence
 	// rows reference; the predicates under test never read them.
 	pgSeedSourceID     = "seed"
@@ -45,44 +40,27 @@ const (
 	pgListAllLimit = 1000
 )
 
-var pgMigrateOnce struct {
-	sync.Once
-	err error
-}
-
 // pgNow is the clock Apply records lifecycle changes with.
 var pgNow = time.Date(2027, time.January, 15, 9, 0, 0, 0, time.UTC)
 
 // pgListAllSince predates every report time in the fixtures and the corpus.
 var pgListAllSince = time.Date(2000, time.January, 1, 0, 0, 0, 0, time.UTC)
 
-// openNewsEventPGTestDB migrates the test database once and empties the news
+// openNewsEventPGTestDB opens the migrated test database and empties the news
 // tables. RESTART IDENTITY makes event IDs start at 1 like MemoryStore's, so
 // the two stores can be compared event by event.
 func openNewsEventPGTestDB(t *testing.T) *pgxpool.Pool {
 	t.Helper()
-	dbURL := os.Getenv(pgEnvTestPGURL)
-	if dbURL == "" {
-		t.Skipf("set %s to run the PostgreSQL news event tests", pgEnvTestPGURL)
-	}
-	require.Contains(t, dbURL, pgTestDBNameMarker,
-		"%s must name a dedicated test database (URL containing %q)", pgEnvTestPGURL, pgTestDBNameMarker)
-	pgMigrateOnce.Do(func() { pgMigrateOnce.err = database.MigrateUp(dbURL) })
-	require.NoError(t, pgMigrateOnce.err, "migrate test database")
-
-	pool, err := pgxpool.New(context.Background(), dbURL)
-	require.NoError(t, err)
-	t.Cleanup(pool.Close)
+	pool := pgtest.Open(t)
 	resetNewsEventTables(t, pool)
 	return pool
 }
 
 func resetNewsEventTables(t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()
-	_, err := pool.Exec(context.Background(), `TRUNCATE news_event_transitions, news_event_evidence, news_events,
-		news_extractions, news_incident_evidence, news_incidents, news_mentions, news_article_versions, news_articles
-		RESTART IDENTITY CASCADE`)
-	require.NoError(t, err)
+	pgtest.TruncateRestartIdentity(t, pool, "news_event_transitions", "news_event_evidence", "news_events",
+		"news_extractions", "news_incident_evidence", "news_incidents", "news_mentions", "news_article_versions",
+		"news_articles")
 }
 
 // seedReportRows inserts the article, version and extraction rows a report's

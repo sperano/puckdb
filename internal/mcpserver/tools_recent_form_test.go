@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
+	"github.com/sperano/puckdb/internal/fixtures/pgtest"
 	"github.com/sperano/puckdb/internal/sqlcdb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -285,7 +286,7 @@ func recentFormRows(t *testing.T, result *mcp.CallToolResult) []map[string]strin
 }
 
 func TestRecentFormToolAgainstPostgres(t *testing.T) {
-	pool := openGameLogTestDB(t)
+	pool := pgtest.Open(t)
 	exec := func(sql string, args ...any) { execGameLogFixture(t, pool, sql, args...) }
 	cleanupRecentFormFixture(t, exec)
 	t.Cleanup(func() { cleanupRecentFormFixture(t, exec) })

@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/sperano/puckdb/internal/fixtures/pgtest"
 	"github.com/sperano/puckdb/internal/sqlcdb"
 
 	"github.com/stretchr/testify/assert"
@@ -105,7 +106,7 @@ const (
 // and ordering come from GetAwardsBySeason (trophy, then last name) and
 // GetAwardsByTrophy (season descending), not from Go code.
 func TestAwardsFromDatabase(t *testing.T) {
-	pool := openMCPTestDB(t)
+	pool := pgtest.Open(t)
 	deleteAwardsFixture(t, pool)
 	t.Cleanup(func() { deleteAwardsFixture(t, pool) })
 	seedAwardsFixture(t, pool)
@@ -208,7 +209,7 @@ func TestSeasonRosterBindsSeasonAndTeam(t *testing.T) {
 // the requested club and season, names joined from players, ordered by
 // position then last name.
 func TestSeasonRosterFromDatabase(t *testing.T) {
-	pool := openMCPTestDB(t)
+	pool := pgtest.Open(t)
 	deleteRosterFixture(t, pool)
 	t.Cleanup(func() { deleteRosterFixture(t, pool) })
 	seedRosterFixture(t, pool)

@@ -20,7 +20,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/sperano/puckdb/internal/database"
+	"github.com/sperano/puckdb/internal/fixtures/pgtest"
 	"github.com/sperano/puckdb/internal/news"
 	"github.com/sperano/puckdb/internal/sqlcdb"
 	"github.com/stretchr/testify/assert"
@@ -30,9 +30,6 @@ import (
 )
 
 const (
-	pgEnvTestPGURL     = "PUCKDB_TEST_PG_URL"
-	pgTestDBNameMarker = "test"
-
 	// Fixture identities shared by the PG tests. The McNabb NHL player ID
 	// matches the player tag in testdata/nhl-player-safety.json, so the NHL
 	// content fetch resolves him without extra plumbing.
@@ -71,39 +68,21 @@ var pgFixedNow = time.Date(2026, time.September, 25, 12, 0, 0, 0, time.UTC)
 // report-loader queries filtered by a "since" bound see everything seeded.
 var pgLoadSince = pgFixedNow.Add(-30 * 24 * time.Hour)
 
-var pgMigrateOnce struct {
-	sync.Once
-	err error
-}
-
-// openNewsPGTestDB migrates the test database once and empties the tables
+// openNewsPGTestDB opens the migrated test database and empties the tables
 // the news activities read and write.
 func openNewsPGTestDB(t *testing.T) *pgxpool.Pool {
 	t.Helper()
-	dbURL := os.Getenv(pgEnvTestPGURL)
-	if dbURL == "" {
-		t.Skipf("set %s to run the PostgreSQL news activities tests", pgEnvTestPGURL)
-	}
-	require.Contains(t, dbURL, pgTestDBNameMarker,
-		"%s must name a dedicated test database (URL containing %q)", pgEnvTestPGURL, pgTestDBNameMarker)
-	pgMigrateOnce.Do(func() { pgMigrateOnce.err = database.MigrateUp(dbURL) })
-	require.NoError(t, pgMigrateOnce.err, "migrate test database")
-
-	ctx := context.Background()
-	pool, err := pgxpool.New(ctx, dbURL)
-	require.NoError(t, err)
-	t.Cleanup(pool.Close)
+	pool := pgtest.Open(t)
 	truncateNewsTables(t, pool)
 	return pool
 }
 
 func truncateNewsTables(t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()
-	_, err := pool.Exec(context.Background(), `TRUNCATE news_extraction_evaluations, news_event_transitions,
-		news_event_evidence, news_events, news_extractions, news_incident_evidence, news_incidents, news_mentions,
-		news_article_versions, news_articles, news_fetch_state, yahoo_league_players, season_teams, franchises,
-		seasons, players CASCADE`)
-	require.NoError(t, err)
+	pgtest.Truncate(t, pool, "news_extraction_evaluations", "news_event_transitions",
+		"news_event_evidence", "news_events", "news_extractions", "news_incident_evidence", "news_incidents",
+		"news_mentions", "news_article_versions", "news_articles", "news_fetch_state", "yahoo_league_players",
+		"season_teams", "franchises", "seasons", "players")
 }
 
 // newNewsActivities builds Activities over pool with a fixed clock and

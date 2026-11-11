@@ -6,41 +6,29 @@ package draftranking
 
 import (
 	"context"
-	"os"
 	"testing"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/sperano/puckdb/internal/database"
 	"github.com/sperano/puckdb/internal/draftrank"
+	"github.com/sperano/puckdb/internal/fixtures/pgtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.temporal.io/sdk/testsuite"
 )
 
 const (
-	envTestPGURL     = "PUCKDB_TEST_PG_URL"
-	testDBNameMarker = "test"
-	testSeason       = 2026
-	testLeagueID     = 424242
-	testRunID        = "activity-run"
+	testSeason   = 2026
+	testLeagueID = 424242
+	testRunID    = "activity-run"
 )
 
 var testNow = time.Date(2026, time.September, 20, 12, 0, 0, 0, time.UTC)
 
 func openTestDB(t *testing.T) *pgxpool.Pool {
 	t.Helper()
-	dbURL := os.Getenv(envTestPGURL)
-	if dbURL == "" {
-		t.Skipf("set %s to run the PostgreSQL draft ranking activity tests", envTestPGURL)
-	}
-	require.Contains(t, dbURL, testDBNameMarker,
-		"%s must name a dedicated test database (URL containing %q)", envTestPGURL, testDBNameMarker)
-	require.NoError(t, database.MigrateUp(dbURL))
-	pool, err := pgxpool.New(context.Background(), dbURL)
-	require.NoError(t, err)
-	t.Cleanup(pool.Close)
-	_, err = pool.Exec(context.Background(), `DELETE FROM draft_ranking_refreshes WHERE league_id = $1`, testLeagueID)
+	pool := pgtest.Open(t)
+	_, err := pool.Exec(context.Background(), `DELETE FROM draft_ranking_refreshes WHERE league_id = $1`, testLeagueID)
 	require.NoError(t, err)
 	return pool
 }

@@ -9,6 +9,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/sperano/puckdb/internal/fixtures/pgtest"
 	"github.com/sperano/puckdb/internal/news"
 	"github.com/sperano/puckdb/internal/newsevent"
 	"github.com/sperano/puckdb/internal/projection"
@@ -147,8 +148,7 @@ func reconcileReport(t *testing.T, pool *pgxpool.Pool, externalID string, report
 func TestRepository_LoadEventsReplaysReconciledExtraction(t *testing.T) {
 	pool := openAdjustmentTestDB(t)
 	ctx := context.Background()
-	_, err := pool.Exec(ctx, `TRUNCATE news_articles, news_extraction_evaluations CASCADE`)
-	require.NoError(t, err)
+	pgtest.Truncate(t, pool, "news_articles", "news_extraction_evaluations")
 
 	quote := func(text string) []newsevent.Quote { return []newsevent.Quote{{Doc: "D1", Text: text}} }
 	reconcileReport(t, pool, "suspension", testReportedAt, newsevent.Event{

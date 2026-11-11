@@ -4,14 +4,12 @@ import (
 	"context"
 	"fmt"
 	"math/rand/v2"
-	"os"
-	"sync"
 	"testing"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/sperano/puckdb/internal/database"
+	"github.com/sperano/puckdb/internal/fixtures/pgtest"
 	"github.com/sperano/puckdb/internal/yahoolink"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -19,27 +17,6 @@ import (
 
 // envMauriceTeamsTestPGURL names the throwaway PostgreSQL this test migrates
 // (see CLAUDE.md, "Database-backed tests"); unset skips it.
-const envMauriceTeamsTestPGURL = "PUCKDB_TEST_PG_URL"
-
-var mauriceTeamsMigrateOnce struct {
-	sync.Once
-	err error
-}
-
-func openMauriceTeamsPool(t *testing.T) *pgxpool.Pool {
-	t.Helper()
-	dbURL := os.Getenv(envMauriceTeamsTestPGURL)
-	if dbURL == "" {
-		t.Skipf("set %s to run the PostgreSQL tests", envMauriceTeamsTestPGURL)
-	}
-	require.Contains(t, dbURL, "test", "%s must name a dedicated test database", envMauriceTeamsTestPGURL)
-	mauriceTeamsMigrateOnce.Do(func() { mauriceTeamsMigrateOnce.err = database.MigrateUp(dbURL) })
-	require.NoError(t, mauriceTeamsMigrateOnce.err)
-	pool, err := pgxpool.New(context.Background(), dbURL)
-	require.NoError(t, err)
-	t.Cleanup(pool.Close)
-	return pool
-}
 
 // newMauriceTeamsLeagueID returns a Yahoo league ID no fixture elsewhere in
 // the test suite uses: tests share the database and never truncate it.
@@ -61,7 +38,7 @@ func seedMauriceTeamsLeagueTeam(t *testing.T, pool *pgxpool.Pool, leagueID int32
 // yahoolink.PGStore.ListUserTeams, so only an allowed league's team is
 // named to Maurice.
 func TestNewMauriceTeamLister_FiltersByAllowlist(t *testing.T) {
-	pool := openMauriceTeamsPool(t)
+	pool := pgtest.Open(t)
 	ctx := context.Background()
 	store := yahoolink.NewPGStore(pool)
 

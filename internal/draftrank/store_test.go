@@ -6,16 +6,14 @@ package draftrank_test
 
 import (
 	"context"
-	"os"
-	"sync"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/sperano/puckdb/internal/database"
 	"github.com/sperano/puckdb/internal/draftrank"
 	"github.com/sperano/puckdb/internal/fixtures/draftfixtures"
+	"github.com/sperano/puckdb/internal/fixtures/pgtest"
 	"github.com/sperano/puckdb/internal/newsadjust"
 	"github.com/sperano/puckdb/internal/projection"
 	"github.com/sperano/puckdb/internal/sqlcdb"
@@ -24,35 +22,16 @@ import (
 )
 
 const (
-	envTestPGURL     = "PUCKDB_TEST_PG_URL"
-	testDBNameMarker = "test"
-	testKeep         = 2
-	testRunID        = "run-1"
+	testKeep  = 2
+	testRunID = "run-1"
 )
 
-var pgMigrateOnce struct {
-	sync.Once
-	err error
-}
-
+// openDraftTestDB opens the test database with no draft ranking, news
+// adjustment, projection or league rule rows.
 func openDraftTestDB(t *testing.T) *pgxpool.Pool {
 	t.Helper()
-	dbURL := os.Getenv(envTestPGURL)
-	if dbURL == "" {
-		t.Skipf("set %s to run the PostgreSQL draft ranking tests", envTestPGURL)
-	}
-	require.Contains(t, dbURL, testDBNameMarker,
-		"%s must name a dedicated test database (URL containing %q)", envTestPGURL, testDBNameMarker)
-	pgMigrateOnce.Do(func() { pgMigrateOnce.err = database.MigrateUp(dbURL) })
-	require.NoError(t, pgMigrateOnce.err, "migrate test database")
-	ctx := context.Background()
-	pool, err := pgxpool.New(ctx, dbURL)
-	require.NoError(t, err)
-	t.Cleanup(pool.Close)
-	_, err = pool.Exec(ctx, `TRUNCATE draft_ranking_refreshes, draft_ranking_snapshots, news_adjustment_overrides,
-		news_adjustment_runs, projection_snapshots, yahoo_league_rule_snapshots, yahoo_league_players CASCADE`)
-	require.NoError(t, err)
-	return pool
+	return pgtest.Open(t, "draft_ranking_refreshes", "draft_ranking_snapshots", "news_adjustment_overrides",
+		"news_adjustment_runs", "projection_snapshots", "yahoo_league_rule_snapshots", "yahoo_league_players")
 }
 
 // storedFixtureInput stores the fixture's baseline projection and news
