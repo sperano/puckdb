@@ -15,9 +15,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// envMauriceTeamsTestPGURL names the throwaway PostgreSQL this test migrates
-// (see CLAUDE.md, "Database-backed tests"); unset skips it.
-
 // newMauriceTeamsLeagueID returns a Yahoo league ID no fixture elsewhere in
 // the test suite uses: tests share the database and never truncate it.
 func newMauriceTeamsLeagueID() int32 { return 10_000_000 + rand.Int32N(1_000_000_000-10_000_000) }
