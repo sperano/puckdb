@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"go.temporal.io/sdk/testsuite"
+	"go.temporal.io/sdk/worker"
 )
 
 // seedAllGameData writes parseable cached game data files so FetchOrCache hits filesystem.
@@ -425,4 +426,110 @@ func TestHasPendingGame(t *testing.T) {
 			assert.Equal(t, tt.want, hasPendingGame(tt.games))
 		})
 	}
+}
+
+// cacheSchedule writes a cached schedule of day listing games.
+func (s *DailyScheduleTestSuite) cacheSchedule(mem *store.MemStorage, day time.Time, games ...nhlapi.ScheduleGame) []byte {
+	res := resource.DailySchedule{Date: day}
+	require.NoError(s.T(), resource.WriteParsed(context.Background(), mem, res, &nhlapi.DailySchedule{Games: games}))
+	return mem.Get(res.Path())
+}
+
+func regularGame(id int, state nhlapi.GameState) nhlapi.ScheduleGame {
+	return nhlapi.ScheduleGame{ID: nhlapi.GameID(id), GameType: nhlapi.GameTypeRegularSeason, GameState: state}
+}
+
+// A failed re-download of a pending cached schedule falls back to the cached
+// copy: its final games still get their files, and the cache is unchanged.
+func (s *DailyScheduleTestSuite) TestPendingScheduleRefetchFailureUsesCachedCopy() {
+	mem := store.NewMemStorage()
+	mockClient := &MockNHLClient{}
+	day := time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC)
+	finalID := nhlapi.GameID(2024020001)
+	cachedBytes := s.cacheSchedule(mem, day,
+		regularGame(int(finalID), nhlapi.GameStateFinal), regularGame(2024020002, nhlapi.GameStateFuture))
+
+	mockClient.On("DailySchedule", mock.Anything, nhlapi.FromDate(day)).Return(nil, errors.New("API down")).Once()
+	expectGameDownloads(mockClient, finalID)
+
+	a := s.newActivities(mem, mockClient)
+	s.env.RegisterActivity(a.FetchDailySchedule)
+	future, err := s.env.ExecuteActivity(a.FetchDailySchedule, day)
+	require.NoError(s.T(), err)
+	var result FetchDailyScheduleResult
+	require.NoError(s.T(), future.Get(&result))
+	assert.Equal(s.T(), core.OriginFileSystem, result.Origin)
+
+	mockClient.AssertExpectations(s.T())
+	assertGameFilesCached(s.T(), mem, day, finalID)
+	assert.Equal(s.T(), cachedBytes, mem.Get(resource.DailySchedule{Date: day}.Path()))
+}
+
+// A cancelled activity does not fall back to the cached copy of a pending
+// schedule whose re-download it interrupted.
+func (s *DailyScheduleTestSuite) TestPendingScheduleRefetchCancelledFails() {
+	mem := store.NewMemStorage()
+	mockClient := &MockNHLClient{}
+	day := time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC)
+	s.cacheSchedule(mem, day,
+		regularGame(2024020001, nhlapi.GameStateFinal), regularGame(2024020002, nhlapi.GameStateFuture))
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	s.env.SetWorkerOptions(worker.Options{BackgroundActivityContext: ctx})
+	mockClient.On("DailySchedule", mock.Anything, nhlapi.FromDate(day)).Return(nil, context.Canceled).Once()
+
+	a := s.newActivities(mem, mockClient)
+	s.env.RegisterActivity(a.FetchDailySchedule)
+	_, err := s.env.ExecuteActivity(a.FetchDailySchedule, day)
+	require.ErrorContains(s.T(), err, "download schedule")
+	require.ErrorContains(s.T(), err, context.Canceled.Error())
+	mockClient.AssertExpectations(s.T())
+}
+
+// With a cached schedule, an existing game file is kept without being read:
+// an unparseable boxscore is neither downloaded again nor rewritten.
+func (s *DailyScheduleTestSuite) TestCachedScheduleKeepsExistingGameFilesUnread() {
+	mem := store.NewMemStorage()
+	mockClient := &MockNHLClient{}
+	day := time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC)
+	gameID := nhlapi.GameID(2024020001)
+	s.cacheSchedule(mem, day, regularGame(int(gameID), nhlapi.GameStateFinal))
+	seedAllGameData(mem, day, gameID)
+	boxscore := resource.Boxscore{Date: day, GameID: gameID}.Path()
+	unparseable := []byte("invalid json")
+	mem.SetFile(boxscore, unparseable)
+
+	a := s.newActivities(mem, mockClient)
+	s.env.RegisterActivity(a.FetchDailySchedule)
+	_, err := s.env.ExecuteActivity(a.FetchDailySchedule, day)
+	require.NoError(s.T(), err)
+
+	mockClient.AssertExpectations(s.T())
+	assert.Equal(s.T(), unparseable, mem.Get(boxscore))
+}
+
+// With a cached schedule of several final games, only the missing files of
+// each game are downloaded.
+func (s *DailyScheduleTestSuite) TestCachedScheduleFetchesMissingFilesPerGame() {
+	mem := store.NewMemStorage()
+	mockClient := &MockNHLClient{}
+	day := time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC)
+	complete, partial := nhlapi.GameID(2024020001), nhlapi.GameID(2024020002)
+	s.cacheSchedule(mem, day,
+		regularGame(int(complete), nhlapi.GameStateFinal), regularGame(int(partial), nhlapi.GameStateOff))
+	seedAllGameData(mem, day, complete)
+	seedAllGameData(mem, day, partial)
+	require.NoError(s.T(), mem.Delete(context.Background(), resource.Boxscore{Date: day, GameID: partial}.Path()))
+
+	mockClient.On("Boxscore", mock.Anything, partial).Return(nhlapi.FixtureBoxscore(), nil).Once()
+
+	a := s.newActivities(mem, mockClient)
+	s.env.RegisterActivity(a.FetchDailySchedule)
+	_, err := s.env.ExecuteActivity(a.FetchDailySchedule, day)
+	require.NoError(s.T(), err)
+
+	mockClient.AssertExpectations(s.T())
+	assertGameFilesCached(s.T(), mem, day, complete)
+	assertGameFilesCached(s.T(), mem, day, partial)
 }

@@ -78,7 +78,9 @@ func (a *DailyScheduleActivities) FetchDailySchedule(ctx context.Context, day ti
 }
 
 // fetchSchedule returns day's schedule from the cache, or from the API when
-// it is not cached or the cached copy has a game that is not final yet.
+// it is not cached or the cached copy has a game that is not final yet. A
+// failed re-download of such a cached copy falls back to it, unless ctx is
+// done.
 func (a *DailyScheduleActivities) fetchSchedule(ctx context.Context, day time.Time) (*nhlapi.DailySchedule, core.DataOrigin, error) {
 	res := resource.DailySchedule{Date: day}
 	download := func(ctx context.Context) (*nhlapi.DailySchedule, error) {
@@ -88,8 +90,20 @@ func (a *DailyScheduleActivities) fetchSchedule(ctx context.Context, day time.Ti
 	if err != nil || origin == core.OriginRemoteNHLAPI || !hasPendingGame(schedule.Games) {
 		return schedule, origin, err
 	}
-	activity.GetLogger(ctx).Debug("Cached daily schedule has games not final yet, downloading it again", "day", day.Format(time.DateOnly))
-	return shared.FetchAndCache(ctx, a.Storage, a.GobCache, res, download)
+	logger := activity.GetLogger(ctx)
+	logger.Debug("Cached daily schedule has games not final yet, downloading it again", "day", day.Format(time.DateOnly))
+	fresh, freshOrigin, err := shared.FetchAndCache(ctx, a.Storage, a.GobCache, res, download)
+	if err == nil {
+		return fresh, freshOrigin, nil
+	}
+	if ctx.Err() != nil {
+		return nil, core.OriginUnknown, err
+	}
+	// The cached copy still lists every game that was final when it was
+	// written; their files are ensured, and the pending games wait for the
+	// next fetch, as they did before this re-download existed.
+	logger.Warn("Re-downloading a pending daily schedule failed, using the cached copy", "day", day.Format(time.DateOnly), "error", err)
+	return schedule, origin, nil
 }
 
 // hasPendingGame reports whether games has a valid, non-preseason game that
