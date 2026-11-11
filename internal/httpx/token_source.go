@@ -99,13 +99,18 @@ func (s *refreshingTokenSource) refresh() (*oauth2.Token, error) {
 }
 
 // refreshRejected reports whether the provider definitively refused the
-// refresh token, as opposed to failing to answer. The RFC 6749 invalid_grant
-// code is the explicit signal, but Yahoo's error bodies do not always follow
-// the RFC, so a 400/401/403 without a parsable code counts too. Rate limiting
-// (429) and 5xx are transient and keep the stored record.
+// refresh token, as opposed to failing to answer or refusing something else.
+// An explicit RFC 6749 error code decides on its own: invalid_grant is the
+// only code that condemns the grant, and every other code (invalid_client
+// after a rotated client secret, unauthorized_client, invalid_request, ...)
+// keeps it, since logging in again would not fix the client side. Yahoo's
+// error bodies do not always follow the RFC, so only when no well-formed code
+// came back does a 400/401/403 count as a rejection. Rate limiting (429) and
+// 5xx are transient and keep the stored record, unless the body names
+// invalid_grant.
 func refreshRejected(retrieveErr *oauth2.RetrieveError) bool {
-	if retrieveErr.ErrorCode == oauthErrorInvalidGrant {
-		return true
+	if validOAuthErrorCode(retrieveErr.ErrorCode) {
+		return retrieveErr.ErrorCode == oauthErrorInvalidGrant
 	}
 	if retrieveErr.Response == nil {
 		return false
@@ -117,10 +122,28 @@ func refreshRejected(retrieveErr *oauth2.RetrieveError) bool {
 	return false
 }
 
+// validOAuthErrorCode reports whether code is a non-empty RFC 6749 error code:
+// every character in %x20-21 / %x23-5B / %x5D-7E (printable ASCII without '"'
+// and '\'). Anything else is no code at all for refreshRejected.
+func validOAuthErrorCode(code string) bool {
+	if code == "" {
+		return false
+	}
+	for i := 0; i < len(code); i++ {
+		c := code[i]
+		if c < ' ' || c > '~' || c == '"' || c == '\\' {
+			return false
+		}
+	}
+	return true
+}
+
 // refreshFailed turns a rejected refresh into a login prompt. The record is
 // deleted so status reporting stops calling the user logged in: now that
 // records carry no TTL, nothing else would ever clear a dead credential.
-// Transient failures (network, 429, 5xx) pass through with the record kept.
+// Transient failures (network, and 429 or 5xx without invalid_grant) and
+// explicit error codes other than invalid_grant pass through with the record
+// kept.
 func (s *refreshingTokenSource) refreshFailed(err error) error {
 	var retrieveErr *oauth2.RetrieveError
 	if !errors.As(err, &retrieveErr) || !refreshRejected(retrieveErr) {
