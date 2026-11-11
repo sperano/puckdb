@@ -12,6 +12,7 @@ import (
 	"github.com/sperano/puckdb/internal/store"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/oauth2"
 )
 
 var testDraftIdentity = Identity{LeagueKey: "500.l.5621", Season: 2026, LeagueID: 5621, GameKey: 500}
@@ -54,6 +55,18 @@ func TestClassifyErrorDistinguishesAuthenticationAndRateLimit(t *testing.T) {
 	assert.Equal(t, ErrorClassHTTP, ClassifyError(&httpx.HTTPError{StatusCode: http.StatusNotFound}))
 	assert.Equal(t, ErrorClassCanceled, ClassifyError(fmt.Errorf("poll: %w", context.DeadlineExceeded)))
 	assert.Equal(t, ErrorClassTransport, ClassifyError(errors.New("connection reset")))
+}
+
+func TestClassifyErrorClassesTokenRefreshFailures(t *testing.T) {
+	refreshErr := func(status int, code string) error {
+		return fmt.Errorf("refresh token for user: %w", &oauth2.RetrieveError{Response: &http.Response{StatusCode: status}, ErrorCode: code})
+	}
+	assert.Equal(t, ErrorClassAuthentication, ClassifyError(refreshErr(http.StatusUnauthorized, "invalid_client")))
+	assert.Equal(t, ErrorClassAuthentication, ClassifyError(refreshErr(http.StatusBadRequest, "unauthorized_client")))
+	assert.Equal(t, ErrorClassAuthentication, ClassifyError(refreshErr(http.StatusOK, "invalid_scope")))
+	assert.Equal(t, ErrorClassAuthentication, ClassifyError(&oauth2.RetrieveError{ErrorCode: "invalid_client"}))
+	assert.Equal(t, ErrorClassRateLimited, ClassifyError(refreshErr(http.StatusTooManyRequests, "")))
+	assert.Equal(t, ErrorClassUpstream, ClassifyError(refreshErr(http.StatusBadGateway, "")))
 }
 
 // The stored class strings are read back by the capability report and must

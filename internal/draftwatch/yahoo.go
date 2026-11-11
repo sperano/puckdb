@@ -16,6 +16,7 @@ import (
 	"github.com/sperano/puckdb/internal/store"
 	"github.com/sperano/puckdb/internal/worker/shared"
 	"github.com/sperano/puckdb/internal/worker/yahoo"
+	"golang.org/x/oauth2"
 )
 
 const (
@@ -136,7 +137,10 @@ type ErrorClass string
 const (
 	// ErrorClassNone is the class of a successful poll.
 	ErrorClassNone ErrorClass = ""
-	// ErrorClassAuthentication is HTTP 401 or 403, or a missing OAuth token.
+	// ErrorClassAuthentication is HTTP 401 or 403, a missing OAuth token, or
+	// a token refresh the endpoint refused with any status below 500 other
+	// than 429 (invalid_client after a rotated client secret keeps the stored
+	// token, so it arrives as the refresh error, not as a missing token).
 	ErrorClassAuthentication ErrorClass = "authentication"
 	// ErrorClassRateLimited is HTTP 429, kept apart so watch backoff can
 	// react to throttling.
@@ -158,17 +162,14 @@ func ClassifyError(err error) ErrorClass {
 	}
 	var httpErr *httpx.HTTPError
 	if errors.As(err, &httpErr) {
-		switch httpErr.StatusCode {
-		case http.StatusUnauthorized, http.StatusForbidden:
+		return classifyStatus(httpErr.StatusCode, ErrorClassHTTP)
+	}
+	var refreshErr *oauth2.RetrieveError
+	if errors.As(err, &refreshErr) {
+		if refreshErr.Response == nil {
 			return ErrorClassAuthentication
-		case http.StatusTooManyRequests:
-			return ErrorClassRateLimited
-		default:
-			if httpErr.StatusCode >= http.StatusInternalServerError {
-				return ErrorClassUpstream
-			}
-			return ErrorClassHTTP
 		}
+		return classifyStatus(refreshErr.Response.StatusCode, ErrorClassAuthentication)
 	}
 	var tokenErr *cache.OAuth2TokenMissingError
 	if errors.As(err, &tokenErr) {
@@ -178,4 +179,18 @@ func ClassifyError(err error) ErrorClass {
 		return ErrorClassCanceled
 	}
 	return ErrorClassTransport
+}
+
+// classifyStatus maps an HTTP error status to its class, otherwise for a
+// status no class names.
+func classifyStatus(status int, otherwise ErrorClass) ErrorClass {
+	switch {
+	case status == http.StatusUnauthorized || status == http.StatusForbidden:
+		return ErrorClassAuthentication
+	case status == http.StatusTooManyRequests:
+		return ErrorClassRateLimited
+	case status >= http.StatusInternalServerError:
+		return ErrorClassUpstream
+	}
+	return otherwise
 }

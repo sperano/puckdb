@@ -106,7 +106,8 @@ func (s *refreshingTokenSource) refresh() (*oauth2.Token, error) {
 // keeps it, since logging in again would not fix the client side. Yahoo's
 // error bodies do not always follow the RFC, so only when no well-formed code
 // came back does a 400/401/403 count as a rejection. Rate limiting (429) and
-// 5xx are transient and keep the stored record.
+// 5xx are transient and keep the stored record, unless the body names
+// invalid_grant.
 func refreshRejected(retrieveErr *oauth2.RetrieveError) bool {
 	if validOAuthErrorCode(retrieveErr.ErrorCode) {
 		return retrieveErr.ErrorCode == oauthErrorInvalidGrant
@@ -140,8 +141,9 @@ func validOAuthErrorCode(code string) bool {
 // refreshFailed turns a rejected refresh into a login prompt. The record is
 // deleted so status reporting stops calling the user logged in: now that
 // records carry no TTL, nothing else would ever clear a dead credential.
-// Transient failures (network, 429, 5xx) and explicit error codes other than
-// invalid_grant pass through with the record kept.
+// Transient failures (network, and 429 or 5xx without invalid_grant) and
+// explicit error codes other than invalid_grant pass through with the record
+// kept.
 func (s *refreshingTokenSource) refreshFailed(err error) error {
 	var retrieveErr *oauth2.RetrieveError
 	if !errors.As(err, &retrieveErr) || !refreshRejected(retrieveErr) {
