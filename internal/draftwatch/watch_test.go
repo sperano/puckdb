@@ -9,6 +9,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/sperano/puckdb/internal/draftsession"
+	"github.com/sperano/puckdb/internal/fixtures/pgtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -157,12 +158,15 @@ func TestRefreshCancelledMidPollGetsFinalReconciliation(t *testing.T) {
 }
 
 func TestSyncOnceReportsSyncInProgressWhileWatchHoldsLock(t *testing.T) {
-	pool := openDraftWatchTestDB(t)
+	pool := pgtest.Open(t)
 	identity := testIdentityForRepository(t)
 	source := newCountingSource()
 	refresh := make(chan RefreshRequest)
 	runner := Runner{Pool: pool, Store: &countingSessionStore{}, Source: source}
 	ctx, cancel := context.WithCancel(context.Background())
+	// Runs before pool.Close, which would wait forever for the watch's
+	// connection if a check below stops the test first.
+	t.Cleanup(cancel)
 	done := make(chan error, 1)
 	go func() { done <- runner.Watch(ctx, identity, idleWatchOptions(refresh)) }()
 	source.awaitPoll(t)
@@ -291,7 +295,7 @@ const (
 )
 
 func TestSessionSyncLockExcludesLegacyLockStatement(t *testing.T) {
-	pool := openDraftWatchTestDB(t)
+	pool := pgtest.Open(t)
 	ctx := context.Background()
 	leagueKey := testIdentityForRepository(t).LeagueKey
 

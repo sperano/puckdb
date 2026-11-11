@@ -14,17 +14,13 @@ import (
 	"encoding/json"
 	"os"
 	"strconv"
-	"sync"
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/sperano/puckdb/internal/database"
 	"github.com/stretchr/testify/require"
 )
 
 const (
-	envTestPGURL = "PUCKDB_TEST_PG_URL"
-	testDBMarker = "test"
 	nhlGamesPath = "testdata/nhl_games.json"
 	testGameBase = 3_970_000_000
 	// testShiftsPerGame spaces shift IDs: game g's shifts are
@@ -39,26 +35,6 @@ const (
 	fixtureClockLeft  = "00:00"
 	fixtureDetailCode = "0"
 )
-
-var migrateOnce struct {
-	sync.Once
-	err error
-}
-
-func openTestDB(t *testing.T) *pgxpool.Pool {
-	t.Helper()
-	dbURL := os.Getenv(envTestPGURL)
-	if dbURL == "" {
-		t.Skipf("set %s to run PostgreSQL even-strength tests", envTestPGURL)
-	}
-	require.Contains(t, dbURL, testDBMarker, "test database URL must contain %q", testDBMarker)
-	migrateOnce.Do(func() { migrateOnce.err = database.MigrateUp(dbURL) })
-	require.NoError(t, migrateOnce.err)
-	pool, err := pgxpool.New(context.Background(), dbURL)
-	require.NoError(t, err)
-	t.Cleanup(pool.Close)
-	return pool
-}
 
 // fixtureGame is one game in the shape of testdata/nhl_games.json.
 type fixtureGame struct {

@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/mark3labs/mcp-go/mcp"
+	"github.com/sperano/puckdb/internal/fixtures/pgtest"
 	"github.com/sperano/puckdb/internal/sqlcdb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -226,7 +227,7 @@ func TestYahooLeagueRostersToolQueryErrors(t *testing.T) {
 // an unmatched player named by the league's pool, an unmatched player with
 // no name anywhere, and a row on another date that must not show.
 func TestYahooLeagueRostersToolReadsDatabase(t *testing.T) {
-	pool := openMCPTestDB(t)
+	pool := pgtest.Open(t)
 	cleanup := func() {
 		deleteTestLeague(t, pool)
 		_, err := pool.Exec(context.Background(), `DELETE FROM yahoo_league_players WHERE league_key = $1`, pgTestLeagueKey)

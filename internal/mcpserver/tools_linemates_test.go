@@ -8,6 +8,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/mark3labs/mcp-go/server"
+	"github.com/sperano/puckdb/internal/fixtures/pgtest"
 	"github.com/sperano/puckdb/internal/sqlcdb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -176,7 +177,7 @@ var linemateGames = []linemateGame{
 }
 
 func TestLinemateQueryAggregatesPerClubAndFilters(t *testing.T) {
-	pool := openMCPTestDB(t)
+	pool := pgtest.Open(t)
 	cleanupLinemateFixture(t, pool)
 	t.Cleanup(func() { cleanupLinemateFixture(t, pool) })
 	seedLinemateFixture(t, pool)

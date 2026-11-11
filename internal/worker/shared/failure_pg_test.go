@@ -4,12 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
-	"strings"
 	"testing"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/sperano/puckdb/internal/fixtures/pgtest"
 	"github.com/stretchr/testify/require"
 	"go.temporal.io/sdk/temporal"
 )
@@ -33,12 +32,7 @@ const insertFailureChild = `INSERT INTO failure_child (id, parent_id, code, smal
 // TestClassifyActivityError_PostgreSQLErrors checks the classification of the
 // errors a real PostgreSQL returns through pgx and ExecBatch.
 func TestClassifyActivityError_PostgreSQLErrors(t *testing.T) {
-	databaseURL := os.Getenv(batchTestDatabaseURL)
-	if databaseURL == "" {
-		t.Skip(batchTestDatabaseURL + " is not set")
-	}
-	require.Contains(t, strings.ToLower(databaseURL), batchTestDBMarker,
-		"%s must name a dedicated test database", batchTestDatabaseURL)
+	databaseURL := pgtest.URL(t)
 
 	ctx, cancel := context.WithTimeout(context.Background(), batchTestTimeout)
 	defer cancel()

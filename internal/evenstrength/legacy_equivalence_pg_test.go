@@ -6,6 +6,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/sperano/puckdb/internal/fixtures/pgtest"
 	"github.com/sperano/puckdb/internal/sqlcdb"
 	"github.com/stretchr/testify/require"
 )
@@ -34,7 +35,7 @@ const (
 )
 
 func TestRebuildMatchesLegacySQL(t *testing.T) {
-	pool := openTestDB(t)
+	pool := pgtest.Open(t)
 	games := append(loadNHLGames(t), edgeCaseGame())
 	for _, g := range games {
 		t.Run(g.name, func(t *testing.T) {

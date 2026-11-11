@@ -10,6 +10,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/sperano/puckdb/internal/draft"
+	"github.com/sperano/puckdb/internal/fixtures/pgtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -54,7 +55,7 @@ func TestResolveIdentityRejectsMalformedReferencesBeforeQuerying(t *testing.T) {
 // imported rule snapshots: a full key names its season, a numeric ID takes
 // the requested season or, with NewestSeason, the most recently seen one.
 func TestResolveIdentityOverPostgreSQL(t *testing.T) {
-	pool := openDraftWatchTestDB(t)
+	pool := pgtest.Open(t)
 	ctx := context.Background()
 	leagueID := seedIdentityLeague(t, pool)
 	oldKey := fmt.Sprintf("%d.l.%d", identityOldGameKey, leagueID)

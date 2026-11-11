@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/sperano/puckdb/internal/fixtures/pgtest"
 	"github.com/sperano/puckdb/internal/sqlcdb"
 	"github.com/stretchr/testify/require"
 )
@@ -66,7 +67,7 @@ func seedGoalieAppearances(t *testing.T, pool *pgxpool.Pool) {
 }
 
 func TestGoalieQueriesCountAppearancesSeparatelyFromDressedGames(t *testing.T) {
-	pool := openFaceoffTestDB(t)
+	pool := pgtest.Open(t)
 	seedGoalieAppearances(t, pool)
 	ctx := context.Background()
 	queries := sqlcdb.New(pool)
@@ -113,7 +114,7 @@ func TestGoalieQueriesCountAppearancesSeparatelyFromDressedGames(t *testing.T) {
 // a v6 snapshot with its curve stores and loads back, one without it is
 // rejected by the database.
 func TestProjectionSnapshotsRequireV6AgingCurve(t *testing.T) {
-	pool := openFaceoffTestDB(t)
+	pool := pgtest.Open(t)
 	ctx := context.Background()
 	t.Cleanup(func() {
 		execAll(t, pool, fmt.Sprintf(`DELETE FROM projection_snapshots WHERE target_season = %d`, appearanceSeason))

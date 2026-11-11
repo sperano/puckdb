@@ -4,23 +4,20 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/sperano/puckdb/internal/database"
 	"github.com/sperano/puckdb/internal/draftsession"
 	"github.com/sperano/puckdb/internal/draftwatch"
+	"github.com/sperano/puckdb/internal/fixtures/pgtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 const (
-	envDraftBoardTestPGURL = "PUCKDB_TEST_PG_URL"
-	draftBoardTestDBMarker = "test"
 	// refreshTestIdle keeps watches waiting so only refresh requests poll.
 	refreshTestIdle = time.Hour
 )
@@ -69,7 +66,7 @@ func TestRefreshPassesOtherFailuresThrough(t *testing.T) {
 // real session advisory lock: this process's watch answers the refresh, and a
 // watch on another pool (a CLI or another API process) makes it unavailable.
 func TestRefreshWhileWatchHoldsPostgresLock(t *testing.T) {
-	pool := openDraftBoardTestDB(t)
+	pool := pgtest.Open(t)
 	identity := uniqueRefreshIdentity(t, pool)
 	source := newSignalingSource()
 	runner := draftwatch.Runner{Pool: pool, Store: draftwatch.NewPGStore(pool), Source: source}
@@ -106,13 +103,12 @@ func TestRefreshWhileWatchHoldsPostgresLock(t *testing.T) {
 // and returns a function that stops it.
 func startExternalWatch(t *testing.T, identity draftwatch.Identity) func() {
 	t.Helper()
-	external := openDraftBoardTestDB(t)
+	external := pgtest.Open(t)
 	source := newSignalingSource()
 	runner := draftwatch.Runner{Pool: external, Store: draftwatch.NewPGStore(external), Source: source}
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
 	go func() { done <- runner.Watch(ctx, identity, idleRefreshWatchOptions()) }()
-	source.awaitPoll(t)
 	var once sync.Once
 	stop := func() {
 		once.Do(func() {
@@ -125,7 +121,10 @@ func startExternalWatch(t *testing.T, identity draftwatch.Identity) func() {
 			}
 		})
 	}
+	// Registered before awaitPoll can stop the test, so the watch releases
+	// its connection before the external pool's Close waits for it.
 	t.Cleanup(stop)
+	source.awaitPoll(t)
 	return stop
 }
 
@@ -148,27 +147,6 @@ func startLosingWatch(t *testing.T, controller *WatchController, identity draftw
 
 func idleRefreshWatchOptions() draftwatch.WatchOptions {
 	return draftwatch.WatchOptions{Interval: refreshTestIdle, MaxBackoff: refreshTestIdle, FinalTimeout: watchTestTimeout}
-}
-
-var draftBoardMigrateOnce struct {
-	sync.Once
-	err error
-}
-
-func openDraftBoardTestDB(t *testing.T) *pgxpool.Pool {
-	t.Helper()
-	dbURL := os.Getenv(envDraftBoardTestPGURL)
-	if dbURL == "" {
-		t.Skipf("set %s to run PostgreSQL draft board tests", envDraftBoardTestPGURL)
-	}
-	require.Contains(t, dbURL, draftBoardTestDBMarker,
-		"%s must name a dedicated test database", envDraftBoardTestPGURL)
-	draftBoardMigrateOnce.Do(func() { draftBoardMigrateOnce.err = database.MigrateUp(dbURL) })
-	require.NoError(t, draftBoardMigrateOnce.err)
-	pool, err := pgxpool.New(context.Background(), dbURL)
-	require.NoError(t, err)
-	t.Cleanup(pool.Close)
-	return pool
 }
 
 // uniqueRefreshIdentity returns a league key no other test uses and removes

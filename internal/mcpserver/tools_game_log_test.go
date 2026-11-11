@@ -3,18 +3,16 @@ package mcpserver
 import (
 	"context"
 	"encoding/csv"
-	"os"
 	"slices"
 	"strconv"
 	"strings"
-	"sync"
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
-	"github.com/sperano/puckdb/internal/database"
+	"github.com/sperano/puckdb/internal/fixtures/pgtest"
 	"github.com/sperano/puckdb/internal/sqlcdb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -150,8 +148,6 @@ func TestKeepSeason(t *testing.T) {
 // names a dedicated test database.
 
 const (
-	gameLogTestPGURL    = "PUCKDB_TEST_PG_URL"
-	gameLogTestDBMarker = "test"
 	// gameLogTestTeam is a team ID no real club uses.
 	gameLogTestTeam      = 9_960
 	gameLogTestOpponent  = 9_961
@@ -171,26 +167,6 @@ var gameLogTestGames = []struct {
 	{gameLogTestGameBase + 2, "2025-10-08", testSeasonID},
 	{gameLogTestGameBase + 3, "2025-10-20", testSeasonID},
 	{gameLogTestGameBase + 4, "2025-11-05", testSeasonID},
-}
-
-var gameLogMigrateOnce struct {
-	sync.Once
-	err error
-}
-
-func openGameLogTestDB(t *testing.T) *pgxpool.Pool {
-	t.Helper()
-	dbURL := os.Getenv(gameLogTestPGURL)
-	if dbURL == "" {
-		t.Skipf("set %s to run PostgreSQL game log tests", gameLogTestPGURL)
-	}
-	require.Contains(t, dbURL, gameLogTestDBMarker, "test database URL must contain %q", gameLogTestDBMarker)
-	gameLogMigrateOnce.Do(func() { gameLogMigrateOnce.err = database.MigrateUp(dbURL) })
-	require.NoError(t, gameLogMigrateOnce.err)
-	pool, err := pgxpool.New(context.Background(), dbURL)
-	require.NoError(t, err)
-	t.Cleanup(pool.Close)
-	return pool
 }
 
 func execGameLogFixture(t *testing.T, pool *pgxpool.Pool, sql string, args ...any) {
@@ -255,7 +231,7 @@ func gameIDsOf(t *testing.T, result *mcp.CallToolResult) []string {
 }
 
 func TestGameLogToolsAgainstPostgres(t *testing.T) {
-	pool := openGameLogTestDB(t)
+	pool := pgtest.Open(t)
 	cleanupGameLogFixture(t, pool)
 	t.Cleanup(func() { cleanupGameLogFixture(t, pool) })
 	seedGameLogFixture(t, pool)

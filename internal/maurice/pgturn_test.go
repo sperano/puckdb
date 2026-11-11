@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/sperano/puckdb/internal/fixtures/pgtest"
 	"github.com/sperano/puckdb/internal/llm"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -318,7 +319,7 @@ func assertOneWinner(t *testing.T, errs []error) {
 // newPgPool opens another pool on the already prepared test database.
 func newPgPool(t *testing.T) *pgxpool.Pool {
 	t.Helper()
-	pool, err := pgxpool.New(context.Background(), openPgTestURL(t))
+	pool, err := pgxpool.New(context.Background(), pgtest.MigratedURL(t))
 	require.NoError(t, err)
 	t.Cleanup(pool.Close)
 	return pool

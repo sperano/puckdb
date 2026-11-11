@@ -3,23 +3,20 @@ package shared
 import (
 	"context"
 	"fmt"
-	"os"
-	"strings"
 	"testing"
 	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/sperano/puckdb/internal/fixtures/pgtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 const (
-	batchTestDatabaseURL = "PUCKDB_TEST_PG_URL"
-	batchTestDBMarker    = "test"
-	batchTestTimeout     = 10 * time.Second
-	batchFailureSQL      = "select 1 / 0"
-	batchFollowOnSQL     = "select 1"
+	batchTestTimeout = 10 * time.Second
+	batchFailureSQL  = "select 1 / 0"
+	batchFollowOnSQL = "select 1"
 )
 
 type pgxBatchExecer struct {
@@ -36,12 +33,7 @@ func (e pgxBatchExecer) Exec(callback func(int, error)) {
 }
 
 func TestPgExecBatchRetainsPrimaryFailure(t *testing.T) {
-	databaseURL := os.Getenv(batchTestDatabaseURL)
-	if databaseURL == "" {
-		t.Skip(batchTestDatabaseURL + " is not set")
-	}
-	require.Contains(t, strings.ToLower(databaseURL), batchTestDBMarker,
-		"%s must name a dedicated test database", batchTestDatabaseURL)
+	databaseURL := pgtest.URL(t)
 
 	ctx, cancel := context.WithTimeout(context.Background(), batchTestTimeout)
 	defer cancel()

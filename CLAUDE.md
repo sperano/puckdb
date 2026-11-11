@@ -114,6 +114,7 @@ Storage naming (see wiki `puckdb/plans/draft-storage-naming.md`): a concrete Pos
 | `internal/fixtures/metricsfixtures/` | Reads filesystem operation counts from the worker metrics registry for label assertions (test-only import) |
 | `internal/fixtures/draftfixtures/` | Synthetic draft ranking snapshot and in-memory store shared by the draftrank, GraphQL and CLI tests (test-only import) |
 | `internal/fixtures/projectionfixtures/` | Default projection config with the aging curve the aging model versions must store, for tests that hand-build projection snapshots (test-only import) |
+| `internal/fixtures/pgtest/` | The shared PostgreSQL test harness: `PUCKDB_TEST_PG_URL` skip, `CheckURL` (a `postgres://`/`postgresql://` URL whose parsed database name contains `test`, case-sensitively, on one server (no host list), with the same host, port, user and database for pgx and lib/pq, the migrator's driver; the marker elsewhere in the URL does not count), migrate once per test binary, `Open(t, truncate...)`, `Truncate`/`TruncateRestartIdentity`; every database-backed test reaches the database through it, except `internal/database` (import cycle; private schemas/databases only) and the simulation `integration`/`livellm` `TestMain`, which only calls `CheckURL`, then migrates the database down and up and opens its own pool (see wiki `puckdb/postgres-test-harness.md`) (test-only import) |
 | `internal/fixtures/simfixtures/` | A private, migrated PostgreSQL database per test (created next to `PUCKDB_TEST_PG_URL`, dropped at cleanup) and typed inserts for sim pools, agents, turns, tool calls, players and draft picks, shared by the GraphQL sim feed and `sim tail`/`sim draft` tests (test-only import) |
 | `internal/llm/` | LLM client and the shared `agentloop` tool loop (used by player enrichment, Maurice and the simulation) |
 | `internal/maurice/` | Prompt + service layer built on top of `internal/llm/` |
@@ -617,7 +618,7 @@ Always run the full test suite (`go test ./...`) and verify 100% pass rate befor
 
 ### Database-backed tests
 
-Tests that need a real PostgreSQL read `PUCKDB_TEST_PG_URL` and skip when it is unset. Point it at a dedicated throwaway database — the harnesses migrate and truncate it:
+Tests that need a real PostgreSQL read `PUCKDB_TEST_PG_URL` through `internal/fixtures/pgtest` (except `internal/database`, see the package table) and skip when it is unset. Point it at a dedicated throwaway database, as a `postgres://` URL, whose name contains `test` — the harness refuses any other, then migrates it and each package truncates the tables it names with `CASCADE` (so tables referencing them are emptied too), so run packages one at a time (`go test -p 1 ./...`):
 
 ```bash
 docker run -d --rm --name puckdb-test-pg -e POSTGRES_USER=puckdb -e POSTGRES_PASSWORD=foo \
@@ -625,7 +626,7 @@ docker run -d --rm --name puckdb-test-pg -e POSTGRES_USER=puckdb -e POSTGRES_PAS
 PUCKDB_TEST_PG_URL='postgres://puckdb:foo@localhost:15433/puckdb_test?sslmode=disable' go test ./internal/maurice/
 ```
 
-The simulation's `integration` (mocked LLM; PostgreSQL, Redis, Temporal dev server) and `livellm` (real Ollama models) tests in `internal/worker/simulation/` are not compiled by `go test ./...`; their `TestMain` migrates the `PUCKDB_TEST_PG_URL` database down before and after the suite. Commands and variables: wiki `puckdb/simulation.md` > "Tests".
+The simulation's `integration` (mocked LLM; PostgreSQL, Redis, Temporal dev server) and `livellm` (real Ollama models) tests in `internal/worker/simulation/` are not compiled by `go test ./...`; their `TestMain` refuses a URL `pgtest.CheckURL` rejects, then migrates the `PUCKDB_TEST_PG_URL` database down before and after the suite. Commands and variables: wiki `puckdb/simulation.md` > "Tests".
 
 `internal/maurice/dbcontract_test.go` is the shared persistence contract for the Maurice `DB` implementations; SQLite runs it in-memory on every `go test`, PostgreSQL runs it only with the env var set. Any behaviour change to one adapter must keep both passing.
 

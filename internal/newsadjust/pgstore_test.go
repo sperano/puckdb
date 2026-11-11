@@ -8,15 +8,13 @@ package newsadjust
 import (
 	"context"
 	"fmt"
-	"os"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/sperano/puckdb/internal/database"
+	"github.com/sperano/puckdb/internal/fixtures/pgtest"
 	"github.com/sperano/puckdb/internal/newsevent"
 	"github.com/sperano/puckdb/internal/projection"
 	"github.com/sperano/puckdb/internal/sqlcdb"
@@ -24,34 +22,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const (
-	envTestPGURL     = "PUCKDB_TEST_PG_URL"
-	testDBNameMarker = "test"
-)
-
-var pgMigrateOnce struct {
-	sync.Once
-	err error
-}
-
+// openAdjustmentTestDB opens the test database with no override, adjustment
+// run or projection snapshot rows.
 func openAdjustmentTestDB(t *testing.T) *pgxpool.Pool {
 	t.Helper()
-	dbURL := os.Getenv(envTestPGURL)
-	if dbURL == "" {
-		t.Skipf("set %s to run the PostgreSQL news adjustment tests", envTestPGURL)
-	}
-	require.Contains(t, dbURL, testDBNameMarker,
-		"%s must name a dedicated test database (URL containing %q)", envTestPGURL, testDBNameMarker)
-	pgMigrateOnce.Do(func() { pgMigrateOnce.err = database.MigrateUp(dbURL) })
-	require.NoError(t, pgMigrateOnce.err, "migrate test database")
-
-	ctx := context.Background()
-	pool, err := pgxpool.New(ctx, dbURL)
-	require.NoError(t, err)
-	t.Cleanup(pool.Close)
-	_, err = pool.Exec(ctx, `TRUNCATE news_adjustment_overrides, news_adjustment_runs, projection_snapshots CASCADE`)
-	require.NoError(t, err)
-	return pool
+	return pgtest.Open(t, "news_adjustment_overrides", "news_adjustment_runs", "projection_snapshots")
 }
 
 func TestRepository_OverrideHistory(t *testing.T) {
@@ -133,9 +108,8 @@ func insertNewsEvent(t *testing.T, pool *pgxpool.Pool, nhlID pgtype.Int8, yahooI
 func TestRepository_ExclusionMustNameAStoredEventAboutItsPlayer(t *testing.T) {
 	pool := openAdjustmentTestDB(t)
 	ctx := context.Background()
-	_, err := pool.Exec(ctx, `TRUNCATE news_events CASCADE`)
-	require.NoError(t, err)
-	_, err = pool.Exec(ctx, `INSERT INTO players (id, yahoo_id, first_name, last_name) VALUES ($1, $2, 'Pool', 'Fixture')
+	pgtest.Truncate(t, pool, "news_events")
+	_, err := pool.Exec(ctx, `INSERT INTO players (id, yahoo_id, first_name, last_name) VALUES ($1, $2, 'Pool', 'Fixture')
 		ON CONFLICT (id) DO UPDATE SET yahoo_id = EXCLUDED.yahoo_id`, testMatchedNHLID, testMatchedYahooID)
 	require.NoError(t, err)
 	t.Cleanup(func() { _, _ = pool.Exec(ctx, `DELETE FROM players WHERE id = $1`, testMatchedNHLID) })
@@ -176,8 +150,7 @@ func TestRepository_ExclusionMustNameAStoredEventAboutItsPlayer(t *testing.T) {
 func TestRepository_RefusesExclusionsOfStoredRelationships(t *testing.T) {
 	pool := openAdjustmentTestDB(t)
 	ctx := context.Background()
-	_, err := pool.Exec(ctx, `TRUNCATE news_articles, news_events CASCADE`)
-	require.NoError(t, err)
+	pgtest.Truncate(t, pool, "news_articles", "news_events")
 	quote := func(text string) []newsevent.Quote { return []newsevent.Quote{{Doc: "D1", Text: text}} }
 	reconcileReport(t, pool, "suspension", testReportedAt, newsevent.Event{
 		Player: goalieIdentity(), Type: newsevent.TypeSuspension, Status: newsevent.StatusConfirmed,
@@ -194,7 +167,7 @@ func TestRepository_RefusesExclusionsOfStoredRelationships(t *testing.T) {
 	goalie := pgtype.Int8{Int64: testGoalieNHLID, Valid: true}
 	original := insertNewsEvent(t, pool, goalie, pgtype.Int4{})
 	correction := insertNewsEvent(t, pool, goalie, pgtype.Int4{})
-	_, err = pool.Exec(ctx, `UPDATE news_events SET lifecycle = 'superseded', superseded_by = $1 WHERE id = $2`,
+	_, err := pool.Exec(ctx, `UPDATE news_events SET lifecycle = 'superseded', superseded_by = $1 WHERE id = $2`,
 		strings.TrimPrefix(correction, extractedIDPrefix), strings.TrimPrefix(original, extractedIDPrefix))
 	require.NoError(t, err)
 

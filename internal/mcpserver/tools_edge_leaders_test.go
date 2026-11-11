@@ -12,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/mark3labs/mcp-go/server"
+	"github.com/sperano/puckdb/internal/fixtures/pgtest"
 	"github.com/sperano/puckdb/internal/sqlcdb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -303,7 +304,7 @@ func pgEdgeEntities(group string) []pgEdgeEntity {
 // every group against PostgreSQL: the rows come back best first by that
 // metric's own column, and rows without a value are left out.
 func TestEdgeLeadersEveryMetricSortsInSQL(t *testing.T) {
-	pool := openMCPTestDB(t)
+	pool := pgtest.Open(t)
 	deleteEdgeFixture(t, pool)
 	t.Cleanup(func() { deleteEdgeFixture(t, pool) })
 	seedEdgeFixture(t, pool)
@@ -338,7 +339,7 @@ func TestEdgeLeadersEveryMetricSortsInSQL(t *testing.T) {
 // TestEdgeLeadersMinGamesUsesClubStats checks games played and clubs come
 // from the club stats of the season, summed over a traded player's clubs.
 func TestEdgeLeadersMinGamesUsesClubStats(t *testing.T) {
-	pool := openMCPTestDB(t)
+	pool := pgtest.Open(t)
 	deleteEdgeFixture(t, pool)
 	t.Cleanup(func() { deleteEdgeFixture(t, pool) })
 	seedEdgeFixture(t, pool)

@@ -4,24 +4,19 @@ import (
 	"context"
 	"fmt"
 	"math/rand/v2"
-	"os"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/sperano/puckdb/internal/database"
+	"github.com/sperano/puckdb/internal/fixtures/pgtest"
 	"github.com/sperano/puckdb/internal/maurice"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// envTestPGURL names the throwaway PostgreSQL these tests migrate and
-// truncate (see CLAUDE.md, "Database-backed tests"); unset skips them.
 const (
-	envTestPGURL     = "PUCKDB_TEST_PG_URL"
-	testDBNameMarker = "test"
 	// concurrentResolves is how many cookie-less requests of one user race.
 	concurrentResolves = 8
 	// conversationListLimit is above the one conversation the per-instance
@@ -35,14 +30,11 @@ const (
 	otherInstance = "maurice-test"
 )
 
-var pgMigrateOnce struct {
-	sync.Once
-	err error
-}
-
+// openStore opens the shared test database without truncating it: every test
+// uses its own subjects (newSubject).
 func openStore(t *testing.T) (*PGStore, *pgxpool.Pool) {
 	t.Helper()
-	pool := openPool(t)
+	pool := pgtest.Open(t)
 	return newStore(t, pool, testInstance), pool
 }
 
@@ -51,23 +43,6 @@ func newStore(t *testing.T, pool *pgxpool.Pool, instance string) *PGStore {
 	store, err := NewPGStore(pool, instance, SessionIdleTimeout)
 	require.NoError(t, err)
 	return store
-}
-
-func openPool(t *testing.T) *pgxpool.Pool {
-	t.Helper()
-	dbURL := os.Getenv(envTestPGURL)
-	if dbURL == "" {
-		t.Skipf("set %s to run the PostgreSQL tests", envTestPGURL)
-	}
-	require.Contains(t, dbURL, testDBNameMarker, "%s must name a dedicated test database", envTestPGURL)
-	pgMigrateOnce.Do(func() { pgMigrateOnce.err = database.MigrateUp(dbURL) })
-	require.NoError(t, pgMigrateOnce.err)
-	pool, err := pgxpool.New(context.Background(), dbURL)
-	require.NoError(t, err)
-	t.Cleanup(pool.Close)
-	// No truncation: other packages' tests share the database concurrently.
-	// Every test uses its own subjects (newSubject).
-	return pool
 }
 
 // newSubject returns an Authentik subject no other test uses.

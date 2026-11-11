@@ -4,13 +4,14 @@ import (
 	"context"
 	"testing"
 
+	"github.com/sperano/puckdb/internal/fixtures/pgtest"
 	"github.com/sperano/puckdb/internal/sqlcdb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestPGStore_LinkAndUnlink(t *testing.T) {
-	pool := openPool(t)
+	pool := pgtest.Open(t)
 	ctx := context.Background()
 	store := NewPGStore(pool)
 	league, team := seedLeagueTeam(t, pool, "Manual Add")
@@ -34,7 +35,7 @@ func TestPGStore_LinkAndUnlink(t *testing.T) {
 // not silently undone (the blocking bug: unlink-team on an email-matched
 // team was undone by the next request).
 func TestPGStore_UnlinkRefusesEmailSourcedLinkStillMatched(t *testing.T) {
-	pool := openPool(t)
+	pool := pgtest.Open(t)
 	ctx := context.Background()
 	q := sqlcdb.New(pool)
 	store := NewPGStore(pool)
@@ -56,7 +57,7 @@ func TestPGStore_UnlinkRefusesEmailSourcedLinkStillMatched(t *testing.T) {
 // TestPGStore_UnlinkRemovesEmailSourcedLinkOnceUnmatched: once the login
 // email no longer matches, the same email-sourced link unlinks normally.
 func TestPGStore_UnlinkRemovesEmailSourcedLinkOnceUnmatched(t *testing.T) {
-	pool := openPool(t)
+	pool := pgtest.Open(t)
 	ctx := context.Background()
 	q := sqlcdb.New(pool)
 	store := NewPGStore(pool)
@@ -80,7 +81,7 @@ func TestPGStore_UnlinkRemovesEmailSourcedLinkOnceUnmatched(t *testing.T) {
 // already email-linked pair promotes it to manual, so a later resync under
 // an email that no longer matches never removes it.
 func TestPGStore_LinkPromotesEmailLinkToManual(t *testing.T) {
-	pool := openPool(t)
+	pool := pgtest.Open(t)
 	ctx := context.Background()
 	q := sqlcdb.New(pool)
 	store := NewPGStore(pool)
@@ -108,7 +109,7 @@ func TestPGStore_LinkPromotesEmailLinkToManual(t *testing.T) {
 // as SourceEmail on the user's next authenticated request, undoing the
 // unlink.
 func TestPGStore_UnlinkRefusesManualLinkStillMatched(t *testing.T) {
-	pool := openPool(t)
+	pool := pgtest.Open(t)
 	ctx := context.Background()
 	q := sqlcdb.New(pool)
 	store := NewPGStore(pool)
@@ -137,7 +138,7 @@ func TestPGStore_UnlinkRefusesManualLinkStillMatched(t *testing.T) {
 // team in the same league the login email does not manage unlinks
 // normally even though the email matches team 1 in that league.
 func TestPGStore_UnlinkOtherTeamNotRefusedByEmailMatch(t *testing.T) {
-	pool := openPool(t)
+	pool := pgtest.Open(t)
 	ctx := context.Background()
 	store := NewPGStore(pool)
 
@@ -161,7 +162,7 @@ func TestPGStore_UnlinkOtherTeamNotRefusedByEmailMatch(t *testing.T) {
 // unheld pair the login email matches still reports "nothing to remove",
 // not ErrEmailLinkStillMatches.
 func TestPGStore_UnlinkNotHeldPairWithMatchingEmailReturnsFalse(t *testing.T) {
-	pool := openPool(t)
+	pool := pgtest.Open(t)
 	ctx := context.Background()
 	store := NewPGStore(pool)
 
@@ -181,7 +182,7 @@ func TestPGStore_UnlinkNotHeldPairWithMatchingEmailReturnsFalse(t *testing.T) {
 // only within a league): a link to team 1 in league B unlinks normally even
 // though the email matches team 1 in a different league A.
 func TestPGStore_UnlinkSameTeamIDOtherLeagueNotRefusedByEmailMatch(t *testing.T) {
-	pool := openPool(t)
+	pool := pgtest.Open(t)
 	ctx := context.Background()
 	store := NewPGStore(pool)
 
@@ -201,7 +202,7 @@ func TestPGStore_UnlinkSameTeamIDOtherLeagueNotRefusedByEmailMatch(t *testing.T)
 }
 
 func TestPGStore_LinkRefusesUnknownTeam(t *testing.T) {
-	pool := openPool(t)
+	pool := pgtest.Open(t)
 	store := NewPGStore(pool)
 	user := insertUser(t, pool, "admin-unknown")
 
@@ -212,7 +213,7 @@ func TestPGStore_LinkRefusesUnknownTeam(t *testing.T) {
 // TestPGStore_ListUserTeamsFiltersByAllowlist: the instance's Yahoo league
 // allowlist (empty = every league) limits which of a user's links are named.
 func TestPGStore_ListUserTeamsFiltersByAllowlist(t *testing.T) {
-	pool := openPool(t)
+	pool := pgtest.Open(t)
 	ctx := context.Background()
 	store := NewPGStore(pool)
 	allowed, allowedTeam := seedLeagueTeam(t, pool, "Allowed")
@@ -235,7 +236,7 @@ func TestPGStore_ListUserTeamsFiltersByAllowlist(t *testing.T) {
 }
 
 func TestPGStore_FindUser(t *testing.T) {
-	pool := openPool(t)
+	pool := pgtest.Open(t)
 	ctx := context.Background()
 	store := NewPGStore(pool)
 	username := uniqueUsername("findme")
@@ -252,7 +253,7 @@ func TestPGStore_FindUser(t *testing.T) {
 // TestPGStore_FindUserScopedToInstance: a same-named user on another
 // instance must not make the lookup ambiguous or match the wrong user.
 func TestPGStore_FindUserScopedToInstance(t *testing.T) {
-	pool := openPool(t)
+	pool := pgtest.Open(t)
 	ctx := context.Background()
 	store := NewPGStore(pool)
 	username := uniqueUsername("scoped")
@@ -265,7 +266,7 @@ func TestPGStore_FindUserScopedToInstance(t *testing.T) {
 }
 
 func TestPGStore_FindUserAmbiguous(t *testing.T) {
-	pool := openPool(t)
+	pool := pgtest.Open(t)
 	ctx := context.Background()
 	store := NewPGStore(pool)
 	username := uniqueUsername("dupe")
@@ -277,7 +278,7 @@ func TestPGStore_FindUserAmbiguous(t *testing.T) {
 }
 
 func TestPGStore_ListInstanceLinks(t *testing.T) {
-	pool := openPool(t)
+	pool := pgtest.Open(t)
 	ctx := context.Background()
 	store := NewPGStore(pool)
 	league, team := seedLeagueTeam(t, pool, "Instance List")
@@ -299,7 +300,7 @@ func TestPGStore_ListInstanceLinks(t *testing.T) {
 // TestPGStore_ListInstanceLinksScopedToInstance: another instance's link
 // must not appear, even for a user sharing the same username.
 func TestPGStore_ListInstanceLinksScopedToInstance(t *testing.T) {
-	pool := openPool(t)
+	pool := pgtest.Open(t)
 	ctx := context.Background()
 	store := NewPGStore(pool)
 	username := uniqueUsername("cross-instance")

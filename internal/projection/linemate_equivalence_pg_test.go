@@ -7,6 +7,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/sperano/puckdb/internal/fixtures/pgtest"
 	"github.com/sperano/puckdb/internal/sqlcdb"
 	"github.com/stretchr/testify/require"
 )
@@ -17,7 +18,7 @@ type linemateKey struct {
 }
 
 func TestLinemateContextFromSegmentsMatchesLegacyQuery(t *testing.T) {
-	pool := openProjectionTestDB(t)
+	pool := pgtest.Open(t)
 	seedEquivFixture(t, pool)
 	cutoff, err := time.Parse(time.DateOnly, equivCutoffDate)
 	require.NoError(t, err)

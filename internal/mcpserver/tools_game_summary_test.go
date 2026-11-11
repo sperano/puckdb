@@ -9,6 +9,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/sperano/puckdb/internal/fixtures/pgtest"
 	"github.com/sperano/puckdb/internal/sqlcdb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -260,7 +261,7 @@ const (
 // for coaches, from the away-first sort). Officials sort by the
 // official_role enum's declaration order: referees before linesmen.
 func TestGameSummaryFromDatabase(t *testing.T) {
-	pool := openMCPTestDB(t)
+	pool := pgtest.Open(t)
 	deleteSummaryFixture(t, pool)
 	t.Cleanup(func() { deleteSummaryFixture(t, pool) })
 	seedSummaryFixture(t, pool)

@@ -4,11 +4,11 @@ package projection
 
 import (
 	"context"
-	"os"
 	"testing"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/sperano/puckdb/internal/fixtures/pgtest"
 	"github.com/stretchr/testify/require"
 )
 
@@ -18,10 +18,7 @@ const agingBacktestTargetSeason = 20252026
 // populated test database. PUCKDB_TEST_PG_URL must point at a database whose
 // regular-season game aggregates include 2005-06 through 2025-26.
 func TestAgingBacktest20252026(t *testing.T) {
-	databaseURL := os.Getenv("PUCKDB_TEST_PG_URL")
-	if databaseURL == "" {
-		t.Skip("PUCKDB_TEST_PG_URL is not set")
-	}
+	databaseURL := pgtest.URL(t)
 	ctx := context.Background()
 	pool, err := pgxpool.New(ctx, databaseURL)
 	require.NoError(t, err)

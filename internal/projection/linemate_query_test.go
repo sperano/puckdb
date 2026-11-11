@@ -5,51 +5,27 @@ package projection
 
 import (
 	"context"
-	"os"
-	"sync"
 	"testing"
 	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/sperano/puckdb/internal/database"
 	"github.com/sperano/puckdb/internal/evenstrength"
+	"github.com/sperano/puckdb/internal/fixtures/pgtest"
 	"github.com/sperano/puckdb/internal/sqlcdb"
 	"github.com/stretchr/testify/require"
 )
 
 const (
-	projectionTestPGURL = "PUCKDB_TEST_PG_URL"
-	testDBMarker        = "test"
-	testLinemateSeason  = 20252026
-	testLinemateGame    = 990001
-	testHomeTeam        = 100
-	testAwayTeam        = 200
-	testPlayerBase      = 9_900_000
+	testLinemateSeason = 20252026
+	testLinemateGame   = 990001
+	testHomeTeam       = 100
+	testAwayTeam       = 200
+	testPlayerBase     = 9_900_000
 )
 
-var projectionMigrateOnce struct {
-	sync.Once
-	err error
-}
-
-func openProjectionTestDB(t *testing.T) *pgxpool.Pool {
-	t.Helper()
-	dbURL := os.Getenv(projectionTestPGURL)
-	if dbURL == "" {
-		t.Skipf("set %s to run PostgreSQL projection tests", projectionTestPGURL)
-	}
-	require.Contains(t, dbURL, testDBMarker, "test database URL must contain %q", testDBMarker)
-	projectionMigrateOnce.Do(func() { projectionMigrateOnce.err = database.MigrateUp(dbURL) })
-	require.NoError(t, projectionMigrateOnce.err)
-	pool, err := pgxpool.New(context.Background(), dbURL)
-	require.NoError(t, err)
-	t.Cleanup(pool.Close)
-	return pool
-}
-
 func TestListProjectionSkaterLinemateContext_SegmentsEvenStrength(t *testing.T) {
-	pool := openProjectionTestDB(t)
+	pool := pgtest.Open(t)
 	cleanupLinemateFixture(t, pool)
 	t.Cleanup(func() { cleanupLinemateFixture(t, pool) })
 	seedLinemateSegments(t, pool)

@@ -8,7 +8,6 @@ package simfixtures
 import (
 	"context"
 	"net/url"
-	"os"
 	"strings"
 	"testing"
 	"time"
@@ -17,18 +16,19 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/sperano/puckdb/internal/database"
+	"github.com/sperano/puckdb/internal/fixtures/pgtest"
 	"github.com/stretchr/testify/require"
 )
 
 const (
-	// EnvTestPGURL names the throwaway server (see CLAUDE.md, "Database-backed
-	// tests"); tests skip without it.
-	EnvTestPGURL = "PUCKDB_TEST_PG_URL"
-	// databasePrefix keeps the "test" marker other harnesses look for.
+	// databasePrefix keeps pgtest.DatabaseMarker in the name.
 	databasePrefix = "puckdb_test_sim"
 	// setupTimeout bounds creating and migrating one database, and
 	// separately dropping it.
 	setupTimeout = 2 * time.Minute
+	// dbnameParam is the URL query parameter pgx and lib/pq read as the
+	// database name, alongside the path.
+	dbnameParam = "dbname"
 
 	// fixtureSeason is the season every fixture pool belongs to; Pool
 	// inserts its seasons row on first use.
@@ -39,13 +39,10 @@ const (
 
 // NewDatabase creates and migrates an empty database and returns its URL.
 // It skips the test when PUCKDB_TEST_PG_URL is unset or the role cannot
-// create databases.
+// create databases, and fails it when pgtest.CheckURL refuses that URL.
 func NewDatabase(t testing.TB) string {
 	t.Helper()
-	baseURL := os.Getenv(EnvTestPGURL)
-	if baseURL == "" {
-		t.Skipf("%s not set", EnvTestPGURL)
-	}
+	baseURL := pgtest.URL(t)
 	ctx, cancel := context.WithTimeout(context.Background(), setupTimeout)
 	defer cancel()
 
@@ -63,11 +60,25 @@ func NewDatabase(t testing.TB) string {
 		_ = admin.Close(cleanupCtx)
 	})
 
-	parsed, err := url.Parse(baseURL)
+	dbURL, err := databaseURL(baseURL, name)
 	require.NoError(t, err)
+	migrateUp(ctx, t, dbURL)
+	return dbURL
+}
+
+// databaseURL returns baseURL naming database name instead. It drops a
+// dbname parameter, which pgx would let win over the path, connecting to the
+// base database instead of the new one.
+func databaseURL(baseURL, name string) (string, error) {
+	parsed, err := url.Parse(baseURL)
+	if err != nil {
+		return "", err
+	}
 	parsed.Path = "/" + name
-	migrateUp(ctx, t, parsed.String())
-	return parsed.String()
+	query := parsed.Query()
+	query.Del(dbnameParam)
+	parsed.RawQuery = query.Encode()
+	return parsed.String(), nil
 }
 
 // migrateUp migrates dbURL, failing the test when ctx ends first:

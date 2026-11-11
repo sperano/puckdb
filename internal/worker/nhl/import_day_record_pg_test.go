@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/sperano/puckdb/internal/fixtures/pgtest"
 	"github.com/sperano/puckdb/internal/sqlcdb"
 	"github.com/stretchr/testify/require"
 )
@@ -19,7 +20,7 @@ import (
 const dayImportTestSeason = 19001901
 
 func TestDayImportQueries_RoundTripAndUpsert(t *testing.T) {
-	pool := openTransactorTestDB(t)
+	pool := pgtest.Open(t)
 	ctx := context.Background()
 	cleanup := func() {
 		_, err := pool.Exec(context.Background(), `DELETE FROM nhl_day_imports WHERE season = $1`, dayImportTestSeason)

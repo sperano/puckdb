@@ -5,46 +5,17 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"os"
 	"strconv"
-	"sync"
 	"testing"
 	"time"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/sperano/puckdb/internal/database"
 	"github.com/sperano/puckdb/internal/draftsession"
+	"github.com/sperano/puckdb/internal/fixtures/pgtest"
 	"github.com/sperano/puckdb/internal/httpx"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-const (
-	envDraftWatchTestPGURL = "PUCKDB_TEST_PG_URL"
-	draftWatchTestDBMarker = "test"
-)
-
-var draftWatchMigrateOnce struct {
-	sync.Once
-	err error
-}
-
-func openDraftWatchTestDB(t *testing.T) *pgxpool.Pool {
-	t.Helper()
-	dbURL := os.Getenv(envDraftWatchTestPGURL)
-	if dbURL == "" {
-		t.Skipf("set %s to run PostgreSQL draft watch tests", envDraftWatchTestPGURL)
-	}
-	require.Contains(t, dbURL, draftWatchTestDBMarker,
-		"%s must name a dedicated test database", envDraftWatchTestPGURL)
-	draftWatchMigrateOnce.Do(func() { draftWatchMigrateOnce.err = database.MigrateUp(dbURL) })
-	require.NoError(t, draftWatchMigrateOnce.err)
-	pool, err := pgxpool.New(context.Background(), dbURL)
-	require.NoError(t, err)
-	t.Cleanup(pool.Close)
-	return pool
-}
 
 func TestRepositorySyncVersionAndExpectedManualState(t *testing.T) {
 	fixture := newRepositoryTestFixture(t)
@@ -226,7 +197,7 @@ type repositoryTestFixture struct {
 
 func newRepositoryTestFixture(t *testing.T) repositoryTestFixture {
 	t.Helper()
-	pool := openDraftWatchTestDB(t)
+	pool := pgtest.Open(t)
 	ctx := context.Background()
 	identity := testIdentityForRepository(t)
 	t.Cleanup(func() { _, _ = pool.Exec(ctx, `DELETE FROM draft_sessions WHERE league_key=$1`, identity.LeagueKey) })
