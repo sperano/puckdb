@@ -54,14 +54,20 @@ var errNoDatabase = errors.New("names no database")
 // database the check never saw.
 var errDriversDisagree = errors.New("names a different server or database for pgx and lib/pq")
 
+// errSeveralServers reports a host list, which pgx tries in order: a test
+// whose first server refuses the connection would fall through to the next,
+// one the check never saw. Fallbacks to the same server and port (the
+// non-TLS retry of sslmode=prefer) stay on the checked target.
+var errSeveralServers = errors.New("names more than one server")
+
 // errNotURL reports a keyword/value string or another scheme, which
 // golang-migrate cannot open.
 var errNotURL = errors.New("is not a postgres:// or postgresql:// URL")
 
 // CheckURL returns an error unless rawURL is a postgres:// or postgresql://
-// URL that connects to a database whose name contains DatabaseMarker, on the
-// same server, as the same user, through pgx (the pools) and lib/pq (the
-// migrator). The marker
+// URL that connects to a database whose name contains DatabaseMarker, on one
+// server (no host list), the same for pgx (the pools) and lib/pq (the
+// migrator), as the same user. The marker
 // elsewhere in the URL (user, host, password, a query parameter) does not
 // count: only the database name tells which data a test would destroy.
 func CheckURL(rawURL string) error {
@@ -75,6 +81,9 @@ func CheckURL(rawURL string) error {
 	migratorCfg, err := libpqConfig(rawURL)
 	if err != nil {
 		return fmt.Errorf("%s does not parse for lib/pq: %w", EnvURL, err)
+	}
+	if hasOtherServer(cfg) || hasOtherServer(migratorCfg) {
+		return fmt.Errorf("%s %w; name one test server", EnvURL, errSeveralServers)
 	}
 	if pools, migrator := targetOf(cfg), targetOf(migratorCfg); pools != migrator {
 		return fmt.Errorf("%s %w (%+v, %+v); name each of them once, in the URL itself",
@@ -100,6 +109,17 @@ type target struct {
 
 func targetOf(cfg *pgconn.Config) target {
 	return target{Host: cfg.Host, Port: cfg.Port, User: cfg.User, Database: cfg.Database}
+}
+
+// hasOtherServer reports whether cfg falls back to a host or port other than
+// its own.
+func hasOtherServer(cfg *pgconn.Config) bool {
+	for _, fallback := range cfg.Fallbacks {
+		if fallback.Host != cfg.Host || fallback.Port != cfg.Port {
+			return true
+		}
+	}
+	return false
 }
 
 // libpqConfig returns the connection settings lib/pq uses for rawURL.

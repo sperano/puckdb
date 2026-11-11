@@ -46,8 +46,9 @@ func TestCheckURLRefusesTheMarkerOutsideTheDatabaseName(t *testing.T) {
 // pgx lets a query parameter win over the URL's own path, host, port or user,
 // while lib/pq, behind golang-migrate, keeps the lexically greater value. The
 // first and third URLs would pass a pgx-only check yet migrate (or, in the
-// simulation integration TestMain, migrate down) another database; the others
-// name the same database on another server, port or role.
+// simulation integration TestMain, migrate down) another database; the second
+// names test for lib/pq and puckdb for pgx; the others name the same database
+// on another server, port or role.
 func TestCheckURLRefusesATargetTheDriversDisagreeOn(t *testing.T) {
 	for _, dbURL := range []string{
 		"postgres://puckdb:foo@localhost:5432/zeta?dbname=alpha_test",
@@ -58,6 +59,18 @@ func TestCheckURLRefusesATargetTheDriversDisagreeOn(t *testing.T) {
 		"postgres://puckdb:foo@localhost:5432/puckdb_test?user=admin",
 	} {
 		require.ErrorIs(t, CheckURL(dbURL), errDriversDisagree, dbURL)
+	}
+}
+
+// pgx tries a host list in order, so a refused first server would send the
+// test to the next one; each URL names a test database on two servers.
+func TestCheckURLRefusesAHostList(t *testing.T) {
+	for _, dbURL := range []string{
+		"postgres://puckdb:foo@localhost,prod.internal/puckdb_test",
+		"postgres://puckdb:foo@localhost:5432,localhost:5433/puckdb_test",
+		"postgres://puckdb:foo@localhost/puckdb_test?host=localhost,prod.internal",
+	} {
+		require.ErrorIs(t, CheckURL(dbURL), errSeveralServers, dbURL)
 	}
 }
 
