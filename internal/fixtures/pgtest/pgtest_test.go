@@ -43,18 +43,29 @@ func TestCheckURLRefusesTheMarkerOutsideTheDatabaseName(t *testing.T) {
 	}
 }
 
-// pgx lets a dbname parameter win over the path, while lib/pq, behind
-// golang-migrate, keeps the lexically greater name: each of these would pass a
-// pgx-only check yet migrate (or, in the simulation integration TestMain,
-// migrate down) another database.
-func TestCheckURLRefusesADatabaseTheDriversDisagreeOn(t *testing.T) {
+// pgx lets a query parameter win over the URL's own path, host, port or user,
+// while lib/pq, behind golang-migrate, keeps the lexically greater value. The
+// first and third URLs would pass a pgx-only check yet migrate (or, in the
+// simulation integration TestMain, migrate down) another database; the others
+// name the same database on another server, port or role.
+func TestCheckURLRefusesATargetTheDriversDisagreeOn(t *testing.T) {
 	for _, dbURL := range []string{
 		"postgres://puckdb:foo@localhost:5432/zeta?dbname=alpha_test",
 		"postgres://puckdb:foo@localhost:5432/test?dbname=puckdb",
 		"postgres://puckdb:foo@localhost:5432/puckdb_test?dbname=other_test",
+		"postgres://puckdb:foo@prod.internal:5432/puckdb_test?host=localhost",
+		"postgres://puckdb:foo@localhost:5432/puckdb_test?port=5431",
+		"postgres://puckdb:foo@localhost:5432/puckdb_test?user=admin",
 	} {
 		require.ErrorIs(t, CheckURL(dbURL), errDriversDisagree, dbURL)
 	}
+}
+
+// A query parameter that repeats a URL setting with the same value leaves
+// both drivers on one target.
+func TestCheckURLAcceptsAParameterRepeatingTheURL(t *testing.T) {
+	dbURL := "postgres://puckdb:foo@localhost:5432/puckdb_test?host=localhost&port=5432&user=puckdb&dbname=puckdb_test"
+	assert.NoError(t, CheckURL(dbURL))
 }
 
 // worker/shared used to lower-case the URL first; the marker is now
