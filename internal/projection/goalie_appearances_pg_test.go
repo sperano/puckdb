@@ -72,11 +72,8 @@ func TestGoalieQueriesCountAppearancesSeparatelyFromDressedGames(t *testing.T) {
 	ctx := context.Background()
 	queries := sqlcdb.New(pool)
 
-	history, err := queries.ListProjectionGoalieHistory(ctx, sqlcdb.ListProjectionGoalieHistoryParams{
-		Season: appearanceNextSeason, Season_2: appearanceSeason,
-		GameDate:                 dateValue(time.Date(2014, time.June, 1, 0, 0, 0, 0, time.UTC)),
-		MinimumShutoutToiSeconds: DefaultGoalieShutoutMinTOI,
-	})
+	history, err := queries.ListProjectionGoalieSeasons(ctx, projectionWindow(appearanceNextSeason, appearanceSeason,
+		dateValue(time.Date(2014, time.June, 1, 0, 0, 0, 0, time.UTC))).goalieParams(DefaultGoalieShutoutMinTOI))
 	require.NoError(t, err)
 	seen := 0
 	for _, row := range history {
@@ -92,9 +89,8 @@ func TestGoalieQueriesCountAppearancesSeparatelyFromDressedGames(t *testing.T) {
 	}
 	require.Equal(t, len(appearanceWant), seen)
 
-	evaluation, err := queries.ListProjectionGoalieEvaluationData(ctx, sqlcdb.ListProjectionGoalieEvaluationDataParams{
-		Season: appearanceSeason, Season_2: appearanceSeason, MinimumShutoutToiSeconds: DefaultGoalieShutoutMinTOI,
-	})
+	evaluation, err := queries.ListProjectionGoalieSeasons(ctx,
+		evaluationWindow(appearanceSeason, appearanceSeason).goalieParams(DefaultGoalieShutoutMinTOI))
 	require.NoError(t, err)
 	input := evaluationInput(appearanceSeason, time.Time{}, time.Time{}, nil, nil, evaluation)
 	seen = 0

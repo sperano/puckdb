@@ -84,9 +84,8 @@ func (r *PGStore) loadInput(
 ) (Input, error) {
 	lowerSeason := projectionLoadFloor(cfg, targetSeason)
 	cutoff := dateValue(asOf)
-	skaters, err := r.queries.ListProjectionSkaterHistory(ctx, sqlcdb.ListProjectionSkaterHistoryParams{
-		Season: int32(targetSeason), Season_2: int32(lowerSeason), GameDate: cutoff,
-	})
+	window := projectionWindow(targetSeason, lowerSeason, cutoff)
+	skaters, err := r.queries.ListProjectionSkaterSeasons(ctx, window.skaterParams())
 	if err != nil {
 		return Input{}, fmt.Errorf("load skater projection history: %w", err)
 	}
@@ -100,10 +99,7 @@ func (r *PGStore) loadInput(
 			return Input{}, fmt.Errorf("load skater linemate context: %w", err)
 		}
 	}
-	goalies, err := r.queries.ListProjectionGoalieHistory(ctx, sqlcdb.ListProjectionGoalieHistoryParams{
-		Season: int32(targetSeason), Season_2: int32(lowerSeason), GameDate: cutoff,
-		MinimumShutoutToiSeconds: int32(cfg.GoalieShutoutMinTOI),
-	})
+	goalies, err := r.queries.ListProjectionGoalieSeasons(ctx, window.goalieParams(cfg.GoalieShutoutMinTOI))
 	if err != nil {
 		return Input{}, fmt.Errorf("load goalie projection history: %w", err)
 	}
@@ -140,13 +136,8 @@ func (r *PGStore) LoadEvaluationInput(
 	if err := validateEvaluationWindow(projectionAsOf, observedAt, season); err != nil {
 		return Input{}, err
 	}
-	lowerSeason := projectionLoadFloor(cfg, targetSeason)
-	skaters, err := r.queries.ListProjectionSkaterEvaluationData(
-		ctx,
-		sqlcdb.ListProjectionSkaterEvaluationDataParams{
-			Season: int32(targetSeason), Season_2: int32(lowerSeason),
-		},
-	)
+	window := evaluationWindow(targetSeason, projectionLoadFloor(cfg, targetSeason))
+	skaters, err := r.queries.ListProjectionSkaterSeasons(ctx, window.skaterParams())
 	if err != nil {
 		return Input{}, fmt.Errorf("load skater evaluation data: %w", err)
 	}
@@ -163,13 +154,7 @@ func (r *PGStore) LoadEvaluationInput(
 			return Input{}, fmt.Errorf("load skater linemate evaluation data: %w", err)
 		}
 	}
-	goalies, err := r.queries.ListProjectionGoalieEvaluationData(
-		ctx,
-		sqlcdb.ListProjectionGoalieEvaluationDataParams{
-			Season: int32(targetSeason), Season_2: int32(lowerSeason),
-			MinimumShutoutToiSeconds: int32(cfg.GoalieShutoutMinTOI),
-		},
-	)
+	goalies, err := r.queries.ListProjectionGoalieSeasons(ctx, window.goalieParams(cfg.GoalieShutoutMinTOI))
 	if err != nil {
 		return Input{}, fmt.Errorf("load goalie evaluation data: %w", err)
 	}
@@ -207,34 +192,12 @@ func evaluationInput(
 	targetSeason int,
 	asOf time.Time,
 	observedAt time.Time,
-	skaters []sqlcdb.ListProjectionSkaterEvaluationDataRow,
+	skaters []sqlcdb.ListProjectionSkaterSeasonsRow,
 	linemates []sqlcdb.ListProjectionSkaterLinemateContextRow,
-	goalies []sqlcdb.ListProjectionGoalieEvaluationDataRow,
+	goalies []sqlcdb.ListProjectionGoalieSeasonsRow,
 ) Input {
-	input := Input{
-		TargetSeason: targetSeason, AsOf: asOf, ObservedAt: observedAt,
-		Skaters: make([]SkaterSeason, 0, len(skaters)),
-		Goalies: make([]GoalieSeason, 0, len(goalies)),
-	}
-	for _, row := range skaters {
-		input.Skaters = append(input.Skaters, SkaterSeason{
-			PlayerID: row.PlayerID, BirthDate: optionalDate(row.BirthDate), TeamID: row.TeamID, Season: int(row.Season), Position: string(row.Position),
-			GamesPlayed: int(row.GamesPlayed), TOISeconds: int(row.TOISeconds),
-			Goals: int(row.Goals), Assists: int(row.Assists), PlusMinus: int(row.PlusMinus),
-			PenaltyMinutes: int(row.PenaltyMinutes), PowerPlayPoints: int(row.PowerPlayPoints),
-			ShotsOnGoal: int(row.ShotsOnGoal), Hits: int(row.Hits), BlockedShots: int(row.BlockedShots),
-			FaceoffsWon: int(row.FaceoffsWon), FaceoffsLost: int(row.FaceoffsLost),
-		})
-	}
-	applyLinemateContext(input.Skaters, linemates)
-	for _, row := range goalies {
-		input.Goalies = append(input.Goalies, GoalieSeason{
-			PlayerID: row.PlayerID, BirthDate: optionalDate(row.BirthDate), TeamID: row.TeamID, Season: int(row.Season), GamesPlayed: int(row.GamesPlayed),
-			GamesAppeared: int(row.GamesAppeared), GamesStarted: int(row.GamesStarted), TOISeconds: int(row.TOISeconds),
-			Wins: int(row.Wins), Shutouts: int(row.Shutouts), ShotsAgainst: int(row.ShotsAgainst),
-			Saves: int(row.Saves), GoalsAgainst: int(row.GoalsAgainst),
-		})
-	}
+	input := Input{TargetSeason: targetSeason, AsOf: asOf, ObservedAt: observedAt}
+	input.Skaters, input.Goalies = seasonsFromRows(skaters, linemates, goalies)
 	return input
 }
 
@@ -242,9 +205,9 @@ func projectionInput(
 	targetSeason int,
 	asOf time.Time,
 	maxDate pgtype.Date,
-	skaters []sqlcdb.ListProjectionSkaterHistoryRow,
+	skaters []sqlcdb.ListProjectionSkaterSeasonsRow,
 	linemates []sqlcdb.ListProjectionSkaterLinemateContextRow,
-	goalies []sqlcdb.ListProjectionGoalieHistoryRow,
+	goalies []sqlcdb.ListProjectionGoalieSeasonsRow,
 	pool []PoolPlayer,
 	overrides []Override,
 ) Input {
@@ -253,19 +216,11 @@ func projectionInput(
 		AsOf:         asOf,
 		PlayerPool:   pool,
 		Overrides:    overrides,
-		Skaters:      make([]SkaterSeason, 0, len(skaters)),
-		Goalies:      make([]GoalieSeason, 0, len(goalies)),
 	}
 	if maxDate.Valid {
 		input.SourceMaxGameDate = maxDate.Time
 	}
-	for _, row := range skaters {
-		input.Skaters = append(input.Skaters, skaterSeasonFromRow(row))
-	}
-	applyLinemateContext(input.Skaters, linemates)
-	for _, row := range goalies {
-		input.Goalies = append(input.Goalies, goalieSeasonFromRow(row))
-	}
+	input.Skaters, input.Goalies = seasonsFromRows(skaters, linemates, goalies)
 	return input
 }
 
@@ -323,26 +278,6 @@ func aggregateLinemateRows(
 		totals[key] = total
 	}
 	return totals
-}
-
-func skaterSeasonFromRow(row sqlcdb.ListProjectionSkaterHistoryRow) SkaterSeason {
-	return SkaterSeason{
-		PlayerID: row.PlayerID, BirthDate: optionalDate(row.BirthDate), TeamID: row.TeamID, Season: int(row.Season), Position: string(row.Position),
-		GamesPlayed: int(row.GamesPlayed), TOISeconds: int(row.TOISeconds),
-		Goals: int(row.Goals), Assists: int(row.Assists), PlusMinus: int(row.PlusMinus),
-		PenaltyMinutes: int(row.PenaltyMinutes), PowerPlayPoints: int(row.PowerPlayPoints),
-		ShotsOnGoal: int(row.ShotsOnGoal), Hits: int(row.Hits), BlockedShots: int(row.BlockedShots),
-		FaceoffsWon: int(row.FaceoffsWon), FaceoffsLost: int(row.FaceoffsLost),
-	}
-}
-
-func goalieSeasonFromRow(row sqlcdb.ListProjectionGoalieHistoryRow) GoalieSeason {
-	return GoalieSeason{
-		PlayerID: row.PlayerID, BirthDate: optionalDate(row.BirthDate), TeamID: row.TeamID, Season: int(row.Season), GamesPlayed: int(row.GamesPlayed),
-		GamesAppeared: int(row.GamesAppeared), GamesStarted: int(row.GamesStarted), TOISeconds: int(row.TOISeconds),
-		Wins: int(row.Wins), Shutouts: int(row.Shutouts), ShotsAgainst: int(row.ShotsAgainst),
-		Saves: int(row.Saves), GoalsAgainst: int(row.GoalsAgainst),
-	}
 }
 
 func (r *PGStore) storeSnapshot(ctx context.Context, snapshot Snapshot) (uuid.UUID, error) {

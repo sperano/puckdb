@@ -1,6 +1,6 @@
 package projection
 
-// PostgreSQL-backed test proving ListProjectionSkaterHistory counts faceoffs
+// PostgreSQL-backed test proving ListProjectionSkaterSeasons counts faceoffs
 // from play_events correctly: a player with several faceoff events in one
 // game must still show correct (non-multiplied) sums for every other stat.
 // Skips unless PUCKDB_TEST_PG_URL names a test database (see CLAUDE.md
@@ -112,18 +112,16 @@ func seedFaceoffGames(t *testing.T, pool *pgxpool.Pool) {
 	insertFaceoff(faceoffGameBID, 4, faceoffPlayerOneID, faceoffUntrackedID)
 }
 
-func TestListProjectionSkaterHistoryCountsFaceoffsWithoutInflatingOtherSums(t *testing.T) {
+func TestListProjectionSkaterSeasonsCountsFaceoffsWithoutInflatingOtherSums(t *testing.T) {
 	pool := pgtest.Open(t)
 	seedFaceoffGames(t, pool)
 
-	rows, err := sqlcdb.New(pool).ListProjectionSkaterHistory(context.Background(), sqlcdb.ListProjectionSkaterHistoryParams{
-		Season:   int32(faceoffUpperSeason),
-		Season_2: int32(faceoffLowerSeason),
-		GameDate: dateValue(time.Date(2025, time.December, 1, 0, 0, 0, 0, time.UTC)),
-	})
+	window := projectionWindow(faceoffUpperSeason, faceoffLowerSeason,
+		dateValue(time.Date(2025, time.December, 1, 0, 0, 0, 0, time.UTC)))
+	rows, err := sqlcdb.New(pool).ListProjectionSkaterSeasons(context.Background(), window.skaterParams())
 	require.NoError(t, err)
 
-	rowByPlayer := make(map[int64]sqlcdb.ListProjectionSkaterHistoryRow, len(rows))
+	rowByPlayer := make(map[int64]sqlcdb.ListProjectionSkaterSeasonsRow, len(rows))
 	for _, row := range rows {
 		if row.Season == faceoffTestSeason && (row.PlayerID == faceoffPlayerOneID || row.PlayerID == faceoffPlayerTwoID) {
 			rowByPlayer[row.PlayerID] = row
