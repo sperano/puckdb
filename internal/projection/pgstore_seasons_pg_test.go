@@ -351,6 +351,27 @@ func TestLoadEvaluationInputReadsEvaluationWindow(t *testing.T) {
 	input, err := NewPGStore(pool).LoadEvaluationInput(context.Background(), cfg, windowTargetSeason,
 		time.Date(1998, time.October, 1, 0, 0, 0, 0, time.UTC), time.Date(1999, time.June, 1, 0, 0, 0, 0, time.UTC))
 	require.NoError(t, err)
+	requireInputWindow(t, windowEvaluationBits, input)
+}
+
+// PGStore's projection load path (BuildSnapshot's loadInput) reads the
+// projection window as of its as-of day, from the default model's lookback
+// floor.
+func TestLoadInputReadsProjectionWindow(t *testing.T) {
+	pool := pgtest.Open(t)
+	seedSeasonWindow(t, pool)
+	cfg := DefaultConfig()
+	require.Equal(t, windowFloorSeason, projectionLoadFloor(cfg, windowTargetSeason), "fixture floor")
+
+	input, err := NewPGStore(pool).loadInput(context.Background(), cfg, windowTargetSeason, windowCutoff, nil, nil)
+	require.NoError(t, err)
+	requireInputWindow(t, windowProjectionBits, input)
+}
+
+// requireInputWindow checks the fixture players' seasons of a loaded Input
+// against the games want names.
+func requireInputWindow(t *testing.T, want windowBits, input Input) {
+	t.Helper()
 	gotGoals := make(map[int]int64)
 	for _, season := range input.Skaters {
 		if season.PlayerID == windowSkaterID {
@@ -364,9 +385,8 @@ func TestLoadEvaluationInputReadsEvaluationWindow(t *testing.T) {
 				int64(season.Saves), int64(season.ShotsAgainst), season.Shutouts, season.Wins)
 		}
 	}
-	require.Equal(t, windowEvaluationBits.goals(), gotGoals, "skater goals per season")
-	require.Equal(t, windowEvaluationBits.goalieTotals(), gotGoalies,
-		"goalie saves, shots against, shutouts and wins per season")
+	require.Equal(t, want.goals(), gotGoals, "skater goals per season")
+	require.Equal(t, want.goalieTotals(), gotGoalies, "goalie saves, shots against, shutouts and wins per season")
 }
 
 // legacyWindowCase is one window and the arguments the legacy query for it
