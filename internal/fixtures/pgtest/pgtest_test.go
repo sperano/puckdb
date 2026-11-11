@@ -35,12 +35,25 @@ func TestCheckURLRefusesTheMarkerOutsideTheDatabaseName(t *testing.T) {
 		"postgres://puckdb:test@localhost:5432/puckdb",
 		"postgres://puckdb:foo@test-db.internal:5432/puckdb",
 		"postgres://puckdb:foo@localhost:5432/puckdb?application_name=test",
-		"postgres://puckdb:foo@localhost:5432/test?dbname=puckdb",
 		"postgres://puckdb:foo@localhost/puckdb?options=-c%20search_path%3Dtest",
 	} {
 		err := CheckURL(dbURL)
 		require.Error(t, err, dbURL)
 		assert.Contains(t, err.Error(), `database "puckdb"`, dbURL)
+	}
+}
+
+// pgx lets a dbname parameter win over the path, while lib/pq, behind
+// golang-migrate, keeps the lexically greater name: each of these would pass a
+// pgx-only check yet migrate (or, in the simulation integration TestMain,
+// migrate down) another database.
+func TestCheckURLRefusesADatabaseTheDriversDisagreeOn(t *testing.T) {
+	for _, dbURL := range []string{
+		"postgres://puckdb:foo@localhost:5432/zeta?dbname=alpha_test",
+		"postgres://puckdb:foo@localhost:5432/test?dbname=puckdb",
+		"postgres://puckdb:foo@localhost:5432/puckdb_test?dbname=other_test",
+	} {
+		require.ErrorIs(t, CheckURL(dbURL), errDriversDisagree, dbURL)
 	}
 }
 

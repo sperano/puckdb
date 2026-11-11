@@ -24,6 +24,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/lib/pq"
 	"github.com/sperano/puckdb/internal/database"
 	"github.com/stretchr/testify/require"
 )
@@ -45,12 +46,20 @@ var urlSchemes = []string{"postgres://", "postgresql://"}
 // pick one (the role's name) the check never saw.
 var errNoDatabase = errors.New("names no database")
 
+// errDriversDisagree reports a URL that pgx and lib/pq (golang-migrate's
+// driver) resolve to different databases, as when the path and a dbname query
+// parameter both name one: pgx lets the parameter win, lib/pq keeps the
+// lexically greater name, so the migrator would touch a database the check
+// never saw.
+var errDriversDisagree = errors.New("names a different database for pgx and lib/pq")
+
 // errNotURL reports a keyword/value string or another scheme, which
 // golang-migrate cannot open.
 var errNotURL = errors.New("is not a postgres:// or postgresql:// URL")
 
 // CheckURL returns an error unless rawURL is a postgres:// or postgresql://
-// URL that connects to a database whose name contains DatabaseMarker. The marker
+// URL that connects to a database whose name contains DatabaseMarker, the same
+// database through pgx (the pools) and lib/pq (the migrator). The marker
 // elsewhere in the URL (user, host, password, a query parameter) does not
 // count: only the database name tells which data a test would destroy.
 func CheckURL(rawURL string) error {
@@ -61,6 +70,14 @@ func CheckURL(rawURL string) error {
 	if err != nil {
 		return fmt.Errorf("%s does not parse: %w", EnvURL, err)
 	}
+	migratorDB, err := libpqDatabase(rawURL)
+	if err != nil {
+		return fmt.Errorf("%s does not parse for lib/pq: %w", EnvURL, err)
+	}
+	if migratorDB != cfg.Database {
+		return fmt.Errorf("%s %w (%q, %q); name the database once, in the path",
+			EnvURL, errDriversDisagree, cfg.Database, migratorDB)
+	}
 	if cfg.Database == "" {
 		return fmt.Errorf("%s %w; name a dedicated test database", EnvURL, errNoDatabase)
 	}
@@ -69,6 +86,21 @@ func CheckURL(rawURL string) error {
 			EnvURL, cfg.Database, DatabaseMarker)
 	}
 	return nil
+}
+
+// libpqDatabase returns the database lib/pq connects to for rawURL. pq.ParseURL
+// keeps every dbname it finds, sorted; like lib/pq, pgconn lets the last
+// keyword/value setting win, so it reads that DSN the way lib/pq does.
+func libpqDatabase(rawURL string) (string, error) {
+	dsn, err := pq.ParseURL(rawURL)
+	if err != nil {
+		return "", err
+	}
+	cfg, err := pgconn.ParseConfig(dsn)
+	if err != nil {
+		return "", err
+	}
+	return cfg.Database, nil
 }
 
 func hasURLScheme(rawURL string) bool {

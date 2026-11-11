@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestDatabaseURLConnectsToTheNewDatabase(t *testing.T) {
+func TestDatabaseURLNamesTheNewDatabase(t *testing.T) {
 	const name = "puckdb_test_sim_x"
 	for _, baseURL := range []string{
 		"postgres://puckdb:foo@localhost:5432/puckdb_test?sslmode=disable",

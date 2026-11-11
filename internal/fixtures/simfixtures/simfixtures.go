@@ -26,8 +26,8 @@ const (
 	// setupTimeout bounds creating and migrating one database, and
 	// separately dropping it.
 	setupTimeout = 2 * time.Minute
-	// dbnameParam is the URL query parameter libpq and pgx read as the
-	// database name, overriding the path.
+	// dbnameParam is the URL query parameter pgx and lib/pq read as the
+	// database name, alongside the path.
 	dbnameParam = "dbname"
 
 	// fixtureSeason is the season every fixture pool belongs to; Pool
@@ -67,8 +67,8 @@ func NewDatabase(t testing.TB) string {
 }
 
 // databaseURL returns baseURL naming database name instead. It drops a
-// dbname parameter, which would win over the path and connect to the base
-// database instead of the new one.
+// dbname parameter, which pgx would let win over the path, connecting to the
+// base database instead of the new one.
 func databaseURL(baseURL, name string) (string, error) {
 	parsed, err := url.Parse(baseURL)
 	if err != nil {
