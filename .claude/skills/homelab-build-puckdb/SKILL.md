@@ -1,13 +1,30 @@
 ---
 name: homelab-build-puckdb
-description: Build puckdb image using homelab builders, deploy to cluster
+description: "Legacy — builds puckdb from this checkout's local state and deploys it directly, bypassing the onPush image-build pipeline. Prefer merging to main or `just image-build puckdb` (hollingsworth); only falls back to this skill's local build/deploy after the user confirms, having seen the notice in the skill body."
 user-invocable: true
 allowed-tools: Bash(docker-build-multiarch *), Bash(git *), Bash(argocd *), Bash(argocd-login), Edit, Read
 ---
 
 # homelab-build-puckdb
 
-Build multi-arch puckdb images from this checkout using homelab Docker builders, update Helm values, and deploy to cluster.
+**Legacy — do not run the build steps below by default.** This skill builds
+`docker-build-multiarch` from whatever this checkout happens to have locally
+checked out, not from merged `main`, bypassing the `onPush` image-build
+pipeline in hollingsworth. The hollingsworth and puckdb-project copies of
+this skill were already converted to a thin wrapper around that pipeline's
+image-build runner (wiki `hollingsworth/plans/kelos-image-builds.md`,
+"Callers as built"); this puckdb copy predates that conversion and still
+runs the old flow below. A stale-checkout build like this once shipped a
+`maurice-web` image without a fix that had already merged.
+
+Use the supported path instead:
+- merging to `main` triggers the `onPush` build automatically;
+- `just image-build puckdb` (in hollingsworth) builds on demand.
+
+When this skill is invoked, first show the user the notice above (legacy,
+why, and the supported alternatives) and stop there. Only continue to the
+build steps below if the user, after seeing that notice, explicitly confirms
+they want to run this legacy skill anyway.
 
 ## Prerequisites
 
@@ -15,7 +32,7 @@ Build multi-arch puckdb images from this checkout using homelab Docker builders,
 - Docker Hub login: `docker login`
 - ArgoCD CLI installed
 
-## Instructions
+## Instructions (legacy build — only after explicit confirmation above)
 
 1. **Change to the root of this checkout** (the primary checkout or a worktree, whichever the skill was invoked from):
    ```bash
@@ -61,6 +78,8 @@ Build multi-arch puckdb images from this checkout using homelab Docker builders,
    Report the sync status to the user.
 
 ## Usage Examples
+
+After confirming the legacy notice above:
 
 ```
 /homelab-build-puckdb              # Build with auto-generated dev tag
