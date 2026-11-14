@@ -3,6 +3,8 @@ package simulation
 import (
 	"encoding/json"
 	"fmt"
+	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -61,6 +63,23 @@ func TestBuildSystemPrompt_EmptyStrategy(t *testing.T) {
 	assert.NotContains(t, got, "{strategy}")
 }
 
+// promptCategories parses the system prompt's "- N roto categories: ..."
+// line into its category names (annotations such as "(lower=better)"
+// dropped) and checks N against their count. Comparing whole names keeps
+// a category such as "G" from matching inside "GA" or "GAA".
+func promptCategories(t *testing.T) []string {
+	t.Helper()
+	line := regexp.MustCompile(`(?m)^- (\d+) roto categories: (.+)$`).FindStringSubmatch(systemPromptTemplate)
+	require.NotNil(t, line, "system prompt has no roto categories line")
+	annotation := regexp.MustCompile(`\s*\([^)]*\)`)
+	var cats []string
+	for _, c := range strings.Split(line[2], ",") {
+		cats = append(cats, strings.TrimSpace(annotation.ReplaceAllString(c, "")))
+	}
+	require.Equal(t, line[1], strconv.Itoa(len(cats)), "the line's count must match the categories it lists")
+	return cats
+}
+
 // TestV1FixedRosterMatchesPrompt pins the V1 fixed-roster assumption
 // documented on PoolConfig (types.go) and on v1FixedCategories /
 // v1FixedRoster (prompts.go, just above systemPromptTemplate): the
@@ -71,11 +90,8 @@ func TestBuildSystemPrompt_EmptyStrategy(t *testing.T) {
 // point, since a silent divergence here would mean the agent is being
 // told a roster/category shape the validators don't actually enforce.
 func TestV1FixedRosterMatchesPrompt(t *testing.T) {
-	require.Len(t, v1FixedCategories, 9, `systemPromptTemplate says "9 roto categories"`)
-	for _, cat := range v1FixedCategories {
-		assert.Contains(t, systemPromptTemplate, cat,
-			"category %q must appear in the system prompt's category line", cat)
-	}
+	assert.Equal(t, v1FixedCategories, promptCategories(t),
+		"v1FixedCategories must match the prompt's hard-coded category line, in order")
 
 	cfg := PoolConfig{RosterPositions: v1FixedRoster}
 	wantRosterLine := fmt.Sprintf(
