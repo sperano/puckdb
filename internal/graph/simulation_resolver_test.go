@@ -208,41 +208,51 @@ func TestCreateSimPoolImpl_RequiresDB(t *testing.T) {
 }
 
 // panicTxBeginner satisfies txBeginner so createSimPoolImpl gets past the
-// errDatabaseNotConfigured check, but panics if actually called — pricing
+// errDatabaseNotConfigured check, but panics if actually called — config
 // rejection must happen before any transaction is opened, let alone before
 // the season lookup (which needs Queries, deliberately left nil here).
 type panicTxBeginner struct{}
 
 func (panicTxBeginner) Begin(context.Context) (pgx.Tx, error) {
-	panic("createSimPoolImpl must reject an unpriced agent before opening a transaction")
+	panic("createSimPoolImpl must reject an invalid config before opening a transaction")
 }
 
 // TestCreateSimPoolImpl_RejectsUnpricedModel pins SIM-U2's fix: an agent
 // whose (provider, model) has no pricing-table row must fail pool
-// creation up front, by name, instead of silently costing $0 forever.
+// creation up front, by field, instead of silently costing $0 forever.
 func TestCreateSimPoolImpl_RejectsUnpricedModel(t *testing.T) {
 	t.Parallel()
 	r := &Resolver{DB: panicTxBeginner{}}
-	input := model.CreateSimPoolInput{
-		Agents: []*model.CreateSimAgentInput{
-			{Provider: "anthropic", Model: "claude-sonnet-4-6"},
-			{Provider: "openai", Model: "gpt-9-ultra-mystery"},
-		},
-	}
+	input := validSimPoolInput()
+	input.Agents[1] = &model.CreateSimAgentInput{Provider: "openai", Model: "gpt-9-ultra-mystery"}
 	_, err := r.createSimPoolImpl(context.Background(), input)
 	require.Error(t, err)
 	assert.ErrorIs(t, err, simulation.ErrUnpricedModel)
-	assert.Contains(t, err.Error(), "agent #1", "the error must identify which agent is unpriced")
+	assert.Contains(t, err.Error(), "agents[1].model", "the error must identify which agent is unpriced")
+}
+
+// TestCreateSimPoolImpl_RejectsInvalidConfigBeforeTheDatabase pins SIM-U6:
+// a bad stopAfter or provider fails creation, by field, before any query,
+// instead of becoming "never" or an agent that fails at its first turn.
+func TestCreateSimPoolImpl_RejectsInvalidConfigBeforeTheDatabase(t *testing.T) {
+	t.Parallel()
+	r := &Resolver{DB: panicTxBeginner{}}
+	input := validSimPoolInput()
+	stop := "season-end"
+	input.StopAfter = &stop
+	input.Agents[0].Provider = "claude"
+	_, err := r.createSimPoolImpl(context.Background(), input)
+	assert.Equal(t, []string{"agents[0].provider", "stopAfter"}, rejectedFields(t, err))
 }
 
 // errSeasonLookupProbe is configured as recordingDBTX.queryRowErr so a
-// test can tell "got past pricing, failed at the season lookup" apart
-// from "failed at pricing" without a real database.
+// test can tell "got past validation, failed at the season lookup" apart
+// from "failed at validation" without a real database.
 var errSeasonLookupProbe = errors.New("season lookup probe")
 
 // An Ollama agent with an arbitrary local model tag must not be rejected
 // by the pricing gate, even though the tag has no table row. Reaching the
-// (probed) season lookup proves the pricing gate let it through, rather
+// (probed) season lookup proves the validation let it through, rather
 // than merely proving some later check failed for an unrelated reason.
 func TestCreateSimPoolImpl_OllamaModelPassesPricingGate(t *testing.T) {
 	t.Parallel()
@@ -250,15 +260,12 @@ func TestCreateSimPoolImpl_OllamaModelPassesPricingGate(t *testing.T) {
 		DB:      panicTxBeginner{},
 		Queries: sqlcdb.New(&recordingDBTX{queryRowErr: errSeasonLookupProbe}),
 	}
-	input := model.CreateSimPoolInput{
-		Agents: []*model.CreateSimAgentInput{
-			{Provider: "ollama", Model: "some-custom-finetune:latest"},
-		},
-	}
+	input := validSimPoolInput()
+	input.Agents = []*model.CreateSimAgentInput{{Provider: "ollama", Model: "some-custom-finetune:latest"}}
 	_, err := r.createSimPoolImpl(context.Background(), input)
 	require.Error(t, err)
 	assert.ErrorIs(t, err, errSeasonLookupProbe,
-		"an Ollama agent must clear the pricing gate and fail at the season lookup, not at pricing")
+		"an Ollama agent must clear validation and fail at the season lookup, not at pricing")
 }
 
 // ============================================================================

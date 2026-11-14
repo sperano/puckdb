@@ -17,7 +17,7 @@ type Boxscore struct {
 }
 
 type CreateSimAgentInput struct {
-	// Provider string: anthropic | openai | ollama | google.
+	// Provider string: anthropic | openai | ollama | google (alias gemini), case-insensitive; anything else is rejected.
 	Provider string `json:"provider"`
 	// Model identifier passed to the provider's API (e.g., 'claude-haiku-4-5').
 	Model string `json:"model"`
@@ -38,17 +38,23 @@ type CreateSimPoolInput struct {
 	Name string `json:"name"`
 	// NHL season ID (e.g., 20242025) — must exist in the seasons table.
 	Season int `json:"season"`
-	// Roto categories to score, by string label (G, A, +/-, PIM, PPP, SOG, W, GA, GAA).
+	// Roto categories to score. The simulator scores, and tells its agents
+	// about, exactly G, A, +/-, PIM, PPP, SOG, W, GA and GAA: each must be
+	// listed once, in any order, and nothing else.
 	Categories []string `json:"categories"`
-	// Per-slot roster capacity. Slot must be one of C/LW/RW/D/G/Util/BN/IR.
+	// Per-slot roster capacity, each slot listed at most once (an omitted
+	// slot counts 0). The only supported roster is 2 C, 2 LW, 2 RW, 3 D,
+	// 1 Util, 2 G, 6 BN, 3 IR: the agents' system prompt states it.
 	RosterPositions []*SimRosterPositionInput `json:"rosterPositions"`
-	// Calendar days a dropped player spends on waivers before becoming a free agent.
+	// Calendar days a dropped player spends on waivers before becoming a free agent (>= 0).
 	WaiverDays int `json:"waiverDays"`
-	// Number of draft rounds (typically 18 for an NHL roster).
+	// Number of draft rounds, from 1 to the roster's total slot count (21 for the supported roster).
 	DraftRounds int `json:"draftRounds"`
-	// Per-pool cumulative LLM spend cap in USD. <= 0 disables the cap; reaching it pauses the pool.
+	// Per-pool cumulative LLM spend cap in USD. <= 0 disables the cap.
+	// Reaching it ends the pool with status 'paused', which is final:
+	// nothing resumes a paused pool; create a new one to continue.
 	MaxLlmCostUsdPerPool float64 `json:"maxLlmCostUsdPerPool"`
-	// Agent definitions — one per fantasy team. Pool size = len(agents).
+	// Agent definitions — one per fantasy team, at least one. Pool size = len(agents).
 	Agents []*CreateSimAgentInput `json:"agents"`
 	// Config-time stop point. The workflow exits cleanly (status=complete)
 	// when it reaches the configured boundary. One of:
@@ -56,7 +62,7 @@ type CreateSimPoolInput struct {
 	//   team_name   — exit after Phase 0 team-name picks complete.
 	//   draft       — exit after the snake draft completes.
 	//   season      — explicit synonym for never.
-	// Omitted = "never".
+	// Omitted = "never"; any other value is rejected.
 	StopAfter *string `json:"stopAfter,omitempty"`
 	// Cap on the season day loop (0 or omitted = no cap). Useful for fast small-sample debugging (e.g. maxSeasonDays: 10).
 	MaxSeasonDays *int `json:"maxSeasonDays,omitempty"`
@@ -1109,9 +1115,12 @@ type SimLineupMove struct {
 }
 
 type SimPool struct {
-	ID              int                 `json:"id"`
-	Name            string              `json:"name"`
-	Season          int                 `json:"season"`
+	ID     int    `json:"id"`
+	Name   string `json:"name"`
+	Season int    `json:"season"`
+	// draft (created, still running), complete, paused (stopped at the cost
+	// cap) or cancelled. paused, complete and cancelled are final: there is
+	// no resume.
 	Status          string              `json:"status"`
 	SimDate         *string             `json:"simDate,omitempty"`
 	TotalLlmCostUsd float64             `json:"totalLlmCostUsd"`

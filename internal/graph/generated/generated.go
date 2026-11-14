@@ -8215,6 +8215,11 @@ type SimPool {
   id: Int!
   name: String!
   season: Int!
+  """
+  draft (created, still running), complete, paused (stopped at the cost
+  cap) or cancelled. paused, complete and cancelled are final: there is
+  no resume.
+  """
   status: String!
   simDate: String
   totalLlmCostUsd: Float!
@@ -8383,17 +8388,29 @@ input CreateSimPoolInput {
   name: String!
   """NHL season ID (e.g., 20242025) — must exist in the seasons table."""
   season: Int!
-  """Roto categories to score, by string label (G, A, +/-, PIM, PPP, SOG, W, GA, GAA)."""
+  """
+  Roto categories to score. The simulator scores, and tells its agents
+  about, exactly G, A, +/-, PIM, PPP, SOG, W, GA and GAA: each must be
+  listed once, in any order, and nothing else.
+  """
   categories: [String!]!
-  """Per-slot roster capacity. Slot must be one of C/LW/RW/D/G/Util/BN/IR."""
+  """
+  Per-slot roster capacity, each slot listed at most once (an omitted
+  slot counts 0). The only supported roster is 2 C, 2 LW, 2 RW, 3 D,
+  1 Util, 2 G, 6 BN, 3 IR: the agents' system prompt states it.
+  """
   rosterPositions: [SimRosterPositionInput!]!
-  """Calendar days a dropped player spends on waivers before becoming a free agent."""
+  """Calendar days a dropped player spends on waivers before becoming a free agent (>= 0)."""
   waiverDays: Int!
-  """Number of draft rounds (typically 18 for an NHL roster)."""
+  """Number of draft rounds, from 1 to the roster's total slot count (21 for the supported roster)."""
   draftRounds: Int!
-  """Per-pool cumulative LLM spend cap in USD. <= 0 disables the cap; reaching it pauses the pool."""
+  """
+  Per-pool cumulative LLM spend cap in USD. <= 0 disables the cap.
+  Reaching it ends the pool with status 'paused', which is final:
+  nothing resumes a paused pool; create a new one to continue.
+  """
   maxLlmCostUsdPerPool: Float!
-  """Agent definitions — one per fantasy team. Pool size = len(agents)."""
+  """Agent definitions — one per fantasy team, at least one. Pool size = len(agents)."""
   agents: [CreateSimAgentInput!]!
 
   """
@@ -8403,7 +8420,7 @@ input CreateSimPoolInput {
     team_name   — exit after Phase 0 team-name picks complete.
     draft       — exit after the snake draft completes.
     season      — explicit synonym for never.
-  Omitted = "never".
+  Omitted = "never"; any other value is rejected.
   """
   stopAfter: String
   """Cap on the season day loop (0 or omitted = no cap). Useful for fast small-sample debugging (e.g. maxSeasonDays: 10)."""
@@ -8430,7 +8447,7 @@ input SimRosterPositionInput {
 }
 
 input CreateSimAgentInput {
-  """Provider string: anthropic | openai | ollama | google."""
+  """Provider string: anthropic | openai | ollama | google (alias gemini), case-insensitive; anything else is rejected."""
   provider: String!
   """Model identifier passed to the provider's API (e.g., 'claude-haiku-4-5')."""
   model: String!

@@ -1,0 +1,73 @@
+package simulation
+
+import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func TestValidateCategoriesAcceptsTheSupportedSetInAnyOrder(t *testing.T) {
+	t.Parallel()
+	require.NoError(t, ValidateCategories(SupportedCategories()))
+	reversed := SupportedCategories()
+	for i, j := 0, len(reversed)-1; i < j; i, j = i+1, j-1 {
+		reversed[i], reversed[j] = reversed[j], reversed[i]
+	}
+	require.NoError(t, ValidateCategories(reversed))
+}
+
+func TestValidateCategoriesNamesEveryProblem(t *testing.T) {
+	t.Parallel()
+	// The shape every shipped example used before it was fixed: seven
+	// categories, no +/- and no GAA.
+	err := ValidateCategories([]string{"G", "A", "PIM", "PPP", "SOG", "W", "GA", "G", "SV%"})
+	require.ErrorIs(t, err, ErrUnsupportedPoolShape)
+	assert.EqualError(t, err, `unsupported pool shape: duplicate category "G", unknown category "SV%", `+
+		`missing category "+/-", missing category "GAA"; the simulator scores exactly [G, A, +/-, PIM, PPP, SOG, W, GA, GAA]`)
+}
+
+func TestValidateCategoriesRejectsEmpty(t *testing.T) {
+	t.Parallel()
+	require.ErrorIs(t, ValidateCategories(nil), ErrUnsupportedPoolShape)
+}
+
+func TestValidateRosterPositionsAcceptsTheSupportedRoster(t *testing.T) {
+	t.Parallel()
+	require.NoError(t, ValidateRosterPositions(SupportedRosterPositions()))
+}
+
+func TestValidateRosterPositionsNamesEveryProblem(t *testing.T) {
+	t.Parallel()
+	got := map[RosterSlot]int{SlotC: 2, SlotLW: 2, SlotRW: 2, SlotD: 3, SlotG: 2, SlotBN: 5, "F": 1}
+	err := ValidateRosterPositions(got)
+	require.ErrorIs(t, err, ErrUnsupportedPoolShape)
+	assert.EqualError(t, err, `unsupported pool shape: unknown slot "F", Util count 0, want 1, BN count 5, want 6, `+
+		`IR count 0, want 3; the simulator supports exactly 2 C, 2 LW, 2 RW, 3 D, 1 Util, 2 G, 6 BN, 3 IR`)
+}
+
+func TestSupportedShapeIsACopy(t *testing.T) {
+	t.Parallel()
+	cats := SupportedCategories()
+	cats[0] = "changed"
+	roster := SupportedRosterPositions()
+	roster[SlotC] = 99
+	assert.Equal(t, "G", v1FixedCategories[0])
+	assert.Equal(t, 2, v1FixedRoster[SlotC])
+}
+
+func TestRosterCapacityCountsEverySlot(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, 21, RosterCapacity(SupportedRosterPositions()))
+	assert.Equal(t, 0, RosterCapacity(nil))
+}
+
+func TestValidateProviderMatchesNewAgent(t *testing.T) {
+	t.Parallel()
+	for _, ok := range []string{"anthropic", "OpenAI", "ollama", "google", "gemini"} {
+		assert.NoError(t, ValidateProvider(ok), ok)
+	}
+	for _, bad := range []string{"", "claude", "mistral"} {
+		assert.Error(t, ValidateProvider(bad), bad)
+	}
+}

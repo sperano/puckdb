@@ -2158,15 +2158,17 @@ func (q *Queries) ListSimFreeAgentSkaterStats(ctx context.Context, arg ListSimFr
 	return items, nil
 }
 
-const listSimLineupMovesByTransaction = `-- name: ListSimLineupMovesByTransaction :many
+const listSimLineupMovesByTransactions = `-- name: ListSimLineupMovesByTransactions :many
 SELECT transaction_id, sequence, player_id, from_slot, to_slot, displaced_player_id
 FROM sim_lineup_moves
-WHERE transaction_id = $1
-ORDER BY sequence
+WHERE transaction_id = ANY($1::int[])
+ORDER BY transaction_id, sequence
 `
 
-func (q *Queries) ListSimLineupMovesByTransaction(ctx context.Context, transactionID int32) ([]SimLineupMove, error) {
-	rows, err := q.db.Query(ctx, listSimLineupMovesByTransaction, transactionID)
+// ListSimLineupMovesByTransactions returns the moves of every listed
+// lineup_set transaction in one query.
+func (q *Queries) ListSimLineupMovesByTransactions(ctx context.Context, transactionIds []int32) ([]SimLineupMove, error) {
+	rows, err := q.db.Query(ctx, listSimLineupMovesByTransactions, transactionIds)
 	if err != nil {
 		return nil, err
 	}

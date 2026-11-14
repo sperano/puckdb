@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"sort"
 	"strings"
 	"time"
@@ -35,20 +36,6 @@ func derefString(p *string) string {
 		return ""
 	}
 	return *p
-}
-
-// derefStopAfterOrDefault returns *p as a validated stop_after value,
-// or "never" when *p is nil/empty/invalid. Matches the
-// sim_pools.stop_after CHECK constraint default in the schema.
-func derefStopAfterOrDefault(p *string) string {
-	if p == nil {
-		return simulation.StopAfterNever.String()
-	}
-	stop, err := simulation.ParseStopAfter(*p)
-	if err != nil {
-		return simulation.StopAfterNever.String()
-	}
-	return stop.String()
 }
 
 // ============================================================================
@@ -453,13 +440,16 @@ func decodeStandings(rows []sqlcdb.SimStanding) []*model.SimStandingEntry {
 // including per-tx playerName / dropPlayerName lookups and the
 // joined sim_lineup_moves child rows for lineup_set transactions.
 //
-// Two passes:
-//  1. Collect every player ID referenced (player_id, drop_player_id,
-//     plus per-move player_id and displaced_player_id).
-//  2. Single name-lookup batch, then build resolver rows.
+// Query count is fixed whatever the number of rows: one batched
+// ListSimLineupMovesByTransactions for every lineup_set row, then one
+// batched name lookup for every player referenced (player_id,
+// drop_player_id, each move's player_id and displaced_player_id).
 func (r *Resolver) decodeSimTransactions(ctx context.Context, txs []sqlcdb.SimTransaction) ([]*model.SimTransaction, error) {
+	movesByTx, err := r.lineupMovesByTransaction(ctx, txs)
+	if err != nil {
+		return nil, err
+	}
 	playerIDs := map[int64]struct{}{}
-	movesByTx := map[int32][]sqlcdb.SimLineupMove{}
 	for _, t := range txs {
 		if t.PlayerID.Valid {
 			playerIDs[t.PlayerID.Int64] = struct{}{}
@@ -467,17 +457,10 @@ func (r *Resolver) decodeSimTransactions(ctx context.Context, txs []sqlcdb.SimTr
 		if t.DropPlayerID.Valid {
 			playerIDs[t.DropPlayerID.Int64] = struct{}{}
 		}
-		if t.Type == string(simulation.TransactionTypeLineupSet) {
-			moves, err := r.Queries.ListSimLineupMovesByTransaction(ctx, t.ID)
-			if err != nil {
-				return nil, fmt.Errorf("list lineup moves for tx %d: %w", t.ID, err)
-			}
-			movesByTx[t.ID] = moves
-			for _, m := range moves {
-				playerIDs[m.PlayerID] = struct{}{}
-				if m.DisplacedPlayerID.Valid {
-					playerIDs[m.DisplacedPlayerID.Int64] = struct{}{}
-				}
+		for _, m := range movesByTx[t.ID] {
+			playerIDs[m.PlayerID] = struct{}{}
+			if m.DisplacedPlayerID.Valid {
+				playerIDs[m.DisplacedPlayerID.Int64] = struct{}{}
 			}
 		}
 	}
@@ -488,37 +471,89 @@ func (r *Resolver) decodeSimTransactions(ctx context.Context, txs []sqlcdb.SimTr
 
 	out := make([]*model.SimTransaction, 0, len(txs))
 	for _, t := range txs {
-		row := &model.SimTransaction{
-			ID:          int(t.ID),
-			AgentID:     int(t.AgentID),
-			Date:        pgconv.FormatDate(t.Date),
-			Type:        t.Type,
-			Round:       int4Ptr(t.Round),
-			Pick:        int4Ptr(t.Pick),
-			Reasoning:   t.Reasoning,
-			ErrorKind:   textPtr(t.ErrorKind),
-			ErrorDetail: textPtr(t.ErrorDetail),
+		row, err := decodeSimTransaction(t, players, movesByTx[t.ID])
+		if err != nil {
+			return nil, err
 		}
-		if t.PlayerID.Valid {
-			name := players[t.PlayerID.Int64].Name
-			row.PlayerName = optionalString(name)
-		}
-		if t.DropPlayerID.Valid {
-			name := players[t.DropPlayerID.Int64].Name
-			row.DropPlayerName = optionalString(name)
-		}
-		if t.CostUSD.Valid {
-			f, _ := pgconv.NumericToFloat(t.CostUSD)
-			row.CostUsd = &f
-		}
-		if t.CapUSD.Valid {
-			f, _ := pgconv.NumericToFloat(t.CapUSD)
-			row.CapUsd = &f
-		}
-		row.LineupMoves = decodeLineupMoves(movesByTx[t.ID], players)
 		out = append(out, row)
 	}
 	return out, nil
+}
+
+// lineupMovesByTransaction loads the moves of every lineup_set row of
+// txs in one query, grouped by transaction ID. No lineup_set row, no
+// query.
+func (r *Resolver) lineupMovesByTransaction(ctx context.Context, txs []sqlcdb.SimTransaction) (map[int32][]sqlcdb.SimLineupMove, error) {
+	var ids []int32
+	for _, t := range txs {
+		if t.Type == string(simulation.TransactionTypeLineupSet) {
+			ids = append(ids, t.ID)
+		}
+	}
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	moves, err := r.Queries.ListSimLineupMovesByTransactions(ctx, ids)
+	if err != nil {
+		return nil, fmt.Errorf("list lineup moves for %d transactions: %w", len(ids), err)
+	}
+	out := make(map[int32][]sqlcdb.SimLineupMove, len(ids))
+	for _, m := range moves {
+		out[m.TransactionID] = append(out[m.TransactionID], m)
+	}
+	return out, nil
+}
+
+// decodeSimTransaction maps one sim_transactions row and its lineup
+// moves. A cost or cap NUMERIC that does not convert to float64 is an
+// error naming the row, not a silent 0.
+func decodeSimTransaction(t sqlcdb.SimTransaction, players map[int64]playerSummary, moves []sqlcdb.SimLineupMove) (*model.SimTransaction, error) {
+	row := &model.SimTransaction{
+		ID:          int(t.ID),
+		AgentID:     int(t.AgentID),
+		Date:        pgconv.FormatDate(t.Date),
+		Type:        t.Type,
+		Round:       int4Ptr(t.Round),
+		Pick:        int4Ptr(t.Pick),
+		Reasoning:   t.Reasoning,
+		ErrorKind:   textPtr(t.ErrorKind),
+		ErrorDetail: textPtr(t.ErrorDetail),
+	}
+	if t.PlayerID.Valid {
+		row.PlayerName = optionalString(players[t.PlayerID.Int64].Name)
+	}
+	if t.DropPlayerID.Valid {
+		row.DropPlayerName = optionalString(players[t.DropPlayerID.Int64].Name)
+	}
+	var err error
+	if row.CostUsd, err = optionalNumericFloat(t.CostUSD); err != nil {
+		return nil, fmt.Errorf("sim transaction %d cost_usd: %w", t.ID, err)
+	}
+	if row.CapUsd, err = optionalNumericFloat(t.CapUSD); err != nil {
+		return nil, fmt.Errorf("sim transaction %d cap_usd: %w", t.ID, err)
+	}
+	row.LineupMoves = decodeLineupMoves(moves, players)
+	return row, nil
+}
+
+// errNonFiniteNumeric rejects a NUMERIC NaN or infinity, which a GraphQL
+// Float (JSON number) cannot carry.
+var errNonFiniteNumeric = errors.New("not a finite number")
+
+// optionalNumericFloat maps a nullable NUMERIC to a GraphQL Float: NULL
+// is nil; a value that does not convert to a finite float64 is an error.
+func optionalNumericFloat(n pgtype.Numeric) (*float64, error) {
+	if !n.Valid {
+		return nil, nil
+	}
+	f, err := pgconv.NumericToFloat(n)
+	if err != nil {
+		return nil, err
+	}
+	if math.IsNaN(f) || math.IsInf(f, 0) {
+		return nil, errNonFiniteNumeric
+	}
+	return &f, nil
 }
 
 // decodeLineupMoves maps sim_lineup_moves rows to resolver shape.
@@ -643,16 +678,12 @@ func (r *Resolver) createSimPoolImpl(ctx context.Context, input model.CreateSimP
 	if r.DB == nil {
 		return nil, errDatabaseNotConfigured
 	}
-	// Reject an agent whose model has no known pricing before touching the
-	// database: letting it through would mean maxLlmCostUsdPerPool can
-	// never trip for that agent (SIM-U2). Ollama is exempt — see
-	// ValidateModelPricing.
-	for i, a := range input.Agents {
-		if err := simulation.ValidateModelPricing(a.Provider, a.Model); err != nil {
-			return nil, fmt.Errorf("agent #%d: %w", i, err)
-		}
+	// Reject a bad config before touching the database, every bad field
+	// in one error.
+	settings, err := validateCreateSimPoolInput(input)
+	if err != nil {
+		return nil, err
 	}
-	rosters := flattenRosterPositions(input.RosterPositions)
 	capNum, err := pgconv.NumericFromFloat(input.MaxLlmCostUsdPerPool)
 	if err != nil {
 		return nil, fmt.Errorf("encode max_llm_cost_usd_per_pool: %w", err)
@@ -688,15 +719,15 @@ func (r *Resolver) createSimPoolImpl(ctx context.Context, input model.CreateSimP
 		DraftRounds:          int32(input.DraftRounds),
 		MaxLLMCostUsdPerPool: capNum,
 		Categories:           append([]string(nil), input.Categories...),
-		RosterC:              int32(rosters[simulation.SlotC]),
-		RosterLW:             int32(rosters[simulation.SlotLW]),
-		RosterRW:             int32(rosters[simulation.SlotRW]),
-		RosterD:              int32(rosters[simulation.SlotD]),
-		RosterG:              int32(rosters[simulation.SlotG]),
-		RosterUtil:           int32(rosters[simulation.SlotUtil]),
-		RosterBN:             int32(rosters[simulation.SlotBN]),
-		RosterIR:             int32(rosters[simulation.SlotIR]),
-		StopAfter:            derefStopAfterOrDefault(input.StopAfter),
+		RosterC:              int32(settings.rosters[simulation.SlotC]),
+		RosterLW:             int32(settings.rosters[simulation.SlotLW]),
+		RosterRW:             int32(settings.rosters[simulation.SlotRW]),
+		RosterD:              int32(settings.rosters[simulation.SlotD]),
+		RosterG:              int32(settings.rosters[simulation.SlotG]),
+		RosterUtil:           int32(settings.rosters[simulation.SlotUtil]),
+		RosterBN:             int32(settings.rosters[simulation.SlotBN]),
+		RosterIR:             int32(settings.rosters[simulation.SlotIR]),
+		StopAfter:            settings.stopAfter.String(),
 		MaxSeasonDays:        int32(derefInt(input.MaxSeasonDays)),
 		StartDate:            startDate,
 		EndDate:              endDate,
@@ -705,12 +736,9 @@ func (r *Resolver) createSimPoolImpl(ctx context.Context, input model.CreateSimP
 		return nil, fmt.Errorf("insert sim pool: %w", err)
 	}
 
-	// Insert one sim_agents row per agent. draft_position is the
-	// 1-indexed position in the input list — a stable per-agent
-	// identity used for tie-breaks and display. The actual
-	// Agents insert without draft_position — that column captures
-	// the SideEffect-shuffled order, written by the workflow's
-	// RecordDraftOrder activity. It stays NULL until then.
+	// One sim_agents row per agent, without draft_position: that column
+	// holds the SideEffect-shuffled draft order, written by the
+	// workflow's RecordDraftOrder activity, and stays NULL until then.
 	for i, a := range input.Agents {
 		var temperature pgtype.Numeric
 		if a.Temperature != nil {

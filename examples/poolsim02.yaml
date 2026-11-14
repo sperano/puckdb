@@ -1,15 +1,17 @@
 name: Simulation 2
 season: 20242025
-categories: [G, A, PIM, PPP, SOG, W, GA]
+categories: [G, A, +/-, PIM, PPP, SOG, W, GA, GAA]
 rosterPositions:
-  - {slot: C,  count: 2}
-  - {slot: LW, count: 2}
-  - {slot: RW, count: 2}
-  - {slot: D,  count: 3}
-  - {slot: G,  count: 2}
-  - {slot: BN, count: 5}
+  - {slot: C,    count: 2}
+  - {slot: LW,   count: 2}
+  - {slot: RW,   count: 2}
+  - {slot: D,    count: 3}
+  - {slot: Util, count: 1}
+  - {slot: G,    count: 2}
+  - {slot: BN,   count: 6}
+  - {slot: IR,   count: 3}
 waiverDays: 2
-draftRounds: 18 
+draftRounds: 18
 maxLlmCostUsdPerPool: 20.0
 stopAfter: draft
 maxSeasonDays: 0
@@ -23,7 +25,7 @@ agents:
   - provider: anthropic
     model: claude-haiku-4-5
     strategy: |
-      Punt GAA and SV%. Stack high-shot-volume forwards to dominate G,
+      Punt GA and GAA. Stack high-shot-volume forwards to dominate G,
       A, SOG, and PPP. Stream goalies aggressively for W only — drop
       them between starts.
   - provider: ollama

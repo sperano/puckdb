@@ -12,6 +12,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/sperano/puckdb/internal/graph"
 	"github.com/sperano/puckdb/internal/graph/model"
 	"github.com/sperano/puckdb/internal/worker/simulation"
 	"github.com/stretchr/testify/assert"
@@ -131,6 +132,35 @@ agents: []
 	in, err := loadCreateSimPoolInputFromFile(path)
 	require.NoError(t, err)
 	assert.Equal(t, "FromFile", in.Name)
+}
+
+// shippedExampleConfigs matches the pool configs under examples/.
+const shippedExampleConfigs = "../examples/poolsim*.yaml"
+
+// TestShippedExampleConfigsAreValid pins SIM-U1: every shipped pool config
+// decodes strictly and passes createSimPool's validation, so it has the
+// supported categories and roster the agents are told about.
+func TestShippedExampleConfigsAreValid(t *testing.T) {
+	t.Parallel()
+	paths, err := filepath.Glob(shippedExampleConfigs)
+	require.NoError(t, err)
+	require.NotEmpty(t, paths, "no example config matched %s", shippedExampleConfigs)
+	for _, path := range paths {
+		t.Run(filepath.Base(path), func(t *testing.T) {
+			t.Parallel()
+			in, err := loadCreateSimPoolInputFromFile(path)
+			require.NoError(t, err)
+			require.NoError(t, graph.ValidateCreateSimPoolInput(*in))
+		})
+	}
+}
+
+func TestSimCreateExampleConfigIsValid(t *testing.T) {
+	t.Parallel()
+	in, err := parseCreateSimPoolInput(strings.NewReader(simCreateExampleConfig))
+	require.NoError(t, err)
+	require.NoError(t, graph.ValidateCreateSimPoolInput(*in))
+	assert.Contains(t, cmdSimCreate().Long, simCreateExampleConfig)
 }
 
 func TestLoadCreateSimPoolInputFromFile_MissingPath(t *testing.T) {
@@ -281,7 +311,7 @@ func TestNextStepHintUsesPoolStatuses(t *testing.T) {
 	tests := map[simulation.PoolStatus]string{
 		simulation.PoolStatusDraft:     "watch live",
 		simulation.PoolStatusRunning:   "watch live",
-		simulation.PoolStatusPaused:    "paused",
+		simulation.PoolStatusPaused:    "there is no resume",
 		simulation.PoolStatusComplete:  "complete",
 		simulation.PoolStatusCancelled: "cancelled",
 		unknownPoolStatus:              "",
