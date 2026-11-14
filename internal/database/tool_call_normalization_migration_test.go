@@ -15,13 +15,15 @@ const normalizedCallsJSON = `[
   {"id":"call-1","type":"function","function":{"name":"valid","arguments":"{\"player_id\":1}"}},
   {"id":"call-2","type":"function","function":{"name":"invalid","arguments":"{\"player_id\":"}},
   {"id":"call-3","type":"function","function":{"name":"json-null","arguments":"{\"value\":\"\\u0000\"}"}},
-  {"id":"call-4","type":"function","function":{"name":"transcript-only","arguments":"{}"}}
+  {"id":"call-4","type":"function","function":{"name":"transcript-only","arguments":"{}"}},
+  {"id":"call-5","type":"function","function":{"name":"surrogate","arguments":"{\"value\":\"\\ud800\"}"}}
 ]`
 
 const normalizedSimulationCallsJSON = `[
   {"id":"call-1","type":"function","function":{"name":"valid","arguments":"{\"player_id\":1}"}},
   {"id":"call-2","type":"function","function":{"name":"invalid","arguments":"{\"player_id\":"}},
-  {"id":"call-3","type":"function","function":{"name":"json-null","arguments":"{\"value\":\"\\u0000\"}"}}
+  {"id":"call-3","type":"function","function":{"name":"json-null","arguments":"{\"value\":\"\\u0000\"}"}},
+  {"id":"call-4","type":"function","function":{"name":"surrogate","arguments":"{\"value\":\"\\ud800\"}"}}
 ]`
 
 const repeatedProviderCallJSON = `[
@@ -67,6 +69,8 @@ SELECT id, 0, 1, 'invalid', '{"player_id":', NULL, '', 'parse_error' FROM turn_r
 UNION ALL
 SELECT id, 0, 2, 'json-null', '{"value":"\u0000"}', NULL, '', 'parse_error' FROM turn_row
 UNION ALL
+SELECT id, 0, 3, 'surrogate', '{"value":"\ud800"}', NULL, '', 'parse_error' FROM turn_row
+UNION ALL
 SELECT id, 1, 0, 'second', '{"player_id":2}', '{"player_id":2}'::jsonb, 'done again', 'accepted' FROM turn_row`,
 		normalizedSimulationCallsJSON, repeatedProviderCallJSON)
 }
@@ -109,6 +113,8 @@ SELECT turn_id, id, 1, 'call-2', 'invalid', '{"player_id":', NULL, '', 'parse_er
 UNION ALL
 SELECT turn_id, id, 2, 'call-3', 'json-null', '{"value":"\u0000"}', NULL, '', 'parse_error', now(), now() FROM call_row WHERE round_number = 0
 UNION ALL
+SELECT turn_id, id, 4, 'call-5', 'surrogate', '{"value":"\ud800"}', NULL, '', 'parse_error', now(), now() FROM call_row WHERE round_number = 0
+UNION ALL
 SELECT turn_id, id, 0, 'call-1', 'second', '{"player_id":2}', '{"player_id":2}'::jsonb, 'done again', 'succeeded', now(), now() FROM call_row WHERE round_number = 1`,
 		normalizedCallsJSON, repeatedProviderCallJSON)
 }
@@ -130,16 +136,18 @@ func TestIntegration_ToolCallNormalizationMigration(t *testing.T) {
 		exists, _ := columnNullable(t, conn, table, "tool_calls")
 		assert.False(t, exists)
 	}
-	assert.Equal(t, 3, countRows(t, conn, `SELECT count(*) FROM sim_agent_tool_calls WHERE round_index = 0 AND message_ordinal = 0`))
+	assert.Equal(t, 4, countRows(t, conn, `SELECT count(*) FROM sim_agent_tool_calls WHERE round_index = 0 AND message_ordinal = 0`))
 	assert.Equal(t, 1, countRows(t, conn, `SELECT count(*) FROM sim_agent_tool_calls WHERE round_index = 1 AND message_ordinal = 2`))
+	assert.Equal(t, 1, countRows(t, conn, `SELECT count(*) FROM sim_agent_tool_calls WHERE tool_name = 'surrogate' AND arguments_raw = '{"value":"\ud800"}' AND arguments IS NULL`))
 	assert.Equal(t, 1, countRows(t, conn, `SELECT count(*) FROM sim_agent_turn_messages WHERE ordinal = 1 AND result_tool_round_index = 0 AND result_tool_sequence = 0`))
 	assert.Equal(t, 1, countRows(t, conn, `SELECT count(*) FROM sim_agent_turn_messages WHERE ordinal = 3 AND result_tool_round_index = 1 AND result_tool_sequence = 0`))
-	assert.Equal(t, 5, countRows(t, conn, `SELECT count(*) FROM maurice_tool_calls WHERE message_id IS NOT NULL`))
+	assert.Equal(t, 6, countRows(t, conn, `SELECT count(*) FROM maurice_tool_calls WHERE message_id IS NOT NULL`))
 	assert.Equal(t, 1, countRows(t, conn, `SELECT count(*) FROM maurice_tool_calls WHERE llm_call_id IS NULL AND status IS NULL`))
 	assert.Equal(t, 1, countRows(t, conn, `SELECT count(*) FROM maurice_tool_calls call_row JOIN maurice_llm_calls llm_call ON llm_call.id = call_row.llm_call_id JOIN maurice_messages message ON message.id = call_row.message_id WHERE llm_call.round_number = 1 AND message.message_number = 2`))
 	assert.Equal(t, 1, countRows(t, conn, `SELECT count(*) FROM maurice_messages result_message JOIN maurice_tool_calls call_row ON call_row.id = result_message.result_tool_call_id JOIN maurice_messages call_message ON call_message.id = call_row.message_id WHERE result_message.message_number = 1 AND call_message.message_number = 0`))
 	assert.Equal(t, 1, countRows(t, conn, `SELECT count(*) FROM maurice_messages result_message JOIN maurice_tool_calls call_row ON call_row.id = result_message.result_tool_call_id JOIN maurice_messages call_message ON call_message.id = call_row.message_id WHERE result_message.message_number = 3 AND call_message.message_number = 2`))
-	assert.Equal(t, 2, countRows(t, conn, `SELECT count(*) FROM maurice_tool_calls WHERE arguments IS NULL`))
+	assert.Equal(t, 3, countRows(t, conn, `SELECT count(*) FROM maurice_tool_calls WHERE arguments IS NULL`))
+	assert.Equal(t, 1, countRows(t, conn, `SELECT count(*) FROM maurice_tool_calls WHERE tool_name = 'surrogate' AND arguments_raw = '{"value":"\ud800"}' AND arguments IS NULL`))
 
 	migrateTo(t, dbURL, toolCallNormalizationVersion-1)
 	assert.JSONEq(t, normalizedSimulationCallsJSON, jsonColumn(t, conn,
