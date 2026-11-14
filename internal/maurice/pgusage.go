@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strings"
 
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/sperano/puckdb/internal/sqlcdb"
@@ -102,7 +101,6 @@ func toolCallParams(turnID pgtype.UUID, callID int64, seq int, tc ToolCallRecord
 		SequenceNumber:     int32(seq),
 		ProviderToolCallID: optionalText(tc.ProviderToolCallID),
 		ToolName:           tc.Name,
-		Arguments:          jsonbArguments(tc.ArgumentsRaw),
 		ArgumentsRaw:       tc.ArgumentsRaw,
 		Result:             optionalTextPtr(tc.Result),
 		Status:             string(tc.Status),
@@ -114,19 +112,6 @@ func toolCallParams(turnID pgtype.UUID, callID int64, seq int, tc ToolCallRecord
 		params.CompletedAt = timestamptz(*tc.CompletedAt)
 	}
 	return params
-}
-
-// jsonNullEscape is the JSON escape for U+0000, which jsonb rejects although
-// it is valid JSON.
-const jsonNullEscape = `\u0000`
-
-// jsonbArguments returns the raw arguments when jsonb can hold them, nil
-// otherwise; arguments_raw always keeps the original text.
-func jsonbArguments(raw string) []byte {
-	if !json.Valid([]byte(raw)) || strings.Contains(raw, jsonNullEscape) {
-		return nil
-	}
-	return []byte(raw)
 }
 
 func optionalInt8(v *int64) pgtype.Int8 {

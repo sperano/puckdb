@@ -901,18 +901,18 @@ ORDER BY round_index;
 INSERT INTO sim_agent_tool_calls (
     turn_id, round_index, sequence,
     tool_name, recovered_name,
-    arguments_raw, arguments,
+    arguments_raw,
     result, outcome, failure_reason,
     applied_transaction_id, latency_ms
 )
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12);
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11);
 
 -- ListSimAgentToolCalls returns all tool calls for one turn, in execution
 -- order. Used by the drill-down query "show me everything the agent did."
 -- name: ListSimAgentToolCalls :many
 SELECT turn_id, round_index, sequence,
        tool_name, recovered_name,
-       arguments_raw, arguments,
+       arguments_raw,
        result, outcome, failure_reason,
        applied_transaction_id, latency_ms
 FROM sim_agent_tool_calls
@@ -984,7 +984,7 @@ LIMIT sqlc.arg(row_limit);
 -- ListSimToolCallsForTurns returns the first max_per_turn tool calls of
 -- each listed turn in execution order, with call_count = all the turn's
 -- calls so the caller can say how many it left out. Only the columns the
--- tail prints: never result, arguments (jsonb) or latency. arguments_raw is
+-- tail prints: never result or latency. arguments_raw is
 -- cut to its first max_arguments_chars characters, so a page reads a bounded
 -- amount however long a stored argument is.
 -- name: ListSimToolCallsForTurns :many

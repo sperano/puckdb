@@ -1400,7 +1400,6 @@ type MauriceToolCall struct {
 	SequenceNumber     int32              `json:"sequence_number"`
 	ProviderToolCallID pgtype.Text        `json:"provider_tool_call_id"`
 	ToolName           string             `json:"tool_name"`
-	Arguments          []byte             `json:"arguments"`
 	ArgumentsRaw       string             `json:"arguments_raw"`
 	Result             pgtype.Text        `json:"result"`
 	Status             string             `json:"status"`
@@ -1984,7 +1983,6 @@ type SimAgentToolCall struct {
 	ToolName             string      `json:"tool_name"`
 	RecoveredName        pgtype.Text `json:"recovered_name"`
 	ArgumentsRaw         string      `json:"arguments_raw"`
-	Arguments            []byte      `json:"arguments"`
 	Result               string      `json:"result"`
 	Outcome              string      `json:"outcome"`
 	FailureReason        pgtype.Text `json:"failure_reason"`
