@@ -69,9 +69,13 @@ func (r iteratorForInsertSimAgentToolCall) Values() ([]interface{}, error) {
 		r.rows[0].TurnID,
 		r.rows[0].RoundIndex,
 		r.rows[0].Sequence,
+		r.rows[0].MessageOrdinal,
+		r.rows[0].ProviderToolCallID,
+		r.rows[0].ToolType,
 		r.rows[0].ToolName,
 		r.rows[0].RecoveredName,
 		r.rows[0].ArgumentsRaw,
+		r.rows[0].Arguments,
 		r.rows[0].Result,
 		r.rows[0].Outcome,
 		r.rows[0].FailureReason,
@@ -86,7 +90,7 @@ func (r iteratorForInsertSimAgentToolCall) Err() error {
 
 // InsertSimAgentToolCall is one tool-call row. Batched via :copyfrom.
 func (q *Queries) InsertSimAgentToolCall(ctx context.Context, arg []InsertSimAgentToolCallParams) (int64, error) {
-	return q.db.CopyFrom(ctx, []string{"sim_agent_tool_calls"}, []string{"turn_id", "round_index", "sequence", "tool_name", "recovered_name", "arguments_raw", "result", "outcome", "failure_reason", "applied_transaction_id", "latency_ms"}, &iteratorForInsertSimAgentToolCall{rows: arg})
+	return q.db.CopyFrom(ctx, []string{"sim_agent_tool_calls"}, []string{"turn_id", "round_index", "sequence", "message_ordinal", "provider_tool_call_id", "tool_type", "tool_name", "recovered_name", "arguments_raw", "arguments", "result", "outcome", "failure_reason", "applied_transaction_id", "latency_ms"}, &iteratorForInsertSimAgentToolCall{rows: arg})
 }
 
 // iteratorForInsertSimAgentTurnMessage implements pgx.CopyFromSource.
@@ -113,8 +117,6 @@ func (r iteratorForInsertSimAgentTurnMessage) Values() ([]interface{}, error) {
 		r.rows[0].Ordinal,
 		r.rows[0].Role,
 		r.rows[0].Content,
-		r.rows[0].ToolCallID,
-		r.rows[0].ToolCalls,
 	}, nil
 }
 
@@ -126,7 +128,7 @@ func (r iteratorForInsertSimAgentTurnMessage) Err() error {
 // Batched via :copyfrom. Only written when sim_pools.record_full_messages
 // is true for the turn's pool.
 func (q *Queries) InsertSimAgentTurnMessage(ctx context.Context, arg []InsertSimAgentTurnMessageParams) (int64, error) {
-	return q.db.CopyFrom(ctx, []string{"sim_agent_turn_messages"}, []string{"turn_id", "ordinal", "role", "content", "tool_call_id", "tool_calls"}, &iteratorForInsertSimAgentTurnMessage{rows: arg})
+	return q.db.CopyFrom(ctx, []string{"sim_agent_turn_messages"}, []string{"turn_id", "ordinal", "role", "content"}, &iteratorForInsertSimAgentTurnMessage{rows: arg})
 }
 
 // iteratorForInsertSimAgentTurnRound implements pgx.CopyFromSource.

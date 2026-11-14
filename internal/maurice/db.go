@@ -177,6 +177,9 @@ type LLMCallRecord struct {
 	// Inputs are the request messages after the system prompt, in order.
 	Inputs    []MessageRef
 	ToolCalls []ToolCallRecord
+	// OutputMessageIndex links requested tools to their assistant message.
+	// It is -1 when the response had no tool calls.
+	OutputMessageIndex int
 }
 
 // TokenUsage holds provider-reported token counts. A nil count was not
@@ -210,6 +213,7 @@ const (
 // ToolCallRecord is one tool call requested by an LLM call's response.
 type ToolCallRecord struct {
 	ProviderToolCallID string
+	Type               string
 	Name               string
 	ArgumentsRaw       string
 	// Result is nil for a cancelled call.

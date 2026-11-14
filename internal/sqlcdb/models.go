@@ -1382,29 +1382,31 @@ type MauriceLlmCallMessage struct {
 }
 
 type MauriceMessage struct {
-	ID             pgtype.UUID        `json:"id"`
-	ConversationID pgtype.UUID        `json:"conversation_id"`
-	Role           ChatRole           `json:"role"`
-	Content        string             `json:"content"`
-	ToolCalls      []byte             `json:"tool_calls"`
-	ToolCallID     pgtype.Text        `json:"tool_call_id"`
-	CreatedAt      pgtype.Timestamptz `json:"created_at"`
-	TurnID         pgtype.UUID        `json:"turn_id"`
-	MessageNumber  int32              `json:"message_number"`
+	ID               pgtype.UUID        `json:"id"`
+	ConversationID   pgtype.UUID        `json:"conversation_id"`
+	Role             ChatRole           `json:"role"`
+	Content          string             `json:"content"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+	TurnID           pgtype.UUID        `json:"turn_id"`
+	MessageNumber    int32              `json:"message_number"`
+	ResultToolCallID pgtype.Int8        `json:"result_tool_call_id"`
 }
 
 type MauriceToolCall struct {
 	ID                 int64              `json:"id"`
 	TurnID             pgtype.UUID        `json:"turn_id"`
-	LlmCallID          int64              `json:"llm_call_id"`
+	LlmCallID          pgtype.Int8        `json:"llm_call_id"`
 	SequenceNumber     int32              `json:"sequence_number"`
 	ProviderToolCallID pgtype.Text        `json:"provider_tool_call_id"`
 	ToolName           string             `json:"tool_name"`
+	Arguments          []byte             `json:"arguments"`
 	ArgumentsRaw       string             `json:"arguments_raw"`
 	Result             pgtype.Text        `json:"result"`
-	Status             string             `json:"status"`
+	Status             pgtype.Text        `json:"status"`
 	StartedAt          pgtype.Timestamptz `json:"started_at"`
 	CompletedAt        pgtype.Timestamptz `json:"completed_at"`
+	MessageID          pgtype.UUID        `json:"message_id"`
+	ToolType           string             `json:"tool_type"`
 }
 
 type MauriceTurn struct {
@@ -1983,11 +1985,15 @@ type SimAgentToolCall struct {
 	ToolName             string      `json:"tool_name"`
 	RecoveredName        pgtype.Text `json:"recovered_name"`
 	ArgumentsRaw         string      `json:"arguments_raw"`
+	Arguments            []byte      `json:"arguments"`
 	Result               string      `json:"result"`
 	Outcome              string      `json:"outcome"`
 	FailureReason        pgtype.Text `json:"failure_reason"`
 	AppliedTransactionID pgtype.Int4 `json:"applied_transaction_id"`
 	LatencyMs            int32       `json:"latency_ms"`
+	MessageOrdinal       pgtype.Int4 `json:"message_ordinal"`
+	ProviderToolCallID   pgtype.Text `json:"provider_tool_call_id"`
+	ToolType             string      `json:"tool_type"`
 }
 
 type SimAgentTotal struct {
@@ -2027,12 +2033,12 @@ type SimAgentTurn struct {
 }
 
 type SimAgentTurnMessage struct {
-	TurnID     int32       `json:"turn_id"`
-	Ordinal    int32       `json:"ordinal"`
-	Role       string      `json:"role"`
-	Content    string      `json:"content"`
-	ToolCallID pgtype.Text `json:"tool_call_id"`
-	ToolCalls  []byte      `json:"tool_calls"`
+	TurnID               int32       `json:"turn_id"`
+	Ordinal              int32       `json:"ordinal"`
+	Role                 string      `json:"role"`
+	Content              string      `json:"content"`
+	ResultToolRoundIndex pgtype.Int4 `json:"result_tool_round_index"`
+	ResultToolSequence   pgtype.Int4 `json:"result_tool_sequence"`
 }
 
 type SimAgentTurnRound struct {

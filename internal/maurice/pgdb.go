@@ -2,7 +2,6 @@ package maurice
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -10,6 +9,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/sperano/puckdb/internal/llm"
 	"github.com/sperano/puckdb/internal/sqlcdb"
 )
 
@@ -82,10 +82,26 @@ func (db *pgDB) GetMessages(ctx context.Context, userID, conversationID string) 
 		return nil, err
 	}
 	result := make([]*Message, len(rows))
+	byID := make(map[string]*Message, len(rows))
 	for i, r := range rows {
-		if result[i], err = newPgMessage(r.ID, r.Role, r.Content, r.ToolCalls, r.ToolCallID, r.CreatedAt); err != nil {
-			return nil, err
+		result[i] = newPgMessage(r.ID, r.Role, r.Content, r.ToolCallID, r.CreatedAt)
+		byID[result[i].ID] = result[i]
+	}
+	calls, err := db.q.GetTranscriptToolCalls(ctx, sqlcdb.GetTranscriptToolCallsParams{
+		ConversationID: conv, UserID: user,
+	})
+	if err != nil {
+		return nil, err
+	}
+	for _, call := range calls {
+		message := byID[uuidToString(call.MessageID)]
+		if message == nil {
+			return nil, fmt.Errorf("tool call references unknown transcript message %s", uuidToString(call.MessageID))
 		}
+		message.ToolCalls = append(message.ToolCalls, llm.ToolCall{
+			ID: call.ProviderToolCallID.String, Type: call.ToolType,
+			Function: llm.ToolCallFunction{Name: call.ToolName, Arguments: call.ArgumentsRaw},
+		})
 	}
 	return result, nil
 }
@@ -151,11 +167,7 @@ func newPgConversation(id pgtype.UUID, title pgtype.Text, createdAt, updatedAt p
 	return conv
 }
 
-// newPgMessage maps a stored row to a Message. A tool_calls value that does
-// not decode is reported rather than dropped: silently returning a message
-// without its tool calls would hand the LLM a history whose tool results have
-// no matching calls.
-func newPgMessage(id pgtype.UUID, role sqlcdb.ChatRole, content string, toolCalls []byte, toolCallID pgtype.Text, createdAt pgtype.Timestamptz) (*Message, error) {
+func newPgMessage(id pgtype.UUID, role sqlcdb.ChatRole, content string, toolCallID pgtype.Text, createdAt pgtype.Timestamptz) *Message {
 	msg := &Message{
 		ID:        uuidToString(id),
 		Role:      string(role),
@@ -165,10 +177,5 @@ func newPgMessage(id pgtype.UUID, role sqlcdb.ChatRole, content string, toolCall
 	if toolCallID.Valid {
 		msg.ToolCallID = toolCallID.String
 	}
-	if len(toolCalls) > 0 {
-		if err := json.Unmarshal(toolCalls, &msg.ToolCalls); err != nil {
-			return nil, fmt.Errorf("message %s: decode tool calls: %w", msg.ID, err)
-		}
-	}
-	return msg, nil
+	return msg
 }

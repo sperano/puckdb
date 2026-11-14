@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
@@ -112,6 +113,8 @@ const (
 type ToolCallCapture struct {
 	RoundIndex           int
 	Sequence             int
+	ProviderToolCallID   string
+	ToolType             string
 	ToolName             string
 	RecoveredName        string
 	ArgumentsRaw         string
@@ -246,6 +249,8 @@ func AssignRoundsFromAudit(captures []ToolCallCapture, audit []agentloop.Audit) 
 		round := audit[i].Round
 		captures[i].RoundIndex = round
 		captures[i].Sequence = roundSeq[round]
+		captures[i].ProviderToolCallID = audit[i].Call.ID
+		captures[i].ToolType = audit[i].Call.Type
 		roundSeq[round]++
 	}
 }
@@ -426,16 +431,11 @@ func numericOrNull(p *float64) pgtype.Numeric {
 	return n
 }
 
-// toolCallsJSONB marshals an assistant message's structured tool calls.
-// Empty slice → SQL NULL so non-tool-call assistant messages leave the
-// column unset.
-func toolCallsJSONB(calls []llm.ToolCall) []byte {
-	if len(calls) == 0 {
+const simulationJSONNullEscape = `\u0000`
+
+func simulationArgumentsJSONB(raw string) []byte {
+	if !json.Valid([]byte(raw)) || strings.Contains(raw, simulationJSONNullEscape) {
 		return nil
 	}
-	b, err := json.Marshal(calls)
-	if err != nil {
-		return nil
-	}
-	return b
+	return []byte(raw)
 }

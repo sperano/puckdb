@@ -900,19 +900,21 @@ ORDER BY round_index;
 -- name: InsertSimAgentToolCall :copyfrom
 INSERT INTO sim_agent_tool_calls (
     turn_id, round_index, sequence,
+    message_ordinal, provider_tool_call_id, tool_type,
     tool_name, recovered_name,
-    arguments_raw,
+    arguments_raw, arguments,
     result, outcome, failure_reason,
     applied_transaction_id, latency_ms
 )
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11);
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15);
 
 -- ListSimAgentToolCalls returns all tool calls for one turn, in execution
 -- order. Used by the drill-down query "show me everything the agent did."
 -- name: ListSimAgentToolCalls :many
 SELECT turn_id, round_index, sequence,
+       message_ordinal, provider_tool_call_id, tool_type,
        tool_name, recovered_name,
-       arguments_raw,
+       arguments_raw, arguments,
        result, outcome, failure_reason,
        applied_transaction_id, latency_ms
 FROM sim_agent_tool_calls
@@ -924,17 +926,34 @@ ORDER BY round_index, sequence;
 -- is true for the turn's pool.
 -- name: InsertSimAgentTurnMessage :copyfrom
 INSERT INTO sim_agent_turn_messages (
-    turn_id, ordinal, role, content, tool_call_id, tool_calls
+    turn_id, ordinal, role, content
 )
-VALUES ($1, $2, $3, $4, $5, $6);
+VALUES ($1, $2, $3, $4);
+
+-- name: LinkSimAgentTurnMessageResults :exec
+UPDATE sim_agent_turn_messages message
+SET result_tool_round_index = source.round_index,
+    result_tool_sequence = source.sequence
+FROM (
+    SELECT unnest(sqlc.arg(ordinals)::integer[]) AS ordinal,
+           unnest(sqlc.arg(round_indexes)::integer[]) AS round_index,
+           unnest(sqlc.arg(sequences)::integer[]) AS sequence
+) source
+WHERE message.turn_id = sqlc.arg(turn_id)
+  AND message.ordinal = source.ordinal;
 
 -- ListSimAgentTurnMessages returns the full conversation transcript for
 -- one turn, in order.
 -- name: ListSimAgentTurnMessages :many
-SELECT turn_id, ordinal, role, content, tool_call_id, tool_calls
-FROM sim_agent_turn_messages
-WHERE turn_id = $1
-ORDER BY ordinal;
+SELECT message.turn_id, message.ordinal, message.role, message.content,
+       tool_call.provider_tool_call_id AS tool_call_id
+FROM sim_agent_turn_messages message
+LEFT JOIN sim_agent_tool_calls tool_call
+  ON tool_call.turn_id = message.turn_id
+ AND tool_call.round_index = message.result_tool_round_index
+ AND tool_call.sequence = message.result_tool_sequence
+WHERE message.turn_id = $1
+ORDER BY message.ordinal;
 
 -- GetSimPoolRecordFullMessages exposes just the gate column so the
 -- activity doesn't have to fetch the whole sim_pools row to decide

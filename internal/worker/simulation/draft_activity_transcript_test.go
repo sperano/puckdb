@@ -1,7 +1,6 @@
 package simulation
 
 import (
-	"encoding/json"
 	"errors"
 
 	"github.com/sperano/puckdb/internal/llm"
@@ -85,15 +84,20 @@ func (s *DraftPickTestSuite) TestRecordFullMessages_EnabledPersistsDraftTranscri
 	assert.Equal(t, "test system prompt", rows[0].Content)
 	assert.Contains(t, rows[1].Content, `"snake_direction":"forward"`, "user turn carries the rendered draft prompt")
 
-	var assistantCalls []llm.ToolCall
-	require.NoError(t, json.Unmarshal(rows[2].ToolCalls, &assistantCalls))
-	require.Len(t, assistantCalls, 1, "assistant turn carries the draft_player call")
-	assert.Equal(t, ToolDraftPlayer, assistantCalls[0].Function.Name)
-	assert.Contains(t, assistantCalls[0].Function.Arguments, "8478402")
+	require.Len(t, s.queries.insertToolCallBatches, 1)
+	require.Len(t, s.queries.insertToolCallBatches[0], 1, "assistant turn carries the draft_player call")
+	call := s.queries.insertToolCallBatches[0][0]
+	assert.Equal(t, ToolDraftPlayer, call.ToolName)
+	assert.Contains(t, call.ArgumentsRaw, "8478402")
+	assert.Equal(t, int32(2), call.MessageOrdinal.Int32)
+	assert.True(t, call.MessageOrdinal.Valid)
+	assert.Equal(t, "tc_test", call.ProviderToolCallID.String)
 
 	assert.Equal(t, "ok: player drafted", rows[3].Content)
-	assert.Equal(t, "tc_test", rows[3].ToolCallID.String)
-	assert.True(t, rows[3].ToolCallID.Valid)
+	require.Len(t, s.queries.linkMessageResultsCalls, 1)
+	assert.Equal(t, []int32{3}, s.queries.linkMessageResultsCalls[0].Ordinals)
+	assert.Equal(t, []int32{0}, s.queries.linkMessageResultsCalls[0].RoundIndexes)
+	assert.Equal(t, []int32{0}, s.queries.linkMessageResultsCalls[0].Sequences)
 }
 
 // Flag off: the turn header, rounds and tool calls still land but no

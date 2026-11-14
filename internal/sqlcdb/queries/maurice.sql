@@ -60,20 +60,35 @@ WHERE id = $1;
 -- created_at is supplied explicitly rather than left to DEFAULT NOW(): NOW()
 -- is the transaction start time, so every message of a turn inserted in one
 -- transaction would share it. The caller stamps a strictly increasing value.
-INSERT INTO maurice_messages (conversation_id, turn_id, message_number, role, content, tool_calls, tool_call_id, created_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-RETURNING id, conversation_id, role, content, tool_calls, tool_call_id, created_at;
+INSERT INTO maurice_messages (conversation_id, turn_id, message_number, role, content, created_at)
+VALUES ($1, $2, $3, $4, $5, $6)
+RETURNING id, conversation_id, role, content, created_at;
 
 -- name: GetTranscript :many
 -- The replayable transcript: messages of succeeded turns only. Messages of
 -- failed or cancelled turns are kept as exact provider prompts but must never
 -- be replayed as history.
-SELECT m.id, m.conversation_id, m.role, m.content, m.tool_calls, m.tool_call_id, m.created_at
+SELECT m.id, m.conversation_id, m.role, m.content,
+       result_call.provider_tool_call_id AS tool_call_id, m.created_at
 FROM maurice_messages m
 JOIN maurice_turns t ON t.id = m.turn_id
 JOIN maurice_conversations c ON c.id = m.conversation_id
+LEFT JOIN maurice_tool_calls result_call ON result_call.id = m.result_tool_call_id
 WHERE m.conversation_id = $1 AND c.user_id = $2 AND c.deleted_at IS NULL AND t.status = 'succeeded'
 ORDER BY t.turn_number, m.message_number;
+
+-- name: GetTranscriptToolCalls :many
+SELECT tool_call.message_id, tool_call.provider_tool_call_id, tool_call.tool_type,
+       tool_call.tool_name, tool_call.arguments_raw
+FROM maurice_tool_calls tool_call
+JOIN maurice_messages message ON message.id = tool_call.message_id
+JOIN maurice_turns turn_row ON turn_row.id = message.turn_id
+JOIN maurice_conversations conversation ON conversation.id = message.conversation_id
+WHERE message.conversation_id = $1
+  AND conversation.user_id = $2
+  AND conversation.deleted_at IS NULL
+  AND turn_row.status = 'succeeded'
+ORDER BY turn_row.turn_number, message.message_number, tool_call.sequence_number;
 
 -- name: GetTurnByKey :one
 SELECT t.id, t.conversation_id, t.turn_number, t.request_hash, t.status, t.error_class, t.warnings,
@@ -116,11 +131,12 @@ WHERE turn_id = $1
 ORDER BY message_number DESC
 LIMIT 1;
 
--- name: GetTurnToolCallLists :many
-SELECT tool_calls
-FROM maurice_messages
-WHERE turn_id = $1 AND tool_calls IS NOT NULL
-ORDER BY message_number;
+-- name: GetTurnToolNames :many
+SELECT tool_name
+FROM maurice_tool_calls tool_call
+JOIN maurice_messages message ON message.id = tool_call.message_id
+WHERE tool_call.turn_id = $1
+ORDER BY message.message_number, tool_call.sequence_number;
 
 -- name: InsertLLMCall :one
 INSERT INTO maurice_llm_calls (
@@ -141,10 +157,25 @@ SELECT sqlc.arg(llm_call_id)::bigint,
        unnest(sqlc.arg(input_numbers)::integer[]),
        unnest(sqlc.arg(message_ids)::uuid[]);
 
--- name: InsertToolCall :exec
+-- name: InsertToolCall :one
 INSERT INTO maurice_tool_calls (
-    turn_id, llm_call_id, sequence_number, provider_tool_call_id, tool_name,
-    arguments_raw, result, status, started_at, completed_at
+    turn_id, llm_call_id, message_id, sequence_number, provider_tool_call_id,
+    tool_type, tool_name, arguments, arguments_raw, result, status, started_at, completed_at
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10
-);
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13
+)
+RETURNING id;
+
+-- name: InsertTranscriptToolCall :one
+INSERT INTO maurice_tool_calls (
+    turn_id, message_id, sequence_number, provider_tool_call_id, tool_type,
+    tool_name, arguments, arguments_raw
+) VALUES (
+    $1, $2, $3, $4, $5, $6, $7, $8
+)
+RETURNING id;
+
+-- name: LinkMessageResultToolCall :exec
+UPDATE maurice_messages
+SET result_tool_call_id = $2
+WHERE id = $1;

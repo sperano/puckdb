@@ -98,6 +98,8 @@ type turnRowsFake struct {
 
 	insertTurnMessageBatches [][]sqlcdb.InsertSimAgentTurnMessageParams
 	insertTurnMessageErr     error
+	linkMessageResultsCalls  []sqlcdb.LinkSimAgentTurnMessageResultsParams
+	linkMessageResultsErr    error
 }
 
 func (s *turnRowsFake) DeleteSimAgentTurnIdempotent(_ context.Context, arg sqlcdb.DeleteSimAgentTurnIdempotentParams) error {
@@ -143,6 +145,11 @@ func (s *turnRowsFake) InsertSimAgentToolCall(_ context.Context, arg []sqlcdb.In
 func (s *turnRowsFake) InsertSimAgentTurnMessage(_ context.Context, arg []sqlcdb.InsertSimAgentTurnMessageParams) (int64, error) {
 	s.insertTurnMessageBatches = append(s.insertTurnMessageBatches, arg)
 	return int64(len(arg)), s.insertTurnMessageErr
+}
+
+func (s *turnRowsFake) LinkSimAgentTurnMessageResults(_ context.Context, arg sqlcdb.LinkSimAgentTurnMessageResultsParams) error {
+	s.linkMessageResultsCalls = append(s.linkMessageResultsCalls, arg)
+	return s.linkMessageResultsErr
 }
 
 // ----------------------------------------------------------------------------

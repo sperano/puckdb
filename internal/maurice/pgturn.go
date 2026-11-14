@@ -10,7 +10,6 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
-	"github.com/sperano/puckdb/internal/llm"
 	"github.com/sperano/puckdb/internal/sqlcdb"
 )
 
@@ -138,17 +137,11 @@ func replayPgTurn(ctx context.Context, q *sqlcdb.Queries, params BeginTurnParams
 }
 
 func pgTurnToolNames(ctx context.Context, q *sqlcdb.Queries, turnID pgtype.UUID) ([]string, error) {
-	raw, err := q.GetTurnToolCallLists(ctx, turnID)
+	names, err := q.GetTurnToolNames(ctx, turnID)
 	if err != nil {
 		return nil, fmt.Errorf("load replayed tool calls: %w", err)
 	}
-	lists := make([][]llm.ToolCall, len(raw))
-	for i, r := range raw {
-		if err := json.Unmarshal(r, &lists[i]); err != nil {
-			return nil, fmt.Errorf("decode replayed tool calls: %w", err)
-		}
-	}
-	return toolNames(lists), nil
+	return names, nil
 }
 
 // FinishTurn commits the turn's terminal status, messages, LLM calls, call
@@ -182,10 +175,22 @@ func (db *pgDB) FinishTurn(ctx context.Context, record TurnRecord) ([]string, er
 				return fmt.Errorf("touch conversation: %w", err)
 			}
 		}
+		var toolLinks []storedToolLink
 		for i, call := range record.Calls {
-			if err := insertLLMCall(ctx, q, conv, turnID, call, ids); err != nil {
-				return fmt.Errorf("llm call %d: %w", i, err)
+			call.OutputMessageIndex = resolveOutputMessageIndex(call, record.Messages)
+			links, callErr := insertLLMCall(ctx, q, conv, turnID, call, ids)
+			if callErr != nil {
+				return fmt.Errorf("llm call %d: %w", i, callErr)
 			}
+			toolLinks = append(toolLinks, links...)
+		}
+		missingLinks, err := insertMissingTranscriptToolCalls(ctx, q, turnID, record.Messages, ids, toolLinks)
+		if err != nil {
+			return err
+		}
+		toolLinks = append(toolLinks, missingLinks...)
+		if err := linkToolResultMessages(ctx, q, record.Messages, ids, toolLinks); err != nil {
+			return err
 		}
 		return nil
 	})
@@ -209,15 +214,7 @@ func insertTurnMessages(ctx context.Context, q *sqlcdb.Queries, conv, turnID pgt
 			MessageNumber:  int32(i),
 			Role:           sqlcdb.ChatRole(m.Role),
 			Content:        m.Content,
-			ToolCallID:     optionalText(m.ToolCallID),
 			CreatedAt:      timestamptz(base.Add(time.Duration(i) * createdAtStep)),
-		}
-		if len(m.ToolCalls) > 0 {
-			tc, err := json.Marshal(m.ToolCalls)
-			if err != nil {
-				return nil, fmt.Errorf("message %d: marshal tool calls: %w", i, err)
-			}
-			params.ToolCalls = tc
 		}
 		row, err := q.CreateMessage(ctx, params)
 		if err != nil {
@@ -226,6 +223,119 @@ func insertTurnMessages(ctx context.Context, q *sqlcdb.Queries, conv, turnID pgt
 		ids[i] = row.ID
 	}
 	return ids, nil
+}
+
+type storedToolLink struct {
+	id                 int64
+	providerID         string
+	outputMessageIndex int
+	sequence           int
+}
+
+func resolveOutputMessageIndex(call LLMCallRecord, messages []TurnMessage) int {
+	if len(call.ToolCalls) == 0 {
+		return -1
+	}
+	if call.OutputMessageIndex >= 0 && call.OutputMessageIndex < len(messages) &&
+		messageMatchesToolCalls(messages[call.OutputMessageIndex], call.ToolCalls) {
+		return call.OutputMessageIndex
+	}
+	for i, message := range messages {
+		if messageMatchesToolCalls(message, call.ToolCalls) {
+			return i
+		}
+	}
+	return -1
+}
+
+func messageMatchesToolCalls(message TurnMessage, calls []ToolCallRecord) bool {
+	if len(message.ToolCalls) != len(calls) {
+		return false
+	}
+	for i := range calls {
+		if message.ToolCalls[i].ID != calls[i].ProviderToolCallID ||
+			message.ToolCalls[i].Function.Name != calls[i].Name ||
+			message.ToolCalls[i].Function.Arguments != calls[i].ArgumentsRaw {
+			return false
+		}
+	}
+	return true
+}
+
+func insertMissingTranscriptToolCalls(
+	ctx context.Context,
+	q *sqlcdb.Queries,
+	turnID pgtype.UUID,
+	messages []TurnMessage,
+	messageIDs []pgtype.UUID,
+	existing []storedToolLink,
+) ([]storedToolLink, error) {
+	var inserted []storedToolLink
+	for messageIndex, message := range messages {
+		for sequence, call := range message.ToolCalls {
+			if hasStoredToolLink(existing, messageIndex, sequence) {
+				continue
+			}
+			id, err := q.InsertTranscriptToolCall(ctx, sqlcdb.InsertTranscriptToolCallParams{
+				TurnID: turnID, MessageID: messageIDs[messageIndex], SequenceNumber: int32(sequence),
+				ProviderToolCallID: optionalText(call.ID), ToolType: defaultToolType(call.Type),
+				ToolName: call.Function.Name, Arguments: jsonbArguments(call.Function.Arguments),
+				ArgumentsRaw: call.Function.Arguments,
+			})
+			if err != nil {
+				return nil, fmt.Errorf("message %d: insert transcript tool call %d: %w", messageIndex, sequence, err)
+			}
+			inserted = append(inserted, storedToolLink{
+				id: id, providerID: call.ID, outputMessageIndex: messageIndex, sequence: sequence,
+			})
+		}
+	}
+	return inserted, nil
+}
+
+func hasStoredToolLink(links []storedToolLink, messageIndex, sequence int) bool {
+	for _, link := range links {
+		if link.outputMessageIndex == messageIndex && link.sequence == sequence {
+			return true
+		}
+	}
+	return false
+}
+
+func linkToolResultMessages(
+	ctx context.Context,
+	q *sqlcdb.Queries,
+	messages []TurnMessage,
+	messageIDs []pgtype.UUID,
+	links []storedToolLink,
+) error {
+	for messageIndex, message := range messages {
+		if message.ToolCallID == "" {
+			continue
+		}
+		link, ok := precedingToolLink(links, message.ToolCallID, messageIndex)
+		if !ok {
+			return fmt.Errorf("message %d: tool result %q has no preceding call", messageIndex, message.ToolCallID)
+		}
+		if err := q.LinkMessageResultToolCall(ctx, sqlcdb.LinkMessageResultToolCallParams{
+			ID: messageIDs[messageIndex], ResultToolCallID: pgtype.Int8{Int64: link.id, Valid: true},
+		}); err != nil {
+			return fmt.Errorf("message %d: link tool result: %w", messageIndex, err)
+		}
+	}
+	return nil
+}
+
+func precedingToolLink(links []storedToolLink, providerID string, messageIndex int) (storedToolLink, bool) {
+	var found storedToolLink
+	ok := false
+	for _, link := range links {
+		if link.providerID == providerID && link.outputMessageIndex < messageIndex &&
+			(!ok || link.outputMessageIndex > found.outputMessageIndex) {
+			found, ok = link, true
+		}
+	}
+	return found, ok
 }
 
 // RecordTitle stores the title-generation call (its tokens count toward the
@@ -245,7 +355,7 @@ func (db *pgDB) RecordTitle(ctx context.Context, record TitleRecord) error {
 		if err != nil {
 			return fmt.Errorf("lock conversation: %w", err)
 		}
-		if err := insertLLMCall(ctx, q, conv, pgtype.UUID{}, record.Call, nil); err != nil {
+		if _, err := insertLLMCall(ctx, q, conv, pgtype.UUID{}, record.Call, nil); err != nil {
 			return fmt.Errorf("title call: %w", err)
 		}
 		if record.Title == "" {

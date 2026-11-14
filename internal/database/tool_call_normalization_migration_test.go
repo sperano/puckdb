@@ -1,0 +1,132 @@
+package database
+
+import (
+	"context"
+	"testing"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+const toolCallNormalizationVersion = 31
+
+const normalizedCallsJSON = `[
+  {"id":"call-1","type":"function","function":{"name":"valid","arguments":"{\"player_id\":1}"}},
+  {"id":"call-2","type":"function","function":{"name":"invalid","arguments":"{\"player_id\":"}},
+  {"id":"call-3","type":"function","function":{"name":"json-null","arguments":"{\"value\":\"\\u0000\"}"}},
+  {"id":"call-4","type":"function","function":{"name":"transcript-only","arguments":"{}"}}
+]`
+
+const normalizedSimulationCallsJSON = `[
+  {"id":"call-1","type":"function","function":{"name":"valid","arguments":"{\"player_id\":1}"}},
+  {"id":"call-2","type":"function","function":{"name":"invalid","arguments":"{\"player_id\":"}},
+  {"id":"call-3","type":"function","function":{"name":"json-null","arguments":"{\"value\":\"\\u0000\"}"}}
+]`
+
+func seedNormalizedToolCalls(t *testing.T, conn *pgx.Conn) {
+	t.Helper()
+	seedSimulationTranscript(t, conn)
+	seedMauriceTranscript(t, conn)
+}
+
+func seedSimulationTranscript(t *testing.T, conn *pgx.Conn) {
+	t.Helper()
+	execSQL(t, conn, `
+WITH season AS (
+    INSERT INTO seasons (id, standings_start, standings_end)
+    VALUES (20242025, DATE '2024-10-04', DATE '2025-04-17') RETURNING id
+), pool AS (
+    INSERT INTO sim_pools (name, season, num_teams, waiver_days, draft_rounds, max_llm_cost_usd_per_pool, categories)
+    SELECT 'normalization', id, 1, 1, 1, 0, ARRAY['G'] FROM season RETURNING id
+), agent AS (
+    INSERT INTO sim_agents (pool_id, provider, model, strategy, team_name)
+    SELECT id, 'anthropic', 'model', 'balanced', 'Normalization' FROM pool RETURNING id, pool_id
+), turn_row AS (
+    INSERT INTO sim_agent_turns (pool_id, agent_id, sim_date, phase, status, provider, model, started_at, completed_at)
+    SELECT pool_id, id, DATE '2024-10-04', 'daily', 'ok', 'anthropic', 'model', now(), now() FROM agent RETURNING id
+), messages AS (
+    INSERT INTO sim_agent_turn_messages (turn_id, ordinal, role, content, tool_call_id, tool_calls)
+    SELECT id, 0, 'assistant', '', NULL, $1::jsonb FROM turn_row
+    UNION ALL
+    SELECT id, 1, 'tool', 'done', 'call-1', NULL FROM turn_row
+)
+INSERT INTO sim_agent_tool_calls
+    (turn_id, round_index, sequence, tool_name, arguments_raw, arguments, result, outcome)
+SELECT id, 0, 0, 'valid', '{"player_id":1}', '{"player_id":1}'::jsonb, 'done', 'accepted' FROM turn_row
+UNION ALL
+SELECT id, 0, 1, 'invalid', '{"player_id":', NULL, '', 'parse_error' FROM turn_row
+UNION ALL
+SELECT id, 0, 2, 'json-null', '{"value":"\u0000"}', NULL, '', 'parse_error' FROM turn_row`, normalizedSimulationCallsJSON)
+}
+
+func seedMauriceTranscript(t *testing.T, conn *pgx.Conn) {
+	t.Helper()
+	execSQL(t, conn, `
+WITH user_row AS (
+    INSERT INTO app_users (instance, auth_provider, auth_subject, username)
+    VALUES ('puckdb', 'authentik', 'normalization', 'normalization') RETURNING id
+), conversation AS (
+    INSERT INTO maurice_conversations (user_id) SELECT id FROM user_row RETURNING id, user_id
+), turn_row AS (
+    INSERT INTO maurice_turns
+        (conversation_id, user_id, turn_number, idempotency_key, request_hash, status, started_at, completed_at)
+    SELECT id, user_id, 0, 'normalization', decode('00', 'hex'), 'succeeded', now(), now() FROM conversation
+    RETURNING id, conversation_id
+), messages AS (
+    INSERT INTO maurice_messages (conversation_id, turn_id, message_number, role, content, tool_call_id, tool_calls)
+    SELECT conversation_id, id, 0, 'assistant'::chat_role, '', NULL, $1::jsonb FROM turn_row
+    UNION ALL
+    SELECT conversation_id, id, 1, 'tool'::chat_role, 'done', 'call-1', NULL FROM turn_row
+), call_row AS (
+    INSERT INTO maurice_llm_calls
+        (turn_id, conversation_id, call_kind, round_number, provider, model, status, started_at, completed_at)
+    SELECT id, conversation_id, 'chat_round', 0, 'anthropic', 'model', 'succeeded', now(), now() FROM turn_row
+    RETURNING id, turn_id
+)
+INSERT INTO maurice_tool_calls
+    (turn_id, llm_call_id, sequence_number, provider_tool_call_id, tool_name,
+     arguments_raw, arguments, result, status, started_at, completed_at)
+SELECT turn_id, id, 0, 'call-1', 'valid', '{"player_id":1}', '{"player_id":1}'::jsonb, 'done', 'succeeded', now(), now() FROM call_row
+UNION ALL
+SELECT turn_id, id, 1, 'call-2', 'invalid', '{"player_id":', NULL, '', 'parse_error', now(), now() FROM call_row
+UNION ALL
+SELECT turn_id, id, 2, 'call-3', 'json-null', '{"value":"\u0000"}', NULL, '', 'parse_error', now(), now() FROM call_row`, normalizedCallsJSON)
+}
+
+func jsonColumn(t *testing.T, conn *pgx.Conn, query string) string {
+	t.Helper()
+	var value string
+	require.NoError(t, conn.QueryRow(context.Background(), query).Scan(&value))
+	return value
+}
+
+func TestIntegration_ToolCallNormalizationMigration(t *testing.T) {
+	conn, dbURL := freshDatabase(t)
+	migrateTo(t, dbURL, toolCallNormalizationVersion-1)
+	seedNormalizedToolCalls(t, conn)
+
+	migrateTo(t, dbURL, toolCallNormalizationVersion)
+	for _, table := range []string{"sim_agent_turn_messages", "maurice_messages"} {
+		exists, _ := columnNullable(t, conn, table, "tool_calls")
+		assert.False(t, exists)
+	}
+	assert.Equal(t, 3, countRows(t, conn, `SELECT count(*) FROM sim_agent_tool_calls WHERE message_ordinal = 0`))
+	assert.Equal(t, 1, countRows(t, conn, `SELECT count(*) FROM sim_agent_turn_messages WHERE result_tool_round_index = 0 AND result_tool_sequence = 0`))
+	assert.Equal(t, 4, countRows(t, conn, `SELECT count(*) FROM maurice_tool_calls WHERE message_id IS NOT NULL`))
+	assert.Equal(t, 1, countRows(t, conn, `SELECT count(*) FROM maurice_tool_calls WHERE llm_call_id IS NULL AND status IS NULL`))
+	assert.Equal(t, 1, countRows(t, conn, `SELECT count(*) FROM maurice_messages WHERE result_tool_call_id IS NOT NULL`))
+	assert.Equal(t, 2, countRows(t, conn, `SELECT count(*) FROM maurice_tool_calls WHERE arguments IS NULL`))
+
+	migrateTo(t, dbURL, toolCallNormalizationVersion-1)
+	assert.JSONEq(t, normalizedSimulationCallsJSON, jsonColumn(t, conn,
+		`SELECT tool_calls::text FROM sim_agent_turn_messages WHERE role = 'assistant'`))
+	assert.JSONEq(t, normalizedCallsJSON, jsonColumn(t, conn,
+		`SELECT tool_calls::text FROM maurice_messages WHERE role = 'assistant'`))
+	assert.Equal(t, "call-1", jsonColumn(t, conn,
+		`SELECT tool_call_id FROM maurice_messages WHERE role = 'tool'`))
+	assert.Equal(t, "call-1", jsonColumn(t, conn,
+		`SELECT tool_call_id FROM sim_agent_turn_messages WHERE role = 'tool'`))
+
+	migrateTo(t, dbURL, toolCallNormalizationVersion)
+}

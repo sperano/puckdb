@@ -662,9 +662,13 @@ type InsertSimAgentToolCallParams struct {
 	TurnID               int32       `json:"turn_id"`
 	RoundIndex           int32       `json:"round_index"`
 	Sequence             int32       `json:"sequence"`
+	MessageOrdinal       pgtype.Int4 `json:"message_ordinal"`
+	ProviderToolCallID   pgtype.Text `json:"provider_tool_call_id"`
+	ToolType             string      `json:"tool_type"`
 	ToolName             string      `json:"tool_name"`
 	RecoveredName        pgtype.Text `json:"recovered_name"`
 	ArgumentsRaw         string      `json:"arguments_raw"`
+	Arguments            []byte      `json:"arguments"`
 	Result               string      `json:"result"`
 	Outcome              string      `json:"outcome"`
 	FailureReason        pgtype.Text `json:"failure_reason"`
@@ -839,12 +843,10 @@ func (q *Queries) InsertSimAgentTurnIfAbsent(ctx context.Context, arg InsertSimA
 }
 
 type InsertSimAgentTurnMessageParams struct {
-	TurnID     int32       `json:"turn_id"`
-	Ordinal    int32       `json:"ordinal"`
-	Role       string      `json:"role"`
-	Content    string      `json:"content"`
-	ToolCallID pgtype.Text `json:"tool_call_id"`
-	ToolCalls  []byte      `json:"tool_calls"`
+	TurnID  int32  `json:"turn_id"`
+	Ordinal int32  `json:"ordinal"`
+	Role    string `json:"role"`
+	Content string `json:"content"`
 }
 
 type InsertSimAgentTurnRoundParams struct {
@@ -1451,6 +1453,36 @@ func (q *Queries) InsertSimWaiverPriority(ctx context.Context, arg InsertSimWaiv
 	return err
 }
 
+const linkSimAgentTurnMessageResults = `-- name: LinkSimAgentTurnMessageResults :exec
+UPDATE sim_agent_turn_messages message
+SET result_tool_round_index = source.round_index,
+    result_tool_sequence = source.sequence
+FROM (
+    SELECT unnest($2::integer[]) AS ordinal,
+           unnest($3::integer[]) AS round_index,
+           unnest($4::integer[]) AS sequence
+) source
+WHERE message.turn_id = $1
+  AND message.ordinal = source.ordinal
+`
+
+type LinkSimAgentTurnMessageResultsParams struct {
+	TurnID       int32   `json:"turn_id"`
+	Ordinals     []int32 `json:"ordinals"`
+	RoundIndexes []int32 `json:"round_indexes"`
+	Sequences    []int32 `json:"sequences"`
+}
+
+func (q *Queries) LinkSimAgentTurnMessageResults(ctx context.Context, arg LinkSimAgentTurnMessageResultsParams) error {
+	_, err := q.db.Exec(ctx, linkSimAgentTurnMessageResults,
+		arg.TurnID,
+		arg.Ordinals,
+		arg.RoundIndexes,
+		arg.Sequences,
+	)
+	return err
+}
+
 const listSimActiveRosterByAgent = `-- name: ListSimActiveRosterByAgent :many
 SELECT pool_id, agent_id, player_id, slot, acquired_at, acquired_via
 FROM sim_rosters
@@ -1538,8 +1570,9 @@ func (q *Queries) ListSimAgentDailyPlayerStatsByPlayer(ctx context.Context, arg 
 
 const listSimAgentToolCalls = `-- name: ListSimAgentToolCalls :many
 SELECT turn_id, round_index, sequence,
+       message_ordinal, provider_tool_call_id, tool_type,
        tool_name, recovered_name,
-       arguments_raw,
+       arguments_raw, arguments,
        result, outcome, failure_reason,
        applied_transaction_id, latency_ms
 FROM sim_agent_tool_calls
@@ -1547,24 +1580,46 @@ WHERE turn_id = $1
 ORDER BY round_index, sequence
 `
 
+type ListSimAgentToolCallsRow struct {
+	TurnID               int32       `json:"turn_id"`
+	RoundIndex           int32       `json:"round_index"`
+	Sequence             int32       `json:"sequence"`
+	MessageOrdinal       pgtype.Int4 `json:"message_ordinal"`
+	ProviderToolCallID   pgtype.Text `json:"provider_tool_call_id"`
+	ToolType             string      `json:"tool_type"`
+	ToolName             string      `json:"tool_name"`
+	RecoveredName        pgtype.Text `json:"recovered_name"`
+	ArgumentsRaw         string      `json:"arguments_raw"`
+	Arguments            []byte      `json:"arguments"`
+	Result               string      `json:"result"`
+	Outcome              string      `json:"outcome"`
+	FailureReason        pgtype.Text `json:"failure_reason"`
+	AppliedTransactionID pgtype.Int4 `json:"applied_transaction_id"`
+	LatencyMs            int32       `json:"latency_ms"`
+}
+
 // ListSimAgentToolCalls returns all tool calls for one turn, in execution
 // order. Used by the drill-down query "show me everything the agent did."
-func (q *Queries) ListSimAgentToolCalls(ctx context.Context, turnID int32) ([]SimAgentToolCall, error) {
+func (q *Queries) ListSimAgentToolCalls(ctx context.Context, turnID int32) ([]ListSimAgentToolCallsRow, error) {
 	rows, err := q.db.Query(ctx, listSimAgentToolCalls, turnID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []SimAgentToolCall{}
+	items := []ListSimAgentToolCallsRow{}
 	for rows.Next() {
-		var i SimAgentToolCall
+		var i ListSimAgentToolCallsRow
 		if err := rows.Scan(
 			&i.TurnID,
 			&i.RoundIndex,
 			&i.Sequence,
+			&i.MessageOrdinal,
+			&i.ProviderToolCallID,
+			&i.ToolType,
 			&i.ToolName,
 			&i.RecoveredName,
 			&i.ArgumentsRaw,
+			&i.Arguments,
 			&i.Result,
 			&i.Outcome,
 			&i.FailureReason,
@@ -1616,30 +1671,42 @@ func (q *Queries) ListSimAgentTotalsByPool(ctx context.Context, poolID int32) ([
 }
 
 const listSimAgentTurnMessages = `-- name: ListSimAgentTurnMessages :many
-SELECT turn_id, ordinal, role, content, tool_call_id, tool_calls
-FROM sim_agent_turn_messages
-WHERE turn_id = $1
-ORDER BY ordinal
+SELECT message.turn_id, message.ordinal, message.role, message.content,
+       tool_call.provider_tool_call_id AS tool_call_id
+FROM sim_agent_turn_messages message
+LEFT JOIN sim_agent_tool_calls tool_call
+  ON tool_call.turn_id = message.turn_id
+ AND tool_call.round_index = message.result_tool_round_index
+ AND tool_call.sequence = message.result_tool_sequence
+WHERE message.turn_id = $1
+ORDER BY message.ordinal
 `
+
+type ListSimAgentTurnMessagesRow struct {
+	TurnID     int32       `json:"turn_id"`
+	Ordinal    int32       `json:"ordinal"`
+	Role       string      `json:"role"`
+	Content    string      `json:"content"`
+	ToolCallID pgtype.Text `json:"tool_call_id"`
+}
 
 // ListSimAgentTurnMessages returns the full conversation transcript for
 // one turn, in order.
-func (q *Queries) ListSimAgentTurnMessages(ctx context.Context, turnID int32) ([]SimAgentTurnMessage, error) {
+func (q *Queries) ListSimAgentTurnMessages(ctx context.Context, turnID int32) ([]ListSimAgentTurnMessagesRow, error) {
 	rows, err := q.db.Query(ctx, listSimAgentTurnMessages, turnID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []SimAgentTurnMessage{}
+	items := []ListSimAgentTurnMessagesRow{}
 	for rows.Next() {
-		var i SimAgentTurnMessage
+		var i ListSimAgentTurnMessagesRow
 		if err := rows.Scan(
 			&i.TurnID,
 			&i.Ordinal,
 			&i.Role,
 			&i.Content,
 			&i.ToolCallID,
-			&i.ToolCalls,
 		); err != nil {
 			return nil, err
 		}
