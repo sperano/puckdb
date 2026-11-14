@@ -254,8 +254,45 @@ func TestPg_FinishTurn_LinksReusedProviderIDToNearestCall(t *testing.T) {
 		FROM maurice_messages result_message
 		JOIN maurice_tool_calls call_row ON call_row.id = result_message.result_tool_call_id
 		JOIN maurice_messages call_message ON call_message.id = call_row.message_id
+		WHERE result_message.turn_id = $1 AND result_message.message_number = 2
+		  AND call_message.message_number = 1 AND call_row.tool_type = 'function'`, start.TurnID))
+	assert.Equal(t, 1, pgCount(t, pool, `SELECT count(*)
+		FROM maurice_messages result_message
+		JOIN maurice_tool_calls call_row ON call_row.id = result_message.result_tool_call_id
+		JOIN maurice_messages call_message ON call_message.id = call_row.message_id
 		WHERE result_message.turn_id = $1 AND result_message.message_number = 4
 		  AND call_message.message_number = 3 AND call_row.tool_type = 'function'`, start.TurnID))
+}
+
+func TestPg_FinishTurn_StoresInvalidTranscriptOnlyToolArguments(t *testing.T) {
+	pool := openPgTestPool(t)
+	db := NewPgDB(pool)
+	ctx := context.Background()
+	user := newPgUser(t, pool)
+	start := beginTurn(t, db, user, "", "q")
+	toolCalls := []llm.ToolCall{
+		{ID: "malformed", Type: "function", Function: llm.ToolCallFunction{Name: "broken", Arguments: `{"a":`}},
+		{ID: "null-escape", Type: "function", Function: llm.ToolCallFunction{Name: "null", Arguments: `{"value":"\u0000"}`}},
+	}
+
+	_, err := db.FinishTurn(ctx, TurnRecord{
+		TurnID: start.TurnID, ConversationID: start.ConversationID, Status: TurnSucceeded,
+		Messages: []TurnMessage{
+			{Role: "user", Content: "q"},
+			{Role: "assistant", ToolCalls: toolCalls},
+		},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, 2, pgCount(t, pool, `SELECT count(*) FROM maurice_tool_calls
+		WHERE turn_id = $1 AND llm_call_id IS NULL AND status IS NULL
+		  AND message_id IS NOT NULL AND arguments IS NULL
+		  AND arguments_raw IN ('{"a":', '{"value":"\u0000"}')`, start.TurnID))
+
+	messages, err := db.GetMessages(ctx, user, start.ConversationID)
+	require.NoError(t, err)
+	require.Len(t, messages, 2)
+	require.Len(t, messages[1].ToolCalls, 2)
+	assert.Equal(t, toolCalls, messages[1].ToolCalls)
 }
 
 // Title-generation tokens count toward the conversation owner, and sessions

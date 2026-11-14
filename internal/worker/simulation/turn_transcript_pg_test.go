@@ -28,6 +28,8 @@ func TestPg_SimTurnTranscriptLinksAndProjectsArguments(t *testing.T) {
 	_, err := q.InsertSimAgentTurnMessage(ctx, []sqlcdb.InsertSimAgentTurnMessageParams{
 		{TurnID: turnID, Ordinal: 0, Role: "assistant"},
 		{TurnID: turnID, Ordinal: 1, Role: "tool", Content: "done"},
+		{TurnID: turnID, Ordinal: 2, Role: "assistant"},
+		{TurnID: turnID, Ordinal: 3, Role: "tool", Content: "done again"},
 	})
 	require.NoError(t, err)
 
@@ -52,16 +54,25 @@ func TestPg_SimTurnTranscriptLinksAndProjectsArguments(t *testing.T) {
 			Outcome: "accepted",
 		}))
 	}
+	require.NoError(t, q.InsertSimAgentToolCall(ctx, sqlcdb.InsertSimAgentToolCallParams{
+		TurnID: turnID, RoundIndex: 1, Sequence: 0,
+		MessageOrdinal:     pgtype.Int4{Int32: 2, Valid: true},
+		ProviderToolCallID: pgtype.Text{String: "call-2", Valid: true},
+		ToolType:           "function", ToolName: "tool", ArgumentsRaw: `{}`,
+		Outcome: "accepted",
+	}))
 	require.NoError(t, q.LinkSimAgentTurnMessageResults(ctx, sqlcdb.LinkSimAgentTurnMessageResultsParams{
-		TurnID: turnID, Ordinals: []int32{1}, RoundIndexes: []int32{0}, Sequences: []int32{0},
+		TurnID: turnID, Ordinals: []int32{1, 3}, RoundIndexes: []int32{0, 1}, Sequences: []int32{0, 0},
 	}))
 
 	messages, err := q.ListSimAgentTurnMessages(ctx, turnID)
 	require.NoError(t, err)
-	require.Len(t, messages, 2)
+	require.Len(t, messages, 4)
 	assert.False(t, messages[0].ToolCallID.Valid)
 	assert.Equal(t, "call-1", messages[1].ToolCallID.String)
-	assert.Equal(t, 2, simArgumentCount(t, pool, turnID, `arguments IS NOT NULL`))
+	assert.False(t, messages[2].ToolCallID.Valid)
+	assert.Equal(t, "call-2", messages[3].ToolCallID.String)
+	assert.Equal(t, 3, simArgumentCount(t, pool, turnID, `arguments IS NOT NULL`))
 	assert.Equal(t, 3, simArgumentCount(t, pool, turnID, `arguments IS NULL`))
 }
 

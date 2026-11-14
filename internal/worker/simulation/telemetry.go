@@ -241,7 +241,7 @@ func RecoveredName(rawName string, action Action, distance int) string {
 // When audit is shorter than captures (an executor error aborts the
 // loop early in a future revision — V1 never returns executor errors,
 // so this branch is defensive), the trailing captures keep their
-// zero-value RoundIndex.
+// zero-value RoundIndex, Sequence, ProviderToolCallID and ToolType.
 func AssignRoundsFromAudit(captures []ToolCallCapture, audit []agentloop.Audit) {
 	roundSeq := map[int]int{}
 	for i := 0; i < len(captures) && i < len(audit); i++ {

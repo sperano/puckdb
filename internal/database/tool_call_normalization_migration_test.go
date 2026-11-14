@@ -159,14 +159,34 @@ func TestIntegration_ToolCallNormalizationMigration(t *testing.T) {
 }
 
 func TestIntegration_ToolCallNormalizationRejectsNonArrayCalls(t *testing.T) {
-	conn, dbURL := freshDatabase(t)
-	migrateTo(t, dbURL, toolCallNormalizationVersion-1)
-	seedNormalizedToolCalls(t, conn)
-	execSQL(t, conn, `UPDATE maurice_messages SET tool_calls = '{"not":"a list"}'::jsonb WHERE message_number = 0`)
+	tests := []struct {
+		name    string
+		update  string
+		wantErr string
+	}{
+		{
+			name:    "maurice",
+			update:  `UPDATE maurice_messages SET tool_calls = '{"not":"a list"}'::jsonb WHERE message_number = 0`,
+			wantErr: "maurice_messages.tool_calls contains a non-array value",
+		},
+		{
+			name:    "simulation",
+			update:  `UPDATE sim_agent_turn_messages SET tool_calls = '{"not":"a list"}'::jsonb WHERE ordinal = 0`,
+			wantErr: "sim_agent_turn_messages.tool_calls contains a non-array value",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			conn, dbURL := freshDatabase(t)
+			migrateTo(t, dbURL, toolCallNormalizationVersion-1)
+			seedNormalizedToolCalls(t, conn)
+			execSQL(t, conn, tt.update)
 
-	m, err := openMigrator(migrationsFS, dbURL)
-	require.NoError(t, err)
-	defer func() { _, _ = m.Close() }()
-	err = m.Migrate.Migrate(toolCallNormalizationVersion)
-	require.ErrorContains(t, err, "maurice_messages.tool_calls contains a non-array value")
+			m, err := openMigrator(migrationsFS, dbURL)
+			require.NoError(t, err)
+			defer func() { _, _ = m.Close() }()
+			err = m.Migrate.Migrate(toolCallNormalizationVersion)
+			require.ErrorContains(t, err, tt.wantErr)
+		})
+	}
 }

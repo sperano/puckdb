@@ -159,6 +159,17 @@ func (s *DraftPickTestSuite) TestRecordFullMessages_LinkFailureAbortsCommit() {
 	require.ErrorContains(t, s.tx.fnErr, "link tool result messages")
 }
 
+func (s *DraftPickTestSuite) TestRecordFullMessages_ToolCallInsertFailureAbortsCommit() {
+	t := s.T()
+	s.setRecordFullMessages(true)
+	s.queries.insertToolCallErr = errors.New("write failed")
+	s.llm.responses = []*llm.Response{draftPlayerToolCall(8478402, "McDavid")}
+
+	_, err := s.env.ExecuteActivity(s.acts.DraftPick, s.validInput())
+	require.ErrorContains(t, err, "insert tool call")
+	require.ErrorContains(t, s.tx.fnErr, "insert tool call")
+}
+
 // Provider error on the first round → fallback pick. The loop still
 // returns the partial history, so the recorded transcript is the draft
 // prompt the model was sent (system + user), even though no assistant
