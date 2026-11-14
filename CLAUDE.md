@@ -340,10 +340,15 @@ non-alphanumeric character in a label value with `_`, so `task_queue` reads
 | `puckdb_data_path_bytes_total` | Gauge | `file_type` | Total bytes in data path by type |
 | `puckdb_redis_oauth_token_valid` | Gauge | `user` | 1 = usable token (fresh access token or a refresh token), 0 = missing/unrefreshable |
 | `puckdb_redis_last_updated_timestamp` | Gauge | — | Unix ts of last Redis scan |
+| `puckdb_redis_uptime_seconds` / `puckdb_redis_connected_clients` / `puckdb_redis_used_memory_bytes` / `puckdb_redis_maxmemory_bytes` | Gauge | — | Redis server `INFO` readings (maxmemory 0 = no limit) |
+| `puckdb_redis_keyspace_hits_total` / `puckdb_redis_keyspace_misses_total` / `puckdb_redis_expired_keys_total` / `puckdb_redis_evicted_keys_total` | Counter | — | Redis server `INFO` counters since the server started |
+| `puckdb_redis_db_keys` / `puckdb_redis_db_expiring_keys` | Gauge | `db` | Keys (with an expiry) per Redis logical database; an emptied database leaves no series |
 | `puckdb_db_table_row_count` | Gauge | `table` | Row count per table |
 | `puckdb_db_table_size_bytes` | Gauge | `table` | On-disk size per table (heap + indexes + TOAST) |
 | `puckdb_db_size_bytes` | Gauge | — | Total database size |
 | `puckdb_db_last_updated_timestamp` | Gauge | — | Unix ts of last DB scan |
+| `puckdb_data_latest_timestamp` | Gauge | `dataset` | Unix ts of the newest data per dataset (`cmd/metrics_freshness.go`: `nhl_games_final`, `nhl_boxscores`, `nhl_play_by_play`, `nhl_shifts`, `nhl_day_imports`, `nhl_standings`, `yahoo_rosters`, `yahoo_team_summaries`, `yahoo_standings`, `yahoo_transactions`, `news_articles`, `news_events`, `draft_rankings`, `maurice_turns`); a date column counts as 00:00 UTC, an empty dataset has no series, a failed query keeps the last value |
+| `puckdb_data_latest_date_info` | Gauge | `dataset`, `date` | Always 1; `date` is the UTC `YYYY-MM-DD` of `puckdb_data_latest_timestamp`, for display (a Grafana date unit would shift a 00:00 UTC date into the viewer's time zone) |
 | `puckdb_build_info` | Gauge | `version` | Build version of the running binary |
 
 ## Database Schema
