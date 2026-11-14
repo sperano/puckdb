@@ -163,6 +163,29 @@ func TestSimCreateExampleConfigIsValid(t *testing.T) {
 	assert.Contains(t, cmdSimCreate().Long, simCreateExampleConfig)
 }
 
+// TestSimCreateRejectsAnInvalidConfigBeforeTheAPI runs the create
+// command on a config with a bad field and a null agent entry (a bare
+// `-`): it fails with the validator's error naming both, before any
+// GraphQL client is built.
+func TestSimCreateRejectsAnInvalidConfigBeforeTheAPI(t *testing.T) {
+	t.Parallel()
+	body := strings.Replace(simCreateExampleConfig, "draftRounds: 18", "draftRounds: 0", 1)
+	body = strings.Replace(body, "  agents:\n", "  agents:\n    -\n", 1)
+	path := filepath.Join(t.TempDir(), "pool.yaml")
+	require.NoError(t, os.WriteFile(path, []byte(body), 0o600))
+
+	cmd := cmdSimCreate()
+	require.NoError(t, cmd.Flags().Set("config", path))
+	err := cmd.RunE(cmd, nil)
+	var cfgErr *graph.SimPoolConfigError
+	require.ErrorAs(t, err, &cfgErr)
+	fields := make([]string, len(cfgErr.Fields))
+	for i, f := range cfgErr.Fields {
+		fields[i] = f.Field
+	}
+	assert.Equal(t, []string{"draftRounds", "agents[0]"}, fields)
+}
+
 func TestLoadCreateSimPoolInputFromFile_MissingPath(t *testing.T) {
 	t.Parallel()
 	_, err := loadCreateSimPoolInputFromFile("")

@@ -350,10 +350,15 @@ func sumRotoPoints(rows []sqlcdb.SimStanding) float64 {
 // shape into a map keyed by RosterSlot. GraphQL has no map type, so
 // the wire format is a list; the resolver flattens here at the
 // boundary. Slots not present in the input default to 0 in the map
-// lookup (`rosters[SlotC]` returns the int zero value).
+// lookup (`rosters[SlotC]` returns the int zero value). A null entry,
+// possible only from the YAML config, is skipped (the validator rejects
+// it).
 func flattenRosterPositions(input []*model.SimRosterPositionInput) map[simulation.RosterSlot]int {
 	out := make(map[simulation.RosterSlot]int, len(input))
 	for _, e := range input {
+		if e == nil {
+			continue
+		}
 		out[simulation.RosterSlot(e.Slot)] = e.Count
 	}
 	return out

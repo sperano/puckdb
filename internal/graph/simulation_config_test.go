@@ -38,6 +38,8 @@ func validSimPoolInput() model.CreateSimPoolInput {
 
 func intPtr(n int) *int { return &n }
 
+func strPtr(s string) *string { return &s }
+
 // rejectedFields returns the field names of a *SimPoolConfigError.
 func rejectedFields(t *testing.T, err error) []string {
 	t.Helper()
@@ -66,6 +68,58 @@ func TestValidateCreateSimPoolInputAcceptsTheSupportedShape(t *testing.T) {
 	assert.Equal(t, simulation.StopAfterDraft, settings.stopAfter)
 }
 
+// The boundaries every range check accepts: one draft round, one agent,
+// math.MaxInt32 in each int32 column, and each provider's allowed apiBase.
+func TestValidateCreateSimPoolInputAcceptsTheBoundaries(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name string
+		edit func(*model.CreateSimPoolInput)
+	}{
+		{"one draft round", func(in *model.CreateSimPoolInput) { in.DraftRounds = minDraftRounds }},
+		{"one agent", func(in *model.CreateSimPoolInput) { in.Agents = in.Agents[:minSimAgents] }},
+		{"int32 maximum", func(in *model.CreateSimPoolInput) {
+			in.Season = math.MaxInt32
+			in.WaiverDays = math.MaxInt32
+			in.MaxSeasonDays = intPtr(math.MaxInt32)
+			in.Agents[0].TimeoutSeconds = intPtr(math.MaxInt32)
+			in.Agents[0].MaxTokens = intPtr(math.MaxInt32)
+		}},
+		{"provider's own apiBase", func(in *model.CreateSimPoolInput) {
+			in.Agents[0].APIBase = strPtr("https://api.anthropic.com")
+			in.Agents = append(in.Agents, &model.CreateSimAgentInput{
+				Provider: "google", Model: "gemini-2.0-flash", Strategy: "s",
+				APIBase: strPtr("https://generativelanguage.googleapis.com/v1beta/openai/"),
+			})
+		}},
+		{"any ollama apiBase", func(in *model.CreateSimPoolInput) { in.Agents[1].APIBase = strPtr("http://ollama.local:11434/v1") }},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			in := validSimPoolInput()
+			tc.edit(&in)
+			require.NoError(t, ValidateCreateSimPoolInput(in))
+		})
+	}
+}
+
+// A rejected roster has no meaningful capacity: draftRounds is then held
+// only to its lower bound, so its error never quotes a wrong capacity.
+func TestValidateCreateSimPoolInputChecksDraftRoundsCapacityOnlyOnAValidRoster(t *testing.T) {
+	t.Parallel()
+	in := validSimPoolInput()
+	in.RosterPositions[6].Count = 5 // BN 5: capacity 20
+	in.DraftRounds = simulation.RosterCapacity(simulation.SupportedRosterPositions())
+	assert.Equal(t, []string{"rosterPositions"}, rejectedFields(t, ValidateCreateSimPoolInput(in)))
+
+	in.DraftRounds = 0
+	err := ValidateCreateSimPoolInput(in)
+	assert.Equal(t, []string{"rosterPositions", "draftRounds"}, rejectedFields(t, err))
+	assert.Contains(t, err.Error(), "draftRounds: 0 is below 1")
+	assert.NotContains(t, err.Error(), "the roster holds")
+}
+
 func TestValidateCreateSimPoolInputRejectsEachBadField(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -75,17 +129,22 @@ func TestValidateCreateSimPoolInputRejectsEachBadField(t *testing.T) {
 		reason string
 	}{
 		{"blank name", func(in *model.CreateSimPoolInput) { in.Name = " " }, "name", "required"},
+		{"season zero", func(in *model.CreateSimPoolInput) { in.Season = 0 }, "season", "out of range [1, "},
 		{"season beyond int32", func(in *model.CreateSimPoolInput) { in.Season = math.MaxInt32 + 1 }, "season", "out of range"},
 		{"seven categories", func(in *model.CreateSimPoolInput) { in.Categories = in.Categories[:7] }, "categories", `missing category "GA"`},
 		{"unknown slot", func(in *model.CreateSimPoolInput) { in.RosterPositions[0].Slot = "F" }, "rosterPositions[0].slot", `unknown slot "F"`},
 		{"slot listed twice", func(in *model.CreateSimPoolInput) { in.RosterPositions[1].Slot = "C" }, "rosterPositions[1].slot", `slot "C" listed twice`},
 		{"negative count", func(in *model.CreateSimPoolInput) { in.RosterPositions[0].Count = -1 }, "rosterPositions[0].count", "negative"},
+		{"null roster entry", func(in *model.CreateSimPoolInput) { in.RosterPositions[0] = nil }, "rosterPositions[0]", "required"},
 		{"other roster", func(in *model.CreateSimPoolInput) { in.RosterPositions[6].Count = 5 }, "rosterPositions", "BN count 5, want 6"},
 		{"negative waiver days", func(in *model.CreateSimPoolInput) { in.WaiverDays = -1 }, "waiverDays", "out of range"},
 		{"no draft round", func(in *model.CreateSimPoolInput) { in.DraftRounds = 0 }, "draftRounds", "out of range [1, 21]"},
 		{"more rounds than roster places", func(in *model.CreateSimPoolInput) { in.DraftRounds = 22 }, "draftRounds", "the roster holds 21 players"},
 		{"no agent", func(in *model.CreateSimPoolInput) { in.Agents = nil }, "agents", "at least 1 agent required, got 0"},
+		{"null agent", func(in *model.CreateSimPoolInput) { in.Agents[1] = nil }, "agents[1]", "required"},
 		{"unknown provider", func(in *model.CreateSimPoolInput) { in.Agents[1].Provider = "claude" }, "agents[1].provider", `unknown provider "claude"`},
+		{"keyed apiBase on another host", func(in *model.CreateSimPoolInput) { in.Agents[0].APIBase = strPtr("https://collector.example/v1") }, "agents[0].apiBase", "must be an https URL on api.anthropic.com"},
+		{"malformed ollama apiBase", func(in *model.CreateSimPoolInput) { in.Agents[1].APIBase = strPtr("ollama.local:11434") }, "agents[1].apiBase", "not an absolute http(s) URL"},
 		{"blank model", func(in *model.CreateSimPoolInput) { in.Agents[1].Model = "" }, "agents[1].model", "required"},
 		{"unpriced model", func(in *model.CreateSimPoolInput) { in.Agents[0].Model = "gpt-9-ultra-mystery" }, "agents[0].model", "no known pricing"},
 		{"negative timeout", func(in *model.CreateSimPoolInput) { in.Agents[0].TimeoutSeconds = intPtr(-1) }, "agents[0].timeoutSeconds", "out of range"},

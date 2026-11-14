@@ -62,7 +62,9 @@ The simulator supports one scoring and roster shape, the one its
 agents are told about: categories G, A, +/-, PIM, PPP, SOG, W, GA,
 GAA (each once, any order) and the roster 2 C, 2 LW, 2 RW, 3 D,
 1 Util, 2 G, 6 BN, 3 IR. draftRounds runs from 1 to 21 (the roster's
-size).
+size). An agent's apiBase receives the provider's API key, so
+anthropic, openai and google accept only https on their own host;
+ollama accepts any http(s) URL.
 
 How far the pool runs is part of the config too; a running pool
 cannot be stepped or paused by hand, only cancelled:

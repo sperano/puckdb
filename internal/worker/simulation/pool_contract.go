@@ -3,6 +3,7 @@ package simulation
 import (
 	"errors"
 	"fmt"
+	"net/url"
 	"sort"
 	"strings"
 )
@@ -131,4 +132,46 @@ func formatRoster(positions map[RosterSlot]int) string {
 func ValidateProvider(provider string) error {
 	_, err := resolveProvider(provider)
 	return err
+}
+
+// keyedProviderAPIHosts is the only host an agent's apiBase may name for
+// a provider whose requests carry a workspace API key: NewAgent replaces
+// the provider's base URL with apiBase and sends that key to it, so any
+// other host would receive the key. Google routes through the OpenAI
+// transport (resolveProvider), so its requests carry the OpenAI key.
+// Ollama sends no key and is not listed: any http(s) host is accepted.
+var keyedProviderAPIHosts = map[string]string{
+	PricingProviderAnthropic: "api.anthropic.com",
+	PricingProviderOpenAI:    "api.openai.com",
+	PricingProviderGoogle:    "generativelanguage.googleapis.com",
+}
+
+// ErrDisallowedAPIBase marks an agent apiBase that would send a provider
+// API key to a host other than the provider's.
+var ErrDisallowedAPIBase = errors.New("disallowed api base")
+
+// ValidateAPIBase accepts an empty apiBase, any absolute http(s) URL
+// without credentials for Ollama, and only an https URL on the
+// provider's own host (no port, no credentials) for a keyed provider.
+// provider must already pass ValidateProvider.
+func ValidateAPIBase(provider, apiBase string) error {
+	if apiBase == "" {
+		return nil
+	}
+	u, err := url.Parse(apiBase)
+	if err != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") {
+		return fmt.Errorf("%q is not an absolute http(s) URL", apiBase)
+	}
+	if u.User != nil {
+		return fmt.Errorf("%q must not carry credentials", apiBase)
+	}
+	host, keyed := keyedProviderAPIHosts[canonicalProviderName(provider)]
+	if !keyed {
+		return nil
+	}
+	if u.Scheme != "https" || !strings.EqualFold(u.Host, host) {
+		return fmt.Errorf("%w: %s requests carry the workspace API key, so apiBase must be an https URL on %s",
+			ErrDisallowedAPIBase, canonicalProviderName(provider), host)
+	}
+	return nil
 }

@@ -432,6 +432,8 @@ type recordingDBTX struct {
 	// lets a test observe "the resolver reached a :one query and that
 	// query failed" without a real database.
 	queryRowErr error
+	// queryErr, when set, is what every :many Query returns.
+	queryErr error
 }
 
 // queryName extracts the "ListSimPools" style identifier sqlc bakes into each
@@ -469,6 +471,9 @@ func (d *recordingDBTX) Exec(_ context.Context, sql string, _ ...interface{}) (p
 
 func (d *recordingDBTX) Query(_ context.Context, sql string, _ ...interface{}) (pgx.Rows, error) {
 	d.record(sql)
+	if d.queryErr != nil {
+		return nil, d.queryErr
+	}
 	rows := 0
 	if queryName(sql) == "ListSimPools" {
 		rows = d.simPoolRows

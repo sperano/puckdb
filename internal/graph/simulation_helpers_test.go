@@ -196,6 +196,19 @@ func TestDecodeSimTransactionsLoadsLineupMovesInOneQuery(t *testing.T) {
 	assert.Empty(t, db.recorded(), "no lineup_set row, no moves query")
 }
 
+func TestDecodeSimTransactionsWrapsALineupMovesQueryFailure(t *testing.T) {
+	t.Parallel()
+	queryErr := errors.New("connection reset")
+	db := &recordingDBTX{queryErr: queryErr}
+	txs := []sqlcdb.SimTransaction{
+		{ID: 1, Type: string(simulation.TransactionTypeLineupSet)},
+		{ID: 2, Type: string(simulation.TransactionTypeLineupSet)},
+	}
+	_, err := resolverWithDB(db).decodeSimTransactions(context.Background(), txs)
+	require.ErrorIs(t, err, queryErr)
+	assert.Contains(t, err.Error(), "list lineup moves for 2 transactions")
+}
+
 // TestSimTransactionsGroupsLineupMovesOnPostgres checks the batched moves
 // query on real PostgreSQL: each lineup_set row gets its own moves, in
 // sequence order, with player and displaced-player names.

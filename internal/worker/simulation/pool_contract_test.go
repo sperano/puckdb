@@ -3,6 +3,7 @@ package simulation
 import (
 	"testing"
 
+	"github.com/sperano/puckdb/internal/llm"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -64,10 +65,49 @@ func TestRosterCapacityCountsEverySlot(t *testing.T) {
 
 func TestValidateProviderMatchesNewAgent(t *testing.T) {
 	t.Parallel()
+	configs := llm.NewProviderConfigs(llm.ProviderConfigsInput{OllamaBaseURL: "http://localhost:11434/v1"})
+	for _, provider := range []string{"anthropic", "OpenAI", "ollama", "google", "gemini", "", "claude", "mistral"} {
+		_, agentErr := NewAgent(1, AgentConfig{Provider: provider, Model: "m"}, configs, 2)
+		validateErr := ValidateProvider(provider)
+		assert.Equal(t, agentErr != nil, validateErr != nil,
+			"provider %q: NewAgent err %v, ValidateProvider err %v", provider, agentErr, validateErr)
+	}
 	for _, ok := range []string{"anthropic", "OpenAI", "ollama", "google", "gemini"} {
 		assert.NoError(t, ValidateProvider(ok), ok)
 	}
-	for _, bad := range []string{"", "claude", "mistral"} {
-		assert.Error(t, ValidateProvider(bad), bad)
+}
+
+func TestValidateAPIBase(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct{ provider, apiBase string }{
+		{"anthropic", ""},
+		{"anthropic", "https://api.anthropic.com"},
+		{"OpenAI", "https://API.openai.com/v1"},
+		{"gemini", "https://generativelanguage.googleapis.com/v1beta/openai/"},
+		{"ollama", "http://ollama.local:11434/v1"},
+		{"ollama", "https://10.0.0.5/v1"},
+	} {
+		assert.NoError(t, ValidateAPIBase(tc.provider, tc.apiBase), "%s %s", tc.provider, tc.apiBase)
+	}
+	for _, tc := range []struct{ provider, apiBase string }{
+		{"anthropic", "https://collector.example"},
+		{"anthropic", "http://api.anthropic.com"},
+		{"anthropic", "https://api.anthropic.com:8443"},
+		{"anthropic", "https://api.anthropic.com.collector.example"},
+		{"openai", "https://api.anthropic.com/v1"},
+		{"google", "https://api.openai.com/v1"},
+	} {
+		assert.ErrorIs(t, ValidateAPIBase(tc.provider, tc.apiBase), ErrDisallowedAPIBase, "%s %s", tc.provider, tc.apiBase)
+	}
+	for _, tc := range []struct{ provider, apiBase string }{
+		{"ollama", "ollama.local:11434"},
+		{"ollama", "/v1"},
+		{"ollama", "ftp://ollama.local/v1"},
+		{"ollama", "http://user:pass@ollama.local/v1"},
+		{"anthropic", "https://key@api.anthropic.com"},
+	} {
+		err := ValidateAPIBase(tc.provider, tc.apiBase)
+		assert.Error(t, err, "%s %s", tc.provider, tc.apiBase)
+		assert.NotErrorIs(t, err, ErrDisallowedAPIBase, "%s %s", tc.provider, tc.apiBase)
 	}
 }

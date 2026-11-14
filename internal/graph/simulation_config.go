@@ -97,9 +97,9 @@ func validateCreateSimPoolInput(input model.CreateSimPoolInput) (simPoolSettings
 	if err := simulation.ValidateCategories(input.Categories); err != nil {
 		v.fail("categories", err)
 	}
-	rosters := v.rosterPositions(input.RosterPositions)
+	rosters, rostersOK := v.rosterPositions(input.RosterPositions)
 	v.int32Field("waiverDays", input.WaiverDays, 0)
-	v.draftRounds(input.DraftRounds, rosters)
+	v.draftRounds(input.DraftRounds, rosters, rostersOK)
 	v.agents(input.Agents)
 	stop, err := simulation.ParseStopAfter(derefString(input.StopAfter))
 	if err != nil {
@@ -112,14 +112,20 @@ func validateCreateSimPoolInput(input model.CreateSimPoolInput) (simPoolSettings
 	return simPoolSettings{rosters: rosters, stopAfter: stop}, nil
 }
 
-// rosterPositions flattens the slot list, rejecting unknown slots and a
-// slot listed twice (the map form would keep only the last count), then
-// checks the counts against the supported roster.
-func (v *simPoolValidator) rosterPositions(input []*model.SimRosterPositionInput) map[simulation.RosterSlot]int {
+// rosterPositions flattens the slot list, rejecting a null entry (a bare
+// `-` in the YAML config), unknown slots and a slot listed twice (the map
+// form would keep only the last count), then checks the counts against
+// the supported roster. ok is false when any of these checks failed.
+func (v *simPoolValidator) rosterPositions(input []*model.SimRosterPositionInput) (rosters map[simulation.RosterSlot]int, ok bool) {
 	seen := make(map[simulation.RosterSlot]bool, len(input))
 	valid := true
 	for i, e := range input {
 		field := fmt.Sprintf("rosterPositions[%d]", i)
+		if e == nil {
+			v.failf(field, "required")
+			valid = false
+			continue
+		}
 		slot := simulation.RosterSlot(e.Slot)
 		switch {
 		case !simulation.IsRosterSlot(slot):
@@ -135,18 +141,26 @@ func (v *simPoolValidator) rosterPositions(input []*model.SimRosterPositionInput
 			valid = false
 		}
 	}
-	rosters := flattenRosterPositions(input)
+	rosters = flattenRosterPositions(input)
 	if valid {
 		if err := simulation.ValidateRosterPositions(rosters); err != nil {
 			v.fail("rosterPositions", err)
+			valid = false
 		}
 	}
-	return rosters
+	return rosters, valid
 }
 
 // draftRounds must leave every drafted player a roster place: at most one
-// round per roster slot of the configured roster.
-func (v *simPoolValidator) draftRounds(rounds int, rosters map[simulation.RosterSlot]int) {
+// round per roster slot of the configured roster. A rejected roster has no
+// meaningful capacity, so only the lower bound is checked then.
+func (v *simPoolValidator) draftRounds(rounds int, rosters map[simulation.RosterSlot]int, rostersOK bool) {
+	if !rostersOK {
+		if rounds < minDraftRounds {
+			v.failf("draftRounds", "%d is below %d", rounds, minDraftRounds)
+		}
+		return
+	}
 	capacity := simulation.RosterCapacity(rosters)
 	if rounds < minDraftRounds || rounds > capacity {
 		v.failf("draftRounds", "%d out of range [%d, %d] (the roster holds %d players)",
@@ -154,30 +168,46 @@ func (v *simPoolValidator) draftRounds(rounds int, rosters map[simulation.Roster
 	}
 }
 
-// agents checks the agent count and each agent's provider, model and
-// numeric overrides. An agent whose model has no known pricing is
-// rejected too: letting it through would mean maxLlmCostUsdPerPool could
-// never trip for that agent (SIM-U2). Ollama is exempt, see
-// simulation.ValidateModelPricing.
+// agents checks the agent count and each agent: a null entry (a bare `-`
+// in the YAML config) is rejected before any of its fields is read.
 func (v *simPoolValidator) agents(agents []*model.CreateSimAgentInput) {
 	if len(agents) < minSimAgents {
 		v.failf("agents", "at least %d agent required, got %d", minSimAgents, len(agents))
 	}
 	for i, a := range agents {
 		field := fmt.Sprintf("agents[%d]", i)
-		providerErr := simulation.ValidateProvider(a.Provider)
-		if providerErr != nil {
-			v.fail(field+".provider", providerErr)
+		if a == nil {
+			v.failf(field, "required")
+			continue
 		}
-		switch {
-		case strings.TrimSpace(a.Model) == "":
-			v.failf(field+".model", "required")
-		case providerErr == nil:
-			if err := simulation.ValidateModelPricing(a.Provider, a.Model); err != nil {
-				v.fail(field+".model", err)
-			}
-		}
-		v.int32Field(field+".timeoutSeconds", derefInt(a.TimeoutSeconds), 0)
-		v.int32Field(field+".maxTokens", derefInt(a.MaxTokens), 0)
+		v.agent(field, a)
 	}
+}
+
+// agent checks one agent's provider, model, apiBase and numeric
+// overrides. An agent whose model has no known pricing is rejected too:
+// letting it through would mean maxLlmCostUsdPerPool could never trip for
+// that agent (SIM-U2). Ollama is exempt, see
+// simulation.ValidateModelPricing. The provider-dependent checks are
+// skipped for an unknown provider, already reported.
+func (v *simPoolValidator) agent(field string, a *model.CreateSimAgentInput) {
+	providerErr := simulation.ValidateProvider(a.Provider)
+	if providerErr != nil {
+		v.fail(field+".provider", providerErr)
+	}
+	switch {
+	case strings.TrimSpace(a.Model) == "":
+		v.failf(field+".model", "required")
+	case providerErr == nil:
+		if err := simulation.ValidateModelPricing(a.Provider, a.Model); err != nil {
+			v.fail(field+".model", err)
+		}
+	}
+	if providerErr == nil {
+		if err := simulation.ValidateAPIBase(a.Provider, derefString(a.APIBase)); err != nil {
+			v.fail(field+".apiBase", err)
+		}
+	}
+	v.int32Field(field+".timeoutSeconds", derefInt(a.TimeoutSeconds), 0)
+	v.int32Field(field+".maxTokens", derefInt(a.MaxTokens), 0)
 }
