@@ -90,35 +90,45 @@ func TestValidateAPIBase(t *testing.T) {
 	} {
 		assert.NoError(t, ValidateAPIBase(tc.provider, tc.apiBase), "%s %s", tc.provider, tc.apiBase)
 	}
-	for _, tc := range []struct{ provider, apiBase string }{
-		{"anthropic", "https://collector.example"},
-		{"anthropic", "http://api.anthropic.com"},
-		{"anthropic", "https://api.anthropic.com:8443"},
-		{"anthropic", "https://api.anthropic.com.collector.example"},
-		{"openai", "https://api.anthropic.com/v1"},
-		{"google", "https://api.openai.com/v1"},
-		{"google", ""},
-		{"gemini", ""},
-		{"gemini", "https://collector.example"},
-		{"OpenAI", "https://collector.example/v1"},
-		{"openai", "https://collector.example/v1?key=sk-secret"},
+	// secret is the credential part of apiBase, which the error must not
+	// echo even partially.
+	for _, tc := range []struct{ provider, apiBase, secret string }{
+		{"anthropic", "https://collector.example", ""},
+		{"anthropic", "http://api.anthropic.com", ""},
+		{"anthropic", "https://api.anthropic.com:8443", ""},
+		{"anthropic", "https://api.anthropic.com.collector.example", ""},
+		{"openai", "https://api.anthropic.com/v1", ""},
+		{"google", "https://api.openai.com/v1", ""},
+		{"google", "", ""},
+		{"gemini", "", ""},
+		{"gemini", "https://collector.example", ""},
+		{"OpenAI", "https://collector.example/v1", ""},
+		{"openai", "https://collector.example/v1?key=sk-secret", "sk-secret"},
 	} {
 		err := ValidateAPIBase(tc.provider, tc.apiBase)
-		assert.ErrorIs(t, err, ErrDisallowedAPIBase, "%s %s", tc.provider, tc.apiBase)
-		if tc.apiBase != "" {
-			assert.NotContains(t, err.Error(), tc.apiBase, "the error must not echo apiBase")
-		}
+		require.ErrorIs(t, err, ErrDisallowedAPIBase, "%s %s", tc.provider, tc.apiBase)
+		assertNoAPIBaseEcho(t, err, tc.apiBase, tc.secret)
 	}
-	for _, tc := range []struct{ provider, apiBase string }{
-		{"ollama", "ollama.local:11434"},
-		{"ollama", "/v1"},
-		{"ollama", "ftp://ollama.local/v1"},
-		{"ollama", "http://user:pass@ollama.local/v1"},
-		{"anthropic", "https://key@api.anthropic.com"},
+	for _, tc := range []struct{ provider, apiBase, secret string }{
+		{"ollama", "ollama.local:11434", ""},
+		{"ollama", "/v1", ""},
+		{"ollama", "ftp://ollama.local/v1", ""},
+		{"ollama", "http://user:pass@ollama.local/v1", "pass"},
+		{"anthropic", "https://key@api.anthropic.com", "key@"},
 	} {
 		err := ValidateAPIBase(tc.provider, tc.apiBase)
 		require.Error(t, err, "%s %s", tc.provider, tc.apiBase)
 		assert.NotErrorIs(t, err, ErrDisallowedAPIBase, "%s %s", tc.provider, tc.apiBase)
-		assert.NotContains(t, err.Error(), tc.apiBase, "the error must not echo apiBase")
+		assertNoAPIBaseEcho(t, err, tc.apiBase, tc.secret)
+	}
+}
+
+func assertNoAPIBaseEcho(t *testing.T, err error, apiBase, secret string) {
+	t.Helper()
+	if apiBase != "" {
+		assert.NotContains(t, err.Error(), apiBase, "the error must not echo apiBase")
+	}
+	if secret != "" {
+		assert.NotContains(t, err.Error(), secret, "the error must not echo the credential in apiBase")
 	}
 }
