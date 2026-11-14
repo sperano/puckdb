@@ -81,6 +81,7 @@ func TestValidateAPIBase(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct{ provider, apiBase string }{
 		{"anthropic", ""},
+		{"ollama", ""},
 		{"anthropic", "https://api.anthropic.com"},
 		{"OpenAI", "https://API.openai.com/v1"},
 		{"gemini", "https://generativelanguage.googleapis.com/v1beta/openai/"},
@@ -96,6 +97,10 @@ func TestValidateAPIBase(t *testing.T) {
 		{"anthropic", "https://api.anthropic.com.collector.example"},
 		{"openai", "https://api.anthropic.com/v1"},
 		{"google", "https://api.openai.com/v1"},
+		{"google", ""},
+		{"gemini", ""},
+		{"gemini", "https://collector.example"},
+		{"OpenAI", "https://collector.example/v1"},
 	} {
 		assert.ErrorIs(t, ValidateAPIBase(tc.provider, tc.apiBase), ErrDisallowedAPIBase, "%s %s", tc.provider, tc.apiBase)
 	}
@@ -107,7 +112,8 @@ func TestValidateAPIBase(t *testing.T) {
 		{"anthropic", "https://key@api.anthropic.com"},
 	} {
 		err := ValidateAPIBase(tc.provider, tc.apiBase)
-		assert.Error(t, err, "%s %s", tc.provider, tc.apiBase)
+		require.Error(t, err, "%s %s", tc.provider, tc.apiBase)
 		assert.NotErrorIs(t, err, ErrDisallowedAPIBase, "%s %s", tc.provider, tc.apiBase)
+		assert.NotContains(t, err.Error(), tc.apiBase, "the error must not echo apiBase")
 	}
 }

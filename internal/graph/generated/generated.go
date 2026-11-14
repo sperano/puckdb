@@ -8461,7 +8461,8 @@ input CreateSimAgentInput {
   API base URL override (used for Gemini via the OpenAI-compatible endpoint).
   The provider's API key is sent to it, so anthropic, openai and google accept
   only an https URL on their own host (api.anthropic.com, api.openai.com,
-  generativelanguage.googleapis.com); ollama accepts any http(s) URL.
+  generativelanguage.googleapis.com; google requires one); ollama accepts
+  any http(s) URL without credentials.
   """
   apiBase: String
   """Max output tokens. Omitted = provider default."""

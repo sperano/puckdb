@@ -144,7 +144,7 @@ func TestValidateCreateSimPoolInputRejectsEachBadField(t *testing.T) {
 		{"null agent", func(in *model.CreateSimPoolInput) { in.Agents[1] = nil }, "agents[1]", "required"},
 		{"unknown provider", func(in *model.CreateSimPoolInput) { in.Agents[1].Provider = "claude" }, "agents[1].provider", `unknown provider "claude"`},
 		{"keyed apiBase on another host", func(in *model.CreateSimPoolInput) { in.Agents[0].APIBase = strPtr("https://collector.example/v1") }, "agents[0].apiBase", "must be an https URL on api.anthropic.com"},
-		{"malformed ollama apiBase", func(in *model.CreateSimPoolInput) { in.Agents[1].APIBase = strPtr("ollama.local:11434") }, "agents[1].apiBase", "not an absolute http(s) URL"},
+		{"malformed ollama apiBase", func(in *model.CreateSimPoolInput) { in.Agents[1].APIBase = strPtr("ollama.local:11434") }, "agents[1].apiBase", "must be an absolute http(s) URL"},
 		{"blank model", func(in *model.CreateSimPoolInput) { in.Agents[1].Model = "" }, "agents[1].model", "required"},
 		{"unpriced model", func(in *model.CreateSimPoolInput) { in.Agents[0].Model = "gpt-9-ultra-mystery" }, "agents[0].model", "no known pricing"},
 		{"negative timeout", func(in *model.CreateSimPoolInput) { in.Agents[0].TimeoutSeconds = intPtr(-1) }, "agents[0].timeoutSeconds", "out of range"},

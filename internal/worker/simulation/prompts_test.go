@@ -63,15 +63,6 @@ func TestBuildSystemPrompt_EmptyStrategy(t *testing.T) {
 	assert.NotContains(t, got, "{strategy}")
 }
 
-// TestV1FixedRosterMatchesPrompt pins the V1 fixed-roster assumption
-// documented on PoolConfig (types.go) and on v1FixedCategories /
-// v1FixedRoster (prompts.go, just above systemPromptTemplate): the
-// system prompt's "9 roto categories" line and "Roster: ..." line are
-// hard-coded text, not derived from PoolConfig at runtime. If either
-// constant changes without the corresponding edit to
-// systemPromptTemplate (or vice versa), this test fails — that's the
-// point, since a silent divergence here would mean the agent is being
-// told a roster/category shape the validators don't actually enforce.
 // promptCategories parses the system prompt's "- N roto categories: ..."
 // line into its category names (annotations such as "(lower=better)"
 // dropped) and checks N against their count. Comparing whole names keeps
@@ -89,6 +80,15 @@ func promptCategories(t *testing.T) []string {
 	return cats
 }
 
+// TestV1FixedRosterMatchesPrompt pins the V1 fixed-roster assumption
+// documented on PoolConfig (types.go) and on v1FixedCategories /
+// v1FixedRoster (prompts.go, just above systemPromptTemplate): the
+// system prompt's "9 roto categories" line and "Roster: ..." line are
+// hard-coded text, not derived from PoolConfig at runtime. If either
+// constant changes without the corresponding edit to
+// systemPromptTemplate (or vice versa), this test fails — that's the
+// point, since a silent divergence here would mean the agent is being
+// told a roster/category shape the validators don't actually enforce.
 func TestV1FixedRosterMatchesPrompt(t *testing.T) {
 	assert.Equal(t, v1FixedCategories, promptCategories(t),
 		"v1FixedCategories must match the prompt's hard-coded category line, in order")

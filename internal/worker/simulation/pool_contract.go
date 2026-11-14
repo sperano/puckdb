@@ -146,32 +146,41 @@ var keyedProviderAPIHosts = map[string]string{
 	PricingProviderGoogle:    "generativelanguage.googleapis.com",
 }
 
-// ErrDisallowedAPIBase marks an agent apiBase that would send a provider
-// API key to a host other than the provider's.
+// ErrDisallowedAPIBase marks an agent apiBase that is not an https URL
+// on a keyed provider's own host (a different host, scheme or port), or
+// a missing apiBase for Google, which has no default base URL.
 var ErrDisallowedAPIBase = errors.New("disallowed api base")
 
-// ValidateAPIBase accepts an empty apiBase, any absolute http(s) URL
-// without credentials for Ollama, and only an https URL on the
-// provider's own host (no port, no credentials) for a keyed provider.
-// provider must already pass ValidateProvider.
+// ValidateAPIBase accepts any absolute http(s) URL without credentials
+// for Ollama, and only an https URL on the provider's own host (no port,
+// no credentials) for a keyed provider. An empty apiBase keeps the
+// provider's default base URL, so it is accepted for every provider but
+// Google, whose requests would otherwise go to the OpenAI endpoint.
+// provider must already pass ValidateProvider. The errors never quote
+// apiBase: it can hold a credential and they reach the API log.
 func ValidateAPIBase(provider, apiBase string) error {
+	canonical := canonicalProviderName(provider)
 	if apiBase == "" {
+		if canonical == PricingProviderGoogle {
+			return fmt.Errorf("%w: google has no default base URL, so apiBase must be an https URL on %s",
+				ErrDisallowedAPIBase, keyedProviderAPIHosts[PricingProviderGoogle])
+		}
 		return nil
 	}
 	u, err := url.Parse(apiBase)
 	if err != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") {
-		return fmt.Errorf("%q is not an absolute http(s) URL", apiBase)
+		return errors.New("must be an absolute http(s) URL")
 	}
 	if u.User != nil {
-		return fmt.Errorf("%q must not carry credentials", apiBase)
+		return errors.New("must not carry credentials")
 	}
-	host, keyed := keyedProviderAPIHosts[canonicalProviderName(provider)]
+	host, keyed := keyedProviderAPIHosts[canonical]
 	if !keyed {
 		return nil
 	}
 	if u.Scheme != "https" || !strings.EqualFold(u.Host, host) {
 		return fmt.Errorf("%w: %s requests carry the workspace API key, so apiBase must be an https URL on %s",
-			ErrDisallowedAPIBase, canonicalProviderName(provider), host)
+			ErrDisallowedAPIBase, canonical, host)
 	}
 	return nil
 }
