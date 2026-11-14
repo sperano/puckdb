@@ -77,21 +77,34 @@ func (db *pgDB) GetMessages(ctx context.Context, userID, conversationID string) 
 	if err != nil {
 		return nil, err
 	}
-	rows, err := db.q.GetTranscript(ctx, sqlcdb.GetTranscriptParams{ConversationID: conv, UserID: user})
+	tx, err := db.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})
 	if err != nil {
 		return nil, err
 	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	q := db.q.WithTx(tx)
+	rows, err := q.GetTranscript(ctx, sqlcdb.GetTranscriptParams{ConversationID: conv, UserID: user})
+	if err != nil {
+		return nil, err
+	}
+	calls, err := q.GetTranscriptToolCalls(ctx, sqlcdb.GetTranscriptToolCallsParams{
+		ConversationID: conv, UserID: user,
+	})
+	if err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return nil, err
+	}
+	return assemblePgMessages(rows, calls)
+}
+
+func assemblePgMessages(rows []sqlcdb.GetTranscriptRow, calls []sqlcdb.GetTranscriptToolCallsRow) ([]*Message, error) {
 	result := make([]*Message, len(rows))
 	byID := make(map[string]*Message, len(rows))
 	for i, r := range rows {
 		result[i] = newPgMessage(r.ID, r.Role, r.Content, r.ToolCallID, r.CreatedAt)
 		byID[result[i].ID] = result[i]
-	}
-	calls, err := db.q.GetTranscriptToolCalls(ctx, sqlcdb.GetTranscriptToolCallsParams{
-		ConversationID: conv, UserID: user,
-	})
-	if err != nil {
-		return nil, err
 	}
 	for _, call := range calls {
 		message := byID[uuidToString(call.MessageID)]

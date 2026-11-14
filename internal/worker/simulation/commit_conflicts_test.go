@@ -7,13 +7,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// toolCallRows flattens every sim_agent_tool_calls batch the turn wrote.
+// toolCallRows returns every sim_agent_tool_calls row the turn wrote.
 func (s *ManageRosterTestSuite) toolCallRows() []sqlcdb.InsertSimAgentToolCallParams {
-	var rows []sqlcdb.InsertSimAgentToolCallParams
-	for _, b := range s.queries.insertToolCallBatches {
-		rows = append(rows, b...)
-	}
-	return rows
+	return s.queries.insertToolCallCalls
 }
 
 // An add that lost the commit-time recheck never joined the roster, so a

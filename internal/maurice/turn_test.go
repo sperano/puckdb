@@ -39,6 +39,7 @@ func TestChat_RecordsEveryCallOfTheTurn(t *testing.T) {
 	require.Len(t, record.Calls, 2)
 
 	c0 := record.Calls[0]
+	assert.Equal(t, 1, c0.OutputMessageIndex)
 	assert.Equal(t, CallChatRound, c0.Kind)
 	require.NotNil(t, c0.Round)
 	assert.Equal(t, 0, *c0.Round)
@@ -70,6 +71,7 @@ func TestChat_RecordsEveryCallOfTheTurn(t *testing.T) {
 	require.NotNil(t, tc.CompletedAt)
 
 	c1 := record.Calls[1]
+	assert.Equal(t, -1, c1.OutputMessageIndex)
 	assert.Equal(t, 1, *c1.Round)
 	assert.Equal(t, "test-model", c1.Model, "the configured model when the provider reports none")
 	assert.Equal(t, []MessageRef{{TurnIndex: 0}, {TurnIndex: 1}, {TurnIndex: 2}}, c1.Inputs)

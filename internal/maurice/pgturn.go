@@ -279,8 +279,7 @@ func insertMissingTranscriptToolCalls(
 			id, err := q.InsertTranscriptToolCall(ctx, sqlcdb.InsertTranscriptToolCallParams{
 				TurnID: turnID, MessageID: messageIDs[messageIndex], SequenceNumber: int32(sequence),
 				ProviderToolCallID: optionalText(call.ID), ToolType: defaultToolType(call.Type),
-				ToolName: call.Function.Name, Arguments: jsonbArguments(call.Function.Arguments),
-				ArgumentsRaw: call.Function.Arguments,
+				ToolName: call.Function.Name, ArgumentsRaw: call.Function.Arguments,
 			})
 			if err != nil {
 				return nil, fmt.Errorf("message %d: insert transcript tool call %d: %w", messageIndex, sequence, err)

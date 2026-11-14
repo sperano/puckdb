@@ -658,6 +658,29 @@ func (q *Queries) InsertSimAgent(ctx context.Context, arg InsertSimAgentParams) 
 	return i, err
 }
 
+const insertSimAgentToolCall = `-- name: InsertSimAgentToolCall :exec
+INSERT INTO sim_agent_tool_calls (
+    turn_id, round_index, sequence,
+    message_ordinal, provider_tool_call_id, tool_type,
+    tool_name, recovered_name,
+    arguments_raw, arguments,
+    result, outcome, failure_reason,
+    applied_transaction_id, latency_ms
+)
+VALUES (
+    $1, $2, $3,
+    $4, $5, $6,
+    $7, $8, $9,
+    -- OFFSET 0 keeps PostgreSQL from evaluating the cast before the validity filter.
+    (SELECT valid.raw::jsonb
+     FROM (SELECT $9::text AS raw
+           WHERE pg_input_is_valid($9::text, 'jsonb')
+           OFFSET 0) valid),
+    $10, $11, $12,
+    $13, $14
+)
+`
+
 type InsertSimAgentToolCallParams struct {
 	TurnID               int32       `json:"turn_id"`
 	RoundIndex           int32       `json:"round_index"`
@@ -668,12 +691,33 @@ type InsertSimAgentToolCallParams struct {
 	ToolName             string      `json:"tool_name"`
 	RecoveredName        pgtype.Text `json:"recovered_name"`
 	ArgumentsRaw         string      `json:"arguments_raw"`
-	Arguments            []byte      `json:"arguments"`
 	Result               string      `json:"result"`
 	Outcome              string      `json:"outcome"`
 	FailureReason        pgtype.Text `json:"failure_reason"`
 	AppliedTransactionID pgtype.Int4 `json:"applied_transaction_id"`
 	LatencyMs            int32       `json:"latency_ms"`
+}
+
+// InsertSimAgentToolCall is one tool-call row. PostgreSQL derives the
+// nullable JSONB projection so provider text it cannot represent stays raw.
+func (q *Queries) InsertSimAgentToolCall(ctx context.Context, arg InsertSimAgentToolCallParams) error {
+	_, err := q.db.Exec(ctx, insertSimAgentToolCall,
+		arg.TurnID,
+		arg.RoundIndex,
+		arg.Sequence,
+		arg.MessageOrdinal,
+		arg.ProviderToolCallID,
+		arg.ToolType,
+		arg.ToolName,
+		arg.RecoveredName,
+		arg.ArgumentsRaw,
+		arg.Result,
+		arg.Outcome,
+		arg.FailureReason,
+		arg.AppliedTransactionID,
+		arg.LatencyMs,
+	)
+	return err
 }
 
 const insertSimAgentTurn = `-- name: InsertSimAgentTurn :one

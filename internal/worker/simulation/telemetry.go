@@ -2,10 +2,8 @@ package simulation
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"math"
-	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
@@ -233,7 +231,8 @@ func RecoveredName(rawName string, action Action, distance int) string {
 	return canonical
 }
 
-// AssignRoundsFromAudit fills RoundIndex and Sequence on each capture
+// AssignRoundsFromAudit fills RoundIndex, Sequence, ProviderToolCallID and
+// ToolType on each capture
 // by zipping against agentloop.Result.Audit. agentloop.Run calls the
 // executor in the same order it records Audit entries, so the i-th
 // capture corresponds to the i-th audit entry. The fixup mutates the
@@ -429,13 +428,4 @@ func numericOrNull(p *float64) pgtype.Numeric {
 		return pgtype.Numeric{}
 	}
 	return n
-}
-
-const simulationJSONNullEscape = `\u0000`
-
-func simulationArgumentsJSONB(raw string) []byte {
-	if !json.Valid([]byte(raw)) || strings.Contains(raw, simulationJSONNullEscape) {
-		return nil
-	}
-	return []byte(raw)
 }

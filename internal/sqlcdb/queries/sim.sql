@@ -896,8 +896,9 @@ FROM sim_agent_turn_rounds
 WHERE turn_id = $1
 ORDER BY round_index;
 
--- InsertSimAgentToolCall is one tool-call row. Batched via :copyfrom.
--- name: InsertSimAgentToolCall :copyfrom
+-- InsertSimAgentToolCall is one tool-call row. PostgreSQL derives the
+-- nullable JSONB projection so provider text it cannot represent stays raw.
+-- name: InsertSimAgentToolCall :exec
 INSERT INTO sim_agent_tool_calls (
     turn_id, round_index, sequence,
     message_ordinal, provider_tool_call_id, tool_type,
@@ -906,7 +907,18 @@ INSERT INTO sim_agent_tool_calls (
     result, outcome, failure_reason,
     applied_transaction_id, latency_ms
 )
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15);
+VALUES (
+    sqlc.arg(turn_id), sqlc.arg(round_index), sqlc.arg(sequence),
+    sqlc.arg(message_ordinal), sqlc.arg(provider_tool_call_id), sqlc.arg(tool_type),
+    sqlc.arg(tool_name), sqlc.arg(recovered_name), sqlc.arg(arguments_raw),
+    -- OFFSET 0 keeps PostgreSQL from evaluating the cast before the validity filter.
+    (SELECT valid.raw::jsonb
+     FROM (SELECT sqlc.arg(arguments_raw)::text AS raw
+           WHERE pg_input_is_valid(sqlc.arg(arguments_raw)::text, 'jsonb')
+           OFFSET 0) valid),
+    sqlc.arg(result), sqlc.arg(outcome), sqlc.arg(failure_reason),
+    sqlc.arg(applied_transaction_id), sqlc.arg(latency_ms)
+);
 
 -- ListSimAgentToolCalls returns all tool calls for one turn, in execution
 -- order. Used by the drill-down query "show me everything the agent did."

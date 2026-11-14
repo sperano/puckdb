@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strings"
 
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/sperano/puckdb/internal/sqlcdb"
@@ -112,7 +111,6 @@ func toolCallParams(turnID pgtype.UUID, callID int64, seq int, tc ToolCallRecord
 		ProviderToolCallID: optionalText(tc.ProviderToolCallID),
 		ToolType:           defaultToolType(tc.Type),
 		ToolName:           tc.Name,
-		Arguments:          jsonbArguments(tc.ArgumentsRaw),
 		ArgumentsRaw:       tc.ArgumentsRaw,
 		Result:             optionalTextPtr(tc.Result),
 		Status:             optionalText(string(tc.Status)),
@@ -126,23 +124,13 @@ func toolCallParams(turnID pgtype.UUID, callID int64, seq int, tc ToolCallRecord
 	return params
 }
 
-const (
-	defaultFunctionToolType = "function"
-	jsonNullEscape          = `\u0000`
-)
+const defaultFunctionToolType = "function"
 
 func defaultToolType(toolType string) string {
 	if toolType == "" {
 		return defaultFunctionToolType
 	}
 	return toolType
-}
-
-func jsonbArguments(raw string) []byte {
-	if !json.Valid([]byte(raw)) || strings.Contains(raw, jsonNullEscape) {
-		return nil
-	}
-	return []byte(raw)
 }
 
 func optionalInt8(v *int64) pgtype.Int8 {

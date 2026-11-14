@@ -71,8 +71,7 @@ func requireAbortedTurnSpend[Q any](t *testing.T, pool *poolFake, turns *turnRow
 // sim_agent_tool_calls primary key and roll the spend back.
 func requireAcceptedToolCalls(t *testing.T, turns *turnRowsFake, wantTools ...string) {
 	t.Helper()
-	require.Len(t, turns.insertToolCallBatches, 1)
-	calls := turns.insertToolCallBatches[0]
+	calls := turns.insertToolCallCalls
 	require.Len(t, calls, len(wantTools))
 	for i, call := range calls {
 		assert.Equal(t, wantTools[i], call.ToolName)
@@ -210,5 +209,5 @@ func TestRecordAbortedTurnKeepsNewerTurn(t *testing.T) {
 	assert.Len(t, q.insertTurnIfAbsentCalls, 1)
 	assert.Empty(t, q.deleteTurnCalls)
 	assert.Empty(t, q.insertTurnRoundBatches, "no children without the turn row")
-	assert.Empty(t, q.insertToolCallBatches)
+	assert.Empty(t, q.insertToolCallCalls)
 }

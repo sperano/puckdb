@@ -191,8 +191,7 @@ func TestRecordTurnTelemetry_MessagesGatedByRecordMessages(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, q.insertTurnMessageBatches, 1)
 		assert.Len(t, q.insertTurnMessageBatches[0], 1)
-		require.Len(t, q.insertToolCallBatches, 1)
-		assert.Len(t, q.insertToolCallBatches[0], 1)
+		assert.Len(t, q.insertToolCallCalls, 1)
 	})
 
 	t.Run("RecordMessages false skips messages but keeps tool calls", func(t *testing.T) {
@@ -205,7 +204,7 @@ func TestRecordTurnTelemetry_MessagesGatedByRecordMessages(t *testing.T) {
 		})
 		require.NoError(t, err)
 		assert.Empty(t, q.insertTurnMessageBatches, "messages must not be written when RecordMessages is false")
-		require.Len(t, q.insertToolCallBatches, 1)
+		require.Len(t, q.insertToolCallCalls, 1)
 	})
 }
 

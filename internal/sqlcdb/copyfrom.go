@@ -46,53 +46,6 @@ func (q *Queries) CopyProcessPlayersManifestPlayers(ctx context.Context, arg []C
 	return q.db.CopyFrom(ctx, []string{"process_players_manifest_players"}, []string{"manifest_id", "ordinal", "player_id", "first_name", "last_name", "position"}, &iteratorForCopyProcessPlayersManifestPlayers{rows: arg})
 }
 
-// iteratorForInsertSimAgentToolCall implements pgx.CopyFromSource.
-type iteratorForInsertSimAgentToolCall struct {
-	rows                 []InsertSimAgentToolCallParams
-	skippedFirstNextCall bool
-}
-
-func (r *iteratorForInsertSimAgentToolCall) Next() bool {
-	if len(r.rows) == 0 {
-		return false
-	}
-	if !r.skippedFirstNextCall {
-		r.skippedFirstNextCall = true
-		return true
-	}
-	r.rows = r.rows[1:]
-	return len(r.rows) > 0
-}
-
-func (r iteratorForInsertSimAgentToolCall) Values() ([]interface{}, error) {
-	return []interface{}{
-		r.rows[0].TurnID,
-		r.rows[0].RoundIndex,
-		r.rows[0].Sequence,
-		r.rows[0].MessageOrdinal,
-		r.rows[0].ProviderToolCallID,
-		r.rows[0].ToolType,
-		r.rows[0].ToolName,
-		r.rows[0].RecoveredName,
-		r.rows[0].ArgumentsRaw,
-		r.rows[0].Arguments,
-		r.rows[0].Result,
-		r.rows[0].Outcome,
-		r.rows[0].FailureReason,
-		r.rows[0].AppliedTransactionID,
-		r.rows[0].LatencyMs,
-	}, nil
-}
-
-func (r iteratorForInsertSimAgentToolCall) Err() error {
-	return nil
-}
-
-// InsertSimAgentToolCall is one tool-call row. Batched via :copyfrom.
-func (q *Queries) InsertSimAgentToolCall(ctx context.Context, arg []InsertSimAgentToolCallParams) (int64, error) {
-	return q.db.CopyFrom(ctx, []string{"sim_agent_tool_calls"}, []string{"turn_id", "round_index", "sequence", "message_ordinal", "provider_tool_call_id", "tool_type", "tool_name", "recovered_name", "arguments_raw", "arguments", "result", "outcome", "failure_reason", "applied_transaction_id", "latency_ms"}, &iteratorForInsertSimAgentToolCall{rows: arg})
-}
-
 // iteratorForInsertSimAgentTurnMessage implements pgx.CopyFromSource.
 type iteratorForInsertSimAgentTurnMessage struct {
 	rows                 []InsertSimAgentTurnMessageParams

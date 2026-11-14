@@ -162,7 +162,16 @@ INSERT INTO maurice_tool_calls (
     turn_id, llm_call_id, message_id, sequence_number, provider_tool_call_id,
     tool_type, tool_name, arguments, arguments_raw, result, status, started_at, completed_at
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13
+    sqlc.arg(turn_id), sqlc.arg(llm_call_id), sqlc.arg(message_id),
+    sqlc.arg(sequence_number), sqlc.arg(provider_tool_call_id), sqlc.arg(tool_type),
+    sqlc.arg(tool_name),
+    -- OFFSET 0 keeps PostgreSQL from evaluating the cast before the validity filter.
+    (SELECT valid.raw::jsonb
+     FROM (SELECT sqlc.arg(arguments_raw)::text AS raw
+           WHERE pg_input_is_valid(sqlc.arg(arguments_raw)::text, 'jsonb')
+           OFFSET 0) valid),
+    sqlc.arg(arguments_raw), sqlc.arg(result), sqlc.arg(status),
+    sqlc.arg(started_at), sqlc.arg(completed_at)
 )
 RETURNING id;
 
@@ -171,7 +180,14 @@ INSERT INTO maurice_tool_calls (
     turn_id, message_id, sequence_number, provider_tool_call_id, tool_type,
     tool_name, arguments, arguments_raw
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8
+    sqlc.arg(turn_id), sqlc.arg(message_id), sqlc.arg(sequence_number),
+    sqlc.arg(provider_tool_call_id), sqlc.arg(tool_type), sqlc.arg(tool_name),
+    -- OFFSET 0 keeps PostgreSQL from evaluating the cast before the validity filter.
+    (SELECT valid.raw::jsonb
+     FROM (SELECT sqlc.arg(arguments_raw)::text AS raw
+           WHERE pg_input_is_valid(sqlc.arg(arguments_raw)::text, 'jsonb')
+           OFFSET 0) valid),
+    sqlc.arg(arguments_raw)
 )
 RETURNING id;
 

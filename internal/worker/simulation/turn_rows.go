@@ -15,7 +15,7 @@ import (
 // RecordTurnTelemetry and the aborted-turn write) needs it.
 type turnChildQueries interface {
 	InsertSimAgentTurnRound(ctx context.Context, arg []sqlcdb.InsertSimAgentTurnRoundParams) (int64, error)
-	InsertSimAgentToolCall(ctx context.Context, arg []sqlcdb.InsertSimAgentToolCallParams) (int64, error)
+	InsertSimAgentToolCall(ctx context.Context, arg sqlcdb.InsertSimAgentToolCallParams) error
 	InsertSimAgentTurnMessage(ctx context.Context, arg []sqlcdb.InsertSimAgentTurnMessageParams) (int64, error)
 	LinkSimAgentTurnMessageResults(ctx context.Context, arg sqlcdb.LinkSimAgentTurnMessageResultsParams) error
 }
@@ -110,10 +110,9 @@ func recordTurnToolCalls(ctx context.Context, q turnChildQueries, turnID int32, 
 	if len(toolCalls) == 0 {
 		return nil
 	}
-	calls := make([]sqlcdb.InsertSimAgentToolCallParams, 0, len(toolCalls))
 	for _, tc := range toolCalls {
 		messageOrdinal, linked := links.calls[toolCoordinate{round: tc.RoundIndex, sequence: tc.Sequence}]
-		calls = append(calls, sqlcdb.InsertSimAgentToolCallParams{
+		params := sqlcdb.InsertSimAgentToolCallParams{
 			TurnID:               turnID,
 			RoundIndex:           int32(tc.RoundIndex),
 			Sequence:             int32(tc.Sequence),
@@ -123,16 +122,15 @@ func recordTurnToolCalls(ctx context.Context, q turnChildQueries, turnID int32, 
 			ToolName:             tc.ToolName,
 			RecoveredName:        textOrNull(tc.RecoveredName),
 			ArgumentsRaw:         tc.ArgumentsRaw,
-			Arguments:            simulationArgumentsJSONB(tc.ArgumentsRaw),
 			Result:               tc.Result,
 			Outcome:              string(tc.Outcome),
 			FailureReason:        textOrNull(tc.FailureReason),
 			AppliedTransactionID: int4OrNull(tc.AppliedTransactionID),
 			LatencyMs:            durationToMs(tc.Latency),
-		})
-	}
-	if _, err := q.InsertSimAgentToolCall(ctx, calls); err != nil {
-		return fmt.Errorf("simulation: insert tool calls: %w", err)
+		}
+		if err := q.InsertSimAgentToolCall(ctx, params); err != nil {
+			return fmt.Errorf("simulation: insert tool call: %w", err)
+		}
 	}
 	return nil
 }

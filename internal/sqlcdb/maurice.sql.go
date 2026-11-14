@@ -478,7 +478,16 @@ INSERT INTO maurice_tool_calls (
     turn_id, llm_call_id, message_id, sequence_number, provider_tool_call_id,
     tool_type, tool_name, arguments, arguments_raw, result, status, started_at, completed_at
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13
+    $1, $2, $3,
+    $4, $5, $6,
+    $7,
+    -- OFFSET 0 keeps PostgreSQL from evaluating the cast before the validity filter.
+    (SELECT valid.raw::jsonb
+     FROM (SELECT $8::text AS raw
+           WHERE pg_input_is_valid($8::text, 'jsonb')
+           OFFSET 0) valid),
+    $8, $9, $10,
+    $11, $12
 )
 RETURNING id
 `
@@ -491,7 +500,6 @@ type InsertToolCallParams struct {
 	ProviderToolCallID pgtype.Text        `json:"provider_tool_call_id"`
 	ToolType           string             `json:"tool_type"`
 	ToolName           string             `json:"tool_name"`
-	Arguments          []byte             `json:"arguments"`
 	ArgumentsRaw       string             `json:"arguments_raw"`
 	Result             pgtype.Text        `json:"result"`
 	Status             pgtype.Text        `json:"status"`
@@ -508,7 +516,6 @@ func (q *Queries) InsertToolCall(ctx context.Context, arg InsertToolCallParams) 
 		arg.ProviderToolCallID,
 		arg.ToolType,
 		arg.ToolName,
-		arg.Arguments,
 		arg.ArgumentsRaw,
 		arg.Result,
 		arg.Status,
@@ -525,7 +532,14 @@ INSERT INTO maurice_tool_calls (
     turn_id, message_id, sequence_number, provider_tool_call_id, tool_type,
     tool_name, arguments, arguments_raw
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8
+    $1, $2, $3,
+    $4, $5, $6,
+    -- OFFSET 0 keeps PostgreSQL from evaluating the cast before the validity filter.
+    (SELECT valid.raw::jsonb
+     FROM (SELECT $7::text AS raw
+           WHERE pg_input_is_valid($7::text, 'jsonb')
+           OFFSET 0) valid),
+    $7
 )
 RETURNING id
 `
@@ -537,7 +551,6 @@ type InsertTranscriptToolCallParams struct {
 	ProviderToolCallID pgtype.Text `json:"provider_tool_call_id"`
 	ToolType           string      `json:"tool_type"`
 	ToolName           string      `json:"tool_name"`
-	Arguments          []byte      `json:"arguments"`
 	ArgumentsRaw       string      `json:"arguments_raw"`
 }
 
@@ -549,7 +562,6 @@ func (q *Queries) InsertTranscriptToolCall(ctx context.Context, arg InsertTransc
 		arg.ProviderToolCallID,
 		arg.ToolType,
 		arg.ToolName,
-		arg.Arguments,
 		arg.ArgumentsRaw,
 	)
 	var id int64

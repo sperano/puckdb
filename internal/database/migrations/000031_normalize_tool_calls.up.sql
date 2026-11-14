@@ -1,6 +1,22 @@
 -- Tool calls are queryable rows linked to their assistant message. Raw
 -- arguments preserve malformed provider output; arguments is the nullable
 -- jsonb projection for valid payloads.
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM maurice_messages
+        WHERE tool_calls IS NOT NULL AND jsonb_typeof(tool_calls) <> 'array'
+    ) THEN
+        RAISE EXCEPTION 'maurice_messages.tool_calls contains a non-array value';
+    END IF;
+    IF EXISTS (
+        SELECT 1 FROM sim_agent_turn_messages
+        WHERE tool_calls IS NOT NULL AND jsonb_typeof(tool_calls) <> 'array'
+    ) THEN
+        RAISE EXCEPTION 'sim_agent_turn_messages.tool_calls contains a non-array value';
+    END IF;
+END $$;
+
 ALTER TABLE maurice_tool_calls
     ADD COLUMN message_id uuid REFERENCES maurice_messages(id) ON DELETE SET NULL,
     ADD COLUMN tool_type text NOT NULL DEFAULT 'function' CHECK (tool_type <> '');
