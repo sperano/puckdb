@@ -1,15 +1,28 @@
 package database
 
 import (
+	"context"
 	"testing"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-const toolArgumentsVersion = 31
+const (
+	toolArgumentsVersion   = 31
+	simValidArguments      = `{"player_id":1}`
+	mauriceValidArguments  = `{"query":"ok"}`
+	jsonNullEscapeArgument = `{"value":"\u0000"}`
+)
 
 func seedToolArgumentRows(t *testing.T, conn *pgx.Conn) {
+	t.Helper()
+	seedSimToolArgumentRows(t, conn)
+	seedMauriceToolArgumentRows(t, conn)
+}
+
+func seedSimToolArgumentRows(t *testing.T, conn *pgx.Conn) {
 	t.Helper()
 	execSQL(t, conn, `
 WITH season AS (
@@ -27,9 +40,16 @@ WITH season AS (
 )
 INSERT INTO sim_agent_tool_calls
     (turn_id, round_index, sequence, tool_name, arguments_raw, arguments, result, outcome)
-SELECT id, 0, 0, 'valid', '{"player_id":1}', '{"player_id":1}'::jsonb, '', 'accepted' FROM turn_row
+SELECT id, 0, 0, 'valid', $1::text, ($1::text)::jsonb, '', 'accepted' FROM turn_row
 UNION ALL
-SELECT id, 0, 1, 'invalid', '{"player_id":', NULL, '', 'parse_error' FROM turn_row`)
+SELECT id, 0, 1, 'invalid', '{"player_id":', NULL, '', 'parse_error' FROM turn_row
+UNION ALL
+SELECT id, 0, 2, 'json-null-escape', $2::text, NULL, '', 'parse_error' FROM turn_row`,
+		simValidArguments, jsonNullEscapeArgument)
+}
+
+func seedMauriceToolArgumentRows(t *testing.T, conn *pgx.Conn) {
+	t.Helper()
 	execSQL(t, conn, `
 WITH user_row AS (
     INSERT INTO app_users (instance, auth_provider, auth_subject, username)
@@ -49,12 +69,40 @@ WITH user_row AS (
 )
 INSERT INTO maurice_tool_calls
     (turn_id, llm_call_id, sequence_number, tool_name, arguments_raw, arguments, result, status, started_at, completed_at)
-SELECT turn_id, id, 0, 'valid', '{"query":"ok"}', '{"query":"ok"}'::jsonb, '', 'succeeded', now(), now() FROM call_row
+SELECT turn_id, id, 0, 'valid', $1::text, ($1::text)::jsonb, '', 'succeeded', now(), now() FROM call_row
 UNION ALL
-SELECT turn_id, id, 1, 'invalid', '{"query":', NULL, '', 'parse_error', now(), now() FROM call_row`)
+SELECT turn_id, id, 1, 'invalid', '{"query":', NULL, '', 'parse_error', now(), now() FROM call_row
+UNION ALL
+SELECT turn_id, id, 2, 'json-null-escape', $2::text, NULL, '', 'parse_error', now(), now() FROM call_row`,
+		mauriceValidArguments, jsonNullEscapeArgument)
 }
 
-// Up removes the duplicate parsed payloads. Down derives them for valid JSON
+func assertRestoredToolArguments(t *testing.T, conn *pgx.Conn, table, validArguments string) {
+	t.Helper()
+	rows, err := conn.Query(context.Background(),
+		`SELECT tool_name, arguments::text FROM `+table)
+	require.NoError(t, err)
+	defer rows.Close()
+
+	arguments := make(map[string]*string)
+	for rows.Next() {
+		var toolName string
+		var value *string
+		require.NoError(t, rows.Scan(&toolName, &value))
+		arguments[toolName] = value
+	}
+	require.NoError(t, rows.Err())
+
+	require.Contains(t, arguments, "valid")
+	require.Contains(t, arguments, "invalid")
+	require.Contains(t, arguments, "json-null-escape")
+	require.NotNil(t, arguments["valid"])
+	assert.JSONEq(t, validArguments, *arguments["valid"])
+	assert.Nil(t, arguments["invalid"])
+	assert.Nil(t, arguments["json-null-escape"])
+}
+
+// Up removes the duplicate parsed payloads. Down derives them for valid jsonb
 // without rejecting the malformed provider output that raw text preserves.
 func TestIntegration_ToolArgumentsMigration(t *testing.T) {
 	conn, dbURL := freshDatabase(t)
@@ -72,9 +120,9 @@ func TestIntegration_ToolArgumentsMigration(t *testing.T) {
 		exists, nullable := columnNullable(t, conn, table, "arguments")
 		assert.True(t, exists)
 		assert.True(t, nullable)
-		assert.Equal(t, 1, countRows(t, conn, `SELECT count(*) FROM `+table+` WHERE arguments IS NOT NULL`))
-		assert.Equal(t, 1, countRows(t, conn, `SELECT count(*) FROM `+table+` WHERE arguments IS NULL`))
 	}
+	assertRestoredToolArguments(t, conn, "sim_agent_tool_calls", simValidArguments)
+	assertRestoredToolArguments(t, conn, "maurice_tool_calls", mauriceValidArguments)
 
 	migrateTo(t, dbURL, toolArgumentsVersion)
 }
