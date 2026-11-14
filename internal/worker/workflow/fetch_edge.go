@@ -32,60 +32,39 @@ func countEdgeActivities(_ workflow.Context, _ nhl.SeasonInfo) (int, error) {
 }
 
 // FetchEdgeSeasonsWorkflow fetches Edge stats for all eligible seasons (>= 2021-2022).
+// Existing files are only overwritten when RefreshCurrentEdge is set, with
+// the scope of refreshSelectedSeason.
 func FetchEdgeSeasonsWorkflow(ctx workflow.Context, input *model.SeasonsInput) error {
-	input = normalizeSeasonsInput(input)
-	logger := workflow.GetLogger(ctx)
-
-	concurrency, err := shared.SnapshotConfigInt(ctx, logger, shared.SeasonConcurrencyParam, input.SeasonConcurrency)
-	if err != nil {
-		return err
-	}
-
-	tracker, err := shared.InitTracker(ctx, &shared.ProgressReport{
-		Groups: []shared.ProgressGroup{
-			{Header: "Fetching Edge stats...", Bars: []shared.ProgressBar{}},
+	_, err := runSeasonFanOut(ctx, input, SeasonFanOut{
+		Report: &shared.ProgressReport{
+			Groups: []shared.ProgressGroup{
+				{Header: "Fetching Edge stats...", Bars: []shared.ProgressBar{}},
+			},
 		},
-	})
-	if err != nil {
-		return err
-	}
-
-	ctx = workflow.WithActivityOptions(ctx, shared.DefaultActivityOptions())
-
-	seasons, err := loadSeasonsManifest(ctx, logger, input)
-	if err != nil {
-		return err
-	}
-
-	// Filter to Edge-eligible seasons
-	seasons = filterEdgeSeasons(seasons)
-	if len(seasons) == 0 {
-		return nil
-	}
-
-	// With an explicit season range the operator scoped the refresh
-	// deliberately, so the flag applies to every season in it. Without a
-	// range it applies to the latest season only — the one still accruing
-	// data. This intentionally avoids a calendar gate: nhl.Current() rolls
-	// over on July 1, which made the flag a silent no-op for a season whose
-	// playoffs had just ended.
-	refreshFlag := input.RefreshCurrentEdge != nil && *input.RefreshCurrentEdge
-	rangeGiven := input.StartSeason != nil || input.EndSeason != nil
-
-	_, err = processSeasonGroup(ctx, tracker, seasons, concurrency, SeasonGroupConfig{
-		GroupIdx:      0,
-		Counter:       countEdgeActivities,
-		SourceKeyFunc: WorkflowIDFetchEdge,
-		GroupLabel:    "Fetched Edge stats for",
-		CountLabel:    "endpoints",
-	}, func(ctx workflow.Context, i int) workflow.Future {
-		season := seasons[i]
-		refresh := refreshFlag && (rangeGiven || i == len(seasons)-1)
-		return workflow.ExecuteChildWorkflow(
-			shared.WithChildOptions(ctx, WorkflowIDFetchEdge(season.ID.StartYear())),
-			FetchEdgeWorkflow, FetchEdgeWorkflowInput{Season: season, RefreshCurrent: refresh})
+		Select:  filterEdgeSeasons,
+		Prepare: planFetchEdgeSeasons,
 	})
 	return err
+}
+
+// planFetchEdgeSeasons starts one FetchEdgeWorkflow per eligible season.
+func planFetchEdgeSeasons(_ workflow.Context, state SeasonFanOutState) (SeasonFanOutPlan, error) {
+	input := state.Input
+	return SeasonFanOutPlan{
+		Group: SeasonGroupConfig{
+			GroupIdx:      0,
+			Counter:       countEdgeActivities,
+			SourceKeyFunc: WorkflowIDFetchEdge,
+			GroupLabel:    "Fetched Edge stats for",
+			CountLabel:    "endpoints",
+		},
+		Start: func(ctx workflow.Context, season nhl.SeasonInfo, _ int, last bool) workflow.Future {
+			refresh := refreshSelectedSeason(input, input.RefreshCurrentEdge, last)
+			return workflow.ExecuteChildWorkflow(
+				shared.WithChildOptions(ctx, WorkflowIDFetchEdge(season.ID.StartYear())),
+				FetchEdgeWorkflow, FetchEdgeWorkflowInput{Season: season, RefreshCurrent: refresh})
+		},
+	}, nil
 }
 
 // FetchEdgeWorkflowInput contains parameters for a single-season Edge fetch.

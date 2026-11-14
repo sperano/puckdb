@@ -21,48 +21,34 @@ func countEdgeImportActivities(_ workflow.Context, _ nhl.SeasonInfo) (int, error
 
 // ImportEdgeSeasonsWorkflow imports cached Edge stats into the database for all eligible seasons.
 func ImportEdgeSeasonsWorkflow(ctx workflow.Context, input *model.SeasonsInput) error {
-	input = normalizeSeasonsInput(input)
-	logger := workflow.GetLogger(ctx)
-
-	concurrency, err := shared.SnapshotConfigInt(ctx, logger, shared.SeasonConcurrencyParam, input.SeasonConcurrency)
-	if err != nil {
-		return err
-	}
-
-	tracker, err := shared.InitTracker(ctx, &shared.ProgressReport{
-		Groups: []shared.ProgressGroup{
-			{Header: "Importing Edge stats...", Bars: []shared.ProgressBar{}},
+	_, err := runSeasonFanOut(ctx, input, SeasonFanOut{
+		Report: &shared.ProgressReport{
+			Groups: []shared.ProgressGroup{
+				{Header: "Importing Edge stats...", Bars: []shared.ProgressBar{}},
+			},
 		},
-	})
-	if err != nil {
-		return err
-	}
-
-	ctx = workflow.WithActivityOptions(ctx, shared.DefaultActivityOptions())
-
-	seasons, err := loadSeasonsManifest(ctx, logger, input)
-	if err != nil {
-		return err
-	}
-
-	seasons = filterEdgeSeasons(seasons)
-	if len(seasons) == 0 {
-		return nil
-	}
-
-	_, err = processSeasonGroup(ctx, tracker, seasons, concurrency, SeasonGroupConfig{
-		GroupIdx:      0,
-		Counter:       countEdgeImportActivities,
-		SourceKeyFunc: WorkflowIDImportEdge,
-		GroupLabel:    "Imported Edge stats for",
-		CountLabel:    "imports",
-	}, func(ctx workflow.Context, i int) workflow.Future {
-		season := seasons[i]
-		return workflow.ExecuteChildWorkflow(
-			shared.WithChildOptions(ctx, WorkflowIDImportEdge(season.ID.StartYear())),
-			ImportEdgeWorkflow, season)
+		Select:  filterEdgeSeasons,
+		Prepare: planImportEdgeSeasons,
 	})
 	return err
+}
+
+// planImportEdgeSeasons starts one ImportEdgeWorkflow per eligible season.
+func planImportEdgeSeasons(workflow.Context, SeasonFanOutState) (SeasonFanOutPlan, error) {
+	return SeasonFanOutPlan{
+		Group: SeasonGroupConfig{
+			GroupIdx:      0,
+			Counter:       countEdgeImportActivities,
+			SourceKeyFunc: WorkflowIDImportEdge,
+			GroupLabel:    "Imported Edge stats for",
+			CountLabel:    "imports",
+		},
+		Start: func(ctx workflow.Context, season nhl.SeasonInfo, _ int, _ bool) workflow.Future {
+			return workflow.ExecuteChildWorkflow(
+				shared.WithChildOptions(ctx, WorkflowIDImportEdge(season.ID.StartYear())),
+				ImportEdgeWorkflow, season)
+		},
+	}, nil
 }
 
 // NewImportEdgeProgressReport creates the progress structure for a single season Edge import.

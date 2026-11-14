@@ -159,3 +159,15 @@ func (p SeasonFanOutPlan) validate(groups int) error {
 	}
 	return nil
 }
+
+// refreshSelectedSeason reports whether a refresh-style flag (flag, nil when
+// unset) applies to a selected season. With an explicit season range the
+// operator scoped the refresh deliberately, so the flag applies to every
+// season in it. Without a range it applies to the last selected season only,
+// the one still accruing data. This intentionally avoids a calendar gate:
+// nhl.Current() rolls over on July 1, which made the flag a silent no-op for
+// a season whose playoffs had just ended.
+func refreshSelectedSeason(input *model.SeasonsInput, flag *bool, last bool) bool {
+	rangeGiven := input.StartSeason != nil || input.EndSeason != nil
+	return flag != nil && *flag && (rangeGiven || last)
+}
