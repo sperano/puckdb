@@ -74,7 +74,8 @@ func requireFreshness(t *testing.T, want map[string]time.Time) {
 
 // freshnessSessionZones are the session time zones every dataset is
 // collected in: a date column must read as 00:00 UTC whatever the session's
-// zone, so a query that drops AT TIME ZONE 'UTC' fails in the second one.
+// zone, so a query casting the date straight to timestamptz (00:00 in the
+// session zone, 05:00 UTC in Montreal) fails in the second one.
 var freshnessSessionZones = []string{"UTC", "America/Montreal"}
 
 // requireFreshnessInZones collects on a pool per session time zone, each
