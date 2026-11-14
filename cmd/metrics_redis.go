@@ -11,7 +11,8 @@ import (
 	"github.com/sperano/puckdb/internal/metrics"
 )
 
-// runRedisCollector periodically checks Redis for OAuth token existence
+// runRedisCollector periodically reads the Redis server statistics and checks
+// for OAuth token existence
 func runRedisCollector(ctx context.Context, interval time.Duration) {
 	log.Info().Dur("interval", interval).Msg("Starting Redis collector")
 
@@ -35,6 +36,7 @@ func runRedisCollector(ctx context.Context, interval time.Duration) {
 
 func collectRedisMetrics(ctx context.Context, redisClient *redis.Client) {
 	start := time.Now()
+	collectRedisServerStats(ctx, redisClient)
 	hasToken, err := cache.HasUsableToken(ctx, redisClient, config.DefaultUser)
 	if err != nil {
 		log.Error().Err(err).Str("user", config.DefaultUser).Msg("Failed to check OAuth token")
@@ -47,4 +49,20 @@ func collectRedisMetrics(ctx context.Context, redisClient *redis.Client) {
 		Bool("has_token", hasToken).
 		Dur("duration", time.Since(start)).
 		Msg("Redis metrics updated")
+}
+
+// collectRedisServerStats publishes the server's INFO statistics (memory,
+// clients, keyspace). A failure is logged and leaves the previous reading.
+func collectRedisServerStats(ctx context.Context, redisClient *redis.Client) {
+	info, err := redisClient.Info(ctx).Result()
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to read Redis INFO")
+		return
+	}
+	stats, err := parseRedisInfo(info)
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to parse Redis INFO")
+		return
+	}
+	metrics.SetRedisServerStats(stats)
 }

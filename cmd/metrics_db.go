@@ -9,7 +9,8 @@ import (
 	"github.com/sperano/puckdb/internal/metrics"
 )
 
-// runDatabaseCollector periodically collects database table row counts. The
+// runDatabaseCollector periodically collects database table row counts and
+// sizes and the newest data of each dataset (metrics_freshness.go). The
 // pool is owned by runMetrics and shared with runCacheCollector.
 func runDatabaseCollector(ctx context.Context, interval time.Duration, pool *pgxpool.Pool) {
 	log.Info().Dur("interval", interval).Msg("Starting database collector")
@@ -77,6 +78,8 @@ func collectDatabaseMetrics(ctx context.Context, pool *pgxpool.Pool) {
 	} else {
 		metrics.SetDBSizeBytes(dbSizeBytes)
 	}
+
+	collectFreshnessMetrics(ctx, pool)
 
 	metrics.SetDBMetricsTimestamp()
 	log.Info().
