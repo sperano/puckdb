@@ -14,7 +14,7 @@ import (
 // FetchSeasonPlayerLogsInput contains parameters for the child workflow.
 type FetchSeasonPlayerLogsInput struct {
 	Season         nhl.SeasonInfo
-	RefreshCurrent bool // If true, overwrite files for the current season
+	RefreshCurrent bool // If true, overwrite cached files for this season (the latest season, or every season of an explicit range)
 }
 
 // GroupFetchSeasonPlayerLogs is the group index for per-season progress.

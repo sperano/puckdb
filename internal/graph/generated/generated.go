@@ -8121,9 +8121,9 @@ input SeasonsInput {
 	"""Season start year to filter up to (inclusive)"""
 	endSeason: Int
 	seasonConcurrency: Int
-	"""Re-download player game logs for the current season (overwrites cached files)"""
+	"""Re-download player game logs for the latest season, or for every season in an explicit startSeason/endSeason range (overwrites cached files)"""
 	refreshCurrentPlayerLogs: Boolean
-	"""Re-download Edge stats for the current season (overwrites cached files)"""
+	"""Re-download Edge stats for the latest season, or for every season in an explicit startSeason/endSeason range (overwrites cached files)"""
 	refreshCurrentEdge: Boolean
 	"""importSeasons: re-import every NHL day, even days whose cached files and importer version are unchanged since their last import"""
 	reimportDays: Boolean

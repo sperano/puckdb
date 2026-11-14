@@ -1063,9 +1063,9 @@ type SeasonsInput struct {
 	// Season start year to filter up to (inclusive)
 	EndSeason         *int `json:"endSeason,omitempty"`
 	SeasonConcurrency *int `json:"seasonConcurrency,omitempty"`
-	// Re-download player game logs for the current season (overwrites cached files)
+	// Re-download player game logs for the latest season, or for every season in an explicit startSeason/endSeason range (overwrites cached files)
 	RefreshCurrentPlayerLogs *bool `json:"refreshCurrentPlayerLogs,omitempty"`
-	// Re-download Edge stats for the current season (overwrites cached files)
+	// Re-download Edge stats for the latest season, or for every season in an explicit startSeason/endSeason range (overwrites cached files)
 	RefreshCurrentEdge *bool `json:"refreshCurrentEdge,omitempty"`
 	// importSeasons: re-import every NHL day, even days whose cached files and importer version are unchanged since their last import
 	ReimportDays *bool `json:"reimportDays,omitempty"`
