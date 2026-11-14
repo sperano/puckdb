@@ -33,12 +33,14 @@ func execFreshness(t *testing.T, pool *pgxpool.Pool, sql string, args ...any) {
 }
 
 // seedFreshnessGames inserts games of every state and per-game rows such
-// that the box score, shift and play-by-play datasets each name another game.
+// that the completed-game, box score, shift and play-by-play datasets each
+// name another game.
 func seedFreshnessGames(t *testing.T, pool *pgxpool.Pool) {
 	execFreshness(t, pool, `INSERT INTO players (id, first_name, last_name) VALUES ($1, 'Test', 'Freshness')
 		ON CONFLICT (id) DO NOTHING`, freshnessPlayerID)
 	execFreshness(t, pool, `
 		INSERT INTO games (id, season, game_type, game_date, game_state, home_team_id, away_team_id) VALUES
+			(2026020099, $1, 'regular_season', '2026-11-06', 'OFF', 1, 2),
 			(2026020100, $1, 'regular_season', '2026-11-08', 'OFF', 1, 2),
 			(2026020101, $1, 'regular_season', '2026-11-10', 'FINAL', 1, 2),
 			(2026020102, $1, 'regular_season', '2026-11-12', 'OFF', 1, 2),
@@ -51,21 +53,21 @@ func seedFreshnessGames(t *testing.T, pool *pgxpool.Pool) {
 		INSERT INTO shifts (id, game_id, player_id, team_id, period, start_time, end_time, duration,
 			shift_number, type_code, detail_code, event_number)
 		VALUES (1, 2026020100, $1, 1, 1, '00:00', '00:45', '00:45', 1, '517', '0', 1),
-			(2, 2026020102, $1, 1, 1, '00:00', '00:45', '00:45', 1, '517', '0', 1)`, freshnessPlayerID)
+			(2, 2026020103, $1, 1, 1, '00:00', '00:45', '00:45', 1, '517', '0', 1)`, freshnessPlayerID)
 	execFreshness(t, pool, `
 		INSERT INTO play_events (game_id, event_id, period, period_type, time_in_period, time_remaining,
 			type_desc_key, sort_order)
-		VALUES (2026020100, 1, 1, 'REG', '00:00', '20:00', 'faceoff', 1),
-			(2026020103, 1, 1, 'REG', '00:00', '20:00', 'faceoff', 1)`)
+		VALUES (2026020099, 1, 1, 'REG', '00:00', '20:00', 'faceoff', 1),
+			(2026020100, 1, 1, 'REG', '00:00', '20:00', 'faceoff', 1)`)
 }
 
 // seedFreshnessNHLDays inserts day imports and standings whose insertion
-// times run opposite to their dates.
+// times run opposite to their dates, on days no game or other dataset uses.
 func seedFreshnessNHLDays(t *testing.T, pool *pgxpool.Pool) {
 	execFreshness(t, pool, `
 		INSERT INTO nhl_day_imports (season, date, importer_version, inputs_hash, input_files, imported_at)
-		VALUES ($1, '2026-11-12', 1, 'h', 1, '2026-11-12T06:00:00Z'),
-			($1, '2026-11-11', 1, 'h', 1, '2026-11-13T06:00:00Z')`, freshnessSeason)
+		VALUES ($1, '2026-11-11', 1, 'h', 1, '2026-11-11T06:00:00Z'),
+			($1, '2026-11-09', 1, 'h', 1, '2026-11-12T06:00:00Z')`, freshnessSeason)
 	t.Cleanup(func() {
 		_, err := pool.Exec(context.Background(), `DELETE FROM standings_snapshots WHERE season = $1`, freshnessStandingsSeason)
 		require.NoError(t, err)
@@ -81,8 +83,8 @@ func seedFreshnessNHLDays(t *testing.T, pool *pgxpool.Pool) {
 	execFreshness(t, pool, `
 		INSERT INTO standings_snapshots (season, date, team_id, team_abbrev, wins, losses, ot_losses, points,
 			division_abbrev, division_name, created_at)
-		VALUES ($1, '2026-11-12', $2, 'FRS', 1, 0, 0, 2, 'T', 'Test', '2026-11-14T10:00:00Z'),
-			($1, '2026-11-13', $2, 'FRS', 1, 1, 0, 2, 'T', 'Test', '2026-11-13T10:00:00Z')`,
+		VALUES ($1, '2026-11-13', $2, 'FRS', 1, 0, 0, 2, 'T', 'Test', '2026-11-15T10:00:00Z'),
+			($1, '2026-11-14', $2, 'FRS', 1, 1, 0, 2, 'T', 'Test', '2026-11-14T10:00:00Z')`,
 		freshnessStandingsSeason, freshnessTeamID)
 }
 
@@ -99,8 +101,9 @@ func seedFreshnessYahoo(t *testing.T, pool *pgxpool.Pool) {
 		VALUES ($1, 1, '2026-11-12', 1, '2026-11-12T10:00:00Z'), ($1, 1, '2026-11-11', 1, '2026-11-14T10:00:00Z')`,
 		freshnessLeagueID)
 	execFreshness(t, pool, `
-		INSERT INTO yahoo_team_summaries (league_id, team_id, date, standings_captured_at)
-		VALUES ($1, 1, '2026-11-10', '2026-11-10T12:00:00Z'), ($1, 1, '2026-11-13', NULL)`, freshnessLeagueID)
+		INSERT INTO yahoo_team_summaries (league_id, team_id, date, standings_captured_at, created_at)
+		VALUES ($1, 1, '2026-11-10', '2026-11-10T12:00:00Z', '2026-11-14T10:00:00Z'),
+			($1, 1, '2026-11-13', NULL, '2026-11-13T10:00:00Z')`, freshnessLeagueID)
 	execFreshness(t, pool, `
 		INSERT INTO yahoo_transactions (league_id, transaction_key, type, "timestamp", created_at)
 		VALUES ($1, 't1', 'add', $2, '2026-11-01T00:00:00Z'), ($1, 't2', 'drop', $3, '2026-11-14T00:00:00Z')`,

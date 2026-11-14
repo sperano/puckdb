@@ -72,6 +72,27 @@ func requireFreshness(t *testing.T, want map[string]time.Time) {
 		freshnessMetricTimestamp, freshnessMetricDateInfo))
 }
 
+// freshnessSessionZones are the session time zones every dataset is
+// collected in: a date column must read as 00:00 UTC whatever the session's
+// zone, so a query that drops AT TIME ZONE 'UTC' fails in the second one.
+var freshnessSessionZones = []string{"UTC", "America/Montreal"}
+
+// requireFreshnessInZones collects on a pool per session time zone, each
+// time from cleared series, and checks the series are exactly want.
+func requireFreshnessInZones(t *testing.T, pool *pgxpool.Pool, want map[string]time.Time) {
+	t.Helper()
+	for _, zone := range freshnessSessionZones {
+		config := pool.Config()
+		config.ConnConfig.RuntimeParams["timezone"] = zone
+		zonePool, err := pgxpool.NewWithConfig(context.Background(), config)
+		require.NoError(t, err)
+		clearFreshnessMetrics()
+		collectFreshnessMetrics(context.Background(), zonePool)
+		zonePool.Close()
+		t.Run(zone, func(t *testing.T) { requireFreshness(t, want) })
+	}
+}
+
 // utcDay is 00:00 UTC of a November 2026 day, the value of a date column.
 func utcDay(day int) time.Time {
 	return time.Date(2026, time.November, day, 0, 0, 0, 0, time.UTC)
@@ -116,22 +137,20 @@ func TestCollectFreshnessMetrics_FailedQueryKeepsLastValue(t *testing.T) {
 	requireFreshness(t, want)
 }
 
-// TestCollectFreshnessMetrics_NHLDatasets: each per-game dataset reports the
-// newest game with rows in its own table, so swapped table names fail.
+// TestCollectFreshnessMetrics_NHLDatasets: every NHL dataset expects another
+// date, so a dataset pointed at another's query or table fails.
 func TestCollectFreshnessMetrics_NHLDatasets(t *testing.T) {
 	pool := openFreshnessPool(t)
 	seedFreshnessGames(t, pool)
 	seedFreshnessNHLDays(t, pool)
 
-	collectFreshnessMetrics(context.Background(), pool)
-
-	requireFreshness(t, map[string]time.Time{
+	requireFreshnessInZones(t, pool, map[string]time.Time{
 		"nhl_games_final":  utcDay(12), // the OFF game; LIVE and FUT games are newer
 		"nhl_boxscores":    utcDay(10),
-		"nhl_shifts":       utcDay(12),
-		"nhl_play_by_play": utcDay(13),
-		"nhl_day_imports":  utcDay(12), // by date, not by the later imported_at
-		"nhl_standings":    utcDay(13),
+		"nhl_shifts":       utcDay(13),
+		"nhl_play_by_play": utcDay(8),
+		"nhl_day_imports":  utcDay(11), // by date, not by the later imported_at
+		"nhl_standings":    utcDay(14),
 	})
 }
 
@@ -139,9 +158,7 @@ func TestCollectFreshnessMetrics_YahooDatasets(t *testing.T) {
 	pool := openFreshnessPool(t)
 	seedFreshnessYahoo(t, pool)
 
-	collectFreshnessMetrics(context.Background(), pool)
-
-	requireFreshness(t, map[string]time.Time{
+	requireFreshnessInZones(t, pool, map[string]time.Time{
 		"yahoo_rosters":        utcDay(12),
 		"yahoo_team_summaries": utcDay(13),
 		"yahoo_standings":      utcDay(10), // the newest summary has no standings snapshot
@@ -155,9 +172,7 @@ func TestCollectFreshnessMetrics_NewsDraftAndMauriceDatasets(t *testing.T) {
 	seedFreshnessDraftRankings(t, pool)
 	seedFreshnessMauriceTurns(t, pool)
 
-	collectFreshnessMetrics(context.Background(), pool)
-
-	requireFreshness(t, map[string]time.Time{
+	requireFreshnessInZones(t, pool, map[string]time.Time{
 		// 2026-11-13T23:30-05:00 is 2026-11-14 in UTC, the date label's day.
 		"news_articles":  time.Date(2026, time.November, 14, 4, 30, 0, 0, time.UTC),
 		"news_events":    time.Date(2026, time.November, 12, 10, 0, 0, 0, time.UTC),
