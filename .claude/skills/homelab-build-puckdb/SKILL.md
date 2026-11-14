@@ -1,6 +1,6 @@
 ---
 name: homelab-build-puckdb
-description: Build puckdb image using homelab builders, deploy to cluster
+description: "Legacy — builds puckdb from this checkout's local state and deploys it directly, bypassing the onPush image-build pipeline. Prefer merging to main or `just image-build puckdb` (hollingsworth); only falls back to this skill's local build/deploy after the user confirms, having seen the notice in the skill body."
 user-invocable: true
 allowed-tools: Bash(docker-build-multiarch *), Bash(git *), Bash(argocd *), Bash(argocd-login), Edit, Read
 ---
@@ -10,8 +10,11 @@ allowed-tools: Bash(docker-build-multiarch *), Bash(git *), Bash(argocd *), Bash
 **Legacy — do not run the build steps below by default.** This skill builds
 `docker-build-multiarch` from whatever this checkout happens to have locally
 checked out, not from merged `main`, bypassing the `onPush` image-build
-pipeline in hollingsworth (wiki `hollingsworth/plans/kelos-image-builds.md`,
-"Callers as built"). A stale-checkout build like this once shipped a
+pipeline in hollingsworth. The hollingsworth and puckdb-project copies of
+this skill were already converted to a thin wrapper around that pipeline's
+image-build runner (wiki `hollingsworth/plans/kelos-image-builds.md`,
+"Callers as built"); this puckdb copy predates that conversion and still
+runs the old flow below. A stale-checkout build like this once shipped a
 `maurice-web` image without a fix that had already merged.
 
 Use the supported path instead:
@@ -75,6 +78,8 @@ they want to run this legacy skill anyway.
    Report the sync status to the user.
 
 ## Usage Examples
+
+After confirming the legacy notice above:
 
 ```
 /homelab-build-puckdb              # Build with auto-generated dev tag
