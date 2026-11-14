@@ -121,11 +121,11 @@ func TestPg_FinishTurn_StoresCallsLinksAndToolCalls(t *testing.T) {
 
 	assert.Equal(t, 1, pgCount(t, pool, `SELECT count(*) FROM maurice_tool_calls
 		WHERE turn_id = $1 AND sequence_number = 0 AND status = 'succeeded' AND result = 'rows'
-		  AND arguments = '{"sql":"SELECT 1"}'::jsonb AND started_at IS NOT NULL`, start.TurnID))
+		  AND arguments_raw = '{"sql":"SELECT 1"}' AND started_at IS NOT NULL`, start.TurnID))
 	assert.Equal(t, 1, pgCount(t, pool, `SELECT count(*) FROM maurice_tool_calls
 		WHERE turn_id = $1 AND sequence_number = 1 AND status = 'cancelled' AND result IS NULL
-		  AND arguments IS NULL AND arguments_raw = '{"a":' AND started_at IS NULL`, start.TurnID),
-		"invalid JSON arguments keep only the raw text")
+		  AND arguments_raw = '{"a":' AND started_at IS NULL`, start.TurnID),
+		"invalid JSON arguments keep their raw text")
 }
 
 // A failed turn stores its messages and the failed call's links, so the

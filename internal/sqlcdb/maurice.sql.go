@@ -429,10 +429,10 @@ func (q *Queries) InsertLLMCallMessages(ctx context.Context, arg InsertLLMCallMe
 
 const insertToolCall = `-- name: InsertToolCall :exec
 INSERT INTO maurice_tool_calls (
-    turn_id, llm_call_id, sequence_number, provider_tool_call_id, tool_name, arguments,
+    turn_id, llm_call_id, sequence_number, provider_tool_call_id, tool_name,
     arguments_raw, result, status, started_at, completed_at
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10
 )
 `
 
@@ -442,7 +442,6 @@ type InsertToolCallParams struct {
 	SequenceNumber     int32              `json:"sequence_number"`
 	ProviderToolCallID pgtype.Text        `json:"provider_tool_call_id"`
 	ToolName           string             `json:"tool_name"`
-	Arguments          []byte             `json:"arguments"`
 	ArgumentsRaw       string             `json:"arguments_raw"`
 	Result             pgtype.Text        `json:"result"`
 	Status             string             `json:"status"`
@@ -457,7 +456,6 @@ func (q *Queries) InsertToolCall(ctx context.Context, arg InsertToolCallParams) 
 		arg.SequenceNumber,
 		arg.ProviderToolCallID,
 		arg.ToolName,
-		arg.Arguments,
 		arg.ArgumentsRaw,
 		arg.Result,
 		arg.Status,

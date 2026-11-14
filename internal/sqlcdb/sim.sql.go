@@ -665,7 +665,6 @@ type InsertSimAgentToolCallParams struct {
 	ToolName             string      `json:"tool_name"`
 	RecoveredName        pgtype.Text `json:"recovered_name"`
 	ArgumentsRaw         string      `json:"arguments_raw"`
-	Arguments            []byte      `json:"arguments"`
 	Result               string      `json:"result"`
 	Outcome              string      `json:"outcome"`
 	FailureReason        pgtype.Text `json:"failure_reason"`
@@ -1540,7 +1539,7 @@ func (q *Queries) ListSimAgentDailyPlayerStatsByPlayer(ctx context.Context, arg 
 const listSimAgentToolCalls = `-- name: ListSimAgentToolCalls :many
 SELECT turn_id, round_index, sequence,
        tool_name, recovered_name,
-       arguments_raw, arguments,
+       arguments_raw,
        result, outcome, failure_reason,
        applied_transaction_id, latency_ms
 FROM sim_agent_tool_calls
@@ -1566,7 +1565,6 @@ func (q *Queries) ListSimAgentToolCalls(ctx context.Context, turnID int32) ([]Si
 			&i.ToolName,
 			&i.RecoveredName,
 			&i.ArgumentsRaw,
-			&i.Arguments,
 			&i.Result,
 			&i.Outcome,
 			&i.FailureReason,
@@ -2489,7 +2487,7 @@ type ListSimToolCallsForTurnsRow struct {
 // ListSimToolCallsForTurns returns the first max_per_turn tool calls of
 // each listed turn in execution order, with call_count = all the turn's
 // calls so the caller can say how many it left out. Only the columns the
-// tail prints: never result, arguments (jsonb) or latency. arguments_raw is
+// tail prints: never result or latency. arguments_raw is
 // cut to its first max_arguments_chars characters, so a page reads a bounded
 // amount however long a stored argument is.
 func (q *Queries) ListSimToolCallsForTurns(ctx context.Context, arg ListSimToolCallsForTurnsParams) ([]ListSimToolCallsForTurnsRow, error) {

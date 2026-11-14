@@ -72,7 +72,6 @@ func (r iteratorForInsertSimAgentToolCall) Values() ([]interface{}, error) {
 		r.rows[0].ToolName,
 		r.rows[0].RecoveredName,
 		r.rows[0].ArgumentsRaw,
-		r.rows[0].Arguments,
 		r.rows[0].Result,
 		r.rows[0].Outcome,
 		r.rows[0].FailureReason,
@@ -87,7 +86,7 @@ func (r iteratorForInsertSimAgentToolCall) Err() error {
 
 // InsertSimAgentToolCall is one tool-call row. Batched via :copyfrom.
 func (q *Queries) InsertSimAgentToolCall(ctx context.Context, arg []InsertSimAgentToolCallParams) (int64, error) {
-	return q.db.CopyFrom(ctx, []string{"sim_agent_tool_calls"}, []string{"turn_id", "round_index", "sequence", "tool_name", "recovered_name", "arguments_raw", "arguments", "result", "outcome", "failure_reason", "applied_transaction_id", "latency_ms"}, &iteratorForInsertSimAgentToolCall{rows: arg})
+	return q.db.CopyFrom(ctx, []string{"sim_agent_tool_calls"}, []string{"turn_id", "round_index", "sequence", "tool_name", "recovered_name", "arguments_raw", "result", "outcome", "failure_reason", "applied_transaction_id", "latency_ms"}, &iteratorForInsertSimAgentToolCall{rows: arg})
 }
 
 // iteratorForInsertSimAgentTurnMessage implements pgx.CopyFromSource.

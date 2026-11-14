@@ -426,22 +426,6 @@ func numericOrNull(p *float64) pgtype.Numeric {
 	return n
 }
 
-// argumentsJSONB validates that raw is JSON-parseable before forwarding
-// it as JSONB. Postgres rejects malformed JSONB at insert time; returning
-// nil ([]byte → SQL NULL) lets the row land even when the LLM emits
-// malformed arguments — the verbatim string is preserved in
-// arguments_raw for forensic inspection.
-func argumentsJSONB(raw string) []byte {
-	if raw == "" {
-		return nil
-	}
-	var probe any
-	if err := json.Unmarshal([]byte(raw), &probe); err != nil {
-		return nil
-	}
-	return []byte(raw)
-}
-
 // toolCallsJSONB marshals an assistant message's structured tool calls.
 // Empty slice → SQL NULL so non-tool-call assistant messages leave the
 // column unset.

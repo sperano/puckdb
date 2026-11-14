@@ -143,8 +143,8 @@ SELECT sqlc.arg(llm_call_id)::bigint,
 
 -- name: InsertToolCall :exec
 INSERT INTO maurice_tool_calls (
-    turn_id, llm_call_id, sequence_number, provider_tool_call_id, tool_name, arguments,
+    turn_id, llm_call_id, sequence_number, provider_tool_call_id, tool_name,
     arguments_raw, result, status, started_at, completed_at
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10
 );
