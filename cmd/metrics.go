@@ -51,8 +51,10 @@ and exposes them via /metrics endpoint for Prometheus scraping.
 
 Collectors:
   - Cache: File cache completeness statistics (requires --data-path)
-  - Redis: OAuth token existence check (requires --redis-url)
-  - Database: Table row counts (requires --postgres-* flags)
+  - Redis: Server statistics (memory, clients, keyspace) and OAuth token
+    existence check (requires --redis-url)
+  - Database: Table row counts and sizes, newest data per dataset
+    (requires --postgres-* flags)
 
 Each collector runs independently at its own interval.`,
 		PreRunE: func(cmd *cobra.Command, args []string) error {

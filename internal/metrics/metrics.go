@@ -12,7 +12,8 @@
 //   - APIRegistry — served by the API process via HTTPMetricsMiddleware: the
 //     API server's own request duration.
 //   - CollectorRegistry — served by the standalone collector process
-//     (StartServer): cache, Redis, and database-state gauges plus build info.
+//     (StartServer): cache, Redis, database-state and data freshness gauges
+//     plus build info.
 //
 // A metric is registered on exactly one registry; its owning registry is
 // stated next to its declaration. One name is the exception:
@@ -21,7 +22,7 @@
 // remote API such as "yahoo") and once on APIRegistry as the API server's
 // request duration (api.go, api label = the chi route pattern). The metric
 // declarations are split by registry across the sibling files worker.go,
-// api.go, collector.go, and database.go. This file holds the registries, the
+// api.go, collector.go, freshness.go, redis.go, and database.go. This file holds the registries, the
 // shared histogram buckets, the Result* label constants, and the HTTP-server
 // plumbing that serves them; database.go holds the instrumented pgx wrappers
 // that feed the worker metrics — PGXPoolCollector (pool stat gauges and
@@ -136,6 +137,9 @@ func init() {
 		cacheDiskSizeBytes,
 		redisOAuthTokenValid,
 		redisLastUpdated,
+		redisServer,
+		dataLatestTimestamp,
+		dataLatestDateInfo,
 		dbTableRowCount,
 		dbTableSizeBytes,
 		dbSizeBytes,
