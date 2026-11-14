@@ -101,8 +101,13 @@ func TestValidateAPIBase(t *testing.T) {
 		{"gemini", ""},
 		{"gemini", "https://collector.example"},
 		{"OpenAI", "https://collector.example/v1"},
+		{"openai", "https://collector.example/v1?key=sk-secret"},
 	} {
-		assert.ErrorIs(t, ValidateAPIBase(tc.provider, tc.apiBase), ErrDisallowedAPIBase, "%s %s", tc.provider, tc.apiBase)
+		err := ValidateAPIBase(tc.provider, tc.apiBase)
+		assert.ErrorIs(t, err, ErrDisallowedAPIBase, "%s %s", tc.provider, tc.apiBase)
+		if tc.apiBase != "" {
+			assert.NotContains(t, err.Error(), tc.apiBase, "the error must not echo apiBase")
+		}
 	}
 	for _, tc := range []struct{ provider, apiBase string }{
 		{"ollama", "ollama.local:11434"},
