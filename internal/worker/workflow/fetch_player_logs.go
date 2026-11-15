@@ -27,35 +27,51 @@ func NewFetchPlayerLogsProgressReport() *shared.ProgressReport {
 
 // FetchPlayerLogsWorkflow fetches player game logs for all seasons.
 // It processes each season in a child workflow, downloading game logs for players
-// extracted from boxscores. For the current season, files are only overwritten
-// if the --refresh-current-player-logs flag is set.
+// extracted from boxscores. Existing files are only overwritten when the
+// --refresh-current-player-logs flag is set, with the scope of
+// refreshSelectedSeason.
 func FetchPlayerLogsWorkflow(ctx workflow.Context, input *model.SeasonsInput) error {
-	input = normalizeSeasonsInput(input)
-	ctx = workflow.WithActivityOptions(ctx, shared.DefaultActivityOptions())
-	var playerAct *workplayer.Activities
-	// Same refresh scoping as FetchEdgeSeasonsWorkflow: an explicit season
-	// range applies the flag to every season in it; without a range it applies
-	// to the latest season only. Deliberately not a calendar gate on
-	// nhl.Current() — see the July-1 rollover note there.
-	refreshFlag := input.RefreshCurrentPlayerLogs != nil && *input.RefreshCurrentPlayerLogs
-	rangeGiven := input.StartSeason != nil || input.EndSeason != nil
-	return iterateSeasons(ctx, input, NewFetchPlayerLogsProgressReport(), GroupFetchPlayerLogs,
-		func(ctx workflow.Context, season nhl.SeasonInfo) (int, error) {
-			var players []store.BoxscorePlayer
-			if err := workflow.ExecuteActivity(ctx, playerAct.LoadSeasonBoxscorePlayers, season.ID.StartYear()).Get(ctx, &players); err != nil {
-				return 0, err
-			}
-			return len(players), nil
+	_, err := runSeasonFanOut(ctx, input, SeasonFanOut{
+		Report:  NewFetchPlayerLogsProgressReport(),
+		Prepare: planFetchPlayerLogs,
+	})
+	return err
+}
+
+// planFetchPlayerLogs sizes each season's bar by its cached boxscore
+// players, counted in the Counter (after the stale report cleanup), and
+// starts one FetchSeasonPlayerLogsWorkflow per season.
+func planFetchPlayerLogs(_ workflow.Context, state SeasonFanOutState) (SeasonFanOutPlan, error) {
+	input := state.Input
+	return SeasonFanOutPlan{
+		Group: SeasonGroupConfig{
+			GroupIdx:      GroupFetchPlayerLogs,
+			Counter:       countSeasonBoxscorePlayers,
+			SourceKeyFunc: WorkflowIDFetchSeasonPlayerLogs,
+			Completion:    fetchPlayerLogsCompletion,
 		},
-		WorkflowIDFetchSeasonPlayerLogs,
-		func(n int, elapsed string, counts core.OriginCounts) string {
-			return counts.AppendSummary(fmt.Sprintf("Fetched player logs for %d seasons in %s.", n, elapsed), "player logs")
-		},
-		func(ctx workflow.Context, season nhl.SeasonInfo, isLatest bool) workflow.ChildWorkflowFuture {
-			refresh := refreshFlag && (rangeGiven || isLatest)
+		Start: func(ctx workflow.Context, season nhl.SeasonInfo, _ int, last bool) workflow.Future {
+			refresh := refreshSelectedSeason(input, input.RefreshCurrentPlayerLogs, last)
 			return workflow.ExecuteChildWorkflow(
 				shared.WithChildOptions(ctx, WorkflowIDFetchSeasonPlayerLogs(season.ID.StartYear())),
 				FetchSeasonPlayerLogsWorkflow,
 				FetchSeasonPlayerLogsInput{Season: season, RefreshCurrent: refresh})
-		})
+		},
+	}, nil
+}
+
+// countSeasonBoxscorePlayers is a season's bar total: the players its
+// cached boxscores list.
+func countSeasonBoxscorePlayers(ctx workflow.Context, season nhl.SeasonInfo) (int, error) {
+	var playerAct *workplayer.Activities
+	var players []store.BoxscorePlayer
+	if err := workflow.ExecuteActivity(ctx, playerAct.LoadSeasonBoxscorePlayers, season.ID.StartYear()).Get(ctx, &players); err != nil {
+		return 0, err
+	}
+	return len(players), nil
+}
+
+// fetchPlayerLogsCompletion is the player-log fetch group's completion message.
+func fetchPlayerLogsCompletion(n int, elapsed string, counts core.OriginCounts) string {
+	return counts.AppendSummary(fmt.Sprintf("Fetched player logs for %d seasons in %s.", n, elapsed), "player logs")
 }

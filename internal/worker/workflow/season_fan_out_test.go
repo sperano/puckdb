@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"go.temporal.io/sdk/activity"
+	"go.temporal.io/sdk/client"
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/testsuite"
 	"go.temporal.io/sdk/workflow"
@@ -495,5 +496,123 @@ func fanOutInvalidPlans() map[string]struct {
 		}, errSeasonGroupTwoCompletions.Error()},
 		"group past the report": {func(p *SeasonFanOutPlan) { p.Group.GroupIdx = 1 }, "group 1 outside the report's 1 groups"},
 		"negative group":        {func(p *SeasonFanOutPlan) { p.Group.GroupIdx = -1 }, "group -1 outside the report's 1 groups"},
+	}
+}
+
+// fanOutParentWorkflowID is the workflow ID of the parent under test, the
+// key of its saved progress reports.
+const fanOutParentWorkflowID = "season-fan-out-parent-test"
+
+// fanOutParent runs one season fan-out parent workflow against a stubbed
+// manifest and records the stale report keys it deletes, its saved
+// progress reports and the children it starts.
+type fanOutParent struct {
+	env   *testsuite.TestWorkflowEnvironment
+	saved *savedReports
+
+	mu        sync.Mutex
+	staleKeys [][]string
+	children  []fanOutChild
+}
+
+// fanOutChild is one started child workflow: its ID and its input.
+type fanOutChild struct {
+	id    string
+	input any
+}
+
+func newFanOutParent(t *testing.T, parent any, seasons []nhl.SeasonInfo) *fanOutParent {
+	t.Helper()
+	var ts testsuite.WorkflowTestSuite
+	p := &fanOutParent{env: ts.NewTestWorkflowEnvironment()}
+	p.env.RegisterWorkflow(parent)
+	p.env.SetStartWorkflowOptions(client.StartWorkflowOptions{ID: fanOutParentWorkflowID})
+	var sa *worknhl.SeasonsActivities
+	p.env.OnActivity(sa.FetchSeasonsManifest, mock.Anything, mock.Anything).
+		Return(worknhl.FetchSeasonsManifestResult{Seasons: seasons, Origin: core.OriginFileSystem}, nil).Once()
+	p.env.OnActivity(((*shared.ProgressActivities)(nil)).DeleteBatch, mock.Anything, mock.Anything).Return(
+		func(_ context.Context, keys []string) error {
+			p.mu.Lock()
+			defer p.mu.Unlock()
+			p.staleKeys = append(p.staleKeys, keys)
+			return nil
+		}).Maybe()
+	p.saved = recordSavedReports(p.env)
+	return p
+}
+
+// recordChild records a child started under the workflow ID of ctx.
+func (p *fanOutParent) recordChild(ctx workflow.Context, input any) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.children = append(p.children, fanOutChild{workflow.GetInfo(ctx).WorkflowExecution.ID, input})
+}
+
+// run executes the parent and returns its one progress group, which the
+// last saved parent report must match; a parent that never started its
+// group saves no report.
+func (p *fanOutParent) run(t *testing.T, parent any, input *model.SeasonsInput) shared.ProgressGroup {
+	t.Helper()
+	p.env.ExecuteWorkflow(parent, input)
+	require.True(t, p.env.IsWorkflowCompleted())
+	require.NoError(t, p.env.GetWorkflowError())
+	p.env.AssertExpectations(t)
+	report := queryProgressReport(t, p.env)
+	require.Len(t, report.Groups, 1)
+	p.saved.mu.Lock()
+	defer p.saved.mu.Unlock()
+	saved, ok := p.saved.last[fanOutParentWorkflowID]
+	if report.Groups[0].StartedAt == 0 {
+		assert.False(t, ok, "saved a report without starting the group")
+	} else if assert.True(t, ok, "no saved report") {
+		assert.Equal(t, report.Groups, saved.Groups, "last saved report")
+	}
+	return report.Groups[0]
+}
+
+// fanOutBars is the completed bar of each season: its label, its total
+// and its source key.
+func fanOutBars(seasons []nhl.SeasonInfo, total func(startYear int) int, key shared.ProgressSourceKeyFunc) []shared.ProgressBar {
+	bars := make([]shared.ProgressBar, len(seasons))
+	for i, s := range seasons {
+		year := s.ID.StartYear()
+		bars[i] = shared.ProgressBar{
+			Label: s.Label(), Current: total(year), Total: total(year), Started: true, ProgressSourceKey: key(year),
+		}
+	}
+	return bars
+}
+
+// fanOutSourceKeys is the stale report cleanup of seasons under key.
+func fanOutSourceKeys(seasons []nhl.SeasonInfo, key shared.ProgressSourceKeyFunc) [][]string {
+	keys := make([]string, len(seasons))
+	for i, s := range seasons {
+		keys[i] = key(s.ID.StartYear())
+	}
+	return [][]string{keys}
+}
+
+// fanOutRefreshCase is one refresh scope of a parent with a refresh-style
+// flag: the range bounds and the flag of its input, and whether each of the
+// two selected seasons refreshes. The manifest is stubbed, so the bounds
+// only scope the flag.
+type fanOutRefreshCase struct {
+	name       string
+	start, end *int
+	flag       *bool
+	want       []bool
+}
+
+// fanOutRefreshCases scope the flag over two selected seasons: without a
+// range only the last refreshes, with either bound of a range both do, and
+// an unset or false flag refreshes none.
+func fanOutRefreshCases(bound int) []fanOutRefreshCase {
+	yes, no := true, false
+	return []fanOutRefreshCase{
+		{"latest only", nil, nil, &yes, []bool{false, true}},
+		{"start season", &bound, nil, &yes, []bool{true, true}},
+		{"end season", nil, &bound, &yes, []bool{true, true}},
+		{"flag false", &bound, &bound, &no, []bool{false, false}},
+		{"flag unset", nil, nil, nil, []bool{false, false}},
 	}
 }

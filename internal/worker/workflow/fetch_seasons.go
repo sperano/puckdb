@@ -140,7 +140,7 @@ func processSeasonGroup(ctx workflow.Context, tracker *shared.ReportTracker, sea
 		return counts, err
 	}
 
-	// iterateSeasons configures no completion and completes the group itself.
+	// A config with no completion leaves the group for the caller.
 	if msg, ok := cfg.completionMessage(len(seasons), tracker.GetElapsed(ctx, cfg.GroupIdx), counts); ok {
 		tracker.CompleteGroup(ctx, cfg.GroupIdx, msg)
 	}
@@ -151,63 +151,6 @@ func processSeasonGroup(ctx workflow.Context, tracker *shared.ReportTracker, sea
 // n is the number of seasons processed, elapsed is the formatted duration,
 // and counts is the aggregated origin counts from all children.
 type CompletionMsgFunc func(n int, elapsed string, counts core.OriginCounts) string
-
-// iterateSeasons sets up a tracker, loads the seasons manifest, and delegates
-// to processSeasonGroup for concurrent child workflow execution.
-// If completionMsg is nil, a default message is used.
-func iterateSeasons(ctx workflow.Context, input *model.SeasonsInput, progReport *shared.ProgressReport, groupIdx int,
-	counter shared.SeasonCounterFunc, sourceKeyFunc shared.ProgressSourceKeyFunc,
-	completionMsg CompletionMsgFunc, starter shared.ChildWorkflowStarter) error {
-	logger := workflow.GetLogger(ctx)
-
-	concurrency, err := shared.SnapshotConfigInt(ctx, logger, shared.SeasonConcurrencyParam, input.SeasonConcurrency)
-	if err != nil {
-		return err
-	}
-
-	tracker, err := shared.InitTracker(ctx, progReport)
-	if err != nil {
-		return err
-	}
-
-	logger.Info("iterateSeasons started",
-		"start_season", input.StartSeason,
-		"end_season", input.EndSeason,
-		"concurrency", concurrency)
-
-	ctx = workflow.WithActivityOptions(ctx, shared.DefaultActivityOptions())
-
-	seasons, err := loadSeasonsManifest(ctx, logger, input)
-	if err != nil {
-		return err
-	}
-	if len(seasons) == 0 {
-		return nil
-	}
-
-	counts, err := processSeasonGroup(ctx, tracker, seasons, concurrency, SeasonGroupConfig{
-		GroupIdx:      groupIdx,
-		Counter:       counter,
-		SourceKeyFunc: sourceKeyFunc,
-	}, func(ctx workflow.Context, i int) workflow.Future {
-		return starter(ctx, seasons[i], i == len(seasons)-1)
-	})
-	if err != nil {
-		return err
-	}
-
-	// Build and save completion message
-	elapsed := tracker.GetElapsed(ctx, groupIdx)
-	var msg string
-	if completionMsg != nil {
-		msg = completionMsg(len(seasons), elapsed, counts)
-	} else {
-		msg = fmt.Sprintf("Processed %d seasons in %s.", len(seasons), elapsed)
-		msg = counts.AppendSummary(msg, "origins")
-	}
-	tracker.CompleteGroup(ctx, groupIdx, msg)
-	return nil
-}
 
 // loadSeasonsManifest fetches the seasons manifest from the NHL API via activity.
 func loadSeasonsManifest(ctx workflow.Context, logger log.Logger, input *model.SeasonsInput) ([]nhl.SeasonInfo, error) {
