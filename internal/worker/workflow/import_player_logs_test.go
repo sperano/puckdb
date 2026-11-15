@@ -23,6 +23,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"go.temporal.io/sdk/testsuite"
+	"go.temporal.io/sdk/workflow"
 )
 
 const (
@@ -148,7 +149,7 @@ func newImportPlayerLogsEnv(t *testing.T, seasons ...nhl.SeasonInfo) *testsuite.
 	env.RegisterWorkflow(ImportPlayerLogsWorkflow)
 	env.RegisterWorkflow(ImportSeasonPlayerLogsV2Workflow)
 	var sa *worknhl.SeasonsActivities
-	env.OnActivity(sa.FetchSeasonsManifest, mock.Anything, mock.Anything).
+	env.OnActivity(sa.FetchSeasonsManifest, mock.Anything, &model.SeasonsInput{}).
 		Return(worknhl.FetchSeasonsManifestResult{Seasons: seasons, Origin: core.OriginFileSystem}, nil)
 	return env
 }
@@ -235,6 +236,84 @@ func TestImportPlayerLogsSizesEachSeasonFromItsManifest(t *testing.T) {
 		n := len(manifests[seasons[i].ID])
 		assert.Equal(t, [2]int{n, n}, [2]int{bar.Current, bar.Total}, seasons[i].Label())
 	}
+}
+
+// importLogsTestSkaters is each importLogsTestSeasons season's manifest:
+// different sizes, so a manifest reaching another season's child or bar
+// shows.
+var importLogsTestSkaters = map[int][]int64{2022: {1, 2}, 2023: {1, 2, 3}}
+
+// importLogsTestMissing is each season's count of boxscores not cached.
+var importLogsTestMissing = map[int]int{2022: 0, 2023: 2}
+
+func importLogsTestSkaterCount(startYear int) int { return len(importLogsTestSkaters[startYear]) }
+
+// newImportPlayerLogsParent stubs each season's skater scan, the first
+// season's finishing last (on the workflow clock), and each
+// ImportSeasonPlayerLogsV2Workflow child, recording its ID and input and
+// returning one cache read per player.
+func newImportPlayerLogsParent(t *testing.T, seasons []nhl.SeasonInfo) *fanOutParent {
+	p := newFanOutParent(t, ImportPlayerLogsWorkflow, seasons)
+	var ia *worknhl.ImportActivities
+	for i, s := range seasons {
+		year := s.ID.StartYear()
+		call := p.env.OnActivity(ia.CollectSeasonSkaters, mock.Anything, mock.MatchedBy(
+			func(in worknhl.CollectSeasonPlayerIDsInput) bool { return in.Season.ID == s.ID })).
+			Return(worknhl.SeasonSkaterManifest{
+				PlayerIDs: importLogsTestSkaters[year], MissingBoxscores: importLogsTestMissing[year],
+			}, nil).Once()
+		if i == 0 {
+			call.After(time.Minute)
+		}
+	}
+	p.env.RegisterWorkflow(ImportSeasonPlayerLogsV2Workflow)
+	p.env.OnWorkflow(ImportSeasonPlayerLogsV2Workflow, mock.Anything, mock.Anything).Return(
+		func(ctx workflow.Context, in ImportSeasonPlayerLogsInput) (core.OriginCounts, error) {
+			p.recordChild(ctx, in)
+			return core.OriginCounts{core.OriginFileSystem: len(in.PlayerIDs)}, nil
+		}).Maybe()
+	return p
+}
+
+// The version-1 path lists every season's skaters, then gives each season's
+// child and bar that season's manifest whatever order the scans finished
+// in, keys each bar and stale report to the child's workflow ID and
+// completes both groups with their counts.
+func TestImportPlayerLogsWorkflowAlignsManifestsWithSeasons(t *testing.T) {
+	seasons := playerLogsTestSeasons()
+	p := newImportPlayerLogsParent(t, seasons)
+	groups := p.runGroups(t, ImportPlayerLogsWorkflow, nil)
+	require.Len(t, groups, 2)
+
+	var want []fanOutChild
+	for _, s := range seasons {
+		year := s.ID.StartYear()
+		want = append(want, fanOutChild{WorkflowIDImportSeasonPlayerLogs(year),
+			ImportSeasonPlayerLogsInput{Season: s, PlayerIDs: importLogsTestSkaters[year]}})
+	}
+	assert.ElementsMatch(t, want, p.children)
+	assert.Equal(t, &model.SeasonsInput{}, p.manifestInput)
+	assert.Equal(t, fanOutSourceKeys(seasons, WorkflowIDImportSeasonPlayerLogs), p.staleKeys)
+
+	scan := groups[GroupImportPlayerLogsScan]
+	assert.Equal(t, []shared.ProgressBar{{Label: "Seasons", Current: 2, Total: 2}}, scan.Bars)
+	elapsed := shared.FormatElapsedMilli(scan.CompletedAt - scan.StartedAt)
+	assert.Equal(t, "Listed 5 season skaters from 2 seasons in "+elapsed+". 2 boxscores not cached.", scan.CompletedMsg)
+
+	imp := groups[GroupImportPlayerLogsImport]
+	assert.Equal(t, fanOutBars(seasons, importLogsTestSkaterCount, WorkflowIDImportSeasonPlayerLogs), imp.Bars)
+	elapsed = shared.FormatElapsedMilli(imp.CompletedAt - imp.StartedAt)
+	assert.Equal(t, "Imported player logs for 2 seasons in "+elapsed+". (cache reads: 100% filesystem)", imp.CompletedMsg)
+}
+
+// An empty manifest scans nothing and starts no group.
+func TestImportPlayerLogsWorkflowWithoutSeasons(t *testing.T) {
+	p := newImportPlayerLogsParent(t, nil)
+	groups := p.runGroups(t, ImportPlayerLogsWorkflow, nil)
+
+	assert.Empty(t, p.children)
+	assert.Empty(t, p.staleKeys)
+	assert.False(t, anyGroupStarted(groups))
 }
 
 func TestImportPlayerLogsNoSeasons(t *testing.T) {

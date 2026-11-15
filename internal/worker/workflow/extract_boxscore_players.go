@@ -41,58 +41,51 @@ func NewExtractBoxscorePlayersProgressReport() *shared.ProgressReport {
 
 // ExtractBoxscorePlayersWorkflow extracts unique players from boxscores for each season
 // and stores them in Redis. This enables downstream workflows to access player data
-// without re-extracting from files.
+// without re-extracting from files. Once every selected season is extracted it
+// consolidates them into one set; an empty selection or a failed extraction
+// consolidates nothing.
 func ExtractBoxscorePlayersWorkflow(ctx workflow.Context, input *model.SeasonsInput) error {
-	input = normalizeSeasonsInput(input)
-	logger := workflow.GetLogger(ctx)
-
-	concurrency, err := shared.SnapshotConfigInt(ctx, logger, shared.SeasonConcurrencyParam, input.SeasonConcurrency)
-	if err != nil {
+	result, err := runSeasonFanOut(ctx, input, SeasonFanOut{
+		Report:  NewExtractBoxscorePlayersProgressReport(),
+		Prepare: planExtractBoxscorePlayers,
+	})
+	if err != nil || len(result.Seasons) == 0 {
 		return err
 	}
-
-	// Register query handler before any activity runs so progress queries work from workflow start
-	tracker, err := shared.InitTracker(ctx, NewExtractBoxscorePlayersProgressReport())
-	if err != nil {
-		return err
-	}
-
 	ctx = workflow.WithActivityOptions(ctx, shared.DefaultActivityOptions())
-	seasons, err := loadSeasonsManifest(ctx, logger, input)
-	if err != nil {
-		return err
-	}
-	logger.Info("ExtractBoxscorePlayersWorkflow started",
-		"start_season", input.StartSeason,
-		"end_season", input.EndSeason,
-		"concurrency", concurrency)
+	return consolidateBoxscorePlayers(ctx, result.Tracker, result.Seasons)
+}
 
-	if len(seasons) == 0 {
-		logger.Info("No seasons to process")
-		return nil
-	}
-
-	// Phase 1: Extract boxscore players per season
+// planExtractBoxscorePlayers runs one ExtractAndSaveBoxscorePlayers activity
+// per season, its bar sized by the season's days.
+func planExtractBoxscorePlayers(_ workflow.Context, _ SeasonFanOutState) (SeasonFanOutPlan, error) {
 	var ba *worknhl.BoxscoreActivities
-	if _, err = processSeasonGroup(ctx, tracker, seasons, concurrency, SeasonGroupConfig{
-		GroupIdx: GroupExtractBoxscorePlayers,
-		Counter: func(ctx workflow.Context, season nhl.SeasonInfo) (int, error) {
-			return shared.CountDaysInSeason(ctx, season), nil
+	return SeasonFanOutPlan{
+		Group: SeasonGroupConfig{
+			GroupIdx:      GroupExtractBoxscorePlayers,
+			Counter:       countExtractSeasonDays,
+			SourceKeyFunc: WorkflowIDExtractSeason,
+			GroupLabel:    "Extracted players for",
+			CountLabel:    "boxscore reads",
 		},
-		SourceKeyFunc: WorkflowIDExtractSeason,
-		GroupLabel:    "Extracted players for",
-		CountLabel:    "boxscore reads",
-	}, func(_ workflow.Context, i int) workflow.Future {
-		return workflow.ExecuteActivity(ctx, ba.ExtractAndSaveBoxscorePlayers,
-			worknhl.ExtractAndSaveInput{
-				Season:  seasons[i],
-				EndDate: shared.EffectiveEndDate(ctx, seasons[i].StandingsEnd.Time),
-			})
-	}); err != nil {
-		return err
-	}
+		Start: func(ctx workflow.Context, season nhl.SeasonInfo, _ int, _ bool) workflow.Future {
+			return workflow.ExecuteActivity(ctx, ba.ExtractAndSaveBoxscorePlayers,
+				worknhl.ExtractAndSaveInput{
+					Season:  season,
+					EndDate: shared.EffectiveEndDate(ctx, season.StandingsEnd.Time),
+				})
+		},
+	}, nil
+}
 
-	// Phase 2: Consolidate all seasons into one unique set
+// countExtractSeasonDays sizes a season's extraction bar.
+func countExtractSeasonDays(ctx workflow.Context, season nhl.SeasonInfo) (int, error) {
+	return shared.CountDaysInSeason(ctx, season), nil
+}
+
+// consolidateBoxscorePlayers merges the extracted players of every season
+// into one unique set in the consolidation group.
+func consolidateBoxscorePlayers(ctx workflow.Context, tracker *shared.ReportTracker, seasons []nhl.SeasonInfo) error {
 	tracker.StartGroup(ctx, GroupConsolidatePlayers)
 
 	seasonIDs := make([]nhl.Season, len(seasons))
@@ -113,7 +106,7 @@ func ExtractBoxscorePlayersWorkflow(ctx workflow.Context, input *model.SeasonsIn
 			consolidateResult.UniquePlayers, consolidateResult.TotalPlayers,
 			tracker.GetElapsed(ctx, GroupConsolidatePlayers)))
 
-	logger.Info("ExtractBoxscorePlayersWorkflow completed",
+	workflow.GetLogger(ctx).Info("ExtractBoxscorePlayersWorkflow completed",
 		"seasons", len(seasons),
 		"unique_players", consolidateResult.UniquePlayers)
 	return nil

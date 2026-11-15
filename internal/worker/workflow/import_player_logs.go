@@ -42,56 +42,45 @@ func NewImportPlayerLogsProgressReport() *shared.ProgressReport {
 // ImportPlayerLogsWorkflow imports player game logs from cached files into the database.
 // It lists each season's skaters from the cached boxscores, then spawns one
 // ImportSeasonPlayerLogsV2Workflow per season with that list: the season's
-// bar and the child's own bar are both sized from it.
+// bar and the child's own bar are both sized from it. The input is
+// normalized before the version check because the legacy path, which old
+// histories select, does not normalize it itself.
 func ImportPlayerLogsWorkflow(ctx workflow.Context, input *model.SeasonsInput) error {
 	input = normalizeSeasonsInput(input)
 	if workflow.GetVersion(ctx, importPlayerLogsManifestChangeID, workflow.DefaultVersion,
 		importPlayerLogsManifestVersion) == workflow.DefaultVersion {
 		return importPlayerLogsLegacy(ctx, input)
 	}
-	logger := workflow.GetLogger(ctx)
-
-	concurrency, err := shared.SnapshotConfigInt(ctx, logger, shared.SeasonConcurrencyParam, input.SeasonConcurrency)
-	if err != nil {
-		return err
-	}
-	tracker, err := shared.InitTracker(ctx, NewImportPlayerLogsProgressReport())
-	if err != nil {
-		return err
-	}
-	logger.Info("ImportPlayerLogsWorkflow started",
-		"start_season", input.StartSeason,
-		"end_season", input.EndSeason,
-		"concurrency", concurrency)
-
-	ctx = workflow.WithActivityOptions(ctx, shared.DefaultActivityOptions())
-	seasons, err := loadSeasonsManifest(ctx, logger, input)
-	if err != nil {
-		return err
-	}
-	if len(seasons) == 0 {
-		return nil
-	}
-
-	manifests, err := collectSeasonSkaters(ctx, tracker, seasons, concurrency)
-	if err != nil {
-		return err
-	}
-
-	_, err = processSeasonGroup(ctx, tracker, seasons, concurrency, SeasonGroupConfig{
-		GroupIdx:      GroupImportPlayerLogsImport,
-		Counter:       manifestCounter(seasons, manifests),
-		SourceKeyFunc: WorkflowIDImportSeasonPlayerLogs,
-		GroupLabel:    "Imported player logs for",
-		CountLabel:    "cache reads",
-	}, func(ctx workflow.Context, i int) workflow.Future {
-		season := seasons[i]
-		return workflow.ExecuteChildWorkflow(
-			shared.WithChildOptions(ctx, WorkflowIDImportSeasonPlayerLogs(season.ID.StartYear())),
-			ImportSeasonPlayerLogsV2Workflow,
-			ImportSeasonPlayerLogsInput{Season: season, PlayerIDs: manifests[i].PlayerIDs})
+	_, err := runSeasonFanOut(ctx, input, SeasonFanOut{
+		Report:  NewImportPlayerLogsProgressReport(),
+		Prepare: planImportPlayerLogs,
 	})
 	return err
+}
+
+// planImportPlayerLogs runs the skater scan group and returns the import
+// group's plan over the completed manifests: manifests[i] belongs to the
+// selected season i, which sizes its bar and is its child's player list.
+func planImportPlayerLogs(ctx workflow.Context, state SeasonFanOutState) (SeasonFanOutPlan, error) {
+	manifests, err := collectSeasonSkaters(ctx, state.Tracker, state.Seasons, state.Concurrency)
+	if err != nil {
+		return SeasonFanOutPlan{}, err
+	}
+	return SeasonFanOutPlan{
+		Group: SeasonGroupConfig{
+			GroupIdx:      GroupImportPlayerLogsImport,
+			Counter:       manifestCounter(state.Seasons, manifests),
+			SourceKeyFunc: WorkflowIDImportSeasonPlayerLogs,
+			GroupLabel:    "Imported player logs for",
+			CountLabel:    "cache reads",
+		},
+		Start: func(ctx workflow.Context, season nhl.SeasonInfo, i int, _ bool) workflow.Future {
+			return workflow.ExecuteChildWorkflow(
+				shared.WithChildOptions(ctx, WorkflowIDImportSeasonPlayerLogs(season.ID.StartYear())),
+				ImportSeasonPlayerLogsV2Workflow,
+				ImportSeasonPlayerLogsInput{Season: season, PlayerIDs: manifests[i].PlayerIDs})
+		},
+	}, nil
 }
 
 // collectSeasonSkaters runs CollectSeasonSkaters for every season, at most

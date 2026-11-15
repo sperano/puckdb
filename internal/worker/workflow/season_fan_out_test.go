@@ -504,15 +504,16 @@ func fanOutInvalidPlans() map[string]struct {
 const fanOutParentWorkflowID = "season-fan-out-parent-test"
 
 // fanOutParent runs one season fan-out parent workflow against a stubbed
-// manifest and records the stale report keys it deletes, its saved
-// progress reports and the children it starts.
+// manifest and records the manifest's input, the stale report keys it
+// deletes, its saved progress reports and the children it starts.
 type fanOutParent struct {
 	env   *testsuite.TestWorkflowEnvironment
 	saved *savedReports
 
-	mu        sync.Mutex
-	staleKeys [][]string
-	children  []fanOutChild
+	mu            sync.Mutex
+	manifestInput *model.SeasonsInput
+	staleKeys     [][]string
+	children      []fanOutChild
 }
 
 // fanOutChild is one started child workflow: its ID and its input.
@@ -528,8 +529,13 @@ func newFanOutParent(t *testing.T, parent any, seasons []nhl.SeasonInfo) *fanOut
 	p.env.RegisterWorkflow(parent)
 	p.env.SetStartWorkflowOptions(client.StartWorkflowOptions{ID: fanOutParentWorkflowID})
 	var sa *worknhl.SeasonsActivities
-	p.env.OnActivity(sa.FetchSeasonsManifest, mock.Anything, mock.Anything).
-		Return(worknhl.FetchSeasonsManifestResult{Seasons: seasons, Origin: core.OriginFileSystem}, nil).Once()
+	p.env.OnActivity(sa.FetchSeasonsManifest, mock.Anything, mock.Anything).Return(
+		func(_ context.Context, in *model.SeasonsInput) (worknhl.FetchSeasonsManifestResult, error) {
+			p.mu.Lock()
+			defer p.mu.Unlock()
+			p.manifestInput = in
+			return worknhl.FetchSeasonsManifestResult{Seasons: seasons, Origin: core.OriginFileSystem}, nil
+		}).Once()
 	p.env.OnActivity(((*shared.ProgressActivities)(nil)).DeleteBatch, mock.Anything, mock.Anything).Return(
 		func(_ context.Context, keys []string) error {
 			p.mu.Lock()
@@ -553,21 +559,51 @@ func (p *fanOutParent) recordChild(ctx workflow.Context, input any) {
 // group saves no report.
 func (p *fanOutParent) run(t *testing.T, parent any, input *model.SeasonsInput) shared.ProgressGroup {
 	t.Helper()
+	groups := p.runGroups(t, parent, input)
+	require.Len(t, groups, 1)
+	return groups[0]
+}
+
+// runGroups executes the parent, which must succeed, and returns its
+// progress groups, which the last saved parent report must match; a parent
+// that started none of its groups saves no report.
+func (p *fanOutParent) runGroups(t *testing.T, parent any, input *model.SeasonsInput) []shared.ProgressGroup {
+	t.Helper()
 	p.env.ExecuteWorkflow(parent, input)
 	require.True(t, p.env.IsWorkflowCompleted())
 	require.NoError(t, p.env.GetWorkflowError())
 	p.env.AssertExpectations(t)
 	report := queryProgressReport(t, p.env)
-	require.Len(t, report.Groups, 1)
 	p.saved.mu.Lock()
 	defer p.saved.mu.Unlock()
 	saved, ok := p.saved.last[fanOutParentWorkflowID]
-	if report.Groups[0].StartedAt == 0 {
-		assert.False(t, ok, "saved a report without starting the group")
+	if !anyGroupStarted(report.Groups) {
+		assert.False(t, ok, "saved a report without starting a group")
 	} else if assert.True(t, ok, "no saved report") {
 		assert.Equal(t, report.Groups, saved.Groups, "last saved report")
 	}
-	return report.Groups[0]
+	return report.Groups
+}
+
+// runFailing executes the parent, which must fail, and returns its
+// progress groups and its error.
+func (p *fanOutParent) runFailing(t *testing.T, parent any, input *model.SeasonsInput) ([]shared.ProgressGroup, error) {
+	t.Helper()
+	p.env.ExecuteWorkflow(parent, input)
+	require.True(t, p.env.IsWorkflowCompleted())
+	err := p.env.GetWorkflowError()
+	require.Error(t, err)
+	p.env.AssertExpectations(t)
+	return queryProgressReport(t, p.env).Groups, err
+}
+
+func anyGroupStarted(groups []shared.ProgressGroup) bool {
+	for _, g := range groups {
+		if g.StartedAt != 0 {
+			return true
+		}
+	}
+	return false
 }
 
 // fanOutBars is the completed bar of each season: its label, its total
