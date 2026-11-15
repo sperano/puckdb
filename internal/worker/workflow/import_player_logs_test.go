@@ -238,7 +238,7 @@ func TestImportPlayerLogsSizesEachSeasonFromItsManifest(t *testing.T) {
 	}
 }
 
-// importLogsTestSkaters is each importLogsTestSeasons season's manifest:
+// importLogsTestSkaters is each playerLogsTestSeasons season's manifest:
 // different sizes, so a manifest reaching another season's child or bar
 // shows.
 var importLogsTestSkaters = map[int][]int64{2022: {1, 2}, 2023: {1, 2, 3}}
