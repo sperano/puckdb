@@ -120,6 +120,8 @@ func TestValidateAPIBase(t *testing.T) {
 		{"ollama", "/v1", nil},
 		{"ollama", "ftp://ollama.local/v1", nil},
 		{"ollama", "http://sim-user:sim-pass@ollama.local/v1", []string{"sim-user", "sim-pass"}},
+		// url.Parse fails here (missing ']' in host).
+		{"ollama", "http://sim-user:sim-pass@[ollama.local/v1", []string{"sim-user", "sim-pass"}},
 		{"anthropic", "https://sk-userinfo@api.anthropic.com", []string{"sk-userinfo"}},
 	} {
 		err := ValidateAPIBase(tc.provider, tc.apiBase)
