@@ -9,6 +9,7 @@ import (
 	"github.com/sperano/puckdb/internal/store"
 	worknhl "github.com/sperano/puckdb/internal/worker/nhl"
 	workplayer "github.com/sperano/puckdb/internal/worker/player"
+	"github.com/sperano/puckdb/internal/worker/shared"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -159,6 +160,45 @@ func TestSeasonSync_ChildWorkflowIDsAreBarSourceKeys(t *testing.T) {
 				assert.Contains(t, startedIDs, key)
 			}
 			assert.NotEmpty(t, sourceKeys)
+		})
+	}
+}
+
+// The NHL group's completion names what its children count: fetch counts
+// the schedule behind each unit of progress, import every cached file read.
+func TestSeasonSync_NHLGroupCountLabel(t *testing.T) {
+	for _, tc := range []struct {
+		mode seasonSyncMode
+		want string
+	}{
+		{seasonSyncFetch, "(schedule reads: 100% filesystem)"},
+		{seasonSyncImport, "(cache reads: 100% filesystem)"},
+	} {
+		t.Run(seasonSyncAction(tc.mode), func(t *testing.T) {
+			withYahooSnapshot(t, shared.YahooSeasonsSnapshot{})
+			var suite testsuite.WorkflowTestSuite
+			env := suite.NewTestWorkflowEnvironment()
+			mockProgressSaves(env)
+			mockNoUpcomingSeason(env)
+			nhlChild, nhlArgs := any(FetchNHLSeasonWorkflow), []any{mock.Anything, mock.Anything}
+			if tc.mode == seasonSyncImport {
+				nhlChild, nhlArgs = ImportNHLSeasonWorkflow, append(nhlArgs, mock.Anything)
+			}
+			env.RegisterWorkflow(nhlChild)
+			var sa *worknhl.SeasonsActivities
+			var pa *worknhl.PlayoffActivities
+			env.OnActivity(sa.FetchSeasonsManifest, mock.Anything, mock.Anything).Return(worknhl.FetchSeasonsManifestResult{
+				Seasons: []nhl.SeasonInfo{testSeasonW(preseasonTestYear, "2026-09-29", "2026-10-01")},
+			}, nil)
+			env.OnActivity(pa.ListSeasonTeams, mock.Anything, preseasonTestYear).Return([]string{"MTL"}, nil)
+			env.OnWorkflow(nhlChild, nhlArgs...).Return(core.OriginCounts{core.OriginFileSystem: 1}, nil).Once()
+
+			executeSeasonSyncParent(env, tc.mode)
+
+			require.NoError(t, env.GetWorkflowError())
+			report := queryProgress(t, env)
+			assert.Contains(t, report.Groups[groupNHLSeasons].CompletedMsg, tc.want)
+			env.AssertExpectations(t)
 		})
 	}
 }

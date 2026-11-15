@@ -120,7 +120,7 @@ func replayCurrentImportSeasonDaysWorkflow(ctx workflow.Context, season nhl.Seas
 	if err != nil {
 		return err
 	}
-	_, err = importSeasonDays(ctx, tracker, season, cfg, ImportNHLSeasonOptions{})
+	_, err = runDayLoop(ctx, tracker, season, cfg, importSeasonDaysMode(ImportNHLSeasonOptions{}))
 	return err
 }
 
@@ -162,7 +162,7 @@ func replayUnbatchedImportSeasonDaysWorkflow(ctx workflow.Context, season nhl.Se
 	}
 
 	tracker.CompleteGroup(ctx, GroupImportDays,
-		daysCompletionMessage(numDays, result, season, tracker.GetElapsed(ctx, GroupImportDays)))
+		daysCompletionMessage("Imported", numDays, result, season, tracker.GetElapsed(ctx, GroupImportDays)))
 	return nil
 }
 
