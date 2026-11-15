@@ -94,24 +94,30 @@ func (s *ImportSeasonPlayerLogsWorkflowTestSuite) TestBatchError() {
 }
 
 // TestImportPlayerLogsLegacyHistoryKeepsRedisCount replays the path of
-// histories recorded before the skater manifest.
+// histories recorded before the skater manifest. An omitted input is
+// normalized before the version check: the legacy path reads it unchecked
+// and hands the manifest an empty input.
 func TestImportPlayerLogsLegacyHistoryKeepsRedisCount(t *testing.T) {
-	env := newImportPlayerLogsEnv(t, playerLogsFixtureSeason())
-	env.RegisterWorkflow(ImportSeasonPlayerLogsWorkflow)
-	recordSavedReports(env)
-	env.OnGetVersion(importPlayerLogsManifestChangeID, workflow.DefaultVersion, importPlayerLogsManifestVersion).
-		Return(workflow.DefaultVersion)
-	env.OnActivity(((*workplayer.Activities)(nil)).CountPlayersForAllSeasons, mock.Anything, []int{playerLogsFixtureYear}).
-		Return(map[int]int{playerLogsFixtureYear: seasonFanOutTestPlayers}, nil).Once()
-	env.OnWorkflow(ImportSeasonPlayerLogsWorkflow, mock.Anything, playerLogsFixtureSeason()).
-		Return(core.OriginCounts{}, nil).Once()
+	for name, input := range map[string]*model.SeasonsInput{"omitted": nil, "empty": {}} {
+		t.Run(name, func(t *testing.T) {
+			env := newImportPlayerLogsEnv(t, playerLogsFixtureSeason())
+			env.RegisterWorkflow(ImportSeasonPlayerLogsWorkflow)
+			recordSavedReports(env)
+			env.OnGetVersion(importPlayerLogsManifestChangeID, workflow.DefaultVersion, importPlayerLogsManifestVersion).
+				Return(workflow.DefaultVersion)
+			env.OnActivity(((*workplayer.Activities)(nil)).CountPlayersForAllSeasons, mock.Anything, []int{playerLogsFixtureYear}).
+				Return(map[int]int{playerLogsFixtureYear: seasonFanOutTestPlayers}, nil).Once()
+			env.OnWorkflow(ImportSeasonPlayerLogsWorkflow, mock.Anything, playerLogsFixtureSeason()).
+				Return(core.OriginCounts{}, nil).Once()
 
-	env.ExecuteWorkflow(ImportPlayerLogsWorkflow, &model.SeasonsInput{})
-	require.True(t, env.IsWorkflowCompleted())
-	require.NoError(t, env.GetWorkflowError())
-	env.AssertExpectations(t)
+			env.ExecuteWorkflow(ImportPlayerLogsWorkflow, input)
+			require.True(t, env.IsWorkflowCompleted())
+			require.NoError(t, env.GetWorkflowError())
+			env.AssertExpectations(t)
 
-	report := queryProgressReport(t, env)
-	require.Len(t, report.Groups, 1)
-	assert.Equal(t, seasonFanOutTestPlayers, report.Groups[groupImportPlayerLogsLegacy].Bars[0].Total)
+			report := queryProgressReport(t, env)
+			require.Len(t, report.Groups, 1)
+			assert.Equal(t, seasonFanOutTestPlayers, report.Groups[groupImportPlayerLogsLegacy].Bars[0].Total)
+		})
+	}
 }
