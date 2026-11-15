@@ -53,7 +53,9 @@ type ImportNHLSeasonOptions struct {
 // league-level data (transactions, draft results, matchups), are imported
 // independently and beforehand by ImportYahooSeasonWorkflow in the parent
 // season-sync workflow (day-level roster rows FK to yahoo_teams).
-// The result counts one origin per cached file the day and playoff imports read.
+// The result counts one origin per daily schedule, game and Yahoo file read of
+// each day and per playoff game's boxscore; NHL standings, club schedules,
+// season rosters and club stats reads are not counted.
 // Player game log imports are handled separately by ImportSeasonPlayerLogsWorkflow.
 func ImportNHLSeasonWorkflow(ctx workflow.Context, season nhl.SeasonInfo, opts ImportNHLSeasonOptions) (core.OriginCounts, error) {
 	return runSeasonDays(ctx, season, importSeasonDaysMode(opts))

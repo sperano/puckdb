@@ -182,3 +182,40 @@ func TestFetchTeamPlayoffGames_CountsClubScheduleOrigin(t *testing.T) {
 		})
 	}
 }
+
+// testPlayoffGameID is the home playoff game of settledPlayoffSchedule.
+const testPlayoffGameID = 2
+
+// settledPlayoffSchedule is a settled club schedule with one final home
+// playoff game, so FetchTeamPlayoffGames also fetches that game's files.
+func settledPlayoffSchedule() *nhlapi.TeamScheduleResponse {
+	return &nhlapi.TeamScheduleResponse{Games: []nhlapi.ScheduleGame{
+		scheduleGame(1, nhlapi.GameTypeRegularSeason, nhlapi.GameStateOff, testAggregateTeam, "UTA", testLastRegularSeasonDay),
+		scheduleGame(testPlayoffGameID, nhlapi.GameTypePlayoffs, nhlapi.GameStateFinal, testAggregateTeam, "UTA",
+			"2026-04-20"),
+	}}
+}
+
+// The club schedule is the only origin counted: the playoff game's files,
+// downloaded here, add none.
+func TestFetchTeamPlayoffGames_CountsOnlyClubScheduleOriginForPlayoffGames(t *testing.T) {
+	t.Parallel()
+	mem := store.NewMemStorage()
+	seedClubSchedule(t, mem, settledPlayoffSchedule())
+	gameID := nhlapi.GameID(testPlayoffGameID)
+	client := new(MockNHLClient)
+	client.On("Boxscore", mock.Anything, gameID).Return(nhlapi.FixtureBoxscore(), nil).Once()
+	client.On("PlayByPlay", mock.Anything, gameID).Return(nhlapi.FixturePlayByPlay(), nil).Once()
+	client.On("ShiftChart", mock.Anything, gameID).Return(nhlapi.FixtureShiftChart(), nil).Once()
+	client.On("GameStory", mock.Anything, gameID).Return(nhlapi.FixtureGameStory(), nil).Once()
+	client.On("SeasonSeries", mock.Anything, gameID).Return(nhlapi.FixtureSeasonSeriesMatchup(), nil).Once()
+
+	result := runFetchTeamPlayoffGames(t, mem, client)
+
+	assert.Equal(t, FetchTeamPlayoffGamesResult{
+		GamesFound:   1,
+		GamesFetched: 1,
+		Origins:      core.OriginCounts{core.OriginFileSystem: 1},
+	}, result)
+	client.AssertExpectations(t)
+}

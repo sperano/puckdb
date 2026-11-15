@@ -275,9 +275,12 @@ func startNHLSeasonChild(ctx workflow.Context, season nhl.SeasonInfo, mode seaso
 	return workflow.ExecuteChildWorkflow(ctx, FetchNHLSeasonWorkflow, season)
 }
 
-// nhlSeasonCountLabel names what the NHL season children count: import
-// counts every cached file it reads, fetch the schedule behind each unit of
-// progress (daily and club schedules, cached or downloaded).
+// nhlSeasonCountLabel names what the NHL season children count: import the
+// daily schedule, game and Yahoo file reads of each day and each playoff
+// game's boxscore (not NHL standings, club schedules, season rosters or club
+// stats), fetch the
+// schedule behind each unit of progress (daily and club schedules, cached or
+// downloaded).
 func nhlSeasonCountLabel(mode seasonSyncMode) string {
 	if mode == seasonSyncImport {
 		return "cache reads"

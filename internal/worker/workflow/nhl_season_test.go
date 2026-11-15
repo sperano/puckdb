@@ -31,7 +31,8 @@ var (
 	nhlSeasonTestStart    = time.Date(2026, time.November, 1, 12, 0, 0, 0, time.UTC)
 	nhlSeasonTestTeams    = []string{"TOR", "MTL", "SEA"}
 	nhlSeasonFetchResults = map[string]worknhl.FetchTeamPlayoffGamesResult{
-		"TOR": {GamesFound: 2, GamesFetched: 2, Origins: core.OriginCounts{core.OriginRemoteNHLAPI: 1}},
+		// TOR found more games than it fetched, so the message shows which it sums.
+		"TOR": {GamesFound: 3, GamesFetched: 2, Origins: core.OriginCounts{core.OriginRemoteNHLAPI: 1}},
 		"MTL": {GamesFound: 1, GamesFetched: 1, Origins: core.OriginCounts{core.OriginFileSystem: 1}},
 		"SEA": {}, // no club schedule
 	}
@@ -199,5 +200,25 @@ func TestNHLSeasonWorkflows_WrapActivityErrors(t *testing.T) {
 			assert.Contains(t, err.Error(), tc.want)
 			assert.Contains(t, err.Error(), errNHLSeasonStub.Error())
 		})
+	}
+}
+
+// The unchanged and skipped-rows suffixes are independent of each other.
+func TestDaysCompletionMessage(t *testing.T) {
+	const numDays = 5
+	season := testSeasonW(2023, daysTestStart, daysTestEnd)
+	for _, tc := range []struct {
+		skipped, partial int
+		want             string
+	}{
+		{0, 0, "Imported 5 days for 2023-24 in 1s."},
+		{2, 0, "Imported 3 of 5 days for 2023-24 in 1s; 2 unchanged since their last import."},
+		{0, 1, "Imported 5 days for 2023-24 in 1s; 1 with skipped rows, retried next run."},
+		{2, 1, "Imported 3 of 5 days for 2023-24 in 1s; 2 unchanged since their last import; " +
+			"1 with skipped rows, retried next run."},
+	} {
+		result := seasonDaysResult{skipped: tc.skipped, partial: tc.partial}
+		assert.Equal(t, tc.want, daysCompletionMessage("Imported", numDays, result, season, "1s"),
+			"skipped %d, partial %d", tc.skipped, tc.partial)
 	}
 }
