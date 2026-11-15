@@ -75,9 +75,13 @@ type FetchTeamPlayoffGamesInput struct {
 }
 
 // FetchTeamPlayoffGamesResult contains the results of fetching one team's playoff games.
+// Origins counts the club schedule read, the one file per unit of the
+// season's playoff progress; it is empty when the team has no schedule.
+// Results recorded before it existed decode with a nil Origins.
 type FetchTeamPlayoffGamesResult struct {
-	GamesFound   int `json:"gamesFound"`
-	GamesFetched int `json:"gamesFetched"`
+	GamesFound   int               `json:"gamesFound"`
+	GamesFetched int               `json:"gamesFetched"`
+	Origins      core.OriginCounts `json:"origins"`
 }
 
 // playoffGame holds a playoff game ID with its date for cache paths.
@@ -112,7 +116,7 @@ func (a *PlayoffActivities) FetchTeamPlayoffGames(ctx context.Context, input Fet
 	}
 
 	activity.RecordHeartbeat(ctx, fmt.Sprintf("schedule:%s", input.TeamAbbrev))
-	schedule, _, err := shared.FetchOrCache(ctx, a.Storage, a.GobCache, res,
+	schedule, origin, err := shared.FetchOrCache(ctx, a.Storage, a.GobCache, res,
 		func(ctx context.Context) (*nhlapi.TeamScheduleResponse, error) {
 			return a.NHLClient.ClubScheduleSeason(ctx, input.TeamAbbrev, season)
 		})
@@ -123,6 +127,7 @@ func (a *PlayoffActivities) FetchTeamPlayoffGames(ctx context.Context, input Fet
 	if err != nil {
 		return result, fmt.Errorf("fetch club schedule for %s: %w", input.TeamAbbrev, err)
 	}
+	result.Origins = core.OriginCounts{origin: 1}
 
 	games := homePlayoffGames(schedule, input.TeamAbbrev)
 	result.GamesFound = len(games)

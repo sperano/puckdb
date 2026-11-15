@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"github.com/sperano/nhl-api-go/nhl"
-	"github.com/sperano/puckdb/internal/config"
 	"github.com/sperano/puckdb/internal/core"
 	worknhl "github.com/sperano/puckdb/internal/worker/nhl"
 	"github.com/sperano/puckdb/internal/worker/shared"
@@ -13,8 +12,8 @@ import (
 
 // Group indices for FetchNHLSeasonWorkflow progress.
 const (
-	GroupFetchSeasonData    = 0
-	GroupFetchSeasonPlayoff = 1
+	GroupFetchSeasonData    = groupSeasonDays
+	GroupFetchSeasonPlayoff = groupSeasonPlayoff
 )
 
 // NewFetchSeasonProgressReport creates the progress structure for a single season.
@@ -36,7 +35,10 @@ func NewFetchSeasonProgressReport(ctx workflow.Context, season nhl.SeasonInfo) *
 // leagues. Yahoo league/team metadata itself, and league-level data
 // (transactions, draft results, matchups), are fetched independently by
 // FetchYahooSeasonWorkflow, which the parent season-sync workflow runs at the
-// same time (see seasonSyncGroups).
+// same time (see seasonSyncGroups); the day loop does not need its files
+// (FetchDay resolves the game key itself).
+// The result counts one origin per unit of progress: each day's daily
+// schedule and each team's club schedule.
 // Each season runs in its own child workflow to isolate history: a typical
 // season (~270 days, 32 clubs) records roughly 1,250-1,950 history events,
 // well under the 50K limit. Every activity costs 3 events; the day pool's
@@ -44,123 +46,56 @@ func NewFetchSeasonProgressReport(ctx workflow.Context, season nhl.SeasonInfo) *
 // while every other progress save costs one. Every workflow task costs up to
 // 3 events (measured on the dev server; see the typed-worker-pool API plan).
 func FetchNHLSeasonWorkflow(ctx workflow.Context, season nhl.SeasonInfo) (core.OriginCounts, error) {
-	logger := workflow.GetLogger(ctx)
+	return runSeasonDays(ctx, season, fetchSeasonDaysMode())
+}
 
-	logger.Debug("FetchNHLSeasonWorkflow started",
-		"season_id", season.ID,
-		"start_date", season.StandingsStart.Format(config.DateFormat),
-		"end_date", season.StandingsEnd.Format(config.DateFormat))
-
-	cfg, err := snapshotSeasonConfig(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	// Set up progress tracking
-	tracker, err := shared.InitTracker(ctx, NewFetchSeasonProgressReport(ctx, season))
-	if err != nil {
-		return nil, err
-	}
-	tracker.StartGroup(ctx, GroupFetchSeasonData)
-
-	ctx = workflow.WithActivityOptions(ctx, shared.DefaultActivityOptions())
-
-	// Per-day Yahoo team IDs, drawn from the season's snapshotted Yahoo
-	// config. No Yahoo activities run here: league/team metadata fetch is
-	// FetchYahooSeasonWorkflow's job. The day loop does not need its files
-	// (FetchDay resolves the game key itself), so the two run concurrently.
-	yahooCfg, _ := cfg.Yahoo.Season(season.ID.StartYear())
-	teamIDs := yahooTeamIDsForSeason(yahooCfg)
-
-	// Fetch season-level NHL data (rosters, club stats)
+func fetchSeasonDaysMode() seasonDaysMode {
 	var sa *worknhl.SeasonsActivities
-	rosterInput := worknhl.FetchSeasonRostersInput{Season: season.ID.StartYear()}
-	if err := workflow.ExecuteActivity(ctx, sa.FetchSeasonRosters, rosterInput).Get(ctx, nil); err != nil {
-		return nil, fmt.Errorf("fetch season rosters: %w", err)
-	}
-	clubStatsInput := worknhl.FetchClubStatsInput{Season: season.ID.StartYear()}
-	if err := workflow.ExecuteActivity(ctx, sa.FetchClubStats, clubStatsInput).Get(ctx, nil); err != nil {
-		return nil, fmt.Errorf("fetch club stats: %w", err)
-	}
-
-	// Calculate days to process (up to today)
-	endDate := shared.EffectiveEndDate(ctx, season.StandingsEnd.Time)
-	numDays := core.CountDays(season.StandingsStart.Time, endDate)
-	concurrency := cfg.DayConcurrency
-
-	logger.Info("Processing days in parallel",
-		"num_days", numDays,
-		"concurrency", concurrency)
-
-	// Process days in parallel using RunWorkerPool
-	// FetchDayActivity needs longer timeout due to rate-limited Yahoo downloads
-	dayCtx := workflow.WithActivityOptions(ctx, shared.YahooDownloadActivityOptions())
-	startDate := season.StandingsStart.Time
-	startSeason := season.ID.StartYear()
-	counts := core.OriginCounts{}
-	err = tracker.RunWorkerPool(ctx, shared.PoolOptions{
-		Total: numDays, Concurrency: concurrency, SaveEvery: dayLoopProgressSaveEvery(ctx),
-		Progress: shared.SingleBar{Bar: shared.BarRef{Group: GroupFetchSeasonData}},
-		Start: func(_ workflow.Context, i int) workflow.Future {
-			day := startDate.AddDate(0, 0, i)
-			dayInput := worknhl.FetchDayInput{
-				Day:         day,
-				StartSeason: startSeason,
-				TeamIDs:     teamIDs,
-				DayIndex:    i,
-				TotalDays:   numDays,
-			}
-			var dsa *worknhl.DailyScheduleActivities
-			return workflow.ExecuteActivity(dayCtx, dsa.FetchDay, dayInput)
-		},
-		Handle: shared.AggregateInto[core.OriginCounts](counts),
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	tracker.CompleteGroup(ctx, GroupFetchSeasonData,
-		fmt.Sprintf("Fetched %d days for %s in %s.", numDays, season.Label(), tracker.GetElapsed(ctx, GroupFetchSeasonData)))
-
-	// Fetch playoff games after regular-season day loop: one activity per team,
-	// each covering the team's home playoff games, so the bar ticks per team.
-	tracker.StartGroup(ctx, GroupFetchSeasonPlayoff)
-
 	var pa *worknhl.PlayoffActivities
-	var teams []string
-	if err := workflow.ExecuteActivity(ctx, pa.ListSeasonTeams, startSeason).Get(ctx, &teams); err != nil {
-		return nil, fmt.Errorf("list season teams: %w", err)
-	}
-	tracker.ResizeBar(ctx, shared.BarRef{Group: GroupFetchSeasonPlayoff}, len(teams))
-
-	playoffGames := 0
-	err = tracker.RunWorkerPool(ctx, shared.PoolOptions{
-		Total: len(teams), Concurrency: concurrency,
-		Progress: shared.SingleBar{Bar: shared.BarRef{Group: GroupFetchSeasonPlayoff}},
-		Start: func(_ workflow.Context, i int) workflow.Future {
-			input := worknhl.FetchTeamPlayoffGamesInput{Season: startSeason, TeamAbbrev: teams[i]}
-			return workflow.ExecuteActivity(ctx, pa.FetchTeamPlayoffGames, input)
+	return seasonDaysMode{
+		sync:           seasonSyncFetch,
+		startDaysFirst: true,
+		report:         NewFetchSeasonProgressReport,
+		season:         seasonActivities{rosters: sa.FetchSeasonRosters, clubStats: sa.FetchClubStats},
+		planDays:       planFetchDays,
+		playoff: playoffMode{
+			activity: pa.FetchTeamPlayoffGames,
+			input: func(startYear int, team string) any {
+				return worknhl.FetchTeamPlayoffGamesInput{Season: startYear, TeamAbbrev: team}
+			},
+			decode: decodeFetchPlayoffs,
+			message: func(totals playoffTotals, season nhl.SeasonInfo, elapsed string) string {
+				return fmt.Sprintf("Fetched %d playoff games for %s in %s.", totals.games, season.Label(), elapsed)
+			},
 		},
-		Handle: func(ctx workflow.Context, i int, f workflow.Future) error {
-			var res worknhl.FetchTeamPlayoffGamesResult
-			if err := f.Get(ctx, &res); err != nil {
-				return fmt.Errorf("fetch playoff games for %s: %w", teams[i], err)
-			}
-			playoffGames += res.GamesFetched
-			return nil
-		},
-	})
-	if err != nil {
-		return nil, err
 	}
+}
 
-	tracker.CompleteGroup(ctx, GroupFetchSeasonPlayoff,
-		fmt.Sprintf("Fetched %d playoff games for %s in %s.", playoffGames, season.Label(), tracker.GetElapsed(ctx, GroupFetchSeasonPlayoff)))
+// planFetchDays schedules FetchDay per day, with the longer timeout of
+// rate-limited Yahoo downloads.
+func planFetchDays(ctx workflow.Context, plan seasonDaysPlan, result *seasonDaysResult) dayLoop {
+	dayCtx := workflow.WithActivityOptions(ctx, shared.YahooDownloadActivityOptions())
+	var dsa *worknhl.DailyScheduleActivities
+	return dayLoop{
+		start: func(_ workflow.Context, i int) workflow.Future {
+			return workflow.ExecuteActivity(dayCtx, dsa.FetchDay, worknhl.FetchDayInput{
+				Day:         plan.day(i),
+				StartSeason: plan.season.ID.StartYear(),
+				TeamIDs:     plan.teamIDs,
+				DayIndex:    i,
+				TotalDays:   plan.numDays,
+			})
+		},
+		handle: shared.AggregateInto[core.OriginCounts](result.origins),
+	}
+}
 
-	logger.Info("FetchNHLSeasonWorkflow completed",
-		"start_year", season.ID.StartYear(),
-		"playoff_games", playoffGames)
-	return counts, nil
+func decodeFetchPlayoffs(ctx workflow.Context, f workflow.Future) (playoffTotals, error) {
+	var res worknhl.FetchTeamPlayoffGamesResult
+	if err := f.Get(ctx, &res); err != nil {
+		return playoffTotals{}, err
+	}
+	return playoffTotals{origins: res.Origins, games: res.GamesFetched}, nil
 }
 
 // WorkflowIDFetchNHLSeason identifies an NHL-only season child workflow.

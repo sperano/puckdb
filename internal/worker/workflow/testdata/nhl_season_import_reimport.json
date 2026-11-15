@@ -1,0 +1,1291 @@
+{
+ "events":  [
+  {
+   "eventId":  "1",
+   "eventTime":  "2026-11-15T06:20:07.637245232Z",
+   "eventType":  "EVENT_TYPE_WORKFLOW_EXECUTION_STARTED",
+   "taskId":  "1048823",
+   "workflowExecutionStartedEventAttributes":  {
+    "workflowType":  {
+     "name":  "ImportNHLSeasonWorkflow"
+    },
+    "taskQueue":  {
+     "name":  "nhl-season-record-1794723607636224192",
+     "kind":  "TASK_QUEUE_KIND_NORMAL"
+    },
+    "input":  {
+     "payloads":  [
+      {
+       "metadata":  {
+        "encoding":  "anNvbi9wbGFpbg=="
+       },
+       "data":  "eyJpZCI6IjIwMjMyMDI0Iiwic3RhbmRpbmdzU3RhcnQiOiIyMDIzLTEwLTEwIiwic3RhbmRpbmdzRW5kIjoiMjAyMy0xMC0xMiJ9"
+      },
+      {
+       "metadata":  {
+        "encoding":  "anNvbi9wbGFpbg=="
+       },
+       "data":  "eyJyZWltcG9ydERheXMiOnRydWV9"
+      }
+     ]
+    },
+    "workflowExecutionTimeout":  "0s",
+    "workflowRunTimeout":  "0s",
+    "workflowTaskTimeout":  "10s",
+    "originalExecutionRunId":  "01a1dddc-f455-73bb-bc7d-c29415b6bf4d",
+    "identity":  "9795@vikunja-fu-puckdb-677-c4520-68h46@",
+    "firstExecutionRunId":  "01a1dddc-f455-73bb-bc7d-c29415b6bf4d",
+    "attempt":  1,
+    "firstWorkflowTaskBackoff":  "0s",
+    "header":  {},
+    "workflowId":  "ImportNHLSeasonWorkflow-1794723607636802566"
+   }
+  },
+  {
+   "eventId":  "2",
+   "eventTime":  "2026-11-15T06:20:07.637274732Z",
+   "eventType":  "EVENT_TYPE_WORKFLOW_TASK_SCHEDULED",
+   "taskId":  "1048824",
+   "workflowTaskScheduledEventAttributes":  {
+    "taskQueue":  {
+     "name":  "nhl-season-record-1794723607636224192",
+     "kind":  "TASK_QUEUE_KIND_NORMAL"
+    },
+    "startToCloseTimeout":  "10s",
+    "attempt":  1
+   }
+  },
+  {
+   "eventId":  "3",
+   "eventTime":  "2026-11-15T06:20:07.639284061Z",
+   "eventType":  "EVENT_TYPE_WORKFLOW_TASK_STARTED",
+   "taskId":  "1048829",
+   "workflowTaskStartedEventAttributes":  {
+    "scheduledEventId":  "2",
+    "identity":  "9795@vikunja-fu-puckdb-677-c4520-68h46@",
+    "requestId":  "616a07b7-2ee6-4fbb-b4e5-05c5cbd221b0",
+    "historySizeBytes":  "509",
+    "workerVersion":  {
+     "buildId":  "48f412508b653c074bf1b4e758948994"
+    }
+   }
+  },
+  {
+   "eventId":  "4",
+   "eventTime":  "2026-11-15T06:20:07.640713392Z",
+   "eventType":  "EVENT_TYPE_WORKFLOW_TASK_COMPLETED",
+   "taskId":  "1048834",
+   "workflowTaskCompletedEventAttributes":  {
+    "scheduledEventId":  "2",
+    "startedEventId":  "3",
+    "identity":  "9795@vikunja-fu-puckdb-677-c4520-68h46@",
+    "workerVersion":  {
+     "buildId":  "48f412508b653c074bf1b4e758948994"
+    },
+    "sdkMetadata":  {
+     "langUsedFlags":  [
+      3,
+      1
+     ],
+     "sdkName":  "temporal-go",
+     "sdkVersion":  "1.39.0"
+    },
+    "meteringMetadata":  {}
+   }
+  },
+  {
+   "eventId":  "5",
+   "eventTime":  "2026-11-15T06:20:07.640729808Z",
+   "eventType":  "EVENT_TYPE_MARKER_RECORDED",
+   "taskId":  "1048835",
+   "markerRecordedEventAttributes":  {
+    "markerName":  "Version",
+    "details":  {
+     "change-id":  {
+      "payloads":  [
+       {
+        "metadata":  {
+         "encoding":  "anNvbi9wbGFpbg=="
+        },
+        "data":  "ImNvbmZpZy1zbmFwc2hvdCI="
+       }
+      ]
+     },
+     "version":  {
+      "payloads":  [
+       {
+        "metadata":  {
+         "encoding":  "anNvbi9wbGFpbg=="
+        },
+        "data":  "MQ=="
+       }
+      ]
+     }
+    },
+    "workflowTaskCompletedEventId":  "4"
+   }
+  },
+  {
+   "eventId":  "6",
+   "eventTime":  "2026-11-15T06:20:07.640881100Z",
+   "eventType":  "EVENT_TYPE_UPSERT_WORKFLOW_SEARCH_ATTRIBUTES",
+   "taskId":  "1048836",
+   "upsertWorkflowSearchAttributesEventAttributes":  {
+    "workflowTaskCompletedEventId":  "4",
+    "searchAttributes":  {
+     "indexedFields":  {
+      "TemporalChangeVersion":  {
+       "metadata":  {
+        "encoding":  "anNvbi9wbGFpbg==",
+        "type":  "S2V5d29yZExpc3Q="
+       },
+       "data":  "WyJjb25maWctc25hcHNob3QtMSJd"
+      }
+     }
+    }
+   }
+  },
+  {
+   "eventId":  "7",
+   "eventTime":  "2026-11-15T06:20:07.640889558Z",
+   "eventType":  "EVENT_TYPE_MARKER_RECORDED",
+   "taskId":  "1048837",
+   "markerRecordedEventAttributes":  {
+    "markerName":  "SideEffect",
+    "details":  {
+     "data":  {
+      "payloads":  [
+       {
+        "metadata":  {
+         "encoding":  "anNvbi9wbGFpbg=="
+        },
+        "data":  "eyJ5YWhvbyI6eyJzZWFzb25zIjp7IjIwMjMiOnsibGVhZ3VlcyI6W3sibGVhZ3VlSWQiOjQzMjEsInRlYW1JZHMiOlsxLDJdfV19fX0sImRheUNvbmN1cnJlbmN5IjoyMH0="
+       }
+      ]
+     },
+     "side-effect-id":  {
+      "payloads":  [
+       {
+        "metadata":  {
+         "encoding":  "anNvbi9wbGFpbg=="
+        },
+        "data":  "MQ=="
+       }
+      ]
+     }
+    },
+    "workflowTaskCompletedEventId":  "4"
+   }
+  },
+  {
+   "eventId":  "8",
+   "eventTime":  "2026-11-15T06:20:07.640895142Z",
+   "eventType":  "EVENT_TYPE_ACTIVITY_TASK_SCHEDULED",
+   "taskId":  "1048838",
+   "activityTaskScheduledEventAttributes":  {
+    "activityId":  "8",
+    "activityType":  {
+     "name":  "ImportSeasonRosters"
+    },
+    "taskQueue":  {
+     "name":  "nhl-season-record-1794723607636224192",
+     "kind":  "TASK_QUEUE_KIND_NORMAL"
+    },
+    "header":  {},
+    "input":  {
+     "payloads":  [
+      {
+       "metadata":  {
+        "encoding":  "anNvbi9wbGFpbg=="
+       },
+       "data":  "eyJTZWFzb24iOjIwMjN9"
+      }
+     ]
+    },
+    "scheduleToCloseTimeout":  "0s",
+    "scheduleToStartTimeout":  "0s",
+    "startToCloseTimeout":  "600s",
+    "heartbeatTimeout":  "60s",
+    "workflowTaskCompletedEventId":  "4",
+    "retryPolicy":  {
+     "initialInterval":  "30s",
+     "backoffCoefficient":  2,
+     "maximumInterval":  "300s",
+     "maximumAttempts":  20
+    },
+    "useWorkflowBuildId":  true
+   }
+  },
+  {
+   "eventId":  "9",
+   "eventTime":  "2026-11-15T06:20:07.640904808Z",
+   "eventType":  "EVENT_TYPE_ACTIVITY_TASK_STARTED",
+   "taskId":  "1048842",
+   "activityTaskStartedEventAttributes":  {
+    "scheduledEventId":  "8",
+    "identity":  "9795@vikunja-fu-puckdb-677-c4520-68h46@",
+    "requestId":  "7ba8db4f-5d64-4b65-918c-ab68e733c32a",
+    "attempt":  1,
+    "workerVersion":  {
+     "buildId":  "48f412508b653c074bf1b4e758948994"
+    }
+   }
+  },
+  {
+   "eventId":  "10",
+   "eventTime":  "2026-11-15T06:20:07.641651557Z",
+   "eventType":  "EVENT_TYPE_ACTIVITY_TASK_COMPLETED",
+   "taskId":  "1048843",
+   "activityTaskCompletedEventAttributes":  {
+    "scheduledEventId":  "8",
+    "startedEventId":  "9",
+    "identity":  "9795@vikunja-fu-puckdb-677-c4520-68h46@"
+   }
+  },
+  {
+   "eventId":  "11",
+   "eventTime":  "2026-11-15T06:20:07.641655932Z",
+   "eventType":  "EVENT_TYPE_WORKFLOW_TASK_SCHEDULED",
+   "taskId":  "1048844",
+   "workflowTaskScheduledEventAttributes":  {
+    "taskQueue":  {
+     "name":  "nhl-season-record-1794723607636224192",
+     "kind":  "TASK_QUEUE_KIND_NORMAL"
+    },
+    "startToCloseTimeout":  "10s",
+    "attempt":  1
+   }
+  },
+  {
+   "eventId":  "12",
+   "eventTime":  "2026-11-15T06:20:07.642896388Z",
+   "eventType":  "EVENT_TYPE_WORKFLOW_TASK_STARTED",
+   "taskId":  "1048847",
+   "workflowTaskStartedEventAttributes":  {
+    "scheduledEventId":  "11",
+    "identity":  "9795@vikunja-fu-puckdb-677-c4520-68h46@",
+    "requestId":  "2408c05f-b506-4bdc-a413-c3888a62870e",
+    "historySizeBytes":  "1745",
+    "workerVersion":  {
+     "buildId":  "48f412508b653c074bf1b4e758948994"
+    }
+   }
+  },
+  {
+   "eventId":  "13",
+   "eventTime":  "2026-11-15T06:20:07.644375593Z",
+   "eventType":  "EVENT_TYPE_WORKFLOW_TASK_COMPLETED",
+   "taskId":  "1048852",
+   "workflowTaskCompletedEventAttributes":  {
+    "scheduledEventId":  "11",
+    "startedEventId":  "12",
+    "identity":  "9795@vikunja-fu-puckdb-677-c4520-68h46@",
+    "workerVersion":  {
+     "buildId":  "48f412508b653c074bf1b4e758948994"
+    },
+    "sdkMetadata":  {},
+    "meteringMetadata":  {}
+   }
+  },
+  {
+   "eventId":  "14",
+   "eventTime":  "2026-11-15T06:20:07.644390760Z",
+   "eventType":  "EVENT_TYPE_ACTIVITY_TASK_SCHEDULED",
+   "taskId":  "1048853",
+   "activityTaskScheduledEventAttributes":  {
+    "activityId":  "14",
+    "activityType":  {
+     "name":  "ImportClubStats"
+    },
+    "taskQueue":  {
+     "name":  "nhl-season-record-1794723607636224192",
+     "kind":  "TASK_QUEUE_KIND_NORMAL"
+    },
+    "header":  {},
+    "input":  {
+     "payloads":  [
+      {
+       "metadata":  {
+        "encoding":  "anNvbi9wbGFpbg=="
+       },
+       "data":  "eyJTZWFzb24iOjIwMjN9"
+      }
+     ]
+    },
+    "scheduleToCloseTimeout":  "0s",
+    "scheduleToStartTimeout":  "0s",
+    "startToCloseTimeout":  "600s",
+    "heartbeatTimeout":  "60s",
+    "workflowTaskCompletedEventId":  "13",
+    "retryPolicy":  {
+     "initialInterval":  "30s",
+     "backoffCoefficient":  2,
+     "maximumInterval":  "300s",
+     "maximumAttempts":  20
+    },
+    "useWorkflowBuildId":  true
+   }
+  },
+  {
+   "eventId":  "15",
+   "eventTime":  "2026-11-15T06:20:07.644400760Z",
+   "eventType":  "EVENT_TYPE_ACTIVITY_TASK_STARTED",
+   "taskId":  "1048856",
+   "activityTaskStartedEventAttributes":  {
+    "scheduledEventId":  "14",
+    "identity":  "9795@vikunja-fu-puckdb-677-c4520-68h46@",
+    "requestId":  "b8eb4715-f748-497a-8bfc-4408a831a9b0",
+    "attempt":  1,
+    "workerVersion":  {
+     "buildId":  "48f412508b653c074bf1b4e758948994"
+    }
+   }
+  },
+  {
+   "eventId":  "16",
+   "eventTime":  "2026-11-15T06:20:07.645104050Z",
+   "eventType":  "EVENT_TYPE_ACTIVITY_TASK_COMPLETED",
+   "taskId":  "1048857",
+   "activityTaskCompletedEventAttributes":  {
+    "scheduledEventId":  "14",
+    "startedEventId":  "15",
+    "identity":  "9795@vikunja-fu-puckdb-677-c4520-68h46@"
+   }
+  },
+  {
+   "eventId":  "17",
+   "eventTime":  "2026-11-15T06:20:07.645109508Z",
+   "eventType":  "EVENT_TYPE_WORKFLOW_TASK_SCHEDULED",
+   "taskId":  "1048858",
+   "workflowTaskScheduledEventAttributes":  {
+    "taskQueue":  {
+     "name":  "nhl-season-record-1794723607636224192",
+     "kind":  "TASK_QUEUE_KIND_NORMAL"
+    },
+    "startToCloseTimeout":  "10s",
+    "attempt":  1
+   }
+  },
+  {
+   "eventId":  "18",
+   "eventTime":  "2026-11-15T06:20:07.645765215Z",
+   "eventType":  "EVENT_TYPE_WORKFLOW_TASK_STARTED",
+   "taskId":  "1048861",
+   "workflowTaskStartedEventAttributes":  {
+    "scheduledEventId":  "17",
+    "identity":  "9795@vikunja-fu-puckdb-677-c4520-68h46@",
+    "requestId":  "724681c1-e13d-4979-bdb7-585b1501ef73",
+    "historySizeBytes":  "2477",
+    "workerVersion":  {
+     "buildId":  "48f412508b653c074bf1b4e758948994"
+    }
+   }
+  },
+  {
+   "eventId":  "19",
+   "eventTime":  "2026-11-15T06:20:07.647107338Z",
+   "eventType":  "EVENT_TYPE_WORKFLOW_TASK_COMPLETED",
+   "taskId":  "1048868",
+   "workflowTaskCompletedEventAttributes":  {
+    "scheduledEventId":  "17",
+    "startedEventId":  "18",
+    "identity":  "9795@vikunja-fu-puckdb-677-c4520-68h46@",
+    "workerVersion":  {
+     "buildId":  "48f412508b653c074bf1b4e758948994"
+    },
+    "sdkMetadata":  {
+     "sdkName":  "temporal-go",
+     "sdkVersion":  "1.39.0"
+    },
+    "meteringMetadata":  {}
+   }
+  },
+  {
+   "eventId":  "20",
+   "eventTime":  "2026-11-15T06:20:07.647119171Z",
+   "eventType":  "EVENT_TYPE_MARKER_RECORDED",
+   "taskId":  "1048869",
+   "markerRecordedEventAttributes":  {
+    "markerName":  "LocalActivity",
+    "details":  {
+     "data":  {
+      "payloads":  [
+       {
+        "metadata":  {
+         "encoding":  "anNvbi9wbGFpbg=="
+        },
+        "data":  "eyJBY3Rpdml0eUlEIjoiMSIsIkFjdGl2aXR5VHlwZSI6IlNhdmUiLCJSZXBsYXlUaW1lIjoiMjAyNi0xMS0xNVQwNjoyMDowNy42NDU4MjI1NDhaIiwiQXR0ZW1wdCI6MSwiQmFja29mZiI6MH0="
+       }
+      ]
+     }
+    },
+    "workflowTaskCompletedEventId":  "19"
+   }
+  },
+  {
+   "eventId":  "21",
+   "eventTime":  "2026-11-15T06:20:07.647122837Z",
+   "eventType":  "EVENT_TYPE_MARKER_RECORDED",
+   "taskId":  "1048870",
+   "markerRecordedEventAttributes":  {
+    "markerName":  "Version",
+    "details":  {
+     "change-id":  {
+      "payloads":  [
+       {
+        "metadata":  {
+         "encoding":  "anNvbi9wbGFpbg=="
+        },
+        "data":  "ImltcG9ydC1uaGwtZGF5LXNraXAtdW5jaGFuZ2VkIg=="
+       }
+      ]
+     },
+     "version":  {
+      "payloads":  [
+       {
+        "metadata":  {
+         "encoding":  "anNvbi9wbGFpbg=="
+        },
+        "data":  "MQ=="
+       }
+      ]
+     }
+    },
+    "workflowTaskCompletedEventId":  "19"
+   }
+  },
+  {
+   "eventId":  "22",
+   "eventTime":  "2026-11-15T06:20:07.647280629Z",
+   "eventType":  "EVENT_TYPE_UPSERT_WORKFLOW_SEARCH_ATTRIBUTES",
+   "taskId":  "1048871",
+   "upsertWorkflowSearchAttributesEventAttributes":  {
+    "workflowTaskCompletedEventId":  "19",
+    "searchAttributes":  {
+     "indexedFields":  {
+      "TemporalChangeVersion":  {
+       "metadata":  {
+        "encoding":  "anNvbi9wbGFpbg==",
+        "type":  "S2V5d29yZExpc3Q="
+       },
+       "data":  "WyJpbXBvcnQtbmhsLWRheS1za2lwLXVuY2hhbmdlZC0xIiwiY29uZmlnLXNuYXBzaG90LTEiXQ=="
+      }
+     }
+    }
+   }
+  },
+  {
+   "eventId":  "23",
+   "eventTime":  "2026-11-15T06:20:07.647289837Z",
+   "eventType":  "EVENT_TYPE_MARKER_RECORDED",
+   "taskId":  "1048872",
+   "markerRecordedEventAttributes":  {
+    "markerName":  "Version",
+    "details":  {
+     "change-id":  {
+      "payloads":  [
+       {
+        "metadata":  {
+         "encoding":  "anNvbi9wbGFpbg=="
+        },
+        "data":  "Im5obC1zZWFzb24tZGF5LWxvb3AtYmF0Y2hlZC1wcm9ncmVzcyI="
+       }
+      ]
+     },
+     "version":  {
+      "payloads":  [
+       {
+        "metadata":  {
+         "encoding":  "anNvbi9wbGFpbg=="
+        },
+        "data":  "MQ=="
+       }
+      ]
+     }
+    },
+    "workflowTaskCompletedEventId":  "19"
+   }
+  },
+  {
+   "eventId":  "24",
+   "eventTime":  "2026-11-15T06:20:07.647405045Z",
+   "eventType":  "EVENT_TYPE_UPSERT_WORKFLOW_SEARCH_ATTRIBUTES",
+   "taskId":  "1048873",
+   "upsertWorkflowSearchAttributesEventAttributes":  {
+    "workflowTaskCompletedEventId":  "19",
+    "searchAttributes":  {
+     "indexedFields":  {
+      "TemporalChangeVersion":  {
+       "metadata":  {
+        "encoding":  "anNvbi9wbGFpbg==",
+        "type":  "S2V5d29yZExpc3Q="
+       },
+       "data":  "WyJuaGwtc2Vhc29uLWRheS1sb29wLWJhdGNoZWQtcHJvZ3Jlc3MtMSIsImNvbmZpZy1zbmFwc2hvdC0xIiwiaW1wb3J0LW5obC1kYXktc2tpcC11bmNoYW5nZWQtMSJd"
+      }
+     }
+    }
+   }
+  },
+  {
+   "eventId":  "25",
+   "eventTime":  "2026-11-15T06:20:07.647414379Z",
+   "eventType":  "EVENT_TYPE_ACTIVITY_TASK_SCHEDULED",
+   "taskId":  "1048874",
+   "activityTaskScheduledEventAttributes":  {
+    "activityId":  "25",
+    "activityType":  {
+     "name":  "ImportDayIfChanged"
+    },
+    "taskQueue":  {
+     "name":  "nhl-season-record-1794723607636224192",
+     "kind":  "TASK_QUEUE_KIND_NORMAL"
+    },
+    "header":  {},
+    "input":  {
+     "payloads":  [
+      {
+       "metadata":  {
+        "encoding":  "anNvbi9wbGFpbg=="
+       },
+       "data":  "eyJkYXRlIjoiMjAyMy0xMC0xMFQwMDowMDowMFoiLCJzZWFzb24iOjIwMjMsInNlYXNvbklEIjoyMDIzMjAyNCwidGVhbUlEcyI6W3siTGVhZ3VlSUQiOjQzMjEsIlRlYW1JRCI6MX0seyJMZWFndWVJRCI6NDMyMSwiVGVhbUlEIjoyfV0sInRvdGFsRGF5cyI6MywiZm9yY2UiOnRydWV9"
+      }
+     ]
+    },
+    "scheduleToCloseTimeout":  "0s",
+    "scheduleToStartTimeout":  "0s",
+    "startToCloseTimeout":  "600s",
+    "heartbeatTimeout":  "60s",
+    "workflowTaskCompletedEventId":  "19",
+    "retryPolicy":  {
+     "initialInterval":  "30s",
+     "backoffCoefficient":  2,
+     "maximumInterval":  "300s",
+     "maximumAttempts":  20
+    },
+    "useWorkflowBuildId":  true
+   }
+  },
+  {
+   "eventId":  "26",
+   "eventTime":  "2026-11-15T06:20:07.647422379Z",
+   "eventType":  "EVENT_TYPE_ACTIVITY_TASK_SCHEDULED",
+   "taskId":  "1048875",
+   "activityTaskScheduledEventAttributes":  {
+    "activityId":  "26",
+    "activityType":  {
+     "name":  "ImportDayIfChanged"
+    },
+    "taskQueue":  {
+     "name":  "nhl-season-record-1794723607636224192",
+     "kind":  "TASK_QUEUE_KIND_NORMAL"
+    },
+    "header":  {},
+    "input":  {
+     "payloads":  [
+      {
+       "metadata":  {
+        "encoding":  "anNvbi9wbGFpbg=="
+       },
+       "data":  "eyJkYXRlIjoiMjAyMy0xMC0xMVQwMDowMDowMFoiLCJzZWFzb24iOjIwMjMsInNlYXNvbklEIjoyMDIzMjAyNCwidGVhbUlEcyI6W3siTGVhZ3VlSUQiOjQzMjEsIlRlYW1JRCI6MX0seyJMZWFndWVJRCI6NDMyMSwiVGVhbUlEIjoyfV0sInRvdGFsRGF5cyI6MywiZm9yY2UiOnRydWV9"
+      }
+     ]
+    },
+    "scheduleToCloseTimeout":  "0s",
+    "scheduleToStartTimeout":  "0s",
+    "startToCloseTimeout":  "600s",
+    "heartbeatTimeout":  "60s",
+    "workflowTaskCompletedEventId":  "19",
+    "retryPolicy":  {
+     "initialInterval":  "30s",
+     "backoffCoefficient":  2,
+     "maximumInterval":  "300s",
+     "maximumAttempts":  20
+    },
+    "useWorkflowBuildId":  true
+   }
+  },
+  {
+   "eventId":  "27",
+   "eventTime":  "2026-11-15T06:20:07.647427670Z",
+   "eventType":  "EVENT_TYPE_ACTIVITY_TASK_SCHEDULED",
+   "taskId":  "1048876",
+   "activityTaskScheduledEventAttributes":  {
+    "activityId":  "27",
+    "activityType":  {
+     "name":  "ImportDayIfChanged"
+    },
+    "taskQueue":  {
+     "name":  "nhl-season-record-1794723607636224192",
+     "kind":  "TASK_QUEUE_KIND_NORMAL"
+    },
+    "header":  {},
+    "input":  {
+     "payloads":  [
+      {
+       "metadata":  {
+        "encoding":  "anNvbi9wbGFpbg=="
+       },
+       "data":  "eyJkYXRlIjoiMjAyMy0xMC0xMlQwMDowMDowMFoiLCJzZWFzb24iOjIwMjMsInNlYXNvbklEIjoyMDIzMjAyNCwidGVhbUlEcyI6W3siTGVhZ3VlSUQiOjQzMjEsIlRlYW1JRCI6MX0seyJMZWFndWVJRCI6NDMyMSwiVGVhbUlEIjoyfV0sInRvdGFsRGF5cyI6MywiZm9yY2UiOnRydWV9"
+      }
+     ]
+    },
+    "scheduleToCloseTimeout":  "0s",
+    "scheduleToStartTimeout":  "0s",
+    "startToCloseTimeout":  "600s",
+    "heartbeatTimeout":  "60s",
+    "workflowTaskCompletedEventId":  "19",
+    "retryPolicy":  {
+     "initialInterval":  "30s",
+     "backoffCoefficient":  2,
+     "maximumInterval":  "300s",
+     "maximumAttempts":  20
+    },
+    "useWorkflowBuildId":  true
+   }
+  },
+  {
+   "eventId":  "28",
+   "eventTime":  "2026-11-15T06:20:07.647433254Z",
+   "eventType":  "EVENT_TYPE_ACTIVITY_TASK_STARTED",
+   "taskId":  "1048880",
+   "activityTaskStartedEventAttributes":  {
+    "scheduledEventId":  "25",
+    "identity":  "9795@vikunja-fu-puckdb-677-c4520-68h46@",
+    "requestId":  "9be6a406-efd5-4b76-9692-31a65ea93668",
+    "attempt":  1,
+    "workerVersion":  {
+     "buildId":  "48f412508b653c074bf1b4e758948994"
+    }
+   }
+  },
+  {
+   "eventId":  "29",
+   "eventTime":  "2026-11-15T06:20:07.648218210Z",
+   "eventType":  "EVENT_TYPE_ACTIVITY_TASK_COMPLETED",
+   "taskId":  "1048881",
+   "activityTaskCompletedEventAttributes":  {
+    "result":  {
+     "payloads":  [
+      {
+       "metadata":  {
+        "encoding":  "anNvbi9wbGFpbg=="
+       },
+       "data":  "eyJvcmlnaW5zIjp7IjMiOjN9LCJza2lwcGVkIjpmYWxzZSwic2tpcHBlZFJvd3MiOjB9"
+      }
+     ]
+    },
+    "scheduledEventId":  "25",
+    "startedEventId":  "28",
+    "identity":  "9795@vikunja-fu-puckdb-677-c4520-68h46@"
+   }
+  },
+  {
+   "eventId":  "30",
+   "eventTime":  "2026-11-15T06:20:07.648224044Z",
+   "eventType":  "EVENT_TYPE_WORKFLOW_TASK_SCHEDULED",
+   "taskId":  "1048882",
+   "workflowTaskScheduledEventAttributes":  {
+    "taskQueue":  {
+     "name":  "nhl-season-record-1794723607636224192",
+     "kind":  "TASK_QUEUE_KIND_NORMAL"
+    },
+    "startToCloseTimeout":  "10s",
+    "attempt":  1
+   }
+  },
+  {
+   "eventId":  "31",
+   "eventTime":  "2026-11-15T06:20:07.647437462Z",
+   "eventType":  "EVENT_TYPE_ACTIVITY_TASK_STARTED",
+   "taskId":  "1048886",
+   "activityTaskStartedEventAttributes":  {
+    "scheduledEventId":  "26",
+    "identity":  "9795@vikunja-fu-puckdb-677-c4520-68h46@",
+    "requestId":  "13c885bf-a903-44ae-973c-782516edeb62",
+    "attempt":  1,
+    "workerVersion":  {
+     "buildId":  "48f412508b653c074bf1b4e758948994"
+    }
+   }
+  },
+  {
+   "eventId":  "32",
+   "eventTime":  "2026-11-15T06:20:07.649042875Z",
+   "eventType":  "EVENT_TYPE_ACTIVITY_TASK_COMPLETED",
+   "taskId":  "1048887",
+   "activityTaskCompletedEventAttributes":  {
+    "result":  {
+     "payloads":  [
+      {
+       "metadata":  {
+        "encoding":  "anNvbi9wbGFpbg=="
+       },
+       "data":  "eyJvcmlnaW5zIjp7IjMiOjN9LCJza2lwcGVkIjpmYWxzZSwic2tpcHBlZFJvd3MiOjB9"
+      }
+     ]
+    },
+    "scheduledEventId":  "26",
+    "startedEventId":  "31",
+    "identity":  "9795@vikunja-fu-puckdb-677-c4520-68h46@"
+   }
+  },
+  {
+   "eventId":  "33",
+   "eventTime":  "2026-11-15T06:20:07.647440087Z",
+   "eventType":  "EVENT_TYPE_ACTIVITY_TASK_STARTED",
+   "taskId":  "1048890",
+   "activityTaskStartedEventAttributes":  {
+    "scheduledEventId":  "27",
+    "identity":  "9795@vikunja-fu-puckdb-677-c4520-68h46@",
+    "requestId":  "6becd075-ea51-4387-91dd-34b94bdd17b8",
+    "attempt":  1,
+    "workerVersion":  {
+     "buildId":  "48f412508b653c074bf1b4e758948994"
+    }
+   }
+  },
+  {
+   "eventId":  "34",
+   "eventTime":  "2026-11-15T06:20:07.649604249Z",
+   "eventType":  "EVENT_TYPE_ACTIVITY_TASK_COMPLETED",
+   "taskId":  "1048891",
+   "activityTaskCompletedEventAttributes":  {
+    "result":  {
+     "payloads":  [
+      {
+       "metadata":  {
+        "encoding":  "anNvbi9wbGFpbg=="
+       },
+       "data":  "eyJvcmlnaW5zIjp7IjMiOjN9LCJza2lwcGVkIjpmYWxzZSwic2tpcHBlZFJvd3MiOjB9"
+      }
+     ]
+    },
+    "scheduledEventId":  "27",
+    "startedEventId":  "33",
+    "identity":  "9795@vikunja-fu-puckdb-677-c4520-68h46@"
+   }
+  },
+  {
+   "eventId":  "35",
+   "eventTime":  "2026-11-15T06:20:07.650305956Z",
+   "eventType":  "EVENT_TYPE_WORKFLOW_TASK_STARTED",
+   "taskId":  "1048893",
+   "workflowTaskStartedEventAttributes":  {
+    "scheduledEventId":  "30",
+    "identity":  "9795@vikunja-fu-puckdb-677-c4520-68h46@",
+    "requestId":  "cf0560ff-c5d8-4072-89a8-ee06a26f886c",
+    "historySizeBytes":  "5573",
+    "workerVersion":  {
+     "buildId":  "48f412508b653c074bf1b4e758948994"
+    }
+   }
+  },
+  {
+   "eventId":  "36",
+   "eventTime":  "2026-11-15T06:20:07.652649493Z",
+   "eventType":  "EVENT_TYPE_WORKFLOW_TASK_COMPLETED",
+   "taskId":  "1048898",
+   "workflowTaskCompletedEventAttributes":  {
+    "scheduledEventId":  "30",
+    "startedEventId":  "35",
+    "identity":  "9795@vikunja-fu-puckdb-677-c4520-68h46@",
+    "workerVersion":  {
+     "buildId":  "48f412508b653c074bf1b4e758948994"
+    },
+    "sdkMetadata":  {},
+    "meteringMetadata":  {}
+   }
+  },
+  {
+   "eventId":  "37",
+   "eventTime":  "2026-11-15T06:20:07.652666785Z",
+   "eventType":  "EVENT_TYPE_MARKER_RECORDED",
+   "taskId":  "1048899",
+   "markerRecordedEventAttributes":  {
+    "markerName":  "LocalActivity",
+    "details":  {
+     "data":  {
+      "payloads":  [
+       {
+        "metadata":  {
+         "encoding":  "anNvbi9wbGFpbg=="
+        },
+        "data":  "eyJBY3Rpdml0eUlEIjoiMiIsIkFjdGl2aXR5VHlwZSI6IlNhdmUiLCJSZXBsYXlUaW1lIjoiMjAyNi0xMS0xNVQwNjoyMDowNy42NTAzNTQ0OTdaIiwiQXR0ZW1wdCI6MSwiQmFja29mZiI6MH0="
+       }
+      ]
+     }
+    },
+    "workflowTaskCompletedEventId":  "36"
+   }
+  },
+  {
+   "eventId":  "38",
+   "eventTime":  "2026-11-15T06:20:07.652669285Z",
+   "eventType":  "EVENT_TYPE_MARKER_RECORDED",
+   "taskId":  "1048900",
+   "markerRecordedEventAttributes":  {
+    "markerName":  "LocalActivity",
+    "details":  {
+     "data":  {
+      "payloads":  [
+       {
+        "metadata":  {
+         "encoding":  "anNvbi9wbGFpbg=="
+        },
+        "data":  "eyJBY3Rpdml0eUlEIjoiMyIsIkFjdGl2aXR5VHlwZSI6IlNhdmUiLCJSZXBsYXlUaW1lIjoiMjAyNi0xMS0xNVQwNjoyMDowNy42NTAzODY0NTVaIiwiQXR0ZW1wdCI6MSwiQmFja29mZiI6MH0="
+       }
+      ]
+     }
+    },
+    "workflowTaskCompletedEventId":  "36"
+   }
+  },
+  {
+   "eventId":  "39",
+   "eventTime":  "2026-11-15T06:20:07.652673827Z",
+   "eventType":  "EVENT_TYPE_MARKER_RECORDED",
+   "taskId":  "1048901",
+   "markerRecordedEventAttributes":  {
+    "markerName":  "LocalActivity",
+    "details":  {
+     "data":  {
+      "payloads":  [
+       {
+        "metadata":  {
+         "encoding":  "anNvbi9wbGFpbg=="
+        },
+        "data":  "eyJBY3Rpdml0eUlEIjoiNCIsIkFjdGl2aXR5VHlwZSI6IlNhdmUiLCJSZXBsYXlUaW1lIjoiMjAyNi0xMS0xNVQwNjoyMDowNy42NTA0MTExMjJaIiwiQXR0ZW1wdCI6MSwiQmFja29mZiI6MH0="
+       }
+      ]
+     }
+    },
+    "workflowTaskCompletedEventId":  "36"
+   }
+  },
+  {
+   "eventId":  "40",
+   "eventTime":  "2026-11-15T06:20:07.652680618Z",
+   "eventType":  "EVENT_TYPE_ACTIVITY_TASK_SCHEDULED",
+   "taskId":  "1048902",
+   "activityTaskScheduledEventAttributes":  {
+    "activityId":  "40",
+    "activityType":  {
+     "name":  "ListSeasonTeams"
+    },
+    "taskQueue":  {
+     "name":  "nhl-season-record-1794723607636224192",
+     "kind":  "TASK_QUEUE_KIND_NORMAL"
+    },
+    "header":  {},
+    "input":  {
+     "payloads":  [
+      {
+       "metadata":  {
+        "encoding":  "anNvbi9wbGFpbg=="
+       },
+       "data":  "MjAyMw=="
+      }
+     ]
+    },
+    "scheduleToCloseTimeout":  "0s",
+    "scheduleToStartTimeout":  "0s",
+    "startToCloseTimeout":  "600s",
+    "heartbeatTimeout":  "60s",
+    "workflowTaskCompletedEventId":  "36",
+    "retryPolicy":  {
+     "initialInterval":  "30s",
+     "backoffCoefficient":  2,
+     "maximumInterval":  "300s",
+     "maximumAttempts":  20
+    },
+    "useWorkflowBuildId":  true
+   }
+  },
+  {
+   "eventId":  "41",
+   "eventTime":  "2026-11-15T06:20:07.652695035Z",
+   "eventType":  "EVENT_TYPE_ACTIVITY_TASK_STARTED",
+   "taskId":  "1048905",
+   "activityTaskStartedEventAttributes":  {
+    "scheduledEventId":  "40",
+    "identity":  "9795@vikunja-fu-puckdb-677-c4520-68h46@",
+    "requestId":  "4a32b52a-d502-4fcb-9a2f-774128c1e53c",
+    "attempt":  1,
+    "workerVersion":  {
+     "buildId":  "48f412508b653c074bf1b4e758948994"
+    }
+   }
+  },
+  {
+   "eventId":  "42",
+   "eventTime":  "2026-11-15T06:20:07.653987907Z",
+   "eventType":  "EVENT_TYPE_ACTIVITY_TASK_COMPLETED",
+   "taskId":  "1048906",
+   "activityTaskCompletedEventAttributes":  {
+    "result":  {
+     "payloads":  [
+      {
+       "metadata":  {
+        "encoding":  "anNvbi9wbGFpbg=="
+       },
+       "data":  "WyJUT1IiLCJNVEwiXQ=="
+      }
+     ]
+    },
+    "scheduledEventId":  "40",
+    "startedEventId":  "41",
+    "identity":  "9795@vikunja-fu-puckdb-677-c4520-68h46@"
+   }
+  },
+  {
+   "eventId":  "43",
+   "eventTime":  "2026-11-15T06:20:07.653993782Z",
+   "eventType":  "EVENT_TYPE_WORKFLOW_TASK_SCHEDULED",
+   "taskId":  "1048907",
+   "workflowTaskScheduledEventAttributes":  {
+    "taskQueue":  {
+     "name":  "nhl-season-record-1794723607636224192",
+     "kind":  "TASK_QUEUE_KIND_NORMAL"
+    },
+    "startToCloseTimeout":  "10s",
+    "attempt":  1
+   }
+  },
+  {
+   "eventId":  "44",
+   "eventTime":  "2026-11-15T06:20:07.654818239Z",
+   "eventType":  "EVENT_TYPE_WORKFLOW_TASK_STARTED",
+   "taskId":  "1048910",
+   "workflowTaskStartedEventAttributes":  {
+    "scheduledEventId":  "43",
+    "identity":  "9795@vikunja-fu-puckdb-677-c4520-68h46@",
+    "requestId":  "e52a35da-2512-402a-91e7-88f72b29cba9",
+    "historySizeBytes":  "6928",
+    "workerVersion":  {
+     "buildId":  "48f412508b653c074bf1b4e758948994"
+    }
+   }
+  },
+  {
+   "eventId":  "45",
+   "eventTime":  "2026-11-15T06:20:07.657533025Z",
+   "eventType":  "EVENT_TYPE_WORKFLOW_TASK_COMPLETED",
+   "taskId":  "1048916",
+   "workflowTaskCompletedEventAttributes":  {
+    "scheduledEventId":  "43",
+    "startedEventId":  "44",
+    "identity":  "9795@vikunja-fu-puckdb-677-c4520-68h46@",
+    "workerVersion":  {
+     "buildId":  "48f412508b653c074bf1b4e758948994"
+    },
+    "sdkMetadata":  {
+     "sdkName":  "temporal-go",
+     "sdkVersion":  "1.39.0"
+    },
+    "meteringMetadata":  {}
+   }
+  },
+  {
+   "eventId":  "46",
+   "eventTime":  "2026-11-15T06:20:07.657939358Z",
+   "eventType":  "EVENT_TYPE_MARKER_RECORDED",
+   "taskId":  "1048917",
+   "markerRecordedEventAttributes":  {
+    "markerName":  "LocalActivity",
+    "details":  {
+     "data":  {
+      "payloads":  [
+       {
+        "metadata":  {
+         "encoding":  "anNvbi9wbGFpbg=="
+        },
+        "data":  "eyJBY3Rpdml0eUlEIjoiNSIsIkFjdGl2aXR5VHlwZSI6IlNhdmUiLCJSZXBsYXlUaW1lIjoiMjAyNi0xMS0xNVQwNjoyMDowNy42NTQ4NTQ3ODFaIiwiQXR0ZW1wdCI6MSwiQmFja29mZiI6MH0="
+       }
+      ]
+     }
+    },
+    "workflowTaskCompletedEventId":  "45"
+   }
+  },
+  {
+   "eventId":  "47",
+   "eventTime":  "2026-11-15T06:20:07.658181191Z",
+   "eventType":  "EVENT_TYPE_ACTIVITY_TASK_SCHEDULED",
+   "taskId":  "1048918",
+   "activityTaskScheduledEventAttributes":  {
+    "activityId":  "47",
+    "activityType":  {
+     "name":  "ImportTeamPlayoffGames"
+    },
+    "taskQueue":  {
+     "name":  "nhl-season-record-1794723607636224192",
+     "kind":  "TASK_QUEUE_KIND_NORMAL"
+    },
+    "header":  {},
+    "input":  {
+     "payloads":  [
+      {
+       "metadata":  {
+        "encoding":  "anNvbi9wbGFpbg=="
+       },
+       "data":  "eyJTZWFzb24iOjIwMjMsIlRlYW1BYmJyZXYiOiJUT1IifQ=="
+      }
+     ]
+    },
+    "scheduleToCloseTimeout":  "0s",
+    "scheduleToStartTimeout":  "0s",
+    "startToCloseTimeout":  "600s",
+    "heartbeatTimeout":  "60s",
+    "workflowTaskCompletedEventId":  "45",
+    "retryPolicy":  {
+     "initialInterval":  "30s",
+     "backoffCoefficient":  2,
+     "maximumInterval":  "300s",
+     "maximumAttempts":  20
+    },
+    "useWorkflowBuildId":  true
+   }
+  },
+  {
+   "eventId":  "48",
+   "eventTime":  "2026-11-15T06:20:07.658712023Z",
+   "eventType":  "EVENT_TYPE_ACTIVITY_TASK_SCHEDULED",
+   "taskId":  "1048919",
+   "activityTaskScheduledEventAttributes":  {
+    "activityId":  "48",
+    "activityType":  {
+     "name":  "ImportTeamPlayoffGames"
+    },
+    "taskQueue":  {
+     "name":  "nhl-season-record-1794723607636224192",
+     "kind":  "TASK_QUEUE_KIND_NORMAL"
+    },
+    "header":  {},
+    "input":  {
+     "payloads":  [
+      {
+       "metadata":  {
+        "encoding":  "anNvbi9wbGFpbg=="
+       },
+       "data":  "eyJTZWFzb24iOjIwMjMsIlRlYW1BYmJyZXYiOiJNVEwifQ=="
+      }
+     ]
+    },
+    "scheduleToCloseTimeout":  "0s",
+    "scheduleToStartTimeout":  "0s",
+    "startToCloseTimeout":  "600s",
+    "heartbeatTimeout":  "60s",
+    "workflowTaskCompletedEventId":  "45",
+    "retryPolicy":  {
+     "initialInterval":  "30s",
+     "backoffCoefficient":  2,
+     "maximumInterval":  "300s",
+     "maximumAttempts":  20
+    },
+    "useWorkflowBuildId":  true
+   }
+  },
+  {
+   "eventId":  "49",
+   "eventTime":  "2026-11-15T06:20:07.658765398Z",
+   "eventType":  "EVENT_TYPE_ACTIVITY_TASK_STARTED",
+   "taskId":  "1048922",
+   "activityTaskStartedEventAttributes":  {
+    "scheduledEventId":  "48",
+    "identity":  "9795@vikunja-fu-puckdb-677-c4520-68h46@",
+    "requestId":  "d5977f03-7425-4ebc-b850-7828b2c55af5",
+    "attempt":  1,
+    "workerVersion":  {
+     "buildId":  "48f412508b653c074bf1b4e758948994"
+    }
+   }
+  },
+  {
+   "eventId":  "50",
+   "eventTime":  "2026-11-15T06:20:07.663608722Z",
+   "eventType":  "EVENT_TYPE_ACTIVITY_TASK_COMPLETED",
+   "taskId":  "1048923",
+   "activityTaskCompletedEventAttributes":  {
+    "result":  {
+     "payloads":  [
+      {
+       "metadata":  {
+        "encoding":  "anNvbi9wbGFpbg=="
+       },
+       "data":  "eyJnYW1lc0ltcG9ydGVkIjoxLCJza2F0ZXJzSW1wb3J0ZWQiOjIsImdvYWxpZXNJbXBvcnRlZCI6MSwib3JpZ2lucyI6eyIzIjo0fX0="
+      }
+     ]
+    },
+    "scheduledEventId":  "48",
+    "startedEventId":  "49",
+    "identity":  "9795@vikunja-fu-puckdb-677-c4520-68h46@"
+   }
+  },
+  {
+   "eventId":  "51",
+   "eventTime":  "2026-11-15T06:20:07.663616680Z",
+   "eventType":  "EVENT_TYPE_WORKFLOW_TASK_SCHEDULED",
+   "taskId":  "1048924",
+   "workflowTaskScheduledEventAttributes":  {
+    "taskQueue":  {
+     "name":  "nhl-season-record-1794723607636224192",
+     "kind":  "TASK_QUEUE_KIND_NORMAL"
+    },
+    "startToCloseTimeout":  "10s",
+    "attempt":  1
+   }
+  },
+  {
+   "eventId":  "52",
+   "eventTime":  "2026-11-15T06:20:07.658753481Z",
+   "eventType":  "EVENT_TYPE_ACTIVITY_TASK_STARTED",
+   "taskId":  "1048927",
+   "activityTaskStartedEventAttributes":  {
+    "scheduledEventId":  "47",
+    "identity":  "9795@vikunja-fu-puckdb-677-c4520-68h46@",
+    "requestId":  "2d7b4986-f5d3-4d00-8728-ecdabfe27c2a",
+    "attempt":  1,
+    "workerVersion":  {
+     "buildId":  "48f412508b653c074bf1b4e758948994"
+    }
+   }
+  },
+  {
+   "eventId":  "53",
+   "eventTime":  "2026-11-15T06:20:07.664953886Z",
+   "eventType":  "EVENT_TYPE_ACTIVITY_TASK_COMPLETED",
+   "taskId":  "1048928",
+   "activityTaskCompletedEventAttributes":  {
+    "result":  {
+     "payloads":  [
+      {
+       "metadata":  {
+        "encoding":  "anNvbi9wbGFpbg=="
+       },
+       "data":  "eyJnYW1lc0ltcG9ydGVkIjoxLCJza2F0ZXJzSW1wb3J0ZWQiOjIsImdvYWxpZXNJbXBvcnRlZCI6MSwib3JpZ2lucyI6eyIzIjo0fX0="
+      }
+     ]
+    },
+    "scheduledEventId":  "47",
+    "startedEventId":  "52",
+    "identity":  "9795@vikunja-fu-puckdb-677-c4520-68h46@"
+   }
+  },
+  {
+   "eventId":  "54",
+   "eventTime":  "2026-11-15T06:20:07.666457174Z",
+   "eventType":  "EVENT_TYPE_WORKFLOW_TASK_STARTED",
+   "taskId":  "1048930",
+   "workflowTaskStartedEventAttributes":  {
+    "scheduledEventId":  "51",
+    "identity":  "9795@vikunja-fu-puckdb-677-c4520-68h46@",
+    "requestId":  "2c9e2a56-e9cf-4598-be0e-e689f58a7466",
+    "historySizeBytes":  "8548",
+    "workerVersion":  {
+     "buildId":  "48f412508b653c074bf1b4e758948994"
+    }
+   }
+  },
+  {
+   "eventId":  "55",
+   "eventTime":  "2026-11-15T06:20:07.672625204Z",
+   "eventType":  "EVENT_TYPE_WORKFLOW_TASK_COMPLETED",
+   "taskId":  "1048934",
+   "workflowTaskCompletedEventAttributes":  {
+    "scheduledEventId":  "51",
+    "startedEventId":  "54",
+    "identity":  "9795@vikunja-fu-puckdb-677-c4520-68h46@",
+    "workerVersion":  {
+     "buildId":  "48f412508b653c074bf1b4e758948994"
+    },
+    "sdkMetadata":  {},
+    "meteringMetadata":  {}
+   }
+  },
+  {
+   "eventId":  "56",
+   "eventTime":  "2026-11-15T06:20:07.672643037Z",
+   "eventType":  "EVENT_TYPE_MARKER_RECORDED",
+   "taskId":  "1048935",
+   "markerRecordedEventAttributes":  {
+    "markerName":  "LocalActivity",
+    "details":  {
+     "data":  {
+      "payloads":  [
+       {
+        "metadata":  {
+         "encoding":  "anNvbi9wbGFpbg=="
+        },
+        "data":  "eyJBY3Rpdml0eUlEIjoiNiIsIkFjdGl2aXR5VHlwZSI6IlNhdmUiLCJSZXBsYXlUaW1lIjoiMjAyNi0xMS0xNVQwNjoyMDowNy42NjY0OTg0NjVaIiwiQXR0ZW1wdCI6MSwiQmFja29mZiI6MH0="
+       }
+      ]
+     }
+    },
+    "workflowTaskCompletedEventId":  "55"
+   }
+  },
+  {
+   "eventId":  "57",
+   "eventTime":  "2026-11-15T06:20:07.672645162Z",
+   "eventType":  "EVENT_TYPE_MARKER_RECORDED",
+   "taskId":  "1048936",
+   "markerRecordedEventAttributes":  {
+    "markerName":  "LocalActivity",
+    "details":  {
+     "data":  {
+      "payloads":  [
+       {
+        "metadata":  {
+         "encoding":  "anNvbi9wbGFpbg=="
+        },
+        "data":  "eyJBY3Rpdml0eUlEIjoiNyIsIkFjdGl2aXR5VHlwZSI6IlNhdmUiLCJSZXBsYXlUaW1lIjoiMjAyNi0xMS0xNVQwNjoyMDowNy42NjY1MjY3NTZaIiwiQXR0ZW1wdCI6MSwiQmFja29mZiI6MH0="
+       }
+      ]
+     }
+    },
+    "workflowTaskCompletedEventId":  "55"
+   }
+  },
+  {
+   "eventId":  "58",
+   "eventTime":  "2026-11-15T06:20:07.672647079Z",
+   "eventType":  "EVENT_TYPE_MARKER_RECORDED",
+   "taskId":  "1048937",
+   "markerRecordedEventAttributes":  {
+    "markerName":  "LocalActivity",
+    "details":  {
+     "data":  {
+      "payloads":  [
+       {
+        "metadata":  {
+         "encoding":  "anNvbi9wbGFpbg=="
+        },
+        "data":  "eyJBY3Rpdml0eUlEIjoiOCIsIkFjdGl2aXR5VHlwZSI6IlNhdmUiLCJSZXBsYXlUaW1lIjoiMjAyNi0xMS0xNVQwNjoyMDowNy42NjY1NTg0MjJaIiwiQXR0ZW1wdCI6MSwiQmFja29mZiI6MH0="
+       }
+      ]
+     }
+    },
+    "workflowTaskCompletedEventId":  "55"
+   }
+  },
+  {
+   "eventId":  "59",
+   "eventTime":  "2026-11-15T06:20:07.672650870Z",
+   "eventType":  "EVENT_TYPE_WORKFLOW_EXECUTION_COMPLETED",
+   "taskId":  "1048938",
+   "workflowExecutionCompletedEventAttributes":  {
+    "result":  {
+     "payloads":  [
+      {
+       "metadata":  {
+        "encoding":  "anNvbi9wbGFpbg=="
+       },
+       "data":  "eyIzIjoxN30="
+      }
+     ]
+    },
+    "workflowTaskCompletedEventId":  "55"
+   }
+  }
+ ]
+}
