@@ -7,7 +7,7 @@
 #   ./puckdb sim create --config examples/poolsim-smoke.yaml
 #   ./puckdb sim tail --pool <pool-id>
 #
-# Compact roster + maxSeasonDays 30 keeps a llama3.1:8b run in the
+# An 8-round draft + maxSeasonDays 30 keeps a llama3.1:8b run in the
 # tens-of-minutes range instead of hours. Ollama models cost $0 in
 # pricing.go, so the cost cap never trips.
 #
@@ -19,12 +19,14 @@ name: Ollama smoke (4x llama3.1:8b)
 season: 20242025
 categories: [G, A, +/-, PIM, PPP, SOG, W, GA, GAA]
 rosterPositions:
-  - {slot: C,  count: 1}
-  - {slot: LW, count: 1}
-  - {slot: RW, count: 1}
-  - {slot: D,  count: 2}
-  - {slot: G,  count: 1}
-  - {slot: BN, count: 2}
+  - {slot: C,    count: 2}
+  - {slot: LW,   count: 2}
+  - {slot: RW,   count: 2}
+  - {slot: D,    count: 3}
+  - {slot: Util, count: 1}
+  - {slot: G,    count: 2}
+  - {slot: BN,   count: 6}
+  - {slot: IR,   count: 3}
 waiverDays: 2
 draftRounds: 8
 maxLlmCostUsdPerPool: 0

@@ -8,6 +8,7 @@ import (
 	"strconv"
 
 	"github.com/sperano/puckdb/internal/config"
+	"github.com/sperano/puckdb/internal/graph"
 	"github.com/sperano/puckdb/internal/graph/model"
 	"github.com/sperano/puckdb/internal/worker/simulation"
 	"github.com/spf13/cobra"
@@ -54,7 +55,17 @@ func cmdSimCreate() *cobra.Command {
 config file is the only input — there are no inline flags for
 agents, categories, etc., because pool config is immutable after
 creation and lining up an inline-flag schema with the config schema
-isn't worth the friction.
+isn't worth the friction. An invalid config is rejected before the
+API is called, with every bad field named.
+
+The simulator supports one scoring and roster shape, the one its
+agents are told about: categories G, A, +/-, PIM, PPP, SOG, W, GA,
+GAA (each once, any order) and the roster 2 C, 2 LW, 2 RW, 3 D,
+1 Util, 2 G, 6 BN, 3 IR. draftRounds runs from 1 to 21 (the roster's
+size). An agent's apiBase receives the provider's API key, so
+anthropic, openai and google accept only https on their own host
+(google requires one); ollama accepts any http(s) URL without
+credentials.
 
 How far the pool runs is part of the config too; a running pool
 cannot be stepped or paused by hand, only cancelled:
@@ -64,51 +75,19 @@ cannot be stepped or paused by hand, only cancelled:
   startDate       window start, YYYY-MM-DD (default: season start)
   endDate         window end, YYYY-MM-DD (default: season end)
 
+A pool whose LLM spend reaches maxLlmCostUsdPerPool stops with status
+paused. Paused is final: there is no resume; create a new pool.
+
 Example config:
 
-  name: Crapettes Sonnet vs Haiku vs Llama
-  season: 20242025
-  categories: [G, A, PIM, PPP, SOG, W, GA]
-  rosterPositions:
-    - {slot: C,  count: 2}
-    - {slot: LW, count: 2}
-    - {slot: RW, count: 2}
-    - {slot: D,  count: 3}
-    - {slot: G,  count: 2}
-    - {slot: BN, count: 5}
-  waiverDays: 2
-  draftRounds: 18
-  maxLlmCostUsdPerPool: 200.0
-  stopAfter: never
-  maxSeasonDays: 0
-  agents:
-    - name: Sonnet
-      provider: anthropic
-      model: claude-sonnet-4-7
-      strategy: |
-        Build a balanced roster across all categories. Avoid one-category
-        specialists. Prefer steady veterans over volatile rookies, and keep
-        the bench shallow so waiver pickups can rotate in quickly.
-    - name: Haiku
-      provider: anthropic
-      model: claude-haiku-4-5
-      strategy: |
-        Punt GAA and SV%. Stack high-shot-volume forwards to dominate G,
-        A, SOG, and PPP. Stream goalies aggressively for W only — drop
-        them between starts.
-    - name: Llama
-      provider: ollama
-      model: "llama3.1:8b"
-      apiBase: "http://localhost:11434/v1"
-      strategy: |
-        Target young players entering their breakout window. Tolerate
-        inconsistency in exchange for upside, and use the waiver wire
-        weekly to chase hot streaks rather than holding underperforming
-        stars.`,
+` + simCreateExampleConfig,
 		PreRunE: bindFlagsPreRunE(simClientFlagGroups...),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			input, err := loadCreateSimPoolInputFromFile(configPath)
 			if err != nil {
+				return err
+			}
+			if err := graph.ValidateCreateSimPoolInput(*input); err != nil {
 				return err
 			}
 			client, err := getGraphQLClient()
@@ -129,6 +108,47 @@ Example config:
 	config.InitFlags(cmd.Flags(), simClientFlagGroups...)
 	return cmd
 }
+
+// simCreateExampleConfig is the example of `sim create --help`, a valid
+// config (TestSimCreateExampleConfigIsValid).
+const simCreateExampleConfig = `  name: Crapettes Sonnet vs Haiku vs Llama
+  season: 20242025
+  categories: [G, A, +/-, PIM, PPP, SOG, W, GA, GAA]
+  rosterPositions:
+    - {slot: C,    count: 2}
+    - {slot: LW,   count: 2}
+    - {slot: RW,   count: 2}
+    - {slot: D,    count: 3}
+    - {slot: Util, count: 1}
+    - {slot: G,    count: 2}
+    - {slot: BN,   count: 6}
+    - {slot: IR,   count: 3}
+  waiverDays: 2
+  draftRounds: 18
+  maxLlmCostUsdPerPool: 200.0
+  stopAfter: never
+  maxSeasonDays: 0
+  agents:
+    - provider: anthropic
+      model: claude-sonnet-4-6
+      strategy: |
+        Build a balanced roster across all categories. Avoid one-category
+        specialists. Prefer steady veterans over volatile rookies, and keep
+        the bench shallow so waiver pickups can rotate in quickly.
+    - provider: anthropic
+      model: claude-haiku-4-5
+      strategy: |
+        Punt GA and GAA. Stack high-shot-volume forwards to dominate G,
+        A, SOG, and PPP. Stream goalies aggressively for W only — drop
+        them between starts.
+    - provider: ollama
+      model: "llama3.1:8b"
+      apiBase: "http://localhost:11434/v1"
+      strategy: |
+        Target young players entering their breakout window. Tolerate
+        inconsistency in exchange for upside, and use the waiver wire
+        weekly to chase hot streaks rather than holding underperforming
+        stars.`
 
 // loadCreateSimPoolInputFromFile reads + parses the YAML config.
 // Pulled out as a non-method function so the test layer can exercise
@@ -311,7 +331,7 @@ func nextStepHint(poolID int, status simulation.PoolStatus) string {
 	case simulation.PoolStatusDraft, simulation.PoolStatusRunning:
 		return fmt.Sprintf("Next: ./puckdb sim tail --pool %d   (watch live) or ./puckdb sim status %d   (snapshot)", poolID, poolID)
 	case simulation.PoolStatusPaused:
-		return "Simulation paused (cost cap reached). Inspect via sim tail; create a new pool to continue."
+		return "Simulation paused (cost cap reached). Paused is final, there is no resume: inspect via sim tail; create a new pool to continue."
 	case simulation.PoolStatusComplete:
 		return "Simulation complete."
 	case simulation.PoolStatusCancelled:

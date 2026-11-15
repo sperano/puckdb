@@ -25,15 +25,14 @@ import (
 // current standings here — those go in the daily/draft context message
 // (the non-cacheable suffix).
 // v1FixedCategories / v1FixedRoster pin the "9 roto categories" line and
-// the "Roster: ..." line hard-coded into systemPromptTemplate below.
-// V1 supports exactly one scoring/roster shape (current simplification) — these are
-// NOT read from PoolConfig.Categories / PoolConfig.RosterPositions at
-// runtime (wiring the prompt to per-pool config is a known
-// follow-up: it's correctness-adjacent, since a mismatch between what
-// the prompt claims and what the validators enforce would silently
-// mislead the LLM). TestV1FixedRosterMatchesPrompt below fails if
-// either constant is edited without updating systemPromptTemplate (or
-// vice versa) — see the matching doc comment on PoolConfig in types.go.
+// the "Roster: ..." line hard-coded into systemPromptTemplate below. The
+// simulator supports exactly this one scoring/roster shape: the prompt is
+// not built from PoolConfig.Categories / PoolConfig.RosterPositions, and
+// pool creation rejects any other shape (ValidateCategories,
+// ValidateRosterPositions in pool_contract.go), so the prompt and the
+// validators always describe the same roster. TestV1FixedRosterMatchesPrompt
+// fails if either constant is edited without updating systemPromptTemplate
+// (or vice versa).
 var v1FixedCategories = []string{"G", "A", "+/-", "PIM", "PPP", "SOG", "W", "GA", "GAA"}
 
 var v1FixedRoster = map[RosterSlot]int{

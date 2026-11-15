@@ -449,11 +449,13 @@ INSERT INTO sim_lineup_moves (
 )
 VALUES ($1, $2, $3, $4, $5, $6);
 
--- name: ListSimLineupMovesByTransaction :many
+-- ListSimLineupMovesByTransactions returns the moves of every listed
+-- lineup_set transaction in one query.
+-- name: ListSimLineupMovesByTransactions :many
 SELECT transaction_id, sequence, player_id, from_slot, to_slot, displaced_player_id
 FROM sim_lineup_moves
-WHERE transaction_id = $1
-ORDER BY sequence;
+WHERE transaction_id = ANY(@transaction_ids::int[])
+ORDER BY transaction_id, sequence;
 
 -- =============================================================================
 -- Free-agent pool — runs once per (pool_id, sim_date), shared across agents

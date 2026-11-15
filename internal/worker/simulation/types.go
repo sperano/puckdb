@@ -143,17 +143,13 @@ type PoolConfig struct {
 	Season   int `json:"season"`
 	NumTeams int `json:"num_teams"`
 
-	// Categories / RosterPositions are read from sim_pools at pool
-	// creation, but V1's LLM system prompt (prompts.go
-	// systemPromptTemplate) hard-codes the same 9 categories and the
-	// same roster composition as fixed text — the prompt is NOT
-	// re-derived from these fields at runtime. See prompts.go's
-	// v1FixedCategories / v1FixedRoster and
-	// TestV1FixedRosterMatchesPrompt for the pinned assumption. If a
-	// pool is ever created with different categories/roster than V1's
-	// defaults, the agent's prompt will still describe the V1 shape —
-	// wiring the two together is out of scope until multi-shape pools
-	// are supported.
+	// Categories / RosterPositions are read from sim_pools, but the LLM
+	// system prompt (prompts.go systemPromptTemplate) hard-codes the
+	// supported categories and roster as fixed text and the standings
+	// score the supported categories. Pool creation accepts only that
+	// shape (pool_contract.go), so these fields always equal
+	// v1FixedCategories / v1FixedRoster for a pool created through
+	// createSimPool.
 	Categories           []string           `json:"categories"`
 	RosterPositions      map[RosterSlot]int `json:"roster_positions"`
 	WaiverDays           int                `json:"waiver_days"`

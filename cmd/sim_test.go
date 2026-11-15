@@ -12,6 +12,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/sperano/puckdb/internal/graph"
 	"github.com/sperano/puckdb/internal/graph/model"
 	"github.com/sperano/puckdb/internal/worker/simulation"
 	"github.com/stretchr/testify/assert"
@@ -131,6 +132,58 @@ agents: []
 	in, err := loadCreateSimPoolInputFromFile(path)
 	require.NoError(t, err)
 	assert.Equal(t, "FromFile", in.Name)
+}
+
+// shippedExampleConfigs matches the pool configs under examples/.
+const shippedExampleConfigs = "../examples/poolsim*.yaml"
+
+// TestShippedExampleConfigsAreValid pins SIM-U1: every shipped pool config
+// decodes strictly and passes createSimPool's validation, so it has the
+// supported categories and roster the agents are told about.
+func TestShippedExampleConfigsAreValid(t *testing.T) {
+	t.Parallel()
+	paths, err := filepath.Glob(shippedExampleConfigs)
+	require.NoError(t, err)
+	require.NotEmpty(t, paths, "no example config matched %s", shippedExampleConfigs)
+	for _, path := range paths {
+		t.Run(filepath.Base(path), func(t *testing.T) {
+			t.Parallel()
+			in, err := loadCreateSimPoolInputFromFile(path)
+			require.NoError(t, err)
+			require.NoError(t, graph.ValidateCreateSimPoolInput(*in))
+		})
+	}
+}
+
+func TestSimCreateExampleConfigIsValid(t *testing.T) {
+	t.Parallel()
+	in, err := parseCreateSimPoolInput(strings.NewReader(simCreateExampleConfig))
+	require.NoError(t, err)
+	require.NoError(t, graph.ValidateCreateSimPoolInput(*in))
+	assert.Contains(t, cmdSimCreate().Long, simCreateExampleConfig)
+}
+
+// TestSimCreateRejectsAnInvalidConfigBeforeTheAPI runs the create
+// command on a config with a bad field and a null agent entry (a bare
+// `-`): it fails with the validator's error naming both, before any
+// GraphQL client is built.
+func TestSimCreateRejectsAnInvalidConfigBeforeTheAPI(t *testing.T) {
+	t.Parallel()
+	body := strings.Replace(simCreateExampleConfig, "draftRounds: 18", "draftRounds: 0", 1)
+	body = strings.Replace(body, "  agents:\n", "  agents:\n    -\n", 1)
+	path := filepath.Join(t.TempDir(), "pool.yaml")
+	require.NoError(t, os.WriteFile(path, []byte(body), 0o600))
+
+	cmd := cmdSimCreate()
+	require.NoError(t, cmd.Flags().Set("config", path))
+	err := cmd.RunE(cmd, nil)
+	var cfgErr *graph.SimPoolConfigError
+	require.ErrorAs(t, err, &cfgErr)
+	fields := make([]string, len(cfgErr.Fields))
+	for i, f := range cfgErr.Fields {
+		fields[i] = f.Field
+	}
+	assert.Equal(t, []string{"draftRounds", "agents[0]"}, fields)
 }
 
 func TestLoadCreateSimPoolInputFromFile_MissingPath(t *testing.T) {
@@ -281,7 +334,7 @@ func TestNextStepHintUsesPoolStatuses(t *testing.T) {
 	tests := map[simulation.PoolStatus]string{
 		simulation.PoolStatusDraft:     "watch live",
 		simulation.PoolStatusRunning:   "watch live",
-		simulation.PoolStatusPaused:    "paused",
+		simulation.PoolStatusPaused:    "there is no resume",
 		simulation.PoolStatusComplete:  "complete",
 		simulation.PoolStatusCancelled: "cancelled",
 		unknownPoolStatus:              "",
