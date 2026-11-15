@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strings"
 
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/sperano/puckdb/internal/sqlcdb"
@@ -13,24 +12,33 @@ import (
 // insertLLMCall stores one provider call with its input links and tool calls.
 // turnID is invalid (NULL) for title generation; turnMessageIDs resolves
 // MessageRef.TurnIndex.
-func insertLLMCall(ctx context.Context, q *sqlcdb.Queries, conv, turnID pgtype.UUID, call LLMCallRecord, turnMessageIDs []pgtype.UUID) error {
+func insertLLMCall(ctx context.Context, q *sqlcdb.Queries, conv, turnID pgtype.UUID, call LLMCallRecord, turnMessageIDs []pgtype.UUID) ([]storedToolLink, error) {
 	params, err := llmCallParams(conv, turnID, call)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	callID, err := q.InsertLLMCall(ctx, params)
 	if err != nil {
-		return fmt.Errorf("insert: %w", err)
+		return nil, fmt.Errorf("insert: %w", err)
 	}
 	if err := insertCallInputs(ctx, q, callID, call.Inputs, turnMessageIDs); err != nil {
-		return err
+		return nil, err
 	}
+	links := make([]storedToolLink, 0, len(call.ToolCalls))
 	for i, tc := range call.ToolCalls {
-		if err := q.InsertToolCall(ctx, toolCallParams(turnID, callID, i, tc)); err != nil {
-			return fmt.Errorf("insert tool call %d: %w", i, err)
+		params := toolCallParams(turnID, callID, i, tc)
+		if call.OutputMessageIndex >= 0 && call.OutputMessageIndex < len(turnMessageIDs) {
+			params.MessageID = turnMessageIDs[call.OutputMessageIndex]
 		}
+		id, err := q.InsertToolCall(ctx, params)
+		if err != nil {
+			return nil, fmt.Errorf("insert tool call %d: %w", i, err)
+		}
+		links = append(links, storedToolLink{
+			id: id, providerID: tc.ProviderToolCallID, outputMessageIndex: call.OutputMessageIndex, sequence: i,
+		})
 	}
-	return nil
+	return links, nil
 }
 
 func llmCallParams(conv, turnID pgtype.UUID, call LLMCallRecord) (sqlcdb.InsertLLMCallParams, error) {
@@ -98,14 +106,14 @@ func insertCallInputs(ctx context.Context, q *sqlcdb.Queries, callID int64, inpu
 func toolCallParams(turnID pgtype.UUID, callID int64, seq int, tc ToolCallRecord) sqlcdb.InsertToolCallParams {
 	params := sqlcdb.InsertToolCallParams{
 		TurnID:             turnID,
-		LlmCallID:          callID,
+		LlmCallID:          pgtype.Int8{Int64: callID, Valid: true},
 		SequenceNumber:     int32(seq),
 		ProviderToolCallID: optionalText(tc.ProviderToolCallID),
+		ToolType:           defaultToolType(tc.Type),
 		ToolName:           tc.Name,
-		Arguments:          jsonbArguments(tc.ArgumentsRaw),
 		ArgumentsRaw:       tc.ArgumentsRaw,
 		Result:             optionalTextPtr(tc.Result),
-		Status:             string(tc.Status),
+		Status:             optionalText(string(tc.Status)),
 	}
 	if tc.StartedAt != nil {
 		params.StartedAt = timestamptz(*tc.StartedAt)
@@ -116,17 +124,13 @@ func toolCallParams(turnID pgtype.UUID, callID int64, seq int, tc ToolCallRecord
 	return params
 }
 
-// jsonNullEscape is the JSON escape for U+0000, which jsonb rejects although
-// it is valid JSON.
-const jsonNullEscape = `\u0000`
+const defaultFunctionToolType = "function"
 
-// jsonbArguments returns the raw arguments when jsonb can hold them, nil
-// otherwise; arguments_raw always keeps the original text.
-func jsonbArguments(raw string) []byte {
-	if !json.Valid([]byte(raw)) || strings.Contains(raw, jsonNullEscape) {
-		return nil
+func defaultToolType(toolType string) string {
+	if toolType == "" {
+		return defaultFunctionToolType
 	}
-	return []byte(raw)
+	return toolType
 }
 
 func optionalInt8(v *int64) pgtype.Int8 {

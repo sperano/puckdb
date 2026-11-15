@@ -1,7 +1,6 @@
 package simulation
 
 import (
-	"encoding/json"
 	"errors"
 
 	"github.com/sperano/puckdb/internal/llm"
@@ -70,7 +69,9 @@ func (s *DraftPickTestSuite) TestRecordFullMessages_EnabledPersistsDraftTranscri
 	s.setRecordFullMessages(true)
 	in := s.validInput()
 	in.DraftPrompt.DraftInfo = DraftInfo{Round: 1, Pick: 3, OverallPick: 3, SnakeDirection: "forward"}
-	s.llm.responses = []*llm.Response{draftPlayerToolCall(8478402, "McDavid is the best skater available")}
+	response := draftPlayerToolCall(8478402, "McDavid is the best skater available")
+	response.ToolCalls[0].Type = ""
+	s.llm.responses = []*llm.Response{response}
 
 	future, err := s.env.ExecuteActivity(s.acts.DraftPick, in)
 	require.NoError(t, err)
@@ -85,15 +86,20 @@ func (s *DraftPickTestSuite) TestRecordFullMessages_EnabledPersistsDraftTranscri
 	assert.Equal(t, "test system prompt", rows[0].Content)
 	assert.Contains(t, rows[1].Content, `"snake_direction":"forward"`, "user turn carries the rendered draft prompt")
 
-	var assistantCalls []llm.ToolCall
-	require.NoError(t, json.Unmarshal(rows[2].ToolCalls, &assistantCalls))
-	require.Len(t, assistantCalls, 1, "assistant turn carries the draft_player call")
-	assert.Equal(t, ToolDraftPlayer, assistantCalls[0].Function.Name)
-	assert.Contains(t, assistantCalls[0].Function.Arguments, "8478402")
+	require.Len(t, s.queries.insertToolCallCalls, 1, "assistant turn carries the draft_player call")
+	call := s.queries.insertToolCallCalls[0]
+	assert.Equal(t, ToolDraftPlayer, call.ToolName)
+	assert.Contains(t, call.ArgumentsRaw, "8478402")
+	assert.Equal(t, int32(2), call.MessageOrdinal.Int32)
+	assert.True(t, call.MessageOrdinal.Valid)
+	assert.Equal(t, "tc_test", call.ProviderToolCallID.String)
+	assert.Equal(t, "function", call.ToolType)
 
 	assert.Equal(t, "ok: player drafted", rows[3].Content)
-	assert.Equal(t, "tc_test", rows[3].ToolCallID.String)
-	assert.True(t, rows[3].ToolCallID.Valid)
+	require.Len(t, s.queries.linkMessageResultsCalls, 1)
+	assert.Equal(t, []int32{3}, s.queries.linkMessageResultsCalls[0].Ordinals)
+	assert.Equal(t, []int32{0}, s.queries.linkMessageResultsCalls[0].RoundIndexes)
+	assert.Equal(t, []int32{0}, s.queries.linkMessageResultsCalls[0].Sequences)
 }
 
 // Flag off: the turn header, rounds and tool calls still land but no
@@ -108,7 +114,7 @@ func (s *DraftPickTestSuite) TestRecordFullMessages_DisabledStoresNoTranscript()
 	require.NoError(t, future.Get(new(DraftPickResult)))
 
 	require.Len(t, s.queries.insertTurnCalls, 1, "turn header still recorded")
-	assert.NotEmpty(t, s.queries.insertToolCallBatches, "tool-call audit still recorded")
+	assert.NotEmpty(t, s.queries.insertToolCallCalls, "tool-call audit still recorded")
 	assert.Empty(t, s.queries.insertTurnMessageBatches, "no transcript rows when the flag is off")
 }
 
@@ -133,6 +139,35 @@ func (s *DraftPickTestSuite) TestRecordFullMessages_RejectedToolCallStaysInTrans
 	s.assertTranscriptRoles(rows, "system", "user", "assistant", "tool", "assistant", "tool")
 	assert.Contains(t, rows[3].Content, "not available", "rejection fed back to the model is recorded")
 	assert.Equal(t, "ok: player drafted", rows[5].Content)
+	require.Len(t, s.queries.insertToolCallCalls, 2)
+	assert.Equal(t, int32(2), s.queries.insertToolCallCalls[0].MessageOrdinal.Int32)
+	assert.Equal(t, int32(4), s.queries.insertToolCallCalls[1].MessageOrdinal.Int32)
+	assert.Equal(t, []int32{3, 5}, s.queries.linkMessageResultsCalls[0].Ordinals)
+	assert.Equal(t, []int32{0, 1}, s.queries.linkMessageResultsCalls[0].RoundIndexes)
+	assert.Equal(t, []int32{0, 0}, s.queries.linkMessageResultsCalls[0].Sequences)
+}
+
+func (s *DraftPickTestSuite) TestRecordFullMessages_LinkFailureAbortsCommit() {
+	t := s.T()
+	s.setRecordFullMessages(true)
+	s.queries.linkMessageResultsErr = errors.New("write failed")
+	s.llm.responses = []*llm.Response{draftPlayerToolCall(8478402, "McDavid")}
+
+	_, err := s.env.ExecuteActivity(s.acts.DraftPick, s.validInput())
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "link tool result messages")
+	require.ErrorContains(t, s.tx.fnErr, "link tool result messages")
+}
+
+func (s *DraftPickTestSuite) TestRecordFullMessages_ToolCallInsertFailureAbortsCommit() {
+	t := s.T()
+	s.setRecordFullMessages(true)
+	s.queries.insertToolCallErr = errors.New("write failed")
+	s.llm.responses = []*llm.Response{draftPlayerToolCall(8478402, "McDavid")}
+
+	_, err := s.env.ExecuteActivity(s.acts.DraftPick, s.validInput())
+	require.ErrorContains(t, err, "insert tool call")
+	require.ErrorContains(t, s.tx.fnErr, "insert tool call")
 }
 
 // Provider error on the first round → fallback pick. The loop still

@@ -2,7 +2,6 @@ package simulation
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"math"
 	"time"
@@ -112,6 +111,8 @@ const (
 type ToolCallCapture struct {
 	RoundIndex           int
 	Sequence             int
+	ProviderToolCallID   string
+	ToolType             string
 	ToolName             string
 	RecoveredName        string
 	ArgumentsRaw         string
@@ -230,7 +231,8 @@ func RecoveredName(rawName string, action Action, distance int) string {
 	return canonical
 }
 
-// AssignRoundsFromAudit fills RoundIndex and Sequence on each capture
+// AssignRoundsFromAudit fills RoundIndex, Sequence, ProviderToolCallID and
+// ToolType on each capture
 // by zipping against agentloop.Result.Audit. agentloop.Run calls the
 // executor in the same order it records Audit entries, so the i-th
 // capture corresponds to the i-th audit entry. The fixup mutates the
@@ -239,13 +241,15 @@ func RecoveredName(rawName string, action Action, distance int) string {
 // When audit is shorter than captures (an executor error aborts the
 // loop early in a future revision — V1 never returns executor errors,
 // so this branch is defensive), the trailing captures keep their
-// zero-value RoundIndex.
+// zero-value RoundIndex, Sequence, ProviderToolCallID and ToolType.
 func AssignRoundsFromAudit(captures []ToolCallCapture, audit []agentloop.Audit) {
 	roundSeq := map[int]int{}
 	for i := 0; i < len(captures) && i < len(audit); i++ {
 		round := audit[i].Round
 		captures[i].RoundIndex = round
 		captures[i].Sequence = roundSeq[round]
+		captures[i].ProviderToolCallID = audit[i].Call.ID
+		captures[i].ToolType = audit[i].Call.Type
 		roundSeq[round]++
 	}
 }
@@ -424,34 +428,4 @@ func numericOrNull(p *float64) pgtype.Numeric {
 		return pgtype.Numeric{}
 	}
 	return n
-}
-
-// argumentsJSONB validates that raw is JSON-parseable before forwarding
-// it as JSONB. Postgres rejects malformed JSONB at insert time; returning
-// nil ([]byte → SQL NULL) lets the row land even when the LLM emits
-// malformed arguments — the verbatim string is preserved in
-// arguments_raw for forensic inspection.
-func argumentsJSONB(raw string) []byte {
-	if raw == "" {
-		return nil
-	}
-	var probe any
-	if err := json.Unmarshal([]byte(raw), &probe); err != nil {
-		return nil
-	}
-	return []byte(raw)
-}
-
-// toolCallsJSONB marshals an assistant message's structured tool calls.
-// Empty slice → SQL NULL so non-tool-call assistant messages leave the
-// column unset.
-func toolCallsJSONB(calls []llm.ToolCall) []byte {
-	if len(calls) == 0 {
-		return nil
-	}
-	b, err := json.Marshal(calls)
-	if err != nil {
-		return nil
-	}
-	return b
 }

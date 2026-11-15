@@ -41,6 +41,9 @@ func usageTurnRecord(start *TurnStart, priorID string) TurnRecord {
 			{Role: "assistant", ToolCalls: []llm.ToolCall{
 				{ID: "c1", Type: "function", Function: llm.ToolCallFunction{Name: "pg_read_query", Arguments: `{"sql":"SELECT 1"}`}},
 				{ID: "c2", Type: "function", Function: llm.ToolCallFunction{Name: "broken_args", Arguments: `{"a":`}},
+				{ID: "c3", Type: "function", Function: llm.ToolCallFunction{Name: "json_null", Arguments: `{"value":"\u0000"}`}},
+				{ID: "c4", Type: "function", Function: llm.ToolCallFunction{Name: "escaped_backslash", Arguments: `{"value":"\\u0000"}`}},
+				{ID: "c5", Function: llm.ToolCallFunction{Name: "lone_surrogate", Arguments: `{"value":"\ud800"}`}},
 			}},
 			{Role: "tool", Content: "rows", ToolCallID: "c1"},
 			{Role: "assistant", Content: "a1"},
@@ -48,7 +51,8 @@ func usageTurnRecord(start *TurnStart, priorID string) TurnRecord {
 		Calls: []LLMCallRecord{
 			{
 				Kind: CallChatRound, Round: &round0, Provider: "anthropic", Model: "m", ProviderRequestID: "req-1",
-				Status: CallSucceeded, FinishReason: "tool_use", StartedAt: now, CompletedAt: now.Add(time.Millisecond),
+				OutputMessageIndex: 1,
+				Status:             CallSucceeded, FinishReason: "tool_use", StartedAt: now, CompletedAt: now.Add(time.Millisecond),
 				Usage:        TokenUsage{Input: int64p(100), Output: int64p(9), CacheCreation: int64p(0), CacheRead: int64p(80)},
 				SystemPrompt: &system,
 				ToolDefinitions: []llm.Tool{{Type: "function", Function: llm.ToolFunction{
@@ -58,11 +62,15 @@ func usageTurnRecord(start *TurnStart, priorID string) TurnRecord {
 					{ProviderToolCallID: "c1", Name: "pg_read_query", ArgumentsRaw: `{"sql":"SELECT 1"}`,
 						Result: &result, Status: ToolSucceeded, StartedAt: &ran, CompletedAt: &done},
 					{ProviderToolCallID: "c2", Name: "broken_args", ArgumentsRaw: `{"a":`, Status: ToolCancelled},
+					{ProviderToolCallID: "c3", Type: "function", Name: "json_null", ArgumentsRaw: `{"value":"\u0000"}`, Status: ToolCancelled},
+					{ProviderToolCallID: "c4", Type: "function", Name: "escaped_backslash", ArgumentsRaw: `{"value":"\\u0000"}`, Status: ToolCancelled},
+					{ProviderToolCallID: "c5", Name: "lone_surrogate", ArgumentsRaw: `{"value":"\ud800"}`, Status: ToolCancelled},
 				},
 			},
 			{
 				Kind: CallChatRound, Round: &round1, Provider: "anthropic", Model: "m", Status: CallSucceeded,
-				StartedAt: now.Add(4 * time.Millisecond), CompletedAt: now.Add(5 * time.Millisecond), SystemPrompt: &system,
+				OutputMessageIndex: -1,
+				StartedAt:          now.Add(4 * time.Millisecond), CompletedAt: now.Add(5 * time.Millisecond), SystemPrompt: &system,
 				Inputs: []MessageRef{{MessageID: priorID}, {TurnIndex: 0}, {TurnIndex: 1}, {TurnIndex: 2}},
 			},
 		},
@@ -121,11 +129,34 @@ func TestPg_FinishTurn_StoresCallsLinksAndToolCalls(t *testing.T) {
 
 	assert.Equal(t, 1, pgCount(t, pool, `SELECT count(*) FROM maurice_tool_calls
 		WHERE turn_id = $1 AND sequence_number = 0 AND status = 'succeeded' AND result = 'rows'
-		  AND arguments = '{"sql":"SELECT 1"}'::jsonb AND started_at IS NOT NULL`, start.TurnID))
+		  AND arguments_raw = '{"sql":"SELECT 1"}' AND arguments->>'sql' = 'SELECT 1'
+		  AND started_at IS NOT NULL`, start.TurnID))
 	assert.Equal(t, 1, pgCount(t, pool, `SELECT count(*) FROM maurice_tool_calls
 		WHERE turn_id = $1 AND sequence_number = 1 AND status = 'cancelled' AND result IS NULL
-		  AND arguments IS NULL AND arguments_raw = '{"a":' AND started_at IS NULL`, start.TurnID),
-		"invalid JSON arguments keep only the raw text")
+		  AND arguments_raw = '{"a":' AND arguments IS NULL AND started_at IS NULL`, start.TurnID),
+		"invalid JSON arguments keep their raw text")
+	assert.Equal(t, 2, pgCount(t, pool, `SELECT count(*) FROM maurice_tool_calls
+		WHERE turn_id = $1 AND sequence_number IN (2, 4) AND arguments IS NULL`, start.TurnID),
+		"JSONB-incompatible escapes keep only raw arguments")
+	assert.Equal(t, 1, pgCount(t, pool, `SELECT count(*) FROM maurice_tool_calls
+		WHERE turn_id = $1 AND sequence_number = 3 AND arguments IS NOT NULL`, start.TurnID),
+		"an escaped backslash before u0000 is valid JSONB")
+	assert.Equal(t, 5, pgCount(t, pool, `SELECT count(*) FROM maurice_tool_calls call_row
+		JOIN maurice_messages message ON message.id = call_row.message_id
+		WHERE call_row.turn_id = $1 AND message.message_number = 1`, start.TurnID))
+	assert.Equal(t, 1, pgCount(t, pool, `SELECT count(*) FROM maurice_messages result_message
+		JOIN maurice_tool_calls call_row ON call_row.id = result_message.result_tool_call_id
+		WHERE result_message.turn_id = $1 AND result_message.message_number = 2
+		  AND call_row.sequence_number = 0`, start.TurnID))
+	msgs, err := db.GetMessages(ctx, user, start.ConversationID)
+	require.NoError(t, err)
+	require.Len(t, msgs[len(msgs)-3].ToolCalls, 5)
+	assert.Equal(t, []string{"c1", "c2", "c3", "c4", "c5"}, []string{
+		msgs[len(msgs)-3].ToolCalls[0].ID, msgs[len(msgs)-3].ToolCalls[1].ID,
+		msgs[len(msgs)-3].ToolCalls[2].ID, msgs[len(msgs)-3].ToolCalls[3].ID,
+		msgs[len(msgs)-3].ToolCalls[4].ID,
+	})
+	assert.Equal(t, "function", msgs[len(msgs)-3].ToolCalls[4].Type)
 }
 
 // A failed turn stores its messages and the failed call's links, so the
@@ -175,6 +206,93 @@ func TestPg_FinishTurn_IsAtomic(t *testing.T) {
 	assert.Equal(t, 1, pgCount(t, pool, `SELECT count(*) FROM maurice_turns WHERE id = $1 AND status = 'running'`, start.TurnID))
 
 	finishTurn(t, db, start, "q", TurnMessage{Role: "assistant", Content: "a"})
+}
+
+func TestPg_FinishTurn_RejectsOrphanToolResultAtomically(t *testing.T) {
+	pool := openPgTestPool(t)
+	db := NewPgDB(pool)
+	ctx := context.Background()
+	user := newPgUser(t, pool)
+	start := beginTurn(t, db, user, "", "q")
+
+	_, err := db.FinishTurn(ctx, TurnRecord{
+		TurnID: start.TurnID, ConversationID: start.ConversationID, Status: TurnSucceeded,
+		Messages: []TurnMessage{
+			{Role: "user", Content: "q"},
+			{Role: "assistant", ToolCalls: []llm.ToolCall{{
+				ID: "c1", Type: "function", Function: llm.ToolCallFunction{Name: "tool", Arguments: `{}`},
+			}}},
+			{Role: "tool", Content: "orphan", ToolCallID: "missing"},
+		},
+	})
+	require.ErrorContains(t, err, `tool result "missing" has no preceding call`)
+	assert.Zero(t, pgCount(t, pool, `SELECT count(*) FROM maurice_messages WHERE turn_id = $1`, start.TurnID))
+	assert.Equal(t, 1, pgCount(t, pool, `SELECT count(*) FROM maurice_turns WHERE id = $1 AND status = 'running'`, start.TurnID))
+}
+
+func TestPg_FinishTurn_LinksReusedProviderIDToNearestCall(t *testing.T) {
+	pool := openPgTestPool(t)
+	db := NewPgDB(pool)
+	ctx := context.Background()
+	user := newPgUser(t, pool)
+	start := beginTurn(t, db, user, "", "q")
+	call := llm.ToolCall{ID: "c1", Function: llm.ToolCallFunction{Name: "tool", Arguments: `{}`}}
+
+	_, err := db.FinishTurn(ctx, TurnRecord{
+		TurnID: start.TurnID, ConversationID: start.ConversationID, Status: TurnSucceeded,
+		Messages: []TurnMessage{
+			{Role: "user", Content: "q"},
+			{Role: "assistant", ToolCalls: []llm.ToolCall{call}},
+			{Role: "tool", Content: "first", ToolCallID: "c1"},
+			{Role: "assistant", ToolCalls: []llm.ToolCall{call}},
+			{Role: "tool", Content: "second", ToolCallID: "c1"},
+			{Role: "assistant", Content: "done"},
+		},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, 1, pgCount(t, pool, `SELECT count(*)
+		FROM maurice_messages result_message
+		JOIN maurice_tool_calls call_row ON call_row.id = result_message.result_tool_call_id
+		JOIN maurice_messages call_message ON call_message.id = call_row.message_id
+		WHERE result_message.turn_id = $1 AND result_message.message_number = 2
+		  AND call_message.message_number = 1 AND call_row.tool_type = 'function'`, start.TurnID))
+	assert.Equal(t, 1, pgCount(t, pool, `SELECT count(*)
+		FROM maurice_messages result_message
+		JOIN maurice_tool_calls call_row ON call_row.id = result_message.result_tool_call_id
+		JOIN maurice_messages call_message ON call_message.id = call_row.message_id
+		WHERE result_message.turn_id = $1 AND result_message.message_number = 4
+		  AND call_message.message_number = 3 AND call_row.tool_type = 'function'`, start.TurnID))
+}
+
+func TestPg_FinishTurn_StoresInvalidTranscriptOnlyToolArguments(t *testing.T) {
+	pool := openPgTestPool(t)
+	db := NewPgDB(pool)
+	ctx := context.Background()
+	user := newPgUser(t, pool)
+	start := beginTurn(t, db, user, "", "q")
+	toolCalls := []llm.ToolCall{
+		{ID: "malformed", Type: "function", Function: llm.ToolCallFunction{Name: "broken", Arguments: `{"a":`}},
+		{ID: "null-escape", Type: "function", Function: llm.ToolCallFunction{Name: "null", Arguments: `{"value":"\u0000"}`}},
+	}
+
+	_, err := db.FinishTurn(ctx, TurnRecord{
+		TurnID: start.TurnID, ConversationID: start.ConversationID, Status: TurnSucceeded,
+		Messages: []TurnMessage{
+			{Role: "user", Content: "q"},
+			{Role: "assistant", ToolCalls: toolCalls},
+		},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, 2, pgCount(t, pool, `SELECT count(*) FROM maurice_tool_calls
+		WHERE turn_id = $1 AND llm_call_id IS NULL AND status IS NULL
+		  AND message_id IS NOT NULL AND arguments IS NULL
+		  AND arguments_raw IN ('{"a":', '{"value":"\u0000"}')`, start.TurnID))
+
+	messages, err := db.GetMessages(ctx, user, start.ConversationID)
+	require.NoError(t, err)
+	require.Len(t, messages, 2)
+	require.Len(t, messages[1].ToolCalls, 2)
+	assert.Equal(t, toolCalls, messages[1].ToolCalls)
 }
 
 // Title-generation tokens count toward the conversation owner, and sessions
@@ -238,7 +356,7 @@ func TestPg_DeleteKeepsPromptsAndUsage(t *testing.T) {
 	assert.Equal(t, 1, pgCount(t, pool, `SELECT count(*) FROM maurice_conversations WHERE id = $1 AND deleted_at IS NOT NULL`, start.ConversationID))
 	assert.Equal(t, 4, pgCount(t, pool, `SELECT count(*) FROM maurice_messages WHERE conversation_id = $1`, start.ConversationID))
 	assert.Equal(t, 2, pgCount(t, pool, `SELECT count(*) FROM maurice_llm_calls WHERE conversation_id = $1`, start.ConversationID))
-	assert.Equal(t, 2, pgCount(t, pool, `SELECT count(*) FROM maurice_tool_calls WHERE turn_id = $1`, start.TurnID))
+	assert.Equal(t, 5, pgCount(t, pool, `SELECT count(*) FROM maurice_tool_calls WHERE turn_id = $1`, start.TurnID))
 	assert.Equal(t, before, usage(), "deleting a conversation must not erase usage")
 }
 

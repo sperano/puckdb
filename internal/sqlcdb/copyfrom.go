@@ -46,50 +46,6 @@ func (q *Queries) CopyProcessPlayersManifestPlayers(ctx context.Context, arg []C
 	return q.db.CopyFrom(ctx, []string{"process_players_manifest_players"}, []string{"manifest_id", "ordinal", "player_id", "first_name", "last_name", "position"}, &iteratorForCopyProcessPlayersManifestPlayers{rows: arg})
 }
 
-// iteratorForInsertSimAgentToolCall implements pgx.CopyFromSource.
-type iteratorForInsertSimAgentToolCall struct {
-	rows                 []InsertSimAgentToolCallParams
-	skippedFirstNextCall bool
-}
-
-func (r *iteratorForInsertSimAgentToolCall) Next() bool {
-	if len(r.rows) == 0 {
-		return false
-	}
-	if !r.skippedFirstNextCall {
-		r.skippedFirstNextCall = true
-		return true
-	}
-	r.rows = r.rows[1:]
-	return len(r.rows) > 0
-}
-
-func (r iteratorForInsertSimAgentToolCall) Values() ([]interface{}, error) {
-	return []interface{}{
-		r.rows[0].TurnID,
-		r.rows[0].RoundIndex,
-		r.rows[0].Sequence,
-		r.rows[0].ToolName,
-		r.rows[0].RecoveredName,
-		r.rows[0].ArgumentsRaw,
-		r.rows[0].Arguments,
-		r.rows[0].Result,
-		r.rows[0].Outcome,
-		r.rows[0].FailureReason,
-		r.rows[0].AppliedTransactionID,
-		r.rows[0].LatencyMs,
-	}, nil
-}
-
-func (r iteratorForInsertSimAgentToolCall) Err() error {
-	return nil
-}
-
-// InsertSimAgentToolCall is one tool-call row. Batched via :copyfrom.
-func (q *Queries) InsertSimAgentToolCall(ctx context.Context, arg []InsertSimAgentToolCallParams) (int64, error) {
-	return q.db.CopyFrom(ctx, []string{"sim_agent_tool_calls"}, []string{"turn_id", "round_index", "sequence", "tool_name", "recovered_name", "arguments_raw", "arguments", "result", "outcome", "failure_reason", "applied_transaction_id", "latency_ms"}, &iteratorForInsertSimAgentToolCall{rows: arg})
-}
-
 // iteratorForInsertSimAgentTurnMessage implements pgx.CopyFromSource.
 type iteratorForInsertSimAgentTurnMessage struct {
 	rows                 []InsertSimAgentTurnMessageParams
@@ -114,8 +70,6 @@ func (r iteratorForInsertSimAgentTurnMessage) Values() ([]interface{}, error) {
 		r.rows[0].Ordinal,
 		r.rows[0].Role,
 		r.rows[0].Content,
-		r.rows[0].ToolCallID,
-		r.rows[0].ToolCalls,
 	}, nil
 }
 
@@ -127,7 +81,7 @@ func (r iteratorForInsertSimAgentTurnMessage) Err() error {
 // Batched via :copyfrom. Only written when sim_pools.record_full_messages
 // is true for the turn's pool.
 func (q *Queries) InsertSimAgentTurnMessage(ctx context.Context, arg []InsertSimAgentTurnMessageParams) (int64, error) {
-	return q.db.CopyFrom(ctx, []string{"sim_agent_turn_messages"}, []string{"turn_id", "ordinal", "role", "content", "tool_call_id", "tool_calls"}, &iteratorForInsertSimAgentTurnMessage{rows: arg})
+	return q.db.CopyFrom(ctx, []string{"sim_agent_turn_messages"}, []string{"turn_id", "ordinal", "role", "content"}, &iteratorForInsertSimAgentTurnMessage{rows: arg})
 }
 
 // iteratorForInsertSimAgentTurnRound implements pgx.CopyFromSource.

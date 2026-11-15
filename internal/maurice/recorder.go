@@ -72,6 +72,9 @@ func (r *turnRecorder) Complete(ctx context.Context, req *llm.Request) (*llm.Res
 	resp, err := r.client.Complete(ctx, req)
 	call.CompletedAt = r.now()
 	completeCallRecord(&call, resp, err)
+	if len(call.ToolCalls) > 0 {
+		call.OutputMessageIndex = len(r.messages)
+	}
 	r.calls = append(r.calls, call)
 	r.toolsRun = 0
 	if err != nil {
@@ -141,7 +144,7 @@ func (r *turnRecorder) turnRecord(start *TurnStart, answer *turnAnswer, runErr e
 }
 
 func newCallRecord(kind CallKind, round *int, provider, model string) LLMCallRecord {
-	return LLMCallRecord{Kind: kind, Round: round, Provider: provider, Model: model}
+	return LLMCallRecord{Kind: kind, Round: round, Provider: provider, Model: model, OutputMessageIndex: -1}
 }
 
 // completeCallRecord records a call's outcome. Tool calls the response
@@ -162,6 +165,7 @@ func completeCallRecord(call *LLMCallRecord, resp *llm.Response, err error) {
 	for _, tc := range resp.ToolCalls {
 		call.ToolCalls = append(call.ToolCalls, ToolCallRecord{
 			ProviderToolCallID: tc.ID,
+			Type:               tc.Type,
 			Name:               tc.Function.Name,
 			ArgumentsRaw:       tc.Function.Arguments,
 			Status:             ToolCancelled,

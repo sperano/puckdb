@@ -97,9 +97,9 @@ func (q *Queries) CreateConversation(ctx context.Context, userID pgtype.UUID) (C
 }
 
 const createMessage = `-- name: CreateMessage :one
-INSERT INTO maurice_messages (conversation_id, turn_id, message_number, role, content, tool_calls, tool_call_id, created_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-RETURNING id, conversation_id, role, content, tool_calls, tool_call_id, created_at
+INSERT INTO maurice_messages (conversation_id, turn_id, message_number, role, content, created_at)
+VALUES ($1, $2, $3, $4, $5, $6)
+RETURNING id, conversation_id, role, content, created_at
 `
 
 type CreateMessageParams struct {
@@ -108,8 +108,6 @@ type CreateMessageParams struct {
 	MessageNumber  int32              `json:"message_number"`
 	Role           ChatRole           `json:"role"`
 	Content        string             `json:"content"`
-	ToolCalls      []byte             `json:"tool_calls"`
-	ToolCallID     pgtype.Text        `json:"tool_call_id"`
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 }
 
@@ -118,8 +116,6 @@ type CreateMessageRow struct {
 	ConversationID pgtype.UUID        `json:"conversation_id"`
 	Role           ChatRole           `json:"role"`
 	Content        string             `json:"content"`
-	ToolCalls      []byte             `json:"tool_calls"`
-	ToolCallID     pgtype.Text        `json:"tool_call_id"`
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 }
 
@@ -133,8 +129,6 @@ func (q *Queries) CreateMessage(ctx context.Context, arg CreateMessageParams) (C
 		arg.MessageNumber,
 		arg.Role,
 		arg.Content,
-		arg.ToolCalls,
-		arg.ToolCallID,
 		arg.CreatedAt,
 	)
 	var i CreateMessageRow
@@ -143,8 +137,6 @@ func (q *Queries) CreateMessage(ctx context.Context, arg CreateMessageParams) (C
 		&i.ConversationID,
 		&i.Role,
 		&i.Content,
-		&i.ToolCalls,
-		&i.ToolCallID,
 		&i.CreatedAt,
 	)
 	return i, err
@@ -201,10 +193,12 @@ func (q *Queries) GetConversation(ctx context.Context, arg GetConversationParams
 }
 
 const getTranscript = `-- name: GetTranscript :many
-SELECT m.id, m.conversation_id, m.role, m.content, m.tool_calls, m.tool_call_id, m.created_at
+SELECT m.id, m.conversation_id, m.role, m.content,
+       result_call.provider_tool_call_id AS tool_call_id, m.created_at
 FROM maurice_messages m
 JOIN maurice_turns t ON t.id = m.turn_id
 JOIN maurice_conversations c ON c.id = m.conversation_id
+LEFT JOIN maurice_tool_calls result_call ON result_call.id = m.result_tool_call_id
 WHERE m.conversation_id = $1 AND c.user_id = $2 AND c.deleted_at IS NULL AND t.status = 'succeeded'
 ORDER BY t.turn_number, m.message_number
 `
@@ -219,7 +213,6 @@ type GetTranscriptRow struct {
 	ConversationID pgtype.UUID        `json:"conversation_id"`
 	Role           ChatRole           `json:"role"`
 	Content        string             `json:"content"`
-	ToolCalls      []byte             `json:"tool_calls"`
 	ToolCallID     pgtype.Text        `json:"tool_call_id"`
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 }
@@ -241,9 +234,61 @@ func (q *Queries) GetTranscript(ctx context.Context, arg GetTranscriptParams) ([
 			&i.ConversationID,
 			&i.Role,
 			&i.Content,
-			&i.ToolCalls,
 			&i.ToolCallID,
 			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getTranscriptToolCalls = `-- name: GetTranscriptToolCalls :many
+SELECT tool_call.message_id, tool_call.provider_tool_call_id, tool_call.tool_type,
+       tool_call.tool_name, tool_call.arguments_raw
+FROM maurice_tool_calls tool_call
+JOIN maurice_messages message ON message.id = tool_call.message_id
+JOIN maurice_turns turn_row ON turn_row.id = message.turn_id
+JOIN maurice_conversations conversation ON conversation.id = message.conversation_id
+WHERE message.conversation_id = $1
+  AND conversation.user_id = $2
+  AND conversation.deleted_at IS NULL
+  AND turn_row.status = 'succeeded'
+ORDER BY turn_row.turn_number, message.message_number, tool_call.sequence_number
+`
+
+type GetTranscriptToolCallsParams struct {
+	ConversationID pgtype.UUID `json:"conversation_id"`
+	UserID         pgtype.UUID `json:"user_id"`
+}
+
+type GetTranscriptToolCallsRow struct {
+	MessageID          pgtype.UUID `json:"message_id"`
+	ProviderToolCallID pgtype.Text `json:"provider_tool_call_id"`
+	ToolType           string      `json:"tool_type"`
+	ToolName           string      `json:"tool_name"`
+	ArgumentsRaw       string      `json:"arguments_raw"`
+}
+
+func (q *Queries) GetTranscriptToolCalls(ctx context.Context, arg GetTranscriptToolCallsParams) ([]GetTranscriptToolCallsRow, error) {
+	rows, err := q.db.Query(ctx, getTranscriptToolCalls, arg.ConversationID, arg.UserID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetTranscriptToolCallsRow{}
+	for rows.Next() {
+		var i GetTranscriptToolCallsRow
+		if err := rows.Scan(
+			&i.MessageID,
+			&i.ProviderToolCallID,
+			&i.ToolType,
+			&i.ToolName,
+			&i.ArgumentsRaw,
 		); err != nil {
 			return nil, err
 		}
@@ -319,26 +364,27 @@ func (q *Queries) GetTurnFinalMessage(ctx context.Context, turnID pgtype.UUID) (
 	return i, err
 }
 
-const getTurnToolCallLists = `-- name: GetTurnToolCallLists :many
-SELECT tool_calls
-FROM maurice_messages
-WHERE turn_id = $1 AND tool_calls IS NOT NULL
-ORDER BY message_number
+const getTurnToolNames = `-- name: GetTurnToolNames :many
+SELECT tool_name
+FROM maurice_tool_calls tool_call
+JOIN maurice_messages message ON message.id = tool_call.message_id
+WHERE tool_call.turn_id = $1
+ORDER BY message.message_number, tool_call.sequence_number
 `
 
-func (q *Queries) GetTurnToolCallLists(ctx context.Context, turnID pgtype.UUID) ([][]byte, error) {
-	rows, err := q.db.Query(ctx, getTurnToolCallLists, turnID)
+func (q *Queries) GetTurnToolNames(ctx context.Context, turnID pgtype.UUID) ([]string, error) {
+	rows, err := q.db.Query(ctx, getTurnToolNames, turnID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := [][]byte{}
+	items := []string{}
 	for rows.Next() {
-		var tool_calls []byte
-		if err := rows.Scan(&tool_calls); err != nil {
+		var tool_name string
+		if err := rows.Scan(&tool_name); err != nil {
 			return nil, err
 		}
-		items = append(items, tool_calls)
+		items = append(items, tool_name)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -427,44 +473,100 @@ func (q *Queries) InsertLLMCallMessages(ctx context.Context, arg InsertLLMCallMe
 	return err
 }
 
-const insertToolCall = `-- name: InsertToolCall :exec
+const insertToolCall = `-- name: InsertToolCall :one
 INSERT INTO maurice_tool_calls (
-    turn_id, llm_call_id, sequence_number, provider_tool_call_id, tool_name, arguments,
-    arguments_raw, result, status, started_at, completed_at
+    turn_id, llm_call_id, message_id, sequence_number, provider_tool_call_id,
+    tool_type, tool_name, arguments, arguments_raw, result, status, started_at, completed_at
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11
+    $1, $2, $3,
+    $4, $5, $6,
+    $7,
+    -- OFFSET 0 keeps PostgreSQL from evaluating the cast before the validity filter.
+    (SELECT valid.raw::jsonb
+     FROM (SELECT $8::text AS raw
+           WHERE pg_input_is_valid($8::text, 'jsonb')
+           OFFSET 0) valid),
+    $8, $9, $10,
+    $11, $12
 )
+RETURNING id
 `
 
 type InsertToolCallParams struct {
 	TurnID             pgtype.UUID        `json:"turn_id"`
-	LlmCallID          int64              `json:"llm_call_id"`
+	LlmCallID          pgtype.Int8        `json:"llm_call_id"`
+	MessageID          pgtype.UUID        `json:"message_id"`
 	SequenceNumber     int32              `json:"sequence_number"`
 	ProviderToolCallID pgtype.Text        `json:"provider_tool_call_id"`
+	ToolType           string             `json:"tool_type"`
 	ToolName           string             `json:"tool_name"`
-	Arguments          []byte             `json:"arguments"`
 	ArgumentsRaw       string             `json:"arguments_raw"`
 	Result             pgtype.Text        `json:"result"`
-	Status             string             `json:"status"`
+	Status             pgtype.Text        `json:"status"`
 	StartedAt          pgtype.Timestamptz `json:"started_at"`
 	CompletedAt        pgtype.Timestamptz `json:"completed_at"`
 }
 
-func (q *Queries) InsertToolCall(ctx context.Context, arg InsertToolCallParams) error {
-	_, err := q.db.Exec(ctx, insertToolCall,
+func (q *Queries) InsertToolCall(ctx context.Context, arg InsertToolCallParams) (int64, error) {
+	row := q.db.QueryRow(ctx, insertToolCall,
 		arg.TurnID,
 		arg.LlmCallID,
+		arg.MessageID,
 		arg.SequenceNumber,
 		arg.ProviderToolCallID,
+		arg.ToolType,
 		arg.ToolName,
-		arg.Arguments,
 		arg.ArgumentsRaw,
 		arg.Result,
 		arg.Status,
 		arg.StartedAt,
 		arg.CompletedAt,
 	)
-	return err
+	var id int64
+	err := row.Scan(&id)
+	return id, err
+}
+
+const insertTranscriptToolCall = `-- name: InsertTranscriptToolCall :one
+INSERT INTO maurice_tool_calls (
+    turn_id, message_id, sequence_number, provider_tool_call_id, tool_type,
+    tool_name, arguments, arguments_raw
+) VALUES (
+    $1, $2, $3,
+    $4, $5, $6,
+    -- OFFSET 0 keeps PostgreSQL from evaluating the cast before the validity filter.
+    (SELECT valid.raw::jsonb
+     FROM (SELECT $7::text AS raw
+           WHERE pg_input_is_valid($7::text, 'jsonb')
+           OFFSET 0) valid),
+    $7
+)
+RETURNING id
+`
+
+type InsertTranscriptToolCallParams struct {
+	TurnID             pgtype.UUID `json:"turn_id"`
+	MessageID          pgtype.UUID `json:"message_id"`
+	SequenceNumber     int32       `json:"sequence_number"`
+	ProviderToolCallID pgtype.Text `json:"provider_tool_call_id"`
+	ToolType           string      `json:"tool_type"`
+	ToolName           string      `json:"tool_name"`
+	ArgumentsRaw       string      `json:"arguments_raw"`
+}
+
+func (q *Queries) InsertTranscriptToolCall(ctx context.Context, arg InsertTranscriptToolCallParams) (int64, error) {
+	row := q.db.QueryRow(ctx, insertTranscriptToolCall,
+		arg.TurnID,
+		arg.MessageID,
+		arg.SequenceNumber,
+		arg.ProviderToolCallID,
+		arg.ToolType,
+		arg.ToolName,
+		arg.ArgumentsRaw,
+	)
+	var id int64
+	err := row.Scan(&id)
+	return id, err
 }
 
 const insertTurn = `-- name: InsertTurn :one
@@ -497,6 +599,22 @@ func (q *Queries) InsertTurn(ctx context.Context, arg InsertTurnParams) (InsertT
 	var i InsertTurnRow
 	err := row.Scan(&i.ID, &i.TurnNumber)
 	return i, err
+}
+
+const linkMessageResultToolCall = `-- name: LinkMessageResultToolCall :exec
+UPDATE maurice_messages
+SET result_tool_call_id = $2
+WHERE id = $1
+`
+
+type LinkMessageResultToolCallParams struct {
+	ID               pgtype.UUID `json:"id"`
+	ResultToolCallID pgtype.Int8 `json:"result_tool_call_id"`
+}
+
+func (q *Queries) LinkMessageResultToolCall(ctx context.Context, arg LinkMessageResultToolCallParams) error {
+	_, err := q.db.Exec(ctx, linkMessageResultToolCall, arg.ID, arg.ResultToolCallID)
+	return err
 }
 
 const listConversations = `-- name: ListConversations :many
