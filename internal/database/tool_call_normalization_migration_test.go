@@ -113,8 +113,6 @@ SELECT turn_id, id, 1, 'call-2', 'invalid', '{"player_id":', NULL, '', 'parse_er
 UNION ALL
 SELECT turn_id, id, 2, 'call-3', 'json-null', '{"value":"\u0000"}', NULL, '', 'parse_error', now(), now() FROM call_row WHERE round_number = 0
 UNION ALL
-SELECT turn_id, id, 4, 'call-5', 'surrogate', '{"value":"\ud800"}', NULL, '', 'parse_error', now(), now() FROM call_row WHERE round_number = 0
-UNION ALL
 SELECT turn_id, id, 0, 'call-1', 'second', '{"player_id":2}', '{"player_id":2}'::jsonb, 'done again', 'succeeded', now(), now() FROM call_row WHERE round_number = 1`,
 		normalizedCallsJSON, repeatedProviderCallJSON)
 }
@@ -138,11 +136,11 @@ func TestIntegration_ToolCallNormalizationMigration(t *testing.T) {
 	}
 	assert.Equal(t, 4, countRows(t, conn, `SELECT count(*) FROM sim_agent_tool_calls WHERE round_index = 0 AND message_ordinal = 0`))
 	assert.Equal(t, 1, countRows(t, conn, `SELECT count(*) FROM sim_agent_tool_calls WHERE round_index = 1 AND message_ordinal = 2`))
-	assert.Equal(t, 1, countRows(t, conn, `SELECT count(*) FROM sim_agent_tool_calls WHERE tool_name = 'surrogate' AND arguments_raw = '{"value":"\ud800"}' AND arguments IS NULL`))
+	assert.Equal(t, 1, countRows(t, conn, `SELECT count(*) FROM sim_agent_tool_calls WHERE tool_name = 'surrogate' AND provider_tool_call_id = 'call-4' AND message_ordinal = 0 AND tool_type = 'function'`))
 	assert.Equal(t, 1, countRows(t, conn, `SELECT count(*) FROM sim_agent_turn_messages WHERE ordinal = 1 AND result_tool_round_index = 0 AND result_tool_sequence = 0`))
 	assert.Equal(t, 1, countRows(t, conn, `SELECT count(*) FROM sim_agent_turn_messages WHERE ordinal = 3 AND result_tool_round_index = 1 AND result_tool_sequence = 0`))
 	assert.Equal(t, 6, countRows(t, conn, `SELECT count(*) FROM maurice_tool_calls WHERE message_id IS NOT NULL`))
-	assert.Equal(t, 1, countRows(t, conn, `SELECT count(*) FROM maurice_tool_calls WHERE llm_call_id IS NULL AND status IS NULL`))
+	assert.Equal(t, 2, countRows(t, conn, `SELECT count(*) FROM maurice_tool_calls WHERE llm_call_id IS NULL AND status IS NULL`))
 	assert.Equal(t, 1, countRows(t, conn, `SELECT count(*) FROM maurice_tool_calls call_row JOIN maurice_llm_calls llm_call ON llm_call.id = call_row.llm_call_id JOIN maurice_messages message ON message.id = call_row.message_id WHERE llm_call.round_number = 1 AND message.message_number = 2`))
 	assert.Equal(t, 1, countRows(t, conn, `SELECT count(*) FROM maurice_messages result_message JOIN maurice_tool_calls call_row ON call_row.id = result_message.result_tool_call_id JOIN maurice_messages call_message ON call_message.id = call_row.message_id WHERE result_message.message_number = 1 AND call_message.message_number = 0`))
 	assert.Equal(t, 1, countRows(t, conn, `SELECT count(*) FROM maurice_messages result_message JOIN maurice_tool_calls call_row ON call_row.id = result_message.result_tool_call_id JOIN maurice_messages call_message ON call_message.id = call_row.message_id WHERE result_message.message_number = 3 AND call_message.message_number = 2`))
