@@ -192,6 +192,45 @@ func (q *Queries) GetConversation(ctx context.Context, arg GetConversationParams
 	return i, err
 }
 
+const getOwnedTurn = `-- name: GetOwnedTurn :one
+SELECT t.id, t.conversation_id, t.status, t.error_class, t.warnings,
+       (t.status = 'running' AND t.started_at < clock_timestamp() - make_interval(secs => $3::double precision))::boolean AS stale
+FROM maurice_turns t
+JOIN maurice_conversations c ON c.id = t.conversation_id
+WHERE t.id = $1 AND t.user_id = $2 AND c.deleted_at IS NULL
+`
+
+type GetOwnedTurnParams struct {
+	ID           pgtype.UUID `json:"id"`
+	UserID       pgtype.UUID `json:"user_id"`
+	StaleSeconds float64     `json:"stale_seconds"`
+}
+
+type GetOwnedTurnRow struct {
+	ID             pgtype.UUID `json:"id"`
+	ConversationID pgtype.UUID `json:"conversation_id"`
+	Status         string      `json:"status"`
+	ErrorClass     pgtype.Text `json:"error_class"`
+	Warnings       []byte      `json:"warnings"`
+	Stale          bool        `json:"stale"`
+}
+
+// A turn of a deleted conversation is hidden from its owner, like the
+// conversation.
+func (q *Queries) GetOwnedTurn(ctx context.Context, arg GetOwnedTurnParams) (GetOwnedTurnRow, error) {
+	row := q.db.QueryRow(ctx, getOwnedTurn, arg.ID, arg.UserID, arg.StaleSeconds)
+	var i GetOwnedTurnRow
+	err := row.Scan(
+		&i.ID,
+		&i.ConversationID,
+		&i.Status,
+		&i.ErrorClass,
+		&i.Warnings,
+		&i.Stale,
+	)
+	return i, err
+}
+
 const getTranscript = `-- name: GetTranscript :many
 SELECT m.id, m.conversation_id, m.role, m.content,
        result_call.provider_tool_call_id AS tool_call_id, m.created_at

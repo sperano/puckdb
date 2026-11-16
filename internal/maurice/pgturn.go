@@ -125,15 +125,56 @@ func replayPgTurn(ctx context.Context, q *sqlcdb.Queries, params BeginTurnParams
 	if turn.Status != TurnSucceeded {
 		return start, nil
 	}
-	final, err := q.GetTurnFinalMessage(ctx, row.ID)
-	if err != nil {
-		return nil, fmt.Errorf("load replayed answer: %w", err)
-	}
-	start.Replay.MessageID, start.Replay.Content = uuidToString(final.ID), final.Content
-	if start.Replay.ToolsUsed, err = pgTurnToolNames(ctx, q, row.ID); err != nil {
+	if err := loadPgAnswer(ctx, q, row.ID, start.Replay); err != nil {
 		return nil, err
 	}
 	return start, nil
+}
+
+// loadPgAnswer fills a succeeded turn's final answer and tool names.
+func loadPgAnswer(ctx context.Context, q *sqlcdb.Queries, turnID pgtype.UUID, replay *TurnReplay) error {
+	final, err := q.GetTurnFinalMessage(ctx, turnID)
+	if err != nil {
+		return fmt.Errorf("load replayed answer: %w", err)
+	}
+	replay.MessageID, replay.Content = uuidToString(final.ID), final.Content
+	replay.ToolsUsed, err = pgTurnToolNames(ctx, q, turnID)
+	return err
+}
+
+// GetTurn reads one of userID's turns. A malformed ID is not found: it can
+// name no turn.
+func (db *pgDB) GetTurn(ctx context.Context, userID, turnID string, staleAfter time.Duration) (*Turn, error) {
+	user, err := parseUUID(userID)
+	if err != nil {
+		return nil, err
+	}
+	id, err := parseUUID(turnID)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", ErrTurnNotFound, err)
+	}
+	row, err := db.q.GetOwnedTurn(ctx, sqlcdb.GetOwnedTurnParams{
+		ID: id, UserID: user, StaleSeconds: staleAfter.Seconds(),
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrTurnNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get turn: %w", err)
+	}
+	stored := storedTurn{Status: TurnStatus(row.Status), ErrorClass: ErrorClass(row.ErrorClass.String), Stale: row.Stale}
+	turn := &Turn{ID: uuidToString(row.ID), ConversationID: uuidToString(row.ConversationID)}
+	turn.Status, turn.ErrorClass = readStatus(stored)
+	if err := json.Unmarshal(row.Warnings, &turn.Warnings); err != nil {
+		return nil, fmt.Errorf("decode turn warnings: %w", err)
+	}
+	if turn.Status != TurnSucceeded {
+		return turn, nil
+	}
+	if err := loadPgAnswer(ctx, db.q, row.ID, &turn.TurnReplay); err != nil {
+		return nil, err
+	}
+	return turn, nil
 }
 
 func pgTurnToolNames(ctx context.Context, q *sqlcdb.Queries, turnID pgtype.UUID) ([]string, error) {

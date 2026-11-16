@@ -177,6 +177,11 @@ func (r *mutationResolver) MauriceChat(ctx context.Context, conversationID *stri
 	return r.Resolver.mauriceChat(ctx, conversationID, message, idempotencyKey)
 }
 
+// MauriceChatStart is the resolver for the mauriceChatStart field.
+func (r *mutationResolver) MauriceChatStart(ctx context.Context, conversationID *string, message string, idempotencyKey string) (*model.MauriceTurnStart, error) {
+	return r.Resolver.mauriceChatStart(ctx, conversationID, message, idempotencyKey)
+}
+
 // MauriceDeleteConversation is the resolver for the mauriceDeleteConversation field.
 func (r *mutationResolver) MauriceDeleteConversation(ctx context.Context, id string) (bool, error) {
 	return r.Resolver.mauriceDeleteConversation(ctx, id)
@@ -336,6 +341,11 @@ func (r *queryResolver) MauriceConversations(ctx context.Context, limit *int) ([
 // MauriceConversation is the resolver for the mauriceConversation field.
 func (r *queryResolver) MauriceConversation(ctx context.Context, id string) (*model.MauriceConversationDetail, error) {
 	return r.Resolver.mauriceConversation(ctx, id)
+}
+
+// MauriceTurn is the resolver for the mauriceTurn field.
+func (r *queryResolver) MauriceTurn(ctx context.Context, id string) (*model.MauriceTurn, error) {
+	return r.Resolver.mauriceTurn(ctx, id)
 }
 
 // Mutation returns generated.MutationResolver implementation.

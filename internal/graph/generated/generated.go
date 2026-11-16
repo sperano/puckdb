@@ -749,6 +749,22 @@ type ComplexityRoot struct {
 		ToolsUsed func(childComplexity int) int
 	}
 
+	MauriceTurn struct {
+		Content        func(childComplexity int) int
+		ConversationID func(childComplexity int) int
+		Error          func(childComplexity int) int
+		ID             func(childComplexity int) int
+		MessageID      func(childComplexity int) int
+		Status         func(childComplexity int) int
+		ToolsUsed      func(childComplexity int) int
+		Warnings       func(childComplexity int) int
+	}
+
+	MauriceTurnStart struct {
+		ConversationID func(childComplexity int) int
+		TurnID         func(childComplexity int) int
+	}
+
 	Mutation struct {
 		ApplyMauriceDraftPick        func(childComplexity int, input model.MauriceDraftManualPickInput) int
 		CancelExtractBoxscorePlayers func(childComplexity int) int
@@ -784,6 +800,7 @@ type ComplexityRoot struct {
 		ImportSeasons                func(childComplexity int, input *model.SeasonsInput) int
 		Initialize                   func(childComplexity int) int
 		MauriceChat                  func(childComplexity int, conversationID *string, message string, idempotencyKey *string) int
+		MauriceChatStart             func(childComplexity int, conversationID *string, message string, idempotencyKey string) int
 		MauriceDeleteConversation    func(childComplexity int, id string) int
 		ProcessPlayers               func(childComplexity int, input *model.ProcessPlayersInput) int
 		RefreshDraftRankings         func(childComplexity int, input *model.RefreshDraftRankingsInput) int
@@ -913,6 +930,7 @@ type ComplexityRoot struct {
 		MauriceConversations           func(childComplexity int, limit *int) int
 		MauriceDraftBoard              func(childComplexity int, input model.MauriceDraftBoardInput) int
 		MauriceDraftEvents             func(childComplexity int, league string, season *int, afterStateVersion int64, limit *int) int
+		MauriceTurn                    func(childComplexity int, id string) int
 		Player                         func(childComplexity int, id int64) int
 		PlayerSeasonTotals             func(childComplexity int, playerID int64) int
 		Players                        func(childComplexity int, filter *model.PlayerFilter) int
@@ -1161,6 +1179,7 @@ type MutationResolver interface {
 	RefreshNews(ctx context.Context, input *model.RefreshNewsInput) (bool, error)
 	CancelRefreshNews(ctx context.Context) (bool, error)
 	MauriceChat(ctx context.Context, conversationID *string, message string, idempotencyKey *string) (*model.MauriceChatResponse, error)
+	MauriceChatStart(ctx context.Context, conversationID *string, message string, idempotencyKey string) (*model.MauriceTurnStart, error)
 	MauriceDeleteConversation(ctx context.Context, id string) (bool, error)
 	RefreshDraftRankings(ctx context.Context, input *model.RefreshDraftRankingsInput) (bool, error)
 	CancelRefreshDraftRankings(ctx context.Context) (bool, error)
@@ -1208,6 +1227,7 @@ type QueryResolver interface {
 	RefreshNewsProgress(ctx context.Context) (*model.ProgressReport, error)
 	MauriceConversations(ctx context.Context, limit *int) ([]*model.MauriceConversation, error)
 	MauriceConversation(ctx context.Context, id string) (*model.MauriceConversationDetail, error)
+	MauriceTurn(ctx context.Context, id string) (*model.MauriceTurn, error)
 	Seasons(ctx context.Context) ([]*model.Season, error)
 	Season(ctx context.Context, id int) (*model.Season, error)
 	Teams(ctx context.Context, season int) ([]*model.Team, error)
@@ -4519,6 +4539,68 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.MauriceMessage.ToolsUsed(childComplexity), true
 
+	case "MauriceTurn.content":
+		if e.ComplexityRoot.MauriceTurn.Content == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceTurn.Content(childComplexity), true
+	case "MauriceTurn.conversationId":
+		if e.ComplexityRoot.MauriceTurn.ConversationID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceTurn.ConversationID(childComplexity), true
+	case "MauriceTurn.error":
+		if e.ComplexityRoot.MauriceTurn.Error == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceTurn.Error(childComplexity), true
+	case "MauriceTurn.id":
+		if e.ComplexityRoot.MauriceTurn.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceTurn.ID(childComplexity), true
+	case "MauriceTurn.messageId":
+		if e.ComplexityRoot.MauriceTurn.MessageID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceTurn.MessageID(childComplexity), true
+	case "MauriceTurn.status":
+		if e.ComplexityRoot.MauriceTurn.Status == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceTurn.Status(childComplexity), true
+	case "MauriceTurn.toolsUsed":
+		if e.ComplexityRoot.MauriceTurn.ToolsUsed == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceTurn.ToolsUsed(childComplexity), true
+	case "MauriceTurn.warnings":
+		if e.ComplexityRoot.MauriceTurn.Warnings == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceTurn.Warnings(childComplexity), true
+
+	case "MauriceTurnStart.conversationId":
+		if e.ComplexityRoot.MauriceTurnStart.ConversationID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceTurnStart.ConversationID(childComplexity), true
+	case "MauriceTurnStart.turnId":
+		if e.ComplexityRoot.MauriceTurnStart.TurnID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceTurnStart.TurnID(childComplexity), true
+
 	case "Mutation.applyMauriceDraftPick":
 		if e.ComplexityRoot.Mutation.ApplyMauriceDraftPick == nil {
 			break
@@ -4793,6 +4875,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.MauriceChat(childComplexity, args["conversationId"].(*string), args["message"].(string), args["idempotencyKey"].(*string)), true
+	case "Mutation.mauriceChatStart":
+		if e.ComplexityRoot.Mutation.MauriceChatStart == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_mauriceChatStart_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.MauriceChatStart(childComplexity, args["conversationId"].(*string), args["message"].(string), args["idempotencyKey"].(string)), true
 	case "Mutation.mauriceDeleteConversation":
 		if e.ComplexityRoot.Mutation.MauriceDeleteConversation == nil {
 			break
@@ -5584,6 +5677,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.MauriceDraftEvents(childComplexity, args["league"].(string), args["season"].(*int), args["afterStateVersion"].(int64), args["limit"].(*int)), true
+	case "Query.mauriceTurn":
+		if e.ComplexityRoot.Query.MauriceTurn == nil {
+			break
+		}
+
+		args, err := ec.field_Query_mauriceTurn_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.MauriceTurn(childComplexity, args["id"].(string)), true
 	case "Query.player":
 		if e.ComplexityRoot.Query.Player == nil {
 			break
@@ -8060,6 +8164,32 @@ type MauriceChatResponse {
 	warnings: [String!]!
 }
 
+type MauriceTurnStart {
+	turnId: String!
+	conversationId: String!
+}
+
+"""A turn's lifecycle. A turn cancelled by a server shutdown, or abandoned by a server that died, is FAILED."""
+enum MauriceTurnStatus {
+	RUNNING
+	SUCCEEDED
+	FAILED
+}
+
+type MauriceTurn {
+	id: String!
+	conversationId: String!
+	status: MauriceTurnStatus!
+	"""The answer message; set once SUCCEEDED."""
+	messageId: String
+	"""The answer; set once SUCCEEDED (it may be empty)."""
+	content: String
+	toolsUsed: [String!]!
+	warnings: [String!]!
+	"""Bounded failure class of a FAILED turn: timeout, cancelled, provider_error, tool_error, internal_error or abandoned."""
+	error: String
+}
+
 type MauriceConversationDetail {
 	conversation: MauriceConversation!
 	messages: [MauriceMessage!]!
@@ -8112,6 +8242,9 @@ type Query {
 	# Maurice AI chat
 	mauriceConversations(limit: Int): [MauriceConversation!]!
 	mauriceConversation(id: String!): MauriceConversationDetail
+	# A turn of the current user; null for an unknown turn, another user's or
+	# one in a deleted conversation.
+	mauriceTurn(id: String!): MauriceTurn
 }
 
 
@@ -8195,6 +8328,11 @@ type Mutation {
 	# idempotencyKey makes retries safe: resending the same key returns the
 	# original answer instead of running the prompt again. Omit it to never retry.
 	mauriceChat(conversationId: String, message: String!, idempotencyKey: String): MauriceChatResponse!
+	# Starts a turn and returns at once; poll mauriceTurn for its answer. The
+	# turn runs detached from the request, so a client that disconnects does
+	# not lose it. Resending idempotencyKey returns the same turn, running or
+	# finished; one turn runs per conversation at a time.
+	mauriceChatStart(conversationId: String, message: String!, idempotencyKey: String!): MauriceTurnStart!
 	mauriceDeleteConversation(id: String!): Boolean!
 }
 `, BuiltIn: false},
@@ -9954,6 +10092,38 @@ func (ec *executionContext) childFields_MauriceMessage(ctx context.Context, fiel
 	return nil, fmt.Errorf("no field named %q was found under type MauriceMessage", field.Name)
 }
 
+func (ec *executionContext) childFields_MauriceTurn(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_MauriceTurn_id(ctx, field)
+	case "conversationId":
+		return ec.fieldContext_MauriceTurn_conversationId(ctx, field)
+	case "status":
+		return ec.fieldContext_MauriceTurn_status(ctx, field)
+	case "messageId":
+		return ec.fieldContext_MauriceTurn_messageId(ctx, field)
+	case "content":
+		return ec.fieldContext_MauriceTurn_content(ctx, field)
+	case "toolsUsed":
+		return ec.fieldContext_MauriceTurn_toolsUsed(ctx, field)
+	case "warnings":
+		return ec.fieldContext_MauriceTurn_warnings(ctx, field)
+	case "error":
+		return ec.fieldContext_MauriceTurn_error(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type MauriceTurn", field.Name)
+}
+
+func (ec *executionContext) childFields_MauriceTurnStart(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "turnId":
+		return ec.fieldContext_MauriceTurnStart_turnId(ctx, field)
+	case "conversationId":
+		return ec.fieldContext_MauriceTurnStart_conversationId(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type MauriceTurnStart", field.Name)
+}
+
 func (ec *executionContext) childFields_Player(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "id":
@@ -10780,6 +10950,36 @@ func (ec *executionContext) field_Mutation_importSeasons_args(ctx context.Contex
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_mauriceChatStart_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "conversationId",
+		func(ctx context.Context, v any) (*string, error) {
+			return ec.unmarshalOString2ᚖstring(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["conversationId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "message",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["message"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "idempotencyKey",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["idempotencyKey"] = arg2
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_mauriceChat_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -11303,6 +11503,20 @@ func (ec *executionContext) field_Query_mauriceDraftEvents_args(ctx context.Cont
 		return nil, err
 	}
 	args["limit"] = arg3
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_mauriceTurn_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
 	return args, nil
 }
 
@@ -24452,6 +24666,236 @@ func (ec *executionContext) fieldContext_MauriceMessage_createdAt(_ context.Cont
 	return graphql.NewScalarFieldContext("MauriceMessage", field, false, false, errors.New("field of type Time does not have child fields"))
 }
 
+func (ec *executionContext) _MauriceTurn_id(ctx context.Context, field graphql.CollectedField, obj *model.MauriceTurn) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceTurn_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceTurn_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceTurn", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceTurn_conversationId(ctx context.Context, field graphql.CollectedField, obj *model.MauriceTurn) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceTurn_conversationId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ConversationID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceTurn_conversationId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceTurn", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceTurn_status(ctx context.Context, field graphql.CollectedField, obj *model.MauriceTurn) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceTurn_status(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Status, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v model.MauriceTurnStatus) graphql.Marshaler {
+			return ec.marshalNMauriceTurnStatus2githubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceTurnStatus(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceTurn_status(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceTurn", field, false, false, errors.New("field of type MauriceTurnStatus does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceTurn_messageId(ctx context.Context, field graphql.CollectedField, obj *model.MauriceTurn) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceTurn_messageId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.MessageID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceTurn_messageId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceTurn", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceTurn_content(ctx context.Context, field graphql.CollectedField, obj *model.MauriceTurn) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceTurn_content(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Content, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceTurn_content(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceTurn", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceTurn_toolsUsed(ctx context.Context, field graphql.CollectedField, obj *model.MauriceTurn) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceTurn_toolsUsed(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ToolsUsed, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []string) graphql.Marshaler {
+			return ec.marshalNString2ᚕstringᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceTurn_toolsUsed(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceTurn", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceTurn_warnings(ctx context.Context, field graphql.CollectedField, obj *model.MauriceTurn) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceTurn_warnings(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Warnings, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []string) graphql.Marshaler {
+			return ec.marshalNString2ᚕstringᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceTurn_warnings(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceTurn", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceTurn_error(ctx context.Context, field graphql.CollectedField, obj *model.MauriceTurn) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceTurn_error(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Error, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceTurn_error(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceTurn", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceTurnStart_turnId(ctx context.Context, field graphql.CollectedField, obj *model.MauriceTurnStart) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceTurnStart_turnId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.TurnID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceTurnStart_turnId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceTurnStart", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceTurnStart_conversationId(ctx context.Context, field graphql.CollectedField, obj *model.MauriceTurnStart) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceTurnStart_conversationId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ConversationID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceTurnStart_conversationId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceTurnStart", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
 func (ec *executionContext) _Mutation_clearDatabase(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -25463,6 +25907,50 @@ func (ec *executionContext) fieldContext_Mutation_mauriceChat(ctx context.Contex
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_mauriceChat_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_mauriceChatStart(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_mauriceChatStart(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().MauriceChatStart(ctx, fc.Args["conversationId"].(*string), fc.Args["message"].(string), fc.Args["idempotencyKey"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.MauriceTurnStart) graphql.Marshaler {
+			return ec.marshalNMauriceTurnStart2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceTurnStart(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_mauriceChatStart(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_MauriceTurnStart(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_mauriceChatStart_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -28426,6 +28914,50 @@ func (ec *executionContext) fieldContext_Query_mauriceConversation(ctx context.C
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Query_mauriceConversation_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_mauriceTurn(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_mauriceTurn(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().MauriceTurn(ctx, fc.Args["id"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.MauriceTurn) graphql.Marshaler {
+			return ec.marshalOMauriceTurn2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceTurn(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Query_mauriceTurn(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_MauriceTurn(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_mauriceTurn_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -39544,6 +40076,115 @@ func (ec *executionContext) _MauriceMessage(ctx context.Context, sel ast.Selecti
 	return out
 }
 
+var mauriceTurnImplementors = []string{"MauriceTurn"}
+
+func (ec *executionContext) _MauriceTurn(ctx context.Context, sel ast.SelectionSet, obj *model.MauriceTurn) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, mauriceTurnImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("MauriceTurn")
+		case "id":
+			out.Values[i] = ec._MauriceTurn_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "conversationId":
+			out.Values[i] = ec._MauriceTurn_conversationId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "status":
+			out.Values[i] = ec._MauriceTurn_status(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "messageId":
+			out.Values[i] = ec._MauriceTurn_messageId(ctx, field, obj)
+		case "content":
+			out.Values[i] = ec._MauriceTurn_content(ctx, field, obj)
+		case "toolsUsed":
+			out.Values[i] = ec._MauriceTurn_toolsUsed(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "warnings":
+			out.Values[i] = ec._MauriceTurn_warnings(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "error":
+			out.Values[i] = ec._MauriceTurn_error(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferred), math.MaxInt32)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var mauriceTurnStartImplementors = []string{"MauriceTurnStart"}
+
+func (ec *executionContext) _MauriceTurnStart(ctx context.Context, sel ast.SelectionSet, obj *model.MauriceTurnStart) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, mauriceTurnStartImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("MauriceTurnStart")
+		case "turnId":
+			out.Values[i] = ec._MauriceTurnStart_turnId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "conversationId":
+			out.Values[i] = ec._MauriceTurnStart_conversationId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferred), math.MaxInt32)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
 var mutationImplementors = []string{"Mutation"}
 
 func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet) graphql.Marshaler {
@@ -39776,6 +40417,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "mauriceChat":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_mauriceChat(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "mauriceChatStart":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_mauriceChatStart(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -40967,6 +41615,25 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_mauriceConversation(ctx, field)
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "mauriceTurn":
+			field := field
+
+			innerFunc := func(ctx context.Context, _ *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_mauriceTurn(ctx, field)
 				return res
 			}
 
@@ -44673,6 +45340,30 @@ func (ec *executionContext) marshalNMauriceMessage2ᚖgithubᚗcomᚋsperanoᚋp
 	return ec._MauriceMessage(ctx, sel, v)
 }
 
+func (ec *executionContext) marshalNMauriceTurnStart2githubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceTurnStart(ctx context.Context, sel ast.SelectionSet, v model.MauriceTurnStart) graphql.Marshaler {
+	return ec._MauriceTurnStart(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNMauriceTurnStart2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceTurnStart(ctx context.Context, sel ast.SelectionSet, v *model.MauriceTurnStart) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._MauriceTurnStart(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNMauriceTurnStatus2githubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceTurnStatus(ctx context.Context, v any) (model.MauriceTurnStatus, error) {
+	var res model.MauriceTurnStatus
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNMauriceTurnStatus2githubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceTurnStatus(ctx context.Context, sel ast.SelectionSet, v model.MauriceTurnStatus) graphql.Marshaler {
+	return v
+}
+
 func (ec *executionContext) marshalNPlayer2ᚕᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐPlayerᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Player) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
@@ -45764,6 +46455,13 @@ func (ec *executionContext) marshalOMauriceDraftPlayer2ᚖgithubᚗcomᚋsperano
 		return graphql.Null
 	}
 	return ec._MauriceDraftPlayer(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalOMauriceTurn2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceTurn(ctx context.Context, sel ast.SelectionSet, v *model.MauriceTurn) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._MauriceTurn(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalOPlayer2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐPlayer(ctx context.Context, sel ast.SelectionSet, v *model.Player) graphql.Marshaler {

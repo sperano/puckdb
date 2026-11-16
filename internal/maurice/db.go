@@ -24,6 +24,10 @@ var (
 	// ErrTurnNotRunning is returned by FinishTurn when the turn is no longer
 	// running (it finished already or was reconciled as abandoned).
 	ErrTurnNotRunning = errors.New("turn is not running")
+	// ErrTurnNotFound is returned by GetTurn when the turn does not exist,
+	// belongs to another user or sits in a deleted conversation; the cases
+	// are deliberately indistinguishable.
+	ErrTurnNotFound = errors.New("turn not found")
 )
 
 // DB defines the storage operations Maurice needs. Every conversation
@@ -48,6 +52,10 @@ type DB interface {
 	// input link and tool call. It returns the stored message IDs in record
 	// order.
 	FinishTurn(ctx context.Context, record TurnRecord) ([]string, error)
+	// GetTurn returns one of userID's turns, or ErrTurnNotFound. A running
+	// turn older than staleAfter is reported failed as abandoned (the next
+	// BeginTurn on its conversation stores that).
+	GetTurn(ctx context.Context, userID, turnID string, staleAfter time.Duration) (*Turn, error)
 	// RecordTitle stores a title-generation call and, when Title is not
 	// empty, sets the conversation title.
 	RecordTitle(ctx context.Context, record TitleRecord) error
@@ -88,6 +96,10 @@ type BeginTurnParams struct {
 	// StaleAfter is how long a turn may stay running before a new request
 	// treats it as abandoned.
 	StaleAfter time.Duration
+	// ReplayRunning returns a running, not stale turn found under the key as
+	// a replay with status TurnRunning instead of ErrTurnInProgress, so a
+	// client that lost a start answer gets the turn it already started.
+	ReplayRunning bool
 }
 
 // TurnStart is the result of BeginTurn. Exactly one of Replay and a running
@@ -100,7 +112,8 @@ type TurnStart struct {
 	Replay          *TurnReplay
 }
 
-// TurnReplay is an earlier turn found by its idempotency key.
+// TurnReplay is an earlier turn found by its idempotency key, or a stored
+// turn read by GetTurn.
 type TurnReplay struct {
 	Status     TurnStatus
 	ErrorClass ErrorClass
@@ -110,6 +123,14 @@ type TurnReplay struct {
 	Content   string
 	ToolsUsed []string
 	Warnings  []string
+}
+
+// Turn is one stored turn as its owner reads it (GetTurn): the embedded
+// TurnReplay holds its status and, once succeeded, its answer.
+type Turn struct {
+	ID             string
+	ConversationID string
+	TurnReplay
 }
 
 // TurnMessage is one message produced during a turn. Message 0 is the user

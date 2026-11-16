@@ -104,6 +104,32 @@ type MauriceChatResponse {
 	warnings: [String!]!
 }
 
+type MauriceTurnStart {
+	turnId: String!
+	conversationId: String!
+}
+
+"""A turn's lifecycle. A turn cancelled by a server shutdown, or abandoned by a server that died, is FAILED."""
+enum MauriceTurnStatus {
+	RUNNING
+	SUCCEEDED
+	FAILED
+}
+
+type MauriceTurn {
+	id: String!
+	conversationId: String!
+	status: MauriceTurnStatus!
+	"""The answer message; set once SUCCEEDED."""
+	messageId: String
+	"""The answer; set once SUCCEEDED (it may be empty)."""
+	content: String
+	toolsUsed: [String!]!
+	warnings: [String!]!
+	"""Bounded failure class of a FAILED turn: timeout, cancelled, provider_error, tool_error, internal_error or abandoned."""
+	error: String
+}
+
 type MauriceConversationDetail {
 	conversation: MauriceConversation!
 	messages: [MauriceMessage!]!
@@ -156,6 +182,9 @@ type Query {
 	# Maurice AI chat
 	mauriceConversations(limit: Int): [MauriceConversation!]!
 	mauriceConversation(id: String!): MauriceConversationDetail
+	# A turn of the current user; null for an unknown turn, another user's or
+	# one in a deleted conversation.
+	mauriceTurn(id: String!): MauriceTurn
 }
 
 
@@ -239,5 +268,10 @@ type Mutation {
 	# idempotencyKey makes retries safe: resending the same key returns the
 	# original answer instead of running the prompt again. Omit it to never retry.
 	mauriceChat(conversationId: String, message: String!, idempotencyKey: String): MauriceChatResponse!
+	# Starts a turn and returns at once; poll mauriceTurn for its answer. The
+	# turn runs detached from the request, so a client that disconnects does
+	# not lose it. Resending idempotencyKey returns the same turn, running or
+	# finished; one turn runs per conversation at a time.
+	mauriceChatStart(conversationId: String, message: String!, idempotencyKey: String!): MauriceTurnStart!
 	mauriceDeleteConversation(id: String!): Boolean!
 }

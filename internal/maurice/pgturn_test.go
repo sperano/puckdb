@@ -444,13 +444,15 @@ func newPgPool(t *testing.T) *pgxpool.Pool {
 }
 
 // Two service instances share one database: while one runs a turn, the other
-// rejects a prompt to that conversation; cancelling the first releases it.
+// rejects a prompt to that conversation, even once the first request was
+// cancelled (the turn outlives it); the turn's commit releases it.
 func TestPg_TwoServiceInstances(t *testing.T) {
 	pool := openPgTestPool(t)
 	user := newPgUser(t, pool)
 	conv := chat(t, NewPgDB(pool), user, "", "q", "a").ConversationID
 	blocker := newBlockingLLM()
-	first := NewService(blocker, newMockMCP(), NewPgDB(pool), testConfig)
+	firstDB := &testDB{DB: NewPgDB(pool), committed: make(chan TurnRecord, 1)}
+	first := NewService(blocker, newMockMCP(), firstDB, testConfig)
 	second := NewService(&mockLLMClient{}, newMockMCP(), NewPgDB(newPgPool(t)), testConfig)
 	t.Cleanup(func() { _ = first.Close(); _ = second.Close() })
 
@@ -468,13 +470,17 @@ func TestPg_TwoServiceInstances(t *testing.T) {
 	cancel()
 	wg.Wait()
 	require.ErrorIs(t, firstErr, context.Canceled)
-	assert.Equal(t, 1, pgCount(t, pool, `SELECT count(*) FROM maurice_turns WHERE conversation_id = $1 AND status = 'cancelled'`, conv))
+	_, err = second.Chat(context.Background(), ChatRequest{UserID: user, ConversationID: &conv, Message: "other replica"})
+	require.ErrorIs(t, err, ErrTurnInProgress, "the turn outlives its cancelled request")
 
+	close(blocker.release)
+	<-firstDB.committed
+	assert.Equal(t, 2, pgCount(t, pool, `SELECT count(*) FROM maurice_turns WHERE conversation_id = $1 AND status = 'succeeded'`, conv))
 	_, err = second.Chat(context.Background(), ChatRequest{UserID: user, ConversationID: &conv, Message: "now"})
-	require.NoError(t, err, "a cancelled turn releases the conversation")
+	require.NoError(t, err, "a committed turn releases the conversation")
 	msgs, err := NewPgDB(pool).GetMessages(context.Background(), user, conv)
 	require.NoError(t, err)
-	assert.Len(t, msgs, 4, "the cancelled turn never reaches the transcript")
+	assert.Len(t, msgs, 6, "seed, the outliving turn and the next one")
 }
 
 // A full service turn on PostgreSQL stores its calls and tool calls.

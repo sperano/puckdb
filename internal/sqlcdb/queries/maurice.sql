@@ -98,6 +98,15 @@ FROM maurice_turns t
 JOIN maurice_conversations c ON c.id = t.conversation_id
 WHERE t.user_id = $1 AND t.idempotency_key = $2;
 
+-- name: GetOwnedTurn :one
+-- A turn of a deleted conversation is hidden from its owner, like the
+-- conversation.
+SELECT t.id, t.conversation_id, t.status, t.error_class, t.warnings,
+       (t.status = 'running' AND t.started_at < clock_timestamp() - make_interval(secs => sqlc.arg(stale_seconds)::double precision))::boolean AS stale
+FROM maurice_turns t
+JOIN maurice_conversations c ON c.id = t.conversation_id
+WHERE t.id = $1 AND t.user_id = $2 AND c.deleted_at IS NULL;
+
 -- name: AbandonTurn :exec
 UPDATE maurice_turns
 SET status = 'failed', error_class = 'abandoned', completed_at = clock_timestamp()

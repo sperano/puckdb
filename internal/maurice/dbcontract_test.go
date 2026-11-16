@@ -54,6 +54,11 @@ func runDBContract(t *testing.T, open envFactory) {
 		{"FinishTwiceIsRejected", contractFinishTwiceIsRejected},
 		{"DeleteHidesConversation", contractDeleteHidesConversation},
 		{"RecordTitle", contractRecordTitle},
+		{"RunningTurnReplayedWhenAsked", contractRunningTurnReplayedWhenAsked},
+		{"GetTurnFollowsTheTurn", contractGetTurnFollowsTheTurn},
+		{"GetTurnReportsFailure", contractGetTurnReportsFailure},
+		{"GetTurnReportsStaleTurnAbandoned", contractGetTurnReportsStaleTurnAbandoned},
+		{"GetTurnIsOwnerScoped", contractGetTurnIsOwnerScoped},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

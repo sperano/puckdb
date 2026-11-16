@@ -35,12 +35,22 @@ const (
 // Service is the Maurice AI chat orchestration layer. Every operation is
 // scoped by the user that owns the conversation.
 type Service interface {
+	// Chat runs one turn and waits for its answer. The turn runs detached
+	// from ctx: when ctx ends first, Chat returns ctx's error and the turn
+	// still commits.
 	Chat(ctx context.Context, req ChatRequest) (*ChatResponse, error)
+	// StartChat opens a turn and returns at once while it runs detached; a
+	// reused idempotency key returns its turn, running or finished.
+	StartChat(ctx context.Context, req ChatRequest) (*TurnRef, error)
+	// GetTurn reads one of userID's turns; any other is ErrTurnNotFound.
+	GetTurn(ctx context.Context, userID, turnID string) (*Turn, error)
 	GetConversation(ctx context.Context, userID, id string) (*Conversation, []*Message, error)
 	ListConversations(ctx context.Context, userID string, limit int) ([]*Conversation, error)
 	DeleteConversation(ctx context.Context, userID, id string) error
-	// Close cancels any in-flight background title generation and waits for
-	// those goroutines to return. It must be called once, after the final Chat.
+	// Close cancels the running turns and any in-flight background title
+	// generation and waits for them to return; a cancelled turn commits as
+	// cancelled. It must be called once; Chat and StartChat fail with
+	// ErrServiceClosed once it has begun.
 	Close() error
 }
 
@@ -126,11 +136,13 @@ type service struct {
 	persistTimeout time.Duration
 	releaseTimeout time.Duration
 
+	// runner tracks the detached turns (launchTurn).
+	runner turnRunner
 	// titleGroup bounds (via SetLimit) and tracks the detached goroutines that
 	// generate conversation titles, so shutdown can await them.
 	titleGroup *errgroup.Group
-	// shutdownCtx is cancelled by Close to signal in-flight title generation to
-	// abandon its LLM/DB work.
+	// shutdownCtx is cancelled by Close to signal running turns and in-flight
+	// title generation to abandon their LLM/DB work.
 	shutdownCtx    context.Context
 	shutdownCancel context.CancelFunc
 	teams          TeamLister
@@ -170,29 +182,39 @@ func NewService(llmClient llm.Client, mcpClient mcp.Client, db DB, cfg ServiceCo
 }
 
 // Chat runs one turn: it opens the turn (or finds the earlier one with the
-// same idempotency key), runs the LLM tool loop, and commits the turn's
-// messages and usage atomically. Nothing is written mid-turn, so a crash
-// during the loop leaves no partial transcript; a failed turn keeps its
-// prompts and usage but never becomes replayable history.
+// same idempotency key), runs the LLM tool loop detached from ctx
+// (launchTurn), and waits for the turn to commit its messages and usage
+// atomically. Nothing is written mid-turn, so a crash during the loop leaves
+// no partial transcript; a failed turn keeps its prompts and usage but never
+// becomes replayable history.
 func (s *service) Chat(ctx context.Context, req ChatRequest) (*ChatResponse, error) {
-	params, err := s.beginTurnParams(req)
+	start, err := s.beginTurn(ctx, req, false)
 	if err != nil {
 		return nil, err
-	}
-	start, err := s.db.BeginTurn(ctx, params)
-	if err != nil {
-		return nil, fmt.Errorf("begin turn: %w", err)
 	}
 	if start.Replay != nil {
 		return replayResponse(start)
 	}
-	return s.runTurn(ctx, req, start)
+	done, err := s.launchTurn(ctx, req, start)
+	if err != nil {
+		return nil, err
+	}
+	select {
+	case res := <-done:
+		return res.resp, res.err
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
 }
 
-// Close cancels in-flight background title generation and waits for the
-// goroutines to return. It is safe to call once; no Chat may run after Close.
+// Close refuses new turns, cancels the running turns and in-flight title
+// generation, and waits for them to return. Turns are awaited first: a turn
+// that commits during Close may still start a title generation, which the
+// cancelled shutdownCtx ends at once.
 func (s *service) Close() error {
+	s.runner.close()
 	s.shutdownCancel()
+	s.runner.wg.Wait()
 	return s.titleGroup.Wait()
 }
 
