@@ -69,10 +69,21 @@ func TestMauriceChatStart_Rejections(t *testing.T) {
 
 }
 
-// Errors a client can act on reach it as they are; any other is replaced by
-// errMauriceInternal, its text kept out of the answer.
+// Errors a client can act on, and the request's own end, reach it as they
+// are; any other is replaced by errMauriceInternal, its text kept out of the
+// answer.
 func TestMauriceChatStart_ServiceErrors(t *testing.T) {
-	for _, known := range mauriceClientErrors {
+	passedThrough := []error{
+		maurice.ErrConversationNotFound,
+		maurice.ErrTurnInProgress,
+		maurice.ErrIdempotencyKeyReused,
+		maurice.ErrInvalidIdempotencyKey,
+		maurice.ErrServiceClosed,
+		maurice.ErrTooManyTurns,
+		context.Canceled,
+		context.DeadlineExceeded,
+	}
+	for _, known := range passedThrough {
 		wrapped := fmt.Errorf("begin turn: %w", known)
 		r := &Resolver{MauriceService: &fakeTurns{startErr: wrapped}}
 		_, err := r.mauriceChatStart(userContext(), nil, "hi", "key")
@@ -110,6 +121,9 @@ func TestMauriceTurn_Rejections(t *testing.T) {
 	r := &Resolver{MauriceService: &fakeTurns{getErr: errors.New("get turn: database down")}}
 	_, err := r.mauriceTurn(userContext(), "t1")
 	require.Equal(t, errMauriceInternal, err, "the storage error text stays out of the answer")
+	cancelled := fmt.Errorf("get turn: %w", context.Canceled)
+	_, err = (&Resolver{MauriceService: &fakeTurns{getErr: cancelled}}).mauriceTurn(userContext(), "t1")
+	require.Equal(t, cancelled, err, "the request's own cancellation is no internal error")
 	_, err = r.mauriceTurn(context.Background(), "t1")
 	require.ErrorIs(t, err, appuser.ErrUnauthenticated)
 	_, err = (&Resolver{}).mauriceTurn(userContext(), "t1")

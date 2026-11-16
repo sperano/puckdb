@@ -23,8 +23,9 @@ var (
 	// ErrServiceClosed is returned by Chat and StartChat once Close has begun.
 	ErrServiceClosed = errors.New("maurice service is closed")
 	// ErrTooManyTurns is returned by Chat and StartChat for a new turn while
-	// the process or the user runs as many turns as it may; a key resent with
-	// its prompt still returns its turn.
+	// the process or the user runs as many turns as it may. A key resent with
+	// its prompt still finds its turn: StartChat returns it even while it
+	// runs, Chat only once it finished (a running one is ErrTurnInProgress).
 	ErrTooManyTurns = errors.New("too many maurice turns are running; retry once one finishes")
 )
 

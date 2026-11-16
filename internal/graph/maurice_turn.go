@@ -29,9 +29,13 @@ var mauriceClientErrors = []error{
 	maurice.ErrTooManyTurns,
 }
 
-// clientTurnError returns err when it is one of mauriceClientErrors, and
-// otherwise logs it and returns errMauriceInternal.
+// clientTurnError returns err when it is one of mauriceClientErrors or the
+// request's own end (cancelled or past its deadline: no server fault, so not
+// logged), and otherwise logs it and returns errMauriceInternal.
 func clientTurnError(op string, err error) error {
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return err
+	}
 	for _, known := range mauriceClientErrors {
 		if errors.Is(err, known) {
 			return err
