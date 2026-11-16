@@ -52,8 +52,16 @@ func runDBContract(t *testing.T, open envFactory) {
 		{"StaleTurnReplayIsAbandoned", contractStaleTurnReplayIsAbandoned},
 		{"FailedTurnStaysOutOfTranscript", contractFailedTurnStaysOutOfTranscript},
 		{"FinishTwiceIsRejected", contractFinishTwiceIsRejected},
+		{"FinishUnknownTurnIsRejected", contractFinishUnknownTurnIsRejected},
 		{"DeleteHidesConversation", contractDeleteHidesConversation},
 		{"RecordTitle", contractRecordTitle},
+		{"RunningTurnReplayedWhenAsked", contractRunningTurnReplayedWhenAsked},
+		{"StaleRunningTurnReplayedAsAbandoned", contractStaleRunningTurnReplayedAsAbandoned},
+		{"ReplayOnlyBeginsNothing", contractReplayOnlyBeginsNothing},
+		{"GetTurnFollowsTheTurn", contractGetTurnFollowsTheTurn},
+		{"GetTurnReportsFailure", contractGetTurnReportsFailure},
+		{"GetTurnReportsStaleTurnAbandoned", contractGetTurnReportsStaleTurnAbandoned},
+		{"GetTurnIsOwnerScoped", contractGetTurnIsOwnerScoped},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -396,6 +404,18 @@ func contractFinishTwiceIsRejected(t *testing.T, env contractEnv) {
 	start := chat(t, env.db, user, "", "q", "a")
 	_, err := env.db.FinishTurn(context.Background(), TurnRecord{
 		TurnID: start.TurnID, ConversationID: start.ConversationID, Status: TurnSucceeded,
+		Messages: []TurnMessage{{Role: "user", Content: "q"}},
+	})
+	require.ErrorIs(t, err, ErrTurnNotRunning)
+}
+
+// A turn id that was never begun is not running either, even under one of
+// the user's conversations.
+func contractFinishUnknownTurnIsRejected(t *testing.T, env contractEnv) {
+	user := env.newUser(t)
+	start := chat(t, env.db, user, "", "q", "a")
+	_, err := env.db.FinishTurn(context.Background(), TurnRecord{
+		TurnID: uuid.NewString(), ConversationID: start.ConversationID, Status: TurnSucceeded,
 		Messages: []TurnMessage{{Role: "user", Content: "q"}},
 	})
 	require.ErrorIs(t, err, ErrTurnNotRunning)

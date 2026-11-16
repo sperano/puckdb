@@ -16,18 +16,40 @@ import (
 // pgUniqueViolation is the SQLSTATE of a unique constraint violation.
 const pgUniqueViolation = "23505"
 
+// errTurnRaced reports that a concurrent request committed a turn first: the
+// insert hit the partial unique index on running turns or the (user_id,
+// idempotency_key) constraint.
+var errTurnRaced = errors.New("a concurrent request began a turn first")
+
 // BeginTurn opens a turn in one short transaction; no transaction stays open
 // across model calls. The conversation row is locked so turn starts on one
 // conversation serialize; the partial unique index on running turns and the
-// (user_id, idempotency_key) constraint back that up, and a violation of
-// either means another request owns the turn (ErrTurnInProgress).
+// (user_id, idempotency_key) constraint back that up. A violation of either
+// means another request committed its turn first, so BeginTurn looks once
+// more in a new transaction: a request racing its own retry finds the
+// winner's turn under the key (a replay), any other gets ErrTurnInProgress.
 func (db *pgDB) BeginTurn(ctx context.Context, params BeginTurnParams) (*TurnStart, error) {
 	user, err := parseUUID(params.UserID)
 	if err != nil {
 		return nil, err
 	}
+	start, err := db.beginTurnTx(ctx, user, params)
+	if errors.Is(err, errTurnRaced) {
+		start, err = db.beginTurnTx(ctx, user, params)
+	}
+	if errors.Is(err, errTurnRaced) {
+		return nil, ErrTurnInProgress
+	}
+	if err != nil {
+		return nil, err
+	}
+	return start, nil
+}
+
+func (db *pgDB) beginTurnTx(ctx context.Context, user pgtype.UUID, params BeginTurnParams) (*TurnStart, error) {
 	var start *TurnStart
-	err = db.inTx(ctx, func(q *sqlcdb.Queries) error {
+	err := db.inTx(ctx, func(q *sqlcdb.Queries) error {
+		var err error
 		start, err = db.beginTurn(ctx, q, user, params)
 		return err
 	})
@@ -46,6 +68,8 @@ func (db *pgDB) beginTurn(ctx context.Context, q *sqlcdb.Queries, user pgtype.UU
 		return replayPgTurn(ctx, q, params, existing)
 	case !errors.Is(err, pgx.ErrNoRows):
 		return nil, fmt.Errorf("look up idempotency key: %w", err)
+	case params.ReplayOnly:
+		return nil, ErrNoTurnUnderKey
 	}
 
 	start := &TurnStart{ConversationID: params.ConversationID}
@@ -66,7 +90,7 @@ func (db *pgDB) beginTurn(ctx context.Context, q *sqlcdb.Queries, user pgtype.UU
 	})
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) && pgErr.Code == pgUniqueViolation {
-		return nil, ErrTurnInProgress
+		return nil, errTurnRaced
 	}
 	if err != nil {
 		return nil, fmt.Errorf("insert turn: %w", err)
@@ -125,15 +149,56 @@ func replayPgTurn(ctx context.Context, q *sqlcdb.Queries, params BeginTurnParams
 	if turn.Status != TurnSucceeded {
 		return start, nil
 	}
-	final, err := q.GetTurnFinalMessage(ctx, row.ID)
-	if err != nil {
-		return nil, fmt.Errorf("load replayed answer: %w", err)
-	}
-	start.Replay.MessageID, start.Replay.Content = uuidToString(final.ID), final.Content
-	if start.Replay.ToolsUsed, err = pgTurnToolNames(ctx, q, row.ID); err != nil {
+	if err := loadPgAnswer(ctx, q, row.ID, start.Replay); err != nil {
 		return nil, err
 	}
 	return start, nil
+}
+
+// loadPgAnswer fills a succeeded turn's final answer and tool names.
+func loadPgAnswer(ctx context.Context, q *sqlcdb.Queries, turnID pgtype.UUID, replay *TurnReplay) error {
+	final, err := q.GetTurnFinalMessage(ctx, turnID)
+	if err != nil {
+		return fmt.Errorf("load replayed answer: %w", err)
+	}
+	replay.MessageID, replay.Content = uuidToString(final.ID), final.Content
+	replay.ToolsUsed, err = pgTurnToolNames(ctx, q, turnID)
+	return err
+}
+
+// GetTurn reads one of userID's turns. A malformed ID is not found: it can
+// name no turn.
+func (db *pgDB) GetTurn(ctx context.Context, userID, turnID string, staleAfter time.Duration) (*Turn, error) {
+	user, err := parseUUID(userID)
+	if err != nil {
+		return nil, err
+	}
+	id, err := parseUUID(turnID)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", ErrTurnNotFound, err)
+	}
+	row, err := db.q.GetOwnedTurn(ctx, sqlcdb.GetOwnedTurnParams{
+		ID: id, UserID: user, StaleSeconds: staleAfter.Seconds(),
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrTurnNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get turn: %w", err)
+	}
+	stored := storedTurn{Status: TurnStatus(row.Status), ErrorClass: ErrorClass(row.ErrorClass.String), Stale: row.Stale}
+	turn := &Turn{ID: uuidToString(row.ID), ConversationID: uuidToString(row.ConversationID)}
+	turn.Status, turn.ErrorClass = readStatus(stored)
+	if err := json.Unmarshal(row.Warnings, &turn.Warnings); err != nil {
+		return nil, fmt.Errorf("decode turn warnings: %w", err)
+	}
+	if turn.Status != TurnSucceeded {
+		return turn, nil
+	}
+	if err := loadPgAnswer(ctx, db.q, row.ID, &turn.TurnReplay); err != nil {
+		return nil, err
+	}
+	return turn, nil
 }
 
 func pgTurnToolNames(ctx context.Context, q *sqlcdb.Queries, turnID pgtype.UUID) ([]string, error) {
@@ -146,7 +211,10 @@ func pgTurnToolNames(ctx context.Context, q *sqlcdb.Queries, turnID pgtype.UUID)
 
 // FinishTurn commits the turn's terminal status, messages, LLM calls, call
 // input links and tool calls in one transaction. Only a succeeded turn bumps
-// the conversation's activity timestamp.
+// the conversation's activity timestamp. It locks the conversation before
+// the turn row, in BeginTurn's order: the other way round, a BeginTurn
+// holding the conversation and waiting on this turn's running-index entry
+// deadlocks with the commit's message inserts.
 func (db *pgDB) FinishTurn(ctx context.Context, record TurnRecord) ([]string, error) {
 	turnID, err := parseUUID(record.TurnID)
 	if err != nil {
@@ -157,6 +225,13 @@ func (db *pgDB) FinishTurn(ctx context.Context, record TurnRecord) ([]string, er
 		warnings, err := json.Marshal(record.Warnings)
 		if err != nil {
 			return fmt.Errorf("marshal turn warnings: %w", err)
+		}
+		_, err = q.LockTurnConversation(ctx, turnID)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrTurnNotRunning
+		}
+		if err != nil {
+			return fmt.Errorf("lock turn conversation: %w", err)
 		}
 		conv, err := q.CompleteTurn(ctx, sqlcdb.CompleteTurnParams{
 			ID: turnID, Status: string(record.Status), ErrorClass: optionalText(string(record.ErrorClass)), Warnings: warnings,

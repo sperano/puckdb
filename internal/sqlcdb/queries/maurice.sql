@@ -98,6 +98,15 @@ FROM maurice_turns t
 JOIN maurice_conversations c ON c.id = t.conversation_id
 WHERE t.user_id = $1 AND t.idempotency_key = $2;
 
+-- name: GetOwnedTurn :one
+-- A turn of a deleted conversation is hidden from its owner, like the
+-- conversation.
+SELECT t.id, t.conversation_id, t.status, t.error_class, t.warnings,
+       (t.status = 'running' AND t.started_at < clock_timestamp() - make_interval(secs => sqlc.arg(stale_seconds)::double precision))::boolean AS stale
+FROM maurice_turns t
+JOIN maurice_conversations c ON c.id = t.conversation_id
+WHERE t.id = $1 AND t.user_id = $2 AND c.deleted_at IS NULL;
+
 -- name: AbandonTurn :exec
 UPDATE maurice_turns
 SET status = 'failed', error_class = 'abandoned', completed_at = clock_timestamp()
@@ -117,6 +126,15 @@ VALUES ($1, $2,
         (SELECT COALESCE(MAX(turn_number) + 1, 0) FROM maurice_turns WHERE conversation_id = $1),
         $3, $4)
 RETURNING id, turn_number;
+
+-- name: LockTurnConversation :one
+-- Locks a turn's conversation row, not the turn row, so FinishTurn takes the
+-- conversation lock before the turn's, in BeginTurn's order.
+SELECT c.id
+FROM maurice_conversations c
+JOIN maurice_turns t ON t.conversation_id = c.id
+WHERE t.id = $1
+FOR UPDATE OF c;
 
 -- name: CompleteTurn :one
 UPDATE maurice_turns

@@ -273,7 +273,7 @@ Schema lives in `internal/graph/schema.graphqls`. Each long-running workflow fol
 
 **Admin mutations:** `clearDatabase`, `dropDatabase`, `createDatabase`, `flushRedisDB`
 
-**Maurice (LLM chat) mutations:** `mauriceChat(conversationId, message, idempotencyKey)`, `mauriceDeleteConversation(id)`. Every Maurice field needs an identity of the instance's login provider (`X-authentik-uid`, or a valid Cloudflare Access JWT) and is scoped to that user's conversations; resending an `idempotencyKey` returns the original answer (a different prompt under the same key, or a second prompt while a turn runs, is an error)
+**Maurice (LLM chat) mutations:** `mauriceChat(conversationId, message, idempotencyKey)` (blocks until the answer), `mauriceChatStart(conversationId, message, idempotencyKey!)` (returns `{turnId, conversationId}` at once; poll `mauriceTurn(id)`: `RUNNING`/`SUCCEEDED` with the answer/`FAILED` with the error class, a shutdown-cancelled turn included; null for another user's turn), `mauriceDeleteConversation(id)`. A turn runs detached from its request (`internal/maurice/turnrun.go`), bounded by `turnTimeout`; a client that disconnects does not lose it, and `Service.Close` (server shutdown) cancels it, committed as cancelled. Every Maurice field needs an identity of the instance's login provider (`X-authentik-uid`, or a valid Cloudflare Access JWT) and is scoped to that user's conversations; resending an `idempotencyKey` with the same prompt returns the original answer (`mauriceChatStart`: the same turn, even while it runs; `mauriceChat` rejects the key of a running turn); on both mutations a different prompt under the same key, or a second prompt while a turn runs, is an error, and so is a new turn beyond the per-user or per-process cap on running turns
 
 **Workflow queries:** for every workflow above, `<name>Result: WorkflowResult!` and `<name>Progress: ProgressReport`. `processPlayers` additionally exposes `processPlayersResultData: ProcessPlayersResultData`.
 
@@ -283,7 +283,7 @@ Schema lives in `internal/graph/schema.graphqls`. Each long-running workflow fol
 
 **Simulation** (in `internal/graph/simulation.graphqls`, see wiki `puckdb/simulation.md`): `simPool`, `simPools`, `simTransactions`, `simStandingsHistory`, `simPoolProgress`, `simTurnFeed`, `simDraftPicks`; mutations `createSimPool`, `cancelSimPool`. Every field reads PostgreSQL (progress: the Redis report), never the running workflow.
 
-**Other queries:** `buildNumber`, `yahooTokenStatus`, `mauriceConversations(limit)`, `mauriceConversation(id)`
+**Other queries:** `buildNumber`, `yahooTokenStatus`, `mauriceConversations(limit)`, `mauriceConversation(id)`, `mauriceTurn(id)`
 
 ## Metrics
 
@@ -571,7 +571,7 @@ Interactive REPL for querying hockey data via natural language. Connects to an L
 | Component | File | Purpose |
 |-----------|------|---------|
 | CLI entry | `cmd/maurice.go` | REPL loop, `/model` `/history` `/load` `/new` commands |
-| Service | `internal/maurice/service.go` | Chat orchestration, tool call loop (max 10 rounds), conversation persistence |
+| Service | `internal/maurice/service.go`, `turnrun.go` | Chat orchestration, tool call loop (max 10 rounds), conversation persistence; turns run detached from the request (`StartChat`/`GetTurn` for submit-and-poll) |
 | Prompt | `internal/maurice/prompt.go` | System prompt (instructs LLM to query DB, not guess) |
 | LLM clients | `internal/llm/client.go`, `internal/llm/anthropic.go` | OpenAI-compatible (Ollama/OpenAI) and Anthropic clients |
 | Provider detection | `internal/llm/provider.go` | Auto-detects Anthropic vs OpenAI-compatible from API key/URL |

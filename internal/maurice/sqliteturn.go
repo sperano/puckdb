@@ -36,6 +36,8 @@ func beginSQLiteTurn(ctx context.Context, tx *sql.Tx, params BeginTurnParams) (*
 		return replaySQLiteTurn(ctx, tx, params, existing)
 	case !errors.Is(err, sql.ErrNoRows):
 		return nil, fmt.Errorf("look up idempotency key: %w", err)
+	case params.ReplayOnly:
+		return nil, ErrNoTurnUnderKey
 	}
 
 	convID, err := ensureSQLiteConversation(ctx, tx, params, now)
@@ -145,6 +147,44 @@ func replaySQLiteTurn(ctx context.Context, tx *sql.Tx, params BeginTurnParams, t
 		return start, nil
 	}
 	return start, loadSQLiteReplay(ctx, tx, turn.ID, start.Replay)
+}
+
+// GetTurn reads one of userID's turns.
+func (s *sqliteDB) GetTurn(ctx context.Context, userID, turnID string, staleAfter time.Duration) (*Turn, error) {
+	staleBefore := time.Now().UTC().Add(-staleAfter).Format(sqliteTimeLayout)
+	var turn *Turn
+	err := s.inTx(ctx, func(tx *sql.Tx) error {
+		var stored storedTurn
+		var errorClass sql.NullString
+		var startedAt, warnings string
+		err := tx.QueryRowContext(ctx,
+			`SELECT t.id, t.conversation_id, t.status, t.error_class, t.started_at, t.warnings
+			 FROM turns t JOIN conversations c ON c.id = t.conversation_id
+			 WHERE t.id = ? AND t.user_id = ? AND c.deleted_at IS NULL`,
+			turnID, userID,
+		).Scan(&stored.ID, &stored.ConversationID, &stored.Status, &errorClass, &startedAt, &warnings)
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrTurnNotFound
+		}
+		if err != nil {
+			return fmt.Errorf("get turn: %w", err)
+		}
+		stored.ErrorClass = ErrorClass(errorClass.String)
+		stored.Stale = stored.Status == TurnRunning && startedAt < staleBefore
+		turn = &Turn{ID: stored.ID, ConversationID: stored.ConversationID}
+		turn.Status, turn.ErrorClass = readStatus(stored)
+		if err := json.Unmarshal([]byte(warnings), &turn.Warnings); err != nil {
+			return fmt.Errorf("decode turn warnings: %w", err)
+		}
+		if turn.Status != TurnSucceeded {
+			return nil
+		}
+		return loadSQLiteReplay(ctx, tx, turn.ID, &turn.TurnReplay)
+	})
+	if err != nil {
+		return nil, err
+	}
+	return turn, nil
 }
 
 func loadSQLiteReplay(ctx context.Context, tx *sql.Tx, turnID string, replay *TurnReplay) error {

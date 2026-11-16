@@ -22,8 +22,11 @@ var testREPLModels = []ModelEntry{
 	{ID: "model-b", Description: "second model", Provider: llm.ProviderOllama},
 }
 
-// fakeService is a Service recording what the REPL asks of it.
+// fakeService is a Service recording what the REPL asks of it. The REPL
+// never starts detached turns, so StartChat and GetTurn are the nil
+// embedded Service's.
 type fakeService struct {
+	Service
 	model string
 
 	convs    []*Conversation

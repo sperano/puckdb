@@ -27,7 +27,7 @@ type storedTurn struct {
 
 // checkKeyReuse decides what a reused idempotency key means. It rejects a
 // key whose conversation was deleted, a different prompt or conversation, and
-// a turn still running. abandon reports a stale running turn that the caller
+// a turn still running (unless params.ReplayRunning). abandon reports a stale running turn that the caller
 // must fail as abandoned before replaying it.
 func checkKeyReuse(params BeginTurnParams, turn storedTurn) (abandon bool, err error) {
 	if turn.ConversationDeleted {
@@ -42,10 +42,23 @@ func checkKeyReuse(params BeginTurnParams, turn storedTurn) (abandon bool, err e
 	if turn.Status != TurnRunning {
 		return false, nil
 	}
-	if !turn.Stale {
-		return false, ErrTurnInProgress
+	if turn.Stale {
+		return true, nil
 	}
-	return true, nil
+	if params.ReplayRunning {
+		return false, nil
+	}
+	return false, ErrTurnInProgress
+}
+
+// readStatus is the status GetTurn reports for turn: a stale running turn
+// reads as failed and abandoned, which the next BeginTurn on its
+// conversation stores.
+func readStatus(turn storedTurn) (TurnStatus, ErrorClass) {
+	if turn.Status == TurnRunning && turn.Stale {
+		return TurnFailed, ErrorClassAbandoned
+	}
+	return turn.Status, turn.ErrorClass
 }
 
 // abandonedReplay is the replay of a turn just failed as abandoned.

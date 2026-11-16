@@ -19,12 +19,14 @@ const (
 	// turnTimeout bounds one turn's LLM/tool loop, including a forced final
 	// completion.
 	turnTimeout = 10 * time.Minute
-	// turnPersistTimeout bounds committing a finished turn. It runs detached
-	// from the request so a client that disconnects still releases its turn.
+	// turnPersistTimeout bounds committing a finished turn. The commit runs
+	// detached from the turn's context, so a turn cancelled by Close or its
+	// timeout still releases its conversation.
 	turnPersistTimeout = 30 * time.Second
-	// turnReleaseTimeout bounds the status-only release after a failed
-	// commit. It gets its own deadline: a commit that failed by timing out has
-	// used up turnPersistTimeout.
+	// turnReleaseTimeout bounds every status-only release: after a failed
+	// commit, and for a turn begun just before Close (launchTurn). It gets its
+	// own deadline: a commit that failed by timing out has used up
+	// turnPersistTimeout.
 	turnReleaseTimeout = 5 * time.Second
 	// staleTurnGrace is extra slack before a running turn counts as abandoned.
 	staleTurnGrace = time.Minute
@@ -88,14 +90,14 @@ type turnAnswer struct {
 	warnings  []string
 }
 
+// runTurn runs a begun turn and commits it. ctx is the turn's own context
+// (launchTurn), not the request's.
 func (s *service) runTurn(ctx context.Context, req ChatRequest, start *TurnStart) (*ChatResponse, error) {
 	log.Debug().Str("conversation", start.ConversationID).Bool("new", start.NewConversation).
 		Str("message", truncateLog(req.Message, maxLogMessageLen)).Msg("maurice chat started")
 
-	turnCtx, cancel := context.WithTimeout(ctx, turnTimeout)
-	defer cancel()
 	rec := newTurnRecorder(s.llmClient, s.provider, s.model, req.Message, s.now)
-	answer, runErr := s.executeTurn(turnCtx, req.UserID, start.ConversationID, rec)
+	answer, runErr := s.executeTurn(ctx, req.UserID, start.ConversationID, rec)
 
 	record := rec.turnRecord(start, answer, runErr)
 	ids, persistErr := s.finishTurn(ctx, record)
@@ -224,8 +226,8 @@ func (s *service) forcedFinalAnswer(ctx context.Context, convID string, messages
 	return resp.Content, nil
 }
 
-// finishTurn commits the turn detached from the request context, so a client
-// that disconnects still releases its turn. If the commit fails it falls back
+// finishTurn commits the turn detached from the turn's context, so a turn
+// cancelled by Close or its timeout still releases its conversation. If the commit fails it falls back
 // to a status-only failure so the conversation is not blocked until the turn
 // goes stale; the turn's usage is then lost and logged as such.
 func (s *service) finishTurn(ctx context.Context, record TurnRecord) ([]string, error) {
@@ -238,22 +240,21 @@ func (s *service) finishTurn(ctx context.Context, record TurnRecord) ([]string, 
 	log.Error().Err(err).Str("turn", record.TurnID).Int("llm_calls", len(record.Calls)).
 		Msg("persist turn failed; its messages and usage are lost")
 	if !errors.Is(err, ErrTurnNotRunning) {
-		s.releaseTurn(ctx, record)
+		s.releaseTurn(ctx, TurnRecord{
+			TurnID: record.TurnID, ConversationID: record.ConversationID,
+			Status: TurnFailed, ErrorClass: ErrorClassInternal,
+		})
 	}
 	return nil, fmt.Errorf("persist turn: %w", err)
 }
 
-// releaseTurn fails the turn without its messages or usage, under its own
-// deadline.
+// releaseTurn commits a status-only record (no messages or usage) under its
+// own deadline, so the turn stops blocking its conversation.
 func (s *service) releaseTurn(ctx context.Context, record TurnRecord) {
 	releaseCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), s.releaseTimeout)
 	defer cancel()
-	fallback := TurnRecord{
-		TurnID: record.TurnID, ConversationID: record.ConversationID,
-		Status: TurnFailed, ErrorClass: ErrorClassInternal,
-	}
-	if _, err := s.db.FinishTurn(releaseCtx, fallback); err != nil {
-		log.Error().Err(err).Str("turn", record.TurnID).Msg("release failed turn")
+	if _, err := s.db.FinishTurn(releaseCtx, record); err != nil {
+		log.Error().Err(err).Str("turn", record.TurnID).Msg("release turn")
 	}
 }
 

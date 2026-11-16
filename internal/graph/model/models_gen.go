@@ -947,6 +947,25 @@ type MauriceMessage struct {
 	CreatedAt time.Time `json:"createdAt"`
 }
 
+type MauriceTurn struct {
+	ID             string            `json:"id"`
+	ConversationID string            `json:"conversationId"`
+	Status         MauriceTurnStatus `json:"status"`
+	// The answer message; set once SUCCEEDED.
+	MessageID *string `json:"messageId,omitempty"`
+	// The answer; set once SUCCEEDED (it may be empty).
+	Content   *string  `json:"content,omitempty"`
+	ToolsUsed []string `json:"toolsUsed"`
+	Warnings  []string `json:"warnings"`
+	// Bounded failure class of a FAILED turn: timeout, cancelled, provider_error, tool_error, internal_error or abandoned.
+	Error *string `json:"error,omitempty"`
+}
+
+type MauriceTurnStart struct {
+	TurnID         string `json:"turnId"`
+	ConversationID string `json:"conversationId"`
+}
+
 type Mutation struct {
 }
 
@@ -2266,6 +2285,64 @@ func (e *MauriceDraftWatchState) UnmarshalJSON(b []byte) error {
 }
 
 func (e MauriceDraftWatchState) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+// A turn's lifecycle. A turn cancelled by a server shutdown, or abandoned by a server that died, is FAILED.
+type MauriceTurnStatus string
+
+const (
+	MauriceTurnStatusRunning   MauriceTurnStatus = "RUNNING"
+	MauriceTurnStatusSucceeded MauriceTurnStatus = "SUCCEEDED"
+	MauriceTurnStatusFailed    MauriceTurnStatus = "FAILED"
+)
+
+var AllMauriceTurnStatus = []MauriceTurnStatus{
+	MauriceTurnStatusRunning,
+	MauriceTurnStatusSucceeded,
+	MauriceTurnStatusFailed,
+}
+
+func (e MauriceTurnStatus) IsValid() bool {
+	switch e {
+	case MauriceTurnStatusRunning, MauriceTurnStatusSucceeded, MauriceTurnStatusFailed:
+		return true
+	}
+	return false
+}
+
+func (e MauriceTurnStatus) String() string {
+	return string(e)
+}
+
+func (e *MauriceTurnStatus) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = MauriceTurnStatus(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid MauriceTurnStatus", str)
+	}
+	return nil
+}
+
+func (e MauriceTurnStatus) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *MauriceTurnStatus) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e MauriceTurnStatus) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil

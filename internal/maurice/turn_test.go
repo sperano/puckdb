@@ -186,15 +186,17 @@ func TestCompleteCallRecord_RequestedToolsStartCancelled(t *testing.T) {
 }
 
 func TestChat_IdempotentRetryReturnsOriginalAnswer(t *testing.T) {
-	db := newTestDB(t)
+	db := committedTestDB(t)
 	llmMock := &mockLLMClient{responses: []*llm.Response{toolCallResponse("pg_read_query", "c1"), {Content: "answer"}}}
 	svc := NewService(llmMock, newMockMCP(), db, testConfig)
+	t.Cleanup(func() { require.NoError(t, svc.Close()) })
 	req := ask("q")
 	req.IdempotencyKey = "client-key-1"
 
 	first, err := svc.Chat(context.Background(), req)
 	require.NoError(t, err)
-	require.NoError(t, svc.Close())
+	<-db.committed
+	<-db.titled
 	calls := llmMock.callCount()
 
 	retry, err := svc.Chat(context.Background(), req)
@@ -320,33 +322,6 @@ func TestChat_SecondPromptWhileRunningIsRejected(t *testing.T) {
 	msgs, err := db.GetMessages(context.Background(), testUser, convID)
 	require.NoError(t, err)
 	assert.Len(t, msgs, 3, "only the first prompt's turn is in the transcript")
-}
-
-// A cancelled request still commits its turn as cancelled, which releases the
-// conversation for the next prompt.
-func TestChat_CancelledRequestReleasesConversation(t *testing.T) {
-	db := newTestDB(t)
-	convID := seedConversation(t, db, TurnMessage{Role: "user", Content: "q0"})
-	blocker := newBlockingLLM()
-	svc := NewService(blocker, newMockMCP(), db, testConfig)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	var wg sync.WaitGroup
-	var chatErr error
-	wg.Go(func() { _, chatErr = svc.Chat(ctx, askIn(convID, "abandoned")) })
-	<-blocker.entered
-	cancel()
-	wg.Wait()
-	require.ErrorIs(t, chatErr, context.Canceled)
-
-	record := db.finishedTurns()[0]
-	assert.Equal(t, TurnCancelled, record.Status)
-	assert.Equal(t, ErrorClassCancelled, record.ErrorClass)
-	assert.Equal(t, ErrorClassCancelled, record.Calls[0].ErrorClass)
-
-	close(blocker.release)
-	_, err := svc.Chat(context.Background(), askIn(convID, "next"))
-	require.NoError(t, err)
 }
 
 func TestErrorClass(t *testing.T) {

@@ -69,6 +69,11 @@ type testDB struct {
 	titleErr           error
 	finished           []TurnRecord
 	titles             []TitleRecord
+	// committed and titled, when set (buffered), receive each turn record
+	// and title record once the store returned, so a test can wait for a
+	// detached turn or title generation without sleeping.
+	committed chan TurnRecord
+	titled    chan TitleRecord
 }
 
 func newTestDB(t *testing.T) *testDB {
@@ -95,7 +100,11 @@ func (d *testDB) FinishTurn(ctx context.Context, record TurnRecord) ([]string, e
 	if err != nil {
 		return nil, err
 	}
-	return d.DB.FinishTurn(ctx, record)
+	ids, err := d.DB.FinishTurn(ctx, record)
+	if d.committed != nil {
+		d.committed <- record
+	}
+	return ids, err
 }
 
 func (d *testDB) GetMessages(ctx context.Context, userID, conversationID string) ([]*Message, error) {
@@ -126,7 +135,11 @@ func (d *testDB) RecordTitle(ctx context.Context, record TitleRecord) error {
 	if d.titleErr != nil {
 		return d.titleErr
 	}
-	return d.DB.RecordTitle(ctx, record)
+	err := d.DB.RecordTitle(ctx, record)
+	if d.titled != nil {
+		d.titled <- record
+	}
+	return err
 }
 
 func (d *testDB) finishedTurns() []TurnRecord {
