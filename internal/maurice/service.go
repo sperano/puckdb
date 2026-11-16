@@ -39,8 +39,9 @@ type Service interface {
 	// from ctx: when ctx ends first, Chat returns ctx's error and the turn
 	// still commits.
 	Chat(ctx context.Context, req ChatRequest) (*ChatResponse, error)
-	// StartChat opens a turn and returns at once while it runs detached; a
-	// reused idempotency key returns its turn, running or finished.
+	// StartChat opens a turn and returns at once while it runs detached; an
+	// idempotency key resent with the same prompt returns its turn, running
+	// or finished, and with another prompt ErrIdempotencyKeyReused.
 	StartChat(ctx context.Context, req ChatRequest) (*TurnRef, error)
 	// GetTurn reads one of userID's turns; any other is ErrTurnNotFound.
 	GetTurn(ctx context.Context, userID, turnID string) (*Turn, error)
@@ -131,13 +132,15 @@ type service struct {
 	maxTokens     int
 	maxToolRounds int
 	now           func() time.Time
-	// persistTimeout and releaseTimeout bound committing and releasing a
-	// turn (turnPersistTimeout, turnReleaseTimeout).
+	// turnTimeout, persistTimeout and releaseTimeout bound running,
+	// committing and releasing a turn (turnTimeout, turnPersistTimeout,
+	// turnReleaseTimeout).
+	turnTimeout    time.Duration
 	persistTimeout time.Duration
 	releaseTimeout time.Duration
 
 	// runner tracks the detached turns (launchTurn).
-	runner turnRunner
+	runner *turnRunner
 	// titleGroup bounds (via SetLimit) and tracks the detached goroutines that
 	// generate conversation titles, so shutdown can await them.
 	titleGroup *errgroup.Group
@@ -172,8 +175,10 @@ func NewService(llmClient llm.Client, mcpClient mcp.Client, db DB, cfg ServiceCo
 		maxTokens:      cfg.MaxTokens,
 		maxToolRounds:  cfg.MaxToolRounds,
 		now:            time.Now,
+		turnTimeout:    turnTimeout,
 		persistTimeout: turnPersistTimeout,
 		releaseTimeout: turnReleaseTimeout,
+		runner:         newTurnRunner(),
 		titleGroup:     titleGroup,
 		shutdownCtx:    shutdownCtx,
 		shutdownCancel: shutdownCancel,
@@ -188,14 +193,14 @@ func NewService(llmClient llm.Client, mcpClient mcp.Client, db DB, cfg ServiceCo
 // no partial transcript; a failed turn keeps its prompts and usage but never
 // becomes replayable history.
 func (s *service) Chat(ctx context.Context, req ChatRequest) (*ChatResponse, error) {
-	start, err := s.beginTurn(ctx, req, false)
+	start, release, err := s.beginTurn(ctx, req, false)
 	if err != nil {
 		return nil, err
 	}
 	if start.Replay != nil {
 		return replayResponse(start)
 	}
-	done, err := s.launchTurn(ctx, req, start)
+	done, err := s.launchTurn(ctx, req, start, release)
 	if err != nil {
 		return nil, err
 	}

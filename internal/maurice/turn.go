@@ -19,12 +19,14 @@ const (
 	// turnTimeout bounds one turn's LLM/tool loop, including a forced final
 	// completion.
 	turnTimeout = 10 * time.Minute
-	// turnPersistTimeout bounds committing a finished turn. It runs detached
-	// from the request so a client that disconnects still releases its turn.
+	// turnPersistTimeout bounds committing a finished turn. The commit runs
+	// detached from the turn's context, so a turn cancelled by Close or its
+	// timeout still releases its conversation.
 	turnPersistTimeout = 30 * time.Second
-	// turnReleaseTimeout bounds the status-only release after a failed
-	// commit. It gets its own deadline: a commit that failed by timing out has
-	// used up turnPersistTimeout.
+	// turnReleaseTimeout bounds every status-only release: after a failed
+	// commit, and for a turn begun just before Close (launchTurn). It gets its
+	// own deadline: a commit that failed by timing out has used up
+	// turnPersistTimeout.
 	turnReleaseTimeout = 5 * time.Second
 	// staleTurnGrace is extra slack before a running turn counts as abandoned.
 	staleTurnGrace = time.Minute

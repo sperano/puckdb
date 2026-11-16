@@ -742,6 +742,23 @@ func (q *Queries) LockOwnedConversation(ctx context.Context, arg LockOwnedConver
 	return id, err
 }
 
+const lockTurnConversation = `-- name: LockTurnConversation :one
+SELECT c.id
+FROM maurice_conversations c
+JOIN maurice_turns t ON t.conversation_id = c.id
+WHERE t.id = $1
+FOR UPDATE OF c
+`
+
+// Locks a turn's conversation row, not the turn row, so FinishTurn takes the
+// conversation lock before the turn's, in BeginTurn's order.
+func (q *Queries) LockTurnConversation(ctx context.Context, id pgtype.UUID) (pgtype.UUID, error) {
+	row := q.db.QueryRow(ctx, lockTurnConversation, id)
+	var id_2 pgtype.UUID
+	err := row.Scan(&id_2)
+	return id_2, err
+}
+
 const touchConversation = `-- name: TouchConversation :exec
 UPDATE maurice_conversations
 SET updated_at = clock_timestamp()

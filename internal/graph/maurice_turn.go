@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 
+	"github.com/rs/zerolog/log"
+
 	"github.com/sperano/puckdb/internal/graph/model"
 	"github.com/sperano/puckdb/internal/maurice"
 )
@@ -11,6 +13,33 @@ import (
 // errMissingIdempotencyKey rejects a mauriceChatStart without a key: a client
 // that loses the start answer finds its turn again only by resending it.
 var errMissingIdempotencyKey = errors.New("idempotencyKey must not be empty")
+
+// errMauriceInternal replaces a turn error the client cannot act on (a
+// storage fault), so driver or SQL text never reaches it.
+var errMauriceInternal = errors.New("internal error")
+
+// mauriceClientErrors are the turn errors a client can act on, returned as
+// they are.
+var mauriceClientErrors = []error{
+	maurice.ErrConversationNotFound,
+	maurice.ErrTurnInProgress,
+	maurice.ErrIdempotencyKeyReused,
+	maurice.ErrInvalidIdempotencyKey,
+	maurice.ErrServiceClosed,
+	maurice.ErrTooManyTurns,
+}
+
+// clientTurnError returns err when it is one of mauriceClientErrors, and
+// otherwise logs it and returns errMauriceInternal.
+func clientTurnError(op string, err error) error {
+	for _, known := range mauriceClientErrors {
+		if errors.Is(err, known) {
+			return err
+		}
+	}
+	log.Error().Err(err).Str("operation", op).Msg("maurice turn request failed")
+	return errMauriceInternal
+}
 
 func (r *Resolver) mauriceChatStart(ctx context.Context, conversationID *string, message, idempotencyKey string) (*model.MauriceTurnStart, error) {
 	svc, userID, err := r.scopedMaurice(ctx)
@@ -24,7 +53,7 @@ func (r *Resolver) mauriceChatStart(ctx context.Context, conversationID *string,
 		UserID: userID, ConversationID: conversationID, Message: message, IdempotencyKey: idempotencyKey,
 	})
 	if err != nil {
-		return nil, err
+		return nil, clientTurnError("mauriceChatStart", err)
 	}
 	return &model.MauriceTurnStart{TurnID: ref.TurnID, ConversationID: ref.ConversationID}, nil
 }
@@ -41,7 +70,7 @@ func (r *Resolver) mauriceTurn(ctx context.Context, id string) (*model.MauriceTu
 		return nil, nil
 	}
 	if err != nil {
-		return nil, err
+		return nil, clientTurnError("mauriceTurn", err)
 	}
 	return mauriceTurnModel(turn), nil
 }

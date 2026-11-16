@@ -28,6 +28,9 @@ var (
 	// belongs to another user or sits in a deleted conversation; the cases
 	// are deliberately indistinguishable.
 	ErrTurnNotFound = errors.New("turn not found")
+	// ErrNoTurnUnderKey is returned by a BeginTurn with ReplayOnly when no
+	// turn has its idempotency key.
+	ErrNoTurnUnderKey = errors.New("no turn under this idempotency key")
 )
 
 // DB defines the storage operations Maurice needs. Every conversation
@@ -100,6 +103,11 @@ type BeginTurnParams struct {
 	// a replay with status TurnRunning instead of ErrTurnInProgress, so a
 	// client that lost a start answer gets the turn it already started.
 	ReplayRunning bool
+	// ReplayOnly makes BeginTurn replay the turn found under the key but
+	// begin none: with no such turn it writes nothing and returns
+	// ErrNoTurnUnderKey. The service sets it when it has no slot for a new
+	// turn, so a resent key still finds the turn it started.
+	ReplayOnly bool
 }
 
 // TurnStart is the result of BeginTurn. Exactly one of Replay and a running

@@ -587,6 +587,8 @@ func TestChat_ConcurrentChats_BoundedAndClosable(t *testing.T) {
 	svc := NewService(&mockLLMClient{}, newMockMCP(), db, testConfig)
 
 	const n = 25
+	// One user runs all n turns; the per-user cap is not under test here.
+	svc.(*service).runner.maxUserTurns = n
 	var wg sync.WaitGroup
 	for range n {
 		wg.Go(func() {

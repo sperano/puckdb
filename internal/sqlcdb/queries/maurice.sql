@@ -127,6 +127,15 @@ VALUES ($1, $2,
         $3, $4)
 RETURNING id, turn_number;
 
+-- name: LockTurnConversation :one
+-- Locks a turn's conversation row, not the turn row, so FinishTurn takes the
+-- conversation lock before the turn's, in BeginTurn's order.
+SELECT c.id
+FROM maurice_conversations c
+JOIN maurice_turns t ON t.conversation_id = c.id
+WHERE t.id = $1
+FOR UPDATE OF c;
+
 -- name: CompleteTurn :one
 UPDATE maurice_turns
 SET status = $2, error_class = $3, warnings = $4, completed_at = clock_timestamp()

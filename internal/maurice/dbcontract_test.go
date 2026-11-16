@@ -55,6 +55,8 @@ func runDBContract(t *testing.T, open envFactory) {
 		{"DeleteHidesConversation", contractDeleteHidesConversation},
 		{"RecordTitle", contractRecordTitle},
 		{"RunningTurnReplayedWhenAsked", contractRunningTurnReplayedWhenAsked},
+		{"StaleRunningTurnReplayedAsAbandoned", contractStaleRunningTurnReplayedAsAbandoned},
+		{"ReplayOnlyBeginsNothing", contractReplayOnlyBeginsNothing},
 		{"GetTurnFollowsTheTurn", contractGetTurnFollowsTheTurn},
 		{"GetTurnReportsFailure", contractGetTurnReportsFailure},
 		{"GetTurnReportsStaleTurnAbandoned", contractGetTurnReportsStaleTurnAbandoned},

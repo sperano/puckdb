@@ -36,6 +36,8 @@ func beginSQLiteTurn(ctx context.Context, tx *sql.Tx, params BeginTurnParams) (*
 		return replaySQLiteTurn(ctx, tx, params, existing)
 	case !errors.Is(err, sql.ErrNoRows):
 		return nil, fmt.Errorf("look up idempotency key: %w", err)
+	case params.ReplayOnly:
+		return nil, ErrNoTurnUnderKey
 	}
 
 	convID, err := ensureSQLiteConversation(ctx, tx, params, now)

@@ -3,6 +3,7 @@ package graph
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/sperano/puckdb/internal/appuser"
@@ -66,9 +67,21 @@ func TestMauriceChatStart_Rejections(t *testing.T) {
 	require.ErrorIs(t, err, errMissingIdempotencyKey)
 	assert.Empty(t, svc.starts, "no turn starts without a user, a service or a key")
 
-	svc.startErr = maurice.ErrTurnInProgress
-	_, err = r.mauriceChatStart(userContext(), nil, "hi", "key")
-	require.ErrorIs(t, err, maurice.ErrTurnInProgress)
+}
+
+// Errors a client can act on reach it as they are; any other is replaced by
+// errMauriceInternal, its text kept out of the answer.
+func TestMauriceChatStart_ServiceErrors(t *testing.T) {
+	for _, known := range mauriceClientErrors {
+		wrapped := fmt.Errorf("begin turn: %w", known)
+		r := &Resolver{MauriceService: &fakeTurns{startErr: wrapped}}
+		_, err := r.mauriceChatStart(userContext(), nil, "hi", "key")
+		require.Equal(t, wrapped, err, known.Error())
+	}
+
+	r := &Resolver{MauriceService: &fakeTurns{startErr: errors.New("begin turn: pq: relation maurice_turns does not exist")}}
+	_, err := r.mauriceChatStart(userContext(), nil, "hi", "key")
+	require.Equal(t, errMauriceInternal, err)
 }
 
 func TestMauriceTurn_ReadsTheUsersTurn(t *testing.T) {
@@ -94,10 +107,9 @@ func TestMauriceTurn_UnreadableTurnIsNull(t *testing.T) {
 }
 
 func TestMauriceTurn_Rejections(t *testing.T) {
-	failure := errors.New("database down")
-	r := &Resolver{MauriceService: &fakeTurns{getErr: failure}}
+	r := &Resolver{MauriceService: &fakeTurns{getErr: errors.New("get turn: database down")}}
 	_, err := r.mauriceTurn(userContext(), "t1")
-	require.ErrorIs(t, err, failure)
+	require.Equal(t, errMauriceInternal, err, "the storage error text stays out of the answer")
 	_, err = r.mauriceTurn(context.Background(), "t1")
 	require.ErrorIs(t, err, appuser.ErrUnauthenticated)
 	_, err = (&Resolver{}).mauriceTurn(userContext(), "t1")

@@ -1,7 +1,8 @@
 package maurice
 
-// Contract cases for reading turns (GetTurn) and replaying a running turn
-// (BeginTurnParams.ReplayRunning); runDBContract registers them.
+// Contract cases for reading turns (GetTurn), replaying a running turn
+// (BeginTurnParams.ReplayRunning) and replaying without beginning
+// (BeginTurnParams.ReplayOnly); runDBContract registers them.
 
 import (
 	"context"
@@ -35,6 +36,59 @@ func contractRunningTurnReplayedWhenAsked(t *testing.T, env contractEnv) {
 	convs, err := env.db.ListConversations(ctx, user, 10)
 	require.NoError(t, err)
 	assert.Len(t, convs, 1, "the replay opened no conversation")
+}
+
+// A stale running turn is abandoned before ReplayRunning is considered: a
+// client resending the key of a turn whose process died learns it failed.
+func contractStaleRunningTurnReplayedAsAbandoned(t *testing.T, env contractEnv) {
+	ctx := context.Background()
+	user := env.newUser(t)
+	params := turnParams(user, "", "dead-start-key", "crashed mid-turn")
+	params.ReplayRunning = true
+	dead, err := env.db.BeginTurn(ctx, params)
+	require.NoError(t, err)
+
+	params.StaleAfter = 0
+	replay, err := env.db.BeginTurn(ctx, params)
+	require.NoError(t, err)
+	require.NotNil(t, replay.Replay)
+	assert.Equal(t, dead.TurnID, replay.TurnID)
+	assert.Equal(t, TurnFailed, replay.Replay.Status)
+	assert.Equal(t, ErrorClassAbandoned, replay.Replay.ErrorClass)
+	turn, err := env.db.GetTurn(ctx, user, dead.TurnID, contractStaleAfter)
+	require.NoError(t, err)
+	assert.Equal(t, TurnFailed, turn.Status, "the abandoned status is stored")
+}
+
+// ReplayOnly replays a turn found under the key, running or finished, and
+// begins nothing for an unknown key.
+func contractReplayOnlyBeginsNothing(t *testing.T, env contractEnv) {
+	ctx := context.Background()
+	user := env.newUser(t)
+	params := turnParams(user, "", "only-key", "q")
+	params.ReplayRunning, params.ReplayOnly = true, true
+	_, err := env.db.BeginTurn(ctx, params)
+	require.ErrorIs(t, err, ErrNoTurnUnderKey)
+	convs, err := env.db.ListConversations(ctx, user, 10)
+	require.NoError(t, err)
+	assert.Empty(t, convs, "no conversation was opened")
+
+	params.ReplayOnly = false
+	first, err := env.db.BeginTurn(ctx, params)
+	require.NoError(t, err)
+	params.ReplayOnly = true
+	running, err := env.db.BeginTurn(ctx, params)
+	require.NoError(t, err)
+	require.NotNil(t, running.Replay)
+	assert.Equal(t, first.TurnID, running.TurnID)
+	assert.Equal(t, TurnRunning, running.Replay.Status)
+
+	finishTurn(t, env.db, first, "q", TurnMessage{Role: "assistant", Content: "a"})
+	done, err := env.db.BeginTurn(ctx, params)
+	require.NoError(t, err)
+	require.NotNil(t, done.Replay)
+	assert.Equal(t, TurnSucceeded, done.Replay.Status)
+	assert.Equal(t, "a", done.Replay.Content)
 }
 
 func contractGetTurnFollowsTheTurn(t *testing.T, env contractEnv) {

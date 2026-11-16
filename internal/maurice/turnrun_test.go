@@ -5,6 +5,7 @@ import (
 	"errors"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/sperano/puckdb/internal/llm"
 	"github.com/stretchr/testify/assert"
@@ -188,7 +189,12 @@ func TestClose_CancelsRunningTurn(t *testing.T) {
 	<-blocker.entered
 	require.NoError(t, svc.Close())
 
-	record := <-db.committed
+	var record TurnRecord
+	select {
+	case record = <-db.committed:
+	default:
+		t.Fatal("Close returned before the turn committed")
+	}
 	assert.Equal(t, TurnCancelled, record.Status)
 	require.Len(t, record.Calls, 1)
 	assert.Equal(t, ErrorClassCancelled, record.Calls[0].ErrorClass)
@@ -218,14 +224,119 @@ func TestLaunchTurn_AfterCloseCommitsTheTurnCancelled(t *testing.T) {
 	db := newTestDB(t)
 	svc := NewService(&mockLLMClient{}, newMockMCP(), db, testConfig).(*service)
 	req := ask("raced with shutdown")
-	start, err := svc.beginTurn(context.Background(), req, false)
+	start, release, err := svc.beginTurn(context.Background(), req, false)
 	require.NoError(t, err)
 	require.NoError(t, svc.Close())
 
-	_, err = svc.launchTurn(context.Background(), req, start)
+	_, err = svc.launchTurn(context.Background(), req, start, release)
 	require.ErrorIs(t, err, ErrServiceClosed)
+	assert.Zero(t, svc.runner.running, "the turn's slot is free")
 	turn, err := svc.GetTurn(context.Background(), testUser, start.TurnID)
 	require.NoError(t, err)
 	assert.Equal(t, TurnCancelled, turn.Status)
 	assert.Equal(t, ErrorClassCancelled, turn.ErrorClass)
+}
+
+// The turn timeout is the only bound on a detached turn: a turn that
+// outlasts it commits as failed with the timeout class.
+func TestStartChat_TurnTimeoutFailsTheTurn(t *testing.T) {
+	db := committedTestDB(t)
+	blocker := newBlockingLLM()
+	svc := NewService(blocker, newMockMCP(), db, testConfig).(*service)
+	svc.turnTimeout = time.Millisecond
+
+	ref, err := svc.StartChat(context.Background(), ask("never answered"))
+	require.NoError(t, err)
+	record := <-db.committed
+	assert.Equal(t, TurnFailed, record.Status)
+	assert.Equal(t, ErrorClassTimeout, record.ErrorClass)
+	turn, err := svc.GetTurn(context.Background(), testUser, ref.TurnID)
+	require.NoError(t, err)
+	assert.Equal(t, TurnFailed, turn.Status)
+	assert.Equal(t, ErrorClassTimeout, turn.ErrorClass)
+	require.NoError(t, svc.Close())
+}
+
+// A user at the per-user cap cannot start another turn, yet a resent key
+// still returns its running turn; other users keep their own slots.
+func TestStartChat_PerUserTurnCap(t *testing.T) {
+	db := committedTestDB(t)
+	db.titled = make(chan TitleRecord, 2) // two new conversations
+	blocker := newBlockingLLM()
+	svc := NewService(blocker, newMockMCP(), db, testConfig).(*service)
+	svc.runner.maxUserTurns = 1
+
+	ref, err := svc.StartChat(context.Background(), askWithKey("q", "key-1"))
+	require.NoError(t, err)
+	<-blocker.entered
+
+	again, err := svc.StartChat(context.Background(), askWithKey("q", "key-1"))
+	require.NoError(t, err)
+	assert.Equal(t, ref, again, "a resent key finds its turn at the cap")
+	_, err = svc.StartChat(context.Background(), askWithKey("q", "key-2"))
+	require.ErrorIs(t, err, ErrTooManyTurns)
+	_, err = svc.Chat(context.Background(), ask("blocking prompt"))
+	require.ErrorIs(t, err, ErrTooManyTurns)
+	convs, err := db.ListConversations(context.Background(), testUser, 10)
+	require.NoError(t, err)
+	assert.Len(t, convs, 1, "a refused turn opens no conversation")
+
+	other := ask("someone else")
+	other.UserID = "user-b"
+	_, err = svc.StartChat(context.Background(), other)
+	require.NoError(t, err, "the cap is per user")
+	<-blocker.entered
+
+	close(blocker.release)
+	<-db.committed
+	<-db.committed
+	require.NoError(t, svc.Close())
+	assert.Zero(t, svc.runner.running, "finished turns free their slots")
+	assert.Empty(t, svc.runner.userRunning)
+}
+
+func TestStartChat_ProcessTurnCap(t *testing.T) {
+	db := committedTestDB(t)
+	db.titled = make(chan TitleRecord, 2) // two new conversations
+	blocker := newBlockingLLM()
+	svc := NewService(blocker, newMockMCP(), db, testConfig).(*service)
+	svc.runner.maxTurns = 1
+
+	var wg sync.WaitGroup
+	var firstErr error
+	wg.Go(func() { _, firstErr = svc.Chat(context.Background(), ask("first")) })
+	<-blocker.entered
+	other := ask("second")
+	other.UserID = "user-b"
+	_, err := svc.StartChat(context.Background(), other)
+	require.ErrorIs(t, err, ErrTooManyTurns)
+
+	close(blocker.release)
+	wg.Wait()
+	require.NoError(t, firstErr)
+	<-db.committed
+	_, err = svc.StartChat(context.Background(), other)
+	require.NoError(t, err, "the finished turn freed its slot")
+	<-db.committed
+	require.NoError(t, svc.Close())
+}
+
+// A turn that never runs does not keep its slot: a failed begin and a replay
+// free it at once.
+func TestBeginTurn_FreesTheSlotOfATurnThatDoesNotRun(t *testing.T) {
+	db := committedTestDB(t)
+	svc := NewService(&mockLLMClient{}, newMockMCP(), db, testConfig).(*service)
+	_, err := svc.Chat(context.Background(), askWithKey("q", "key-1"))
+	require.NoError(t, err)
+	<-db.committed
+
+	_, err = svc.StartChat(context.Background(), askWithKey("q", "key-1"))
+	require.NoError(t, err)
+	assert.Zero(t, svc.runner.running, "a replay holds no slot")
+
+	db.beginErr = errors.New("database down")
+	_, err = svc.StartChat(context.Background(), ask("q"))
+	require.ErrorIs(t, err, db.beginErr)
+	assert.Zero(t, svc.runner.running, "a failed begin holds no slot")
+	require.NoError(t, svc.Close())
 }
