@@ -44,9 +44,10 @@ func (q *Queries) GetAppUserTeamOfferSeen(ctx context.Context, userID pgtype.UUI
 }
 
 const linkAppUserYahooManagerSelf = `-- name: LinkAppUserYahooManagerSelf :exec
-INSERT INTO app_user_yahoo_managers (user_id, guid, source)
+INSERT INTO app_user_yahoo_managers AS l (user_id, guid, source)
 VALUES ($1::uuid, $2::text, 'self')
-ON CONFLICT (user_id, guid) DO NOTHING
+ON CONFLICT (user_id, guid) DO UPDATE SET source = 'self', linked_at = now()
+WHERE l.source = 'email'
 `
 
 type LinkAppUserYahooManagerSelfParams struct {
@@ -54,17 +55,19 @@ type LinkAppUserYahooManagerSelfParams struct {
 	Guid   string      `json:"guid"`
 }
 
-// The user's own pick of a team every manager of which resolves to guid; a
-// link already present for the guid keeps its source.
+// The user's own pick of a team every manager of which resolves to guid; an
+// email link already present for the guid becomes the pick, so it survives
+// the email no longer matching; a manual or self link stays as it is.
 func (q *Queries) LinkAppUserYahooManagerSelf(ctx context.Context, arg LinkAppUserYahooManagerSelfParams) error {
 	_, err := q.db.Exec(ctx, linkAppUserYahooManagerSelf, arg.UserID, arg.Guid)
 	return err
 }
 
 const linkAppUserYahooTeamSelf = `-- name: LinkAppUserYahooTeamSelf :exec
-INSERT INTO app_user_yahoo_teams (user_id, league_id, team_id, source)
+INSERT INTO app_user_yahoo_teams AS l (user_id, league_id, team_id, source)
 VALUES ($1::uuid, $2::integer, $3::integer, 'self')
-ON CONFLICT (user_id, league_id, team_id) DO NOTHING
+ON CONFLICT (user_id, league_id, team_id) DO UPDATE SET source = 'self', linked_at = now()
+WHERE l.source = 'email'
 `
 
 type LinkAppUserYahooTeamSelfParams struct {
@@ -73,8 +76,9 @@ type LinkAppUserYahooTeamSelfParams struct {
 	TeamID   int32       `json:"team_id"`
 }
 
-// The user's own pick of one team; a link already present for the pair
-// keeps its source.
+// The user's own pick of one team; an email link already present for the
+// pair becomes the pick, as for LinkAppUserYahooManagerSelf; a manual or
+// self link stays as it is.
 func (q *Queries) LinkAppUserYahooTeamSelf(ctx context.Context, arg LinkAppUserYahooTeamSelfParams) error {
 	_, err := q.db.Exec(ctx, linkAppUserYahooTeamSelf, arg.UserID, arg.LeagueID, arg.TeamID)
 	return err
@@ -164,6 +168,20 @@ func (q *Queries) ListYahooTeamChoices(ctx context.Context, arg ListYahooTeamCho
 		return nil, err
 	}
 	return items, nil
+}
+
+const lockAppUserForLinks = `-- name: LockAppUserForLinks :one
+SELECT id FROM app_users WHERE id = $1::uuid FOR NO KEY UPDATE
+`
+
+// Takes the user row lock MarkAppUserTeamOfferSeen and UpsertAppUser take,
+// so an operator's link-team/unlink-team serializes with the user's
+// selections and logins. No row: no such user.
+func (q *Queries) LockAppUserForLinks(ctx context.Context, userID pgtype.UUID) (pgtype.UUID, error) {
+	row := q.db.QueryRow(ctx, lockAppUserForLinks, userID)
+	var id pgtype.UUID
+	err := row.Scan(&id)
+	return id, err
 }
 
 const markAppUserTeamOfferSeen = `-- name: MarkAppUserTeamOfferSeen :execrows

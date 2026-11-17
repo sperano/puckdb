@@ -423,3 +423,40 @@ func TestListUserTeams_OwnPickWinsOverAGuidLink(t *testing.T) {
 	assert.Equal(t, SourceSelf, links[0].Source)
 	assert.Empty(t, links[0].GUID, "the team link, not the guid link")
 }
+
+// TestPicker_PickPromotesAnEmailLinkToSelf: picking a team the user reaches
+// only through an email link (a guid link, and a team link: a hidden guid
+// the email cannot recover, since it carries two real guids) makes it the
+// user's pick, so it stays once the login email no longer matches.
+func TestPicker_PickPromotesAnEmailLinkToSelf(t *testing.T) {
+	pool := pgtest.Open(t)
+	q := sqlcdb.New(pool)
+	ctx := context.Background()
+
+	email := uniqueUsername("owner") + "@example.com"
+	guid := newGUID()
+	byGUID, byGUIDTeam := seedLeagueTeam(t, pool, "By Guid")
+	seedManagerGUID(t, pool, byGUID, byGUIDTeam, 1, guid, email)
+	old, oldTeam := seedLeagueTeamInSeason(t, pool, "Old", testLeagueName, pastSeason)
+	seedManagerGUID(t, pool, old, oldTeam, 1, newGUID(), email)
+	byTeam, byTeamTeam := seedLeagueTeam(t, pool, "By Team")
+	seedManagerGUID(t, pool, byTeam, byTeamTeam, 1, hiddenGUID, email)
+	user := insertUser(t, pool, "owner")
+	require.NoError(t, SyncEmailLinks(ctx, q, user, email))
+	require.Equal(t, 1, countTeamLinksTo(t, pool, user, byTeam, byTeamTeam), "fixture: the hidden-guid team is a team link")
+
+	picker := newTestPicker(pool, testSeason, byGUID, byTeam)
+	choices, err := picker.SetTeams(ctx, userIDText(user), []TeamRef{{byGUID, byGUIDTeam}, {byTeam, byTeamTeam}})
+	require.NoError(t, err)
+	assert.ElementsMatch(t, []string{state(byGUID, byGUIDTeam, SourceSelf), state(byTeam, byTeamTeam, SourceSelf)}, choiceState(choices))
+	var source string
+	require.NoError(t, pool.QueryRow(ctx,
+		`SELECT source FROM app_user_yahoo_managers WHERE user_id = $1 AND guid = $2`, user, guid).Scan(&source))
+	assert.Equal(t, SourceSelf, source, "the email guid link became the pick")
+
+	require.NoError(t, SyncEmailLinks(ctx, q, user, uniqueUsername("changed")+"@example.com"))
+	choices, err = picker.TeamChoices(ctx, userIDText(user))
+	require.NoError(t, err)
+	assert.ElementsMatch(t, []string{state(byGUID, byGUIDTeam, SourceSelf), state(byTeam, byTeamTeam, SourceSelf)}, choiceState(choices),
+		"both picks outlive the email match")
+}

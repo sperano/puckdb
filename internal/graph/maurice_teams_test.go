@@ -91,6 +91,9 @@ func TestMauriceSetTeams_RefusesOutOfRangeIDs(t *testing.T) {
 		{LeagueID: 1 << 32, TeamID: 1},
 		{LeagueID: 29249, TeamID: 0},
 		{LeagueID: -29249, TeamID: 1},
+		{LeagueID: 1, TeamID: math.MaxInt32 + 1},
+		{LeagueID: 1, TeamID: 1 << 32},
+		{LeagueID: 1, TeamID: -8},
 	} {
 		picker := &fakeTeamPicker{}
 		_, err := (&Resolver{MauriceTeams: picker}).mauriceSetTeams(ctx, []*model.TeamRef{{LeagueID: 1, TeamID: 1}, &ref})
@@ -101,8 +104,19 @@ func TestMauriceSetTeams_RefusesOutOfRangeIDs(t *testing.T) {
 	assert.EqualError(t, err, "invalid team reference: teamId 0 is not a positive 32-bit integer")
 }
 
-// A team outside the choices reaches the client as is; a storage fault
-// becomes errMauriceInternal.
+// The bounds themselves (1 and MaxInt32) reach the picker unchanged.
+func TestMauriceSetTeams_AcceptsTheIDBounds(t *testing.T) {
+	ctx := appuser.WithUser(context.Background(), appuser.User{ID: "user-1"})
+	picker := &fakeTeamPicker{}
+	_, err := (&Resolver{MauriceTeams: picker}).mauriceSetTeams(ctx, []*model.TeamRef{
+		{LeagueID: 1, TeamID: 1}, {LeagueID: math.MaxInt32, TeamID: math.MaxInt32},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, []yahoolink.TeamRef{{LeagueID: 1, TeamID: 1}, {LeagueID: math.MaxInt32, TeamID: math.MaxInt32}}, picker.teams)
+}
+
+// A team outside the choices and the request's own end reach the client as
+// is; a storage fault becomes errMauriceInternal, without the driver text.
 func TestMauriceTeamPicker_ErrorMapping(t *testing.T) {
 	ctx := appuser.WithUser(context.Background(), appuser.User{ID: "user-1"})
 	notOffered := fmt.Errorf("%w: league 1 team 2", yahoolink.ErrTeamNotOffered)
@@ -110,12 +124,28 @@ func TestMauriceTeamPicker_ErrorMapping(t *testing.T) {
 	assert.EqualError(t, err, "team is not among the team choices: league 1 team 2")
 
 	fault := &fakeTeamPicker{err: errors.New(`ERROR: relation "app_users" does not exist`)}
-	_, err = (&Resolver{MauriceTeams: fault}).mauriceTeamChoices(ctx)
-	require.ErrorIs(t, err, errMauriceInternal)
-	_, err = (&Resolver{MauriceTeams: fault}).mauriceSetTeams(ctx, nil)
-	require.ErrorIs(t, err, errMauriceInternal)
-	_, err = (&Resolver{MauriceTeams: fault}).mauriceDismissTeamOffer(ctx)
-	require.ErrorIs(t, err, errMauriceInternal)
+	for name, err := range teamPickerFieldErrors(ctx, &Resolver{MauriceTeams: fault}) {
+		assert.EqualError(t, err, errMauriceInternal.Error(), name)
+	}
+
+	for _, cause := range []error{context.Canceled, context.DeadlineExceeded} {
+		wrapped := fmt.Errorf("list yahoo team choices: %w", cause)
+		for name, err := range teamPickerFieldErrors(ctx, &Resolver{MauriceTeams: &fakeTeamPicker{err: wrapped}}) {
+			require.ErrorIs(t, err, cause, name)
+			assert.NotErrorIs(t, err, errMauriceInternal, name)
+		}
+	}
+}
+
+// teamPickerFieldErrors calls every team picker field on r and returns
+// each one's error by field name.
+func teamPickerFieldErrors(ctx context.Context, r *Resolver) map[string]error {
+	_, choicesErr := r.mauriceTeamChoices(ctx)
+	_, setErr := r.mauriceSetTeams(ctx, nil)
+	_, dismissErr := r.mauriceDismissTeamOffer(ctx)
+	return map[string]error{
+		"mauriceTeamChoices": choicesErr, "mauriceSetTeams": setErr, "mauriceDismissTeamOffer": dismissErr,
+	}
 }
 
 func TestTeamChoicesToGQL(t *testing.T) {

@@ -78,10 +78,11 @@ func (p *Picker) TeamChoices(ctx context.Context, userID string) (TeamChoices, e
 
 // SetTeams makes teams userID's selection among the choices and marks the
 // offer as seen, in one transaction. A picked team the user reaches through
-// no link gets a SourceSelf link, of the same kind Link makes (a guid link
-// when every manager of the team resolves to one guid, which also reaches
-// that account's teams of other seasons; a team link otherwise); a team the
-// user already reaches keeps its link. A choice the user reaches but did
+// no link, or only through an email link, gets a SourceSelf link, of the
+// same kind Link makes (a guid link when every manager of the team resolves
+// to one guid, which also reaches that account's teams of other seasons; a
+// team link otherwise), so the pick outlives the email match; a team the
+// user reaches through a manual or self link keeps it. A choice the user reaches but did
 // not pick is deselected: hidden from the user's teams whatever link
 // reaches it, and never relinked by the email resync. Links outside the
 // choices are untouched. It returns ErrTeamNotOffered, changing nothing,
@@ -138,7 +139,7 @@ func (p *Picker) setTeams(ctx context.Context, q *sqlcdb.Queries, id pgtype.UUID
 		return err
 	}
 	for _, k := range wanted {
-		if _, ok := linked[k]; !ok {
+		if source, ok := linked[k]; !ok || source == SourceEmail {
 			if err := linkSelf(ctx, q, id, k); err != nil {
 				return err
 			}
@@ -244,7 +245,9 @@ func (p *Picker) linkedSources(ctx context.Context, q *sqlcdb.Queries, id pgtype
 }
 
 // linkSelf links the user to the team as SourceSelf, as Link would: a guid
-// link when every manager resolves to one guid, a team link otherwise.
+// link when every manager resolves to one guid, a team link otherwise. An
+// email link already present for the guid or pair becomes SourceSelf; a
+// manual or self one stays.
 func linkSelf(ctx context.Context, q *sqlcdb.Queries, id pgtype.UUID, k teamKey) error {
 	managers, err := q.ListYahooTeamManagerGUIDs(ctx, sqlcdb.ListYahooTeamManagerGUIDsParams{
 		LeagueID: k.leagueID, TeamID: k.teamID,
@@ -301,6 +304,19 @@ func splitKeys(keys []teamKey) (leagueIDs, teamIDs []int32) {
 		leagueIDs[i], teamIDs[i] = k.leagueID, k.teamID
 	}
 	return leagueIDs, teamIDs
+}
+
+// lockUser takes the user row lock SetTeams takes first (markOfferSeen), so
+// Link and Unlink serialize with the user's selections and logins. It
+// returns ErrUserNotFound for no such user.
+func lockUser(ctx context.Context, q *sqlcdb.Queries, id pgtype.UUID) error {
+	if _, err := q.LockAppUserForLinks(ctx, id); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return fmt.Errorf("%w: id %s", ErrUserNotFound, id)
+		}
+		return fmt.Errorf("lock user: %w", err)
+	}
+	return nil
 }
 
 // markOfferSeen records that the user saw the team offer.

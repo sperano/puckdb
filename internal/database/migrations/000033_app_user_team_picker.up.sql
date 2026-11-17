@@ -15,7 +15,8 @@ ALTER TABLE app_user_yahoo_managers ADD CONSTRAINT app_user_yahoo_managers_sourc
 -- whatever link reaches it (a guid link also reaches the account's other
 -- teams, which stay), and the email resync makes no team link to it, so a
 -- deselected team the login email still matches stays deselected. Selecting
--- the team again, or an operator's link-team/unlink-team, removes the row.
+-- the team again, an operator's link-team, or their unlink-team once the
+-- login email no longer matches the team, removes the row.
 CREATE TABLE app_user_yahoo_team_rejections (
     user_id uuid NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
     league_id integer NOT NULL,

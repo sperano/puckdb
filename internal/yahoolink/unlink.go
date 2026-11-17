@@ -24,7 +24,7 @@ type Unlinked struct {
 func (u Unlinked) Removed() bool { return u.Team || len(u.GUIDs) > 0 || u.Rejection }
 
 // Unlink removes every link through which userID reaches the given Yahoo
-// team, of either source: its team link, and its guid links to the team's
+// team, of any source (email, manual or self): its team link, and its guid links to the team's
 // managers, which also removes those accounts' other teams. It refuses, with
 // ErrEmailLinkStillMatches and removing nothing, when the login email
 // (email) still matches a manager of that team or resolves to a guid one of
@@ -37,7 +37,9 @@ func (u Unlinked) Removed() bool { return u.Team || len(u.GUIDs) > 0 || u.Reject
 // matches, it also removes the user's deselection of the team
 // (Picker.SetTeams), which no link reaches any more; while the email
 // matches, the deselection stays, since removing it would let the resync
-// link the team again. A zero Unlinked means the user had no link to the
+// link the team again. It returns ErrUserNotFound for no such user, and
+// takes the user row lock first, so it serializes with Picker.SetTeams. A
+// zero Unlinked means the user had no link to the
 // team, nor a deselection to remove; GUIDs lists only the links this call
 // deleted, sorted.
 func (s *PGStore) Unlink(ctx context.Context, userID pgtype.UUID, email string, leagueID, teamID int32) (Unlinked, error) {
@@ -55,6 +57,9 @@ func (s *PGStore) Unlink(ctx context.Context, userID pgtype.UUID, email string, 
 
 // unlink is Unlink's body, over the transaction's queries q.
 func unlink(ctx context.Context, q *sqlcdb.Queries, userID pgtype.UUID, email string, leagueID, teamID int32) (Unlinked, error) {
+	if err := lockUser(ctx, q, userID); err != nil {
+		return Unlinked{}, err
+	}
 	held, teamGUIDs, err := heldLinks(ctx, q, userID, leagueID, teamID)
 	if err != nil {
 		return Unlinked{}, err

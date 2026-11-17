@@ -20,7 +20,8 @@
 // it for a user whose Yahoo email differs from their login email) or
 // SourceSelf (the user picked the team, Picker). A team the user deselected
 // in the Picker is hidden from their teams whatever link reaches it, until
-// they pick it again or an operator links or unlinks it.
+// they pick it again, or an operator links it, or unlinks it once the login
+// email no longer matches the team.
 // league_id/team_id are the legacy numeric Yahoo identifiers yahoo_teams and
 // yahoo_team_managers already use.
 package yahoolink
@@ -60,10 +61,10 @@ var ErrUserNotFound = errors.New("no such user")
 // user: username is a mutable snapshot, not a unique key.
 var ErrAmbiguousUser = errors.New("username matches more than one user")
 
-// ErrEmailLinkStillMatches is returned by Unlink for a link, of either
-// source, the given login email still matches: removing it would only be
-// undone by SyncEmailLinks, as SourceEmail, on the user's next
-// authenticated request.
+// ErrEmailLinkStillMatches is returned by Unlink for a link, of any source
+// (email, manual or self), the given login email still matches: removing it
+// would only be undone by SyncEmailLinks, as SourceEmail, on the user's
+// next authenticated request.
 var ErrEmailLinkStillMatches = errors.New("link still matches the login email")
 
 // Link is one Yahoo team a user manages. GUID is the Yahoo account of the

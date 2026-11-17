@@ -30,22 +30,32 @@ ORDER BY t.league_id, t.id;
 UPDATE app_users SET team_offer_seen_at = coalesce(team_offer_seen_at, now())
 WHERE id = sqlc.arg(user_id)::uuid;
 
+-- name: LockAppUserForLinks :one
+-- Takes the user row lock MarkAppUserTeamOfferSeen and UpsertAppUser take,
+-- so an operator's link-team/unlink-team serializes with the user's
+-- selections and logins. No row: no such user.
+SELECT id FROM app_users WHERE id = sqlc.arg(user_id)::uuid FOR NO KEY UPDATE;
+
 -- name: GetAppUserTeamOfferSeen :one
 SELECT (team_offer_seen_at IS NOT NULL)::boolean AS seen FROM app_users WHERE id = sqlc.arg(user_id)::uuid;
 
 -- name: LinkAppUserYahooManagerSelf :exec
--- The user's own pick of a team every manager of which resolves to guid; a
--- link already present for the guid keeps its source.
-INSERT INTO app_user_yahoo_managers (user_id, guid, source)
+-- The user's own pick of a team every manager of which resolves to guid; an
+-- email link already present for the guid becomes the pick, so it survives
+-- the email no longer matching; a manual or self link stays as it is.
+INSERT INTO app_user_yahoo_managers AS l (user_id, guid, source)
 VALUES (sqlc.arg(user_id)::uuid, sqlc.arg(guid)::text, 'self')
-ON CONFLICT (user_id, guid) DO NOTHING;
+ON CONFLICT (user_id, guid) DO UPDATE SET source = 'self', linked_at = now()
+WHERE l.source = 'email';
 
 -- name: LinkAppUserYahooTeamSelf :exec
--- The user's own pick of one team; a link already present for the pair
--- keeps its source.
-INSERT INTO app_user_yahoo_teams (user_id, league_id, team_id, source)
+-- The user's own pick of one team; an email link already present for the
+-- pair becomes the pick, as for LinkAppUserYahooManagerSelf; a manual or
+-- self link stays as it is.
+INSERT INTO app_user_yahoo_teams AS l (user_id, league_id, team_id, source)
 VALUES (sqlc.arg(user_id)::uuid, sqlc.arg(league_id)::integer, sqlc.arg(team_id)::integer, 'self')
-ON CONFLICT (user_id, league_id, team_id) DO NOTHING;
+ON CONFLICT (user_id, league_id, team_id) DO UPDATE SET source = 'self', linked_at = now()
+WHERE l.source = 'email';
 
 -- name: RejectAppUserYahooTeams :exec
 -- Records that the user deselected the (league_ids[i], team_ids[i]) teams
