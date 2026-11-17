@@ -103,9 +103,11 @@ func (q *Queries) LinkAppUserYahooTeam(ctx context.Context, arg LinkAppUserYahoo
 }
 
 const listAppUserYahooTeams = `-- name: ListAppUserYahooTeams :many
-SELECT l.league_id, l.team_id, l.source, l.linked_at, t.name AS team_name
+SELECT l.league_id, l.team_id, l.source, l.linked_at, t.name AS team_name,
+       lg.name AS league_name, lg.season
 FROM app_user_yahoo_teams l
 JOIN yahoo_teams t ON t.league_id = l.league_id AND t.id = l.team_id
+JOIN yahoo_leagues lg ON lg.id = l.league_id
 WHERE l.user_id = $1::uuid
   AND (coalesce(cardinality($2::integer[]), 0) = 0 OR l.league_id = ANY($2::integer[]))
 ORDER BY l.league_id, l.team_id
@@ -117,14 +119,17 @@ type ListAppUserYahooTeamsParams struct {
 }
 
 type ListAppUserYahooTeamsRow struct {
-	LeagueID int32              `json:"league_id"`
-	TeamID   int32              `json:"team_id"`
-	Source   string             `json:"source"`
-	LinkedAt pgtype.Timestamptz `json:"linked_at"`
-	TeamName string             `json:"team_name"`
+	LeagueID   int32              `json:"league_id"`
+	TeamID     int32              `json:"team_id"`
+	Source     string             `json:"source"`
+	LinkedAt   pgtype.Timestamptz `json:"linked_at"`
+	TeamName   string             `json:"team_name"`
+	LeagueName string             `json:"league_name"`
+	Season     int32              `json:"season"`
 }
 
-// One user's linked teams, ordered by league then team, limited to
+// One user's linked teams with their league's name and season (Yahoo's
+// start year, 2026 for 2026-27), ordered by league then team, limited to
 // league_ids when it is non-empty (the instance's Yahoo league allowlist).
 func (q *Queries) ListAppUserYahooTeams(ctx context.Context, arg ListAppUserYahooTeamsParams) ([]ListAppUserYahooTeamsRow, error) {
 	rows, err := q.db.Query(ctx, listAppUserYahooTeams, arg.UserID, arg.LeagueIds)
@@ -141,6 +146,8 @@ func (q *Queries) ListAppUserYahooTeams(ctx context.Context, arg ListAppUserYaho
 			&i.Source,
 			&i.LinkedAt,
 			&i.TeamName,
+			&i.LeagueName,
+			&i.Season,
 		); err != nil {
 			return nil, err
 		}

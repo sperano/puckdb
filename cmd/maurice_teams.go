@@ -36,7 +36,10 @@ func (m mauriceTeamLister) ListUserTeams(ctx context.Context, userID string) ([]
 	}
 	teams := make([]maurice.UserTeam, len(links))
 	for i, l := range links {
-		teams[i] = maurice.UserTeam{LeagueID: l.LeagueID, TeamID: l.TeamID, TeamName: l.TeamName}
+		teams[i] = maurice.UserTeam{
+			LeagueID: l.LeagueID, TeamID: l.TeamID, TeamName: l.TeamName,
+			LeagueName: l.LeagueName, Season: l.Season,
+		}
 	}
 	return teams, nil
 }

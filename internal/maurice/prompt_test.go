@@ -9,23 +9,93 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// testCurrentSeason is the current Yahoo season (start year) the
+// userTeamsPhrase tests pass, so they do not depend on today's date.
+const testCurrentSeason = 2026
+
 func TestSystemPrompt_NoTeamsNamesNone(t *testing.T) {
 	prompt := SystemPrompt(nil)
 	assert.Contains(t, prompt, "Maurice")
 	assert.NotContains(t, prompt, "manages")
+	assert.NotContains(t, prompt, "other seasons")
+	assert.Equal(t, "", userTeamsPhrase(nil, testCurrentSeason))
 }
 
-func TestSystemPrompt_NamesOneTeam(t *testing.T) {
-	prompt := SystemPrompt([]UserTeam{{LeagueID: 29249, TeamID: 8, TeamName: "Les Peter Stastny"}})
-	assert.Contains(t, prompt, "The user manages Les Peter Stastny (team 8, league 29249).")
-}
-
-func TestSystemPrompt_NamesSeveralTeams(t *testing.T) {
+func TestSystemPrompt_NamesTeamOfCurrentNHLSeason(t *testing.T) {
+	season := int32(nhl.Current().StartYear())
 	prompt := SystemPrompt([]UserTeam{
-		{LeagueID: 29249, TeamID: 8, TeamName: "Les Peter Stastny"},
-		{LeagueID: 1001, TeamID: 3, TeamName: "Second Pool"},
+		{LeagueID: 29249, TeamID: 8, TeamName: "Les Peter Stastny", LeagueName: "Crapettes", Season: season},
 	})
-	assert.Contains(t, prompt, "Les Peter Stastny (team 8, league 29249) and Second Pool (team 3, league 1001).")
+	assert.Contains(t, prompt, fmt.Sprintf(
+		`In the %s season the user manages Les Peter Stastny (team 8) in Crapettes (league 29249); "my team" means this team.`,
+		seasonLabel(season)))
+}
+
+func TestUserTeamsPhrase_CurrentSeasonOnly(t *testing.T) {
+	got := userTeamsPhrase([]UserTeam{
+		{LeagueID: 29249, TeamID: 8, TeamName: "Les Peter Stastny", LeagueName: "Crapettes", Season: 2026},
+		{LeagueID: 1001, TeamID: 3, TeamName: "Second Pool", LeagueName: "Office", Season: 2026},
+	}, testCurrentSeason)
+	assert.Equal(t, `In the 2026-27 season the user manages Les Peter Stastny (team 8) in Crapettes (league 29249)`+
+		` and Second Pool (team 3) in Office (league 1001); "my team" means one of these teams.`, got)
+}
+
+func TestUserTeamsPhrase_CurrentAndPastSeasons(t *testing.T) {
+	got := userTeamsPhrase([]UserTeam{
+		{LeagueID: 500, TeamID: 2, TeamName: "Old Guard", LeagueName: "Vintage", Season: 2024},
+		{LeagueID: 29249, TeamID: 8, TeamName: "Les Peter Stastny", LeagueName: "Crapettes", Season: 2026},
+		{LeagueID: 600, TeamID: 4, TeamName: "Last Year", LeagueName: "Crapettes", Season: 2025},
+	}, testCurrentSeason)
+	assert.Equal(t, `In the 2026-27 season the user manages Les Peter Stastny (team 8) in Crapettes (league 29249); "my team" means this team.`+
+		"\nThe user's teams in other seasons, to mention only when the user asks about that season: "+
+		"Last Year (team 4) in Crapettes (league 600), 2025-26; Old Guard (team 2) in Vintage (league 500), 2024-25.", got)
+}
+
+// TestUserTeamsPhrase_OffSeasonFallsBackToNewestPastSeason: before the new
+// season's leagues are imported, the newest earlier season is "my team"; a
+// season after the current one is never the default.
+func TestUserTeamsPhrase_OffSeasonFallsBackToNewestPastSeason(t *testing.T) {
+	got := userTeamsPhrase([]UserTeam{
+		{LeagueID: 500, TeamID: 2, TeamName: "Old Guard", LeagueName: "Vintage", Season: 2024},
+		{LeagueID: 600, TeamID: 4, TeamName: "Last Year", LeagueName: "Crapettes", Season: 2025},
+		{LeagueID: 700, TeamID: 1, TeamName: "Next Year", LeagueName: "Future", Season: 2027},
+	}, testCurrentSeason)
+	assert.Equal(t, `In the 2025-26 season the user manages Last Year (team 4) in Crapettes (league 600); "my team" means this team.`+
+		"\nThe user's teams in other seasons, to mention only when the user asks about that season: "+
+		"Next Year (team 1) in Future (league 700), 2027-28; Old Guard (team 2) in Vintage (league 500), 2024-25.", got)
+}
+
+func TestUserTeamsPhrase_OnlyFutureSeasonsNamesNoOwnTeam(t *testing.T) {
+	got := userTeamsPhrase([]UserTeam{
+		{LeagueID: 700, TeamID: 1, TeamName: "Next Year", LeagueName: "Future", Season: 2027},
+	}, testCurrentSeason)
+	assert.Equal(t, "The user's teams in other seasons, to mention only when the user asks about that season: "+
+		"Next Year (team 1) in Future (league 700), 2027-28.", got)
+}
+
+// TestUserTeamsPhrase_CapsOtherSeasonTeams: past teams beyond
+// maxOtherSeasonTeams are counted, not named, keeping the newest seasons
+// and, within a season, the league then team order the teams came in.
+func TestUserTeamsPhrase_CapsOtherSeasonTeams(t *testing.T) {
+	teams := []UserTeam{{LeagueID: 29249, TeamID: 8, TeamName: "Les Peter Stastny", LeagueName: "Crapettes", Season: 2026}}
+	const pastTeams = maxOtherSeasonTeams + 2
+	for i := range pastTeams {
+		teams = append(teams, UserTeam{
+			LeagueID: int32(100 + i), TeamID: 1, TeamName: fmt.Sprintf("T%d", i),
+			LeagueName: fmt.Sprintf("L%d", i), Season: int32(2018 + i/2),
+		})
+	}
+	got := userTeamsPhrase(teams, testCurrentSeason)
+	assert.Equal(t, `In the 2026-27 season the user manages Les Peter Stastny (team 8) in Crapettes (league 29249); "my team" means this team.`+
+		"\nThe user's teams in other seasons, to mention only when the user asks about that season: "+
+		"T6 (team 1) in L6 (league 106), 2021-22; T7 (team 1) in L7 (league 107), 2021-22; "+
+		"T4 (team 1) in L4 (league 104), 2020-21; T5 (team 1) in L5 (league 105), 2020-21; "+
+		"T2 (team 1) in L2 (league 102), 2019-20; T3 (team 1) in L3 (league 103), 2019-20; and 2 more.", got)
+}
+
+func TestSeasonLabel(t *testing.T) {
+	assert.Equal(t, "2026-27", seasonLabel(2026))
+	assert.Equal(t, "1999-00", seasonLabel(1999))
 }
 
 func TestJoinWithAnd(t *testing.T) {

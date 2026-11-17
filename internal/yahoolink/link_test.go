@@ -235,6 +235,32 @@ func TestPGStore_ListUserTeamsFiltersByAllowlist(t *testing.T) {
 	assert.Equal(t, "Allowed", scoped[0].TeamName)
 }
 
+// TestPGStore_ListUserTeamsReturnsLeagueNameAndSeason: each link carries
+// its league's name and season (the Yahoo start year), per league.
+func TestPGStore_ListUserTeamsReturnsLeagueNameAndSeason(t *testing.T) {
+	pool := pgtest.Open(t)
+	ctx := context.Background()
+	store := NewPGStore(pool)
+	current, currentTeam := seedLeagueTeamInSeason(t, pool, "This Year", "Crapettes", 2026)
+	past, pastTeam := seedLeagueTeamInSeason(t, pool, "Last Year", "Vintage", 2025)
+	user := insertUser(t, pool, "seasons")
+	_, err := store.Link(ctx, user, current, currentTeam)
+	require.NoError(t, err)
+	_, err = store.Link(ctx, user, past, pastTeam)
+	require.NoError(t, err)
+
+	links, err := store.ListUserTeams(ctx, user, nil)
+	require.NoError(t, err)
+	require.Len(t, links, 2)
+	byLeague := map[int32]Link{links[0].LeagueID: links[0], links[1].LeagueID: links[1]}
+	assert.Equal(t, "Crapettes", byLeague[current].LeagueName)
+	assert.Equal(t, int32(2026), byLeague[current].Season)
+	assert.Equal(t, "This Year", byLeague[current].TeamName)
+	assert.Equal(t, "Vintage", byLeague[past].LeagueName)
+	assert.Equal(t, int32(2025), byLeague[past].Season)
+	assert.Equal(t, "Last Year", byLeague[past].TeamName)
+}
+
 func TestPGStore_FindUser(t *testing.T) {
 	pool := pgtest.Open(t)
 	ctx := context.Background()

@@ -19,11 +19,16 @@ import (
 // the test suite uses: tests share the database and never truncate it.
 func newMauriceTeamsLeagueID() int32 { return 10_000_000 + rand.Int32N(1_000_000_000-10_000_000) }
 
+// mauriceTeamsSeason is the yahoo_leagues.season the seeded leagues store:
+// Yahoo's start year, as the importer writes it (2026 for 2026-27).
+const mauriceTeamsSeason = 2026
+
 func seedMauriceTeamsLeagueTeam(t *testing.T, pool *pgxpool.Pool, leagueID int32) {
 	t.Helper()
 	ctx := context.Background()
 	key := fmt.Sprintf("465.l.%d", leagueID)
-	_, err := pool.Exec(ctx, `INSERT INTO yahoo_leagues (id, league_key, name, season) VALUES ($1, $2, 'maurice teams test', 20262027)`, leagueID, key)
+	_, err := pool.Exec(ctx, `INSERT INTO yahoo_leagues (id, league_key, name, season) VALUES ($1, $2, 'maurice teams test', $3)`,
+		leagueID, key, mauriceTeamsSeason)
 	require.NoError(t, err)
 	_, err = pool.Exec(ctx, `INSERT INTO yahoo_teams (league_id, id, team_key, name) VALUES ($1, 1, $2, $3)`,
 		leagueID, key+".t.1", fmt.Sprintf("Team %d", leagueID))
@@ -33,7 +38,7 @@ func seedMauriceTeamsLeagueTeam(t *testing.T, pool *pgxpool.Pool, leagueID int32
 // TestNewMauriceTeamLister_FiltersByAllowlist: the lister built from
 // --maurice-yahoo-leagues (newMauriceTeamLister) forwards the allowlist to
 // yahoolink.PGStore.ListUserTeams, so only an allowed league's team is
-// named to Maurice.
+// named to Maurice, with its league name and season.
 func TestNewMauriceTeamLister_FiltersByAllowlist(t *testing.T) {
 	pool := pgtest.Open(t)
 	ctx := context.Background()
@@ -60,4 +65,6 @@ func TestNewMauriceTeamLister_FiltersByAllowlist(t *testing.T) {
 	require.Len(t, teams, 1)
 	assert.Equal(t, allowed, teams[0].LeagueID)
 	assert.Equal(t, fmt.Sprintf("Team %d", allowed), teams[0].TeamName)
+	assert.Equal(t, "maurice teams test", teams[0].LeagueName)
+	assert.Equal(t, int32(mauriceTeamsSeason), teams[0].Season)
 }
