@@ -62,9 +62,9 @@ var ErrUserNotFound = errors.New("no such user")
 var ErrAmbiguousUser = errors.New("username matches more than one user")
 
 // ErrEmailLinkStillMatches is returned by Unlink for a link, of any source
-// (email, manual or self), the given login email still matches: removing it
-// would only be undone by SyncEmailLinks, as SourceEmail, on the user's
-// next authenticated request.
+// (email, manual or self), the user's login email (read under the user-row
+// lock) still matches: removing it would only be undone by SyncEmailLinks,
+// as SourceEmail, on the user's next authenticated request.
 var ErrEmailLinkStillMatches = errors.New("link still matches the login email")
 
 // Link is one Yahoo team a user manages. GUID is the Yahoo account of the
