@@ -17,6 +17,19 @@ import (
 	"github.com/sperano/puckdb/internal/sqlcdb"
 )
 
+// LatestNHLDataDate is the resolver for the latestNHLDataDate field.
+func (r *queryResolver) LatestNHLDataDate(ctx context.Context) (*string, error) {
+	q, err := r.Resolver.db()
+	if err != nil {
+		return nil, err
+	}
+	date, err := q.GetLatestNHLDataDate(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return dateStringPtr(date), nil
+}
+
 // Seasons is the resolver for the seasons field.
 func (r *queryResolver) Seasons(ctx context.Context) ([]*model.Season, error) {
 	q, err := r.Resolver.db()

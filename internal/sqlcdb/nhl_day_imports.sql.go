@@ -11,6 +11,18 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const getLatestNHLDataDate = `-- name: GetLatestNHLDataDate :one
+SELECT MAX(date)::date
+FROM nhl_day_imports
+`
+
+func (q *Queries) GetLatestNHLDataDate(ctx context.Context) (pgtype.Date, error) {
+	row := q.db.QueryRow(ctx, getLatestNHLDataDate)
+	var column_1 pgtype.Date
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const getNHLDayImport = `-- name: GetNHLDayImport :one
 SELECT importer_version, inputs_hash
 FROM nhl_day_imports

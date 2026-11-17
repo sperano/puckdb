@@ -947,6 +947,29 @@ type MauriceMessage struct {
 	CreatedAt time.Time `json:"createdAt"`
 }
 
+// The included conversations, turns and LLM calls.
+type MauriceReportingActivity struct {
+	Conversations int64 `json:"conversations"`
+	// Included turns per stored status, with the outcome rates.
+	Turns *MauriceReportingTurnCounts `json:"turns"`
+	// Earliest included turn's startedAt; null without turns.
+	FirstTurnStartedAt *time.Time `json:"firstTurnStartedAt,omitempty"`
+	// Latest included turn's startedAt; null without turns.
+	LastTurnStartedAt *time.Time `json:"lastTurnStartedAt,omitempty"`
+	// Duration (completedAt - startedAt) of the included succeeded turns.
+	TurnLatency *MauriceReportingLatency `json:"turnLatency"`
+	// Every included LLM call: the turns' calls and the title generation calls.
+	Usage *MauriceReportingUsage `json:"usage"`
+	// The title generation part of usage (calls with no turn).
+	TitleGeneration *MauriceReportingUsage `json:"titleGeneration"`
+	// Time Maurice spent processing prompts, in seconds: per conversation, the
+	// length of the union of its included finished turns' and title generation
+	// calls' [startedAt, completedAt] intervals (so an overlap counts once, and a
+	// turn's calls are inside it), summed over conversations. Running turns add
+	// nothing. Server processing time, not time anyone spent in the UI.
+	ProcessingSeconds float64 `json:"processingSeconds"`
+}
+
 // A conversation's metadata: never its messages, prompts or tool payloads.
 type MauriceReportingConversation struct {
 	ID        string    `json:"id"`
@@ -968,8 +991,9 @@ type MauriceReportingConversation struct {
 
 // Selects conversations. Every field set must hold (AND). The turn filters
 // (from, to, statuses, provider, model, toolName) must all hold for one and the
-// same turn of the conversation. Title generation calls have no turn, so they
-// never match provider or model.
+// same turn of the conversation. Title generation calls have no turn, so a turn
+// filter never matches them (a conversation's models exclude them); the overview
+// counts in-interval title calls by their own provider and model.
 type MauriceReportingConversationFilter struct {
 	// The owner's instance (required, exact).
 	Instance string `json:"instance"`
@@ -1015,18 +1039,84 @@ type MauriceReportingInstancePage struct {
 	NextCursor *string                     `json:"nextCursor,omitempty"`
 }
 
+// Durations in seconds; every statistic is null when count is 0.
+type MauriceReportingLatency struct {
+	Count       int64    `json:"count"`
+	MeanSeconds *float64 `json:"meanSeconds,omitempty"`
+	// Median, interpolated.
+	P50Seconds *float64 `json:"p50Seconds,omitempty"`
+	// 95th percentile, interpolated.
+	P95Seconds *float64 `json:"p95Seconds,omitempty"`
+	MaxSeconds *float64 `json:"maxSeconds,omitempty"`
+}
+
 type MauriceReportingModel struct {
 	Provider string `json:"provider"`
 	Model    string `json:"model"`
 }
 
-// Number of a conversation's stored turns per status.
+// The included LLM calls of one provider and model, title generation included.
+type MauriceReportingModelUsage struct {
+	Provider string `json:"provider"`
+	Model    string `json:"model"`
+	// Included turns with a call of this model; a turn calling two models counts under both.
+	Turns int64                  `json:"turns"`
+	Usage *MauriceReportingUsage `json:"usage"`
+}
+
+type MauriceReportingOverview struct {
+	// Users of the scope (the instance, or the filter's one user), active or not.
+	UserCount int64 `json:"userCount"`
+	// Users with at least one included turn.
+	ActiveUserCount int64                     `json:"activeUserCount"`
+	Activity        *MauriceReportingActivity `json:"activity"`
+	// By provider then model; the rows' usage adds up to activity.usage.
+	Models []*MauriceReportingModelUsage `json:"models"`
+}
+
+// One token category over a set of LLM calls. A provider that does not report
+// a count leaves it unknown, which is not zero.
+type MauriceReportingTokenCount struct {
+	// Sum over the calls that reported it: exact when complete, a lower bound
+	// otherwise; null (unknown) when calls ran and none reported it; 0 when no
+	// call ran.
+	Total *int64 `json:"total,omitempty"`
+	// Calls that reported the count.
+	ReportedCalls int64 `json:"reportedCalls"`
+	// Calls that did not report it.
+	UnreportedCalls int64 `json:"unreportedCalls"`
+	// Every call reported the count (unreportedCalls is 0).
+	Complete bool `json:"complete"`
+}
+
+// Number of stored turns per status. A succeeded turn produced an answer, which
+// says nothing of its quality.
 type MauriceReportingTurnCounts struct {
 	Total     int `json:"total"`
 	Running   int `json:"running"`
 	Succeeded int `json:"succeeded"`
 	Failed    int `json:"failed"`
 	Cancelled int `json:"cancelled"`
+	// Finished turns (succeeded + failed + cancelled): the denominator of every rate; running turns have no outcome yet.
+	Terminal int `json:"terminal"`
+	// succeeded / terminal; null when terminal is 0.
+	SucceededRate *float64 `json:"succeededRate,omitempty"`
+	// failed / terminal; null when terminal is 0.
+	FailedRate *float64 `json:"failedRate,omitempty"`
+	// cancelled / terminal; null when terminal is 0.
+	CancelledRate *float64 `json:"cancelledRate,omitempty"`
+}
+
+// LLM calls: each token category kept apart (a cache read is not an input token).
+type MauriceReportingUsage struct {
+	Calls                    int64                       `json:"calls"`
+	FailedCalls              int64                       `json:"failedCalls"`
+	InputTokens              *MauriceReportingTokenCount `json:"inputTokens"`
+	OutputTokens             *MauriceReportingTokenCount `json:"outputTokens"`
+	CacheCreationInputTokens *MauriceReportingTokenCount `json:"cacheCreationInputTokens"`
+	CacheReadInputTokens     *MauriceReportingTokenCount `json:"cacheReadInputTokens"`
+	// Duration (completedAt - startedAt) of the succeeded calls.
+	CallLatency *MauriceReportingLatency `json:"callLatency"`
 }
 
 // A user's profile metadata on one instance.
@@ -1041,6 +1131,20 @@ type MauriceReportingUser struct {
 	FirstSeenAt      time.Time  `json:"firstSeenAt"`
 	ProfileUpdatedAt time.Time  `json:"profileUpdatedAt"`
 	DisabledAt       *time.Time `json:"disabledAt,omitempty"`
+}
+
+// A user of the scope and the activity of theirs the filter includes.
+type MauriceReportingUserActivity struct {
+	User *MauriceReportingUser `json:"user"`
+	// The user has at least one included turn.
+	Active   bool                      `json:"active"`
+	Activity *MauriceReportingActivity `json:"activity"`
+}
+
+type MauriceReportingUserActivityPage struct {
+	// Every user of the scope, active or not: newest firstSeenAt first, ties by id.
+	Items      []*MauriceReportingUserActivity `json:"items"`
+	NextCursor *string                         `json:"nextCursor,omitempty"`
 }
 
 type MauriceReportingUserPage struct {
