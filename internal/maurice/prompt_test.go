@@ -31,6 +31,22 @@ func TestSystemPrompt_NamesTeamOfCurrentNHLSeason(t *testing.T) {
 		seasonLabel(season)))
 }
 
+// TestSystemPrompt_FutureSeasonTeamIsNeverTheUsers: SystemPrompt passes the
+// current NHL season's start year, so a team one season later goes on the
+// other-seasons line, not "my team".
+func TestSystemPrompt_FutureSeasonTeamIsNeverTheUsers(t *testing.T) {
+	season := int32(nhl.Current().StartYear())
+	prompt := SystemPrompt([]UserTeam{
+		{LeagueID: 700, TeamID: 1, TeamName: "Next Year", LeagueName: "Future", Season: season + 1},
+		{LeagueID: 29249, TeamID: 8, TeamName: "Les Peter Stastny", LeagueName: "Crapettes", Season: season},
+	})
+	assert.Contains(t, prompt, fmt.Sprintf(
+		`In the %s season the user manages Les Peter Stastny (team 8) in Crapettes (league 29249); "my team" means this team.`+
+			"\nThe user's teams in other seasons, to mention only when the user asks about that season: "+
+			"Next Year (team 1) in Future (league 700), %s.",
+		seasonLabel(season), seasonLabel(season+1)))
+}
+
 func TestUserTeamsPhrase_CurrentSeasonOnly(t *testing.T) {
 	got := userTeamsPhrase([]UserTeam{
 		{LeagueID: 29249, TeamID: 8, TeamName: "Les Peter Stastny", LeagueName: "Crapettes", Season: 2026},
@@ -91,6 +107,36 @@ func TestUserTeamsPhrase_CapsOtherSeasonTeams(t *testing.T) {
 		"T6 (team 1) in L6 (league 106), 2021-22; T7 (team 1) in L7 (league 107), 2021-22; "+
 		"T4 (team 1) in L4 (league 104), 2020-21; T5 (team 1) in L5 (league 105), 2020-21; "+
 		"T2 (team 1) in L2 (league 102), 2019-20; T3 (team 1) in L3 (league 103), 2019-20; and 2 more.", got)
+}
+
+// TestUserTeamsPhrase_OtherSeasonTeamsCapBoundary: exactly
+// maxOtherSeasonTeams other-season teams are all named with no tail; one
+// more is counted, not named.
+func TestUserTeamsPhrase_OtherSeasonTeamsCapBoundary(t *testing.T) {
+	const ownLine = `In the 2026-27 season the user manages Les Peter Stastny (team 8) in Crapettes (league 29249); "my team" means this team.`
+	const shownItems = "\nThe user's teams in other seasons, to mention only when the user asks about that season: " +
+		"T0 (team 1) in L0 (league 100), 2025-26; T1 (team 1) in L1 (league 101), 2024-25; " +
+		"T2 (team 1) in L2 (league 102), 2023-24; T3 (team 1) in L3 (league 103), 2022-23; " +
+		"T4 (team 1) in L4 (league 104), 2021-22; T5 (team 1) in L5 (league 105), 2020-21"
+	cases := map[string]struct {
+		otherTeams int
+		want       string
+	}{
+		"at the cap":   {maxOtherSeasonTeams, ownLine + shownItems + "."},
+		"one over cap": {maxOtherSeasonTeams + 1, ownLine + shownItems + "; and 1 more."},
+	}
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			teams := []UserTeam{{LeagueID: 29249, TeamID: 8, TeamName: "Les Peter Stastny", LeagueName: "Crapettes", Season: testCurrentSeason}}
+			for i := range c.otherTeams {
+				teams = append(teams, UserTeam{
+					LeagueID: int32(100 + i), TeamID: 1, TeamName: fmt.Sprintf("T%d", i),
+					LeagueName: fmt.Sprintf("L%d", i), Season: int32(testCurrentSeason - 1 - i),
+				})
+			}
+			assert.Equal(t, c.want, userTeamsPhrase(teams, testCurrentSeason))
+		})
+	}
 }
 
 func TestSeasonLabel(t *testing.T) {
