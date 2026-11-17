@@ -216,6 +216,9 @@ input GameFilter {
 # --- Data Queries ---
 
 extend type Query {
+  """Latest day successfully imported by the NHL sync, or null when no day has been imported."""
+  latestNHLDataDate: String
+
   # Seasons
   seasons: [Season!]!
   season(id: Int!): Season

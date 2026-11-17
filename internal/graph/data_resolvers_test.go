@@ -2,6 +2,7 @@ package graph
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -132,6 +133,23 @@ func TestDateResolversAcceptValidAndOmittedDates(t *testing.T) {
 			assert.Equal(t, []string{test.wantQuery}, db.recorded())
 		})
 	}
+}
+
+func TestLatestNHLDataDateRequiresDatabase(t *testing.T) {
+	t.Parallel()
+
+	got, err := (&Resolver{}).Query().LatestNHLDataDate(context.Background())
+	require.ErrorIs(t, err, errDatabaseNotConfigured)
+	assert.Nil(t, got)
+}
+
+func TestLatestNHLDataDateReturnsQueryError(t *testing.T) {
+	t.Parallel()
+
+	queryErr := errors.New("query failed")
+	got, err := resolverWithDB(&recordingDBTX{queryRowErr: queryErr}).Query().LatestNHLDataDate(context.Background())
+	require.ErrorIs(t, err, queryErr)
+	assert.Nil(t, got)
 }
 
 func TestGamesPreservesValidDateFilters(t *testing.T) {
