@@ -48,14 +48,18 @@ func NewSeeder(t testing.TB, pool *pgxpool.Pool) *Seeder {
 }
 
 // User is an app_users row. Provider defaults to ProviderAuthentik and
-// Subject to Username.
+// Subject to Username; an empty DisplayName or Email is NULL.
 type User struct {
 	Instance    string
 	Provider    string
 	Subject     string
 	Username    string
+	DisplayName string
 	Email       string
 	FirstSeenAt time.Time
+	// ProfileUpdatedAt left zero is FirstSeenAt.
+	ProfileUpdatedAt time.Time
+	DisabledAt       *time.Time
 }
 
 // User inserts u and returns its ID.
@@ -67,10 +71,14 @@ func (s *Seeder) User(u User) string {
 	if u.Subject == "" {
 		u.Subject = u.Username
 	}
-	return s.uuid(`INSERT INTO app_users (instance, auth_provider, auth_subject, username, email,
-		first_seen_at, profile_updated_at)
-		VALUES ($1, $2, $3, $4, NULLIF($5, ''), $6, $6) RETURNING id::text`,
-		u.Instance, u.Provider, u.Subject, u.Username, u.Email, u.FirstSeenAt)
+	if u.ProfileUpdatedAt.IsZero() {
+		u.ProfileUpdatedAt = u.FirstSeenAt
+	}
+	return s.uuid(`INSERT INTO app_users (instance, auth_provider, auth_subject, username, display_name,
+		email, first_seen_at, profile_updated_at, disabled_at)
+		VALUES ($1, $2, $3, $4, NULLIF($5, ''), NULLIF($6, ''), $7, $8, $9) RETURNING id::text`,
+		u.Instance, u.Provider, u.Subject, u.Username, u.DisplayName, u.Email, u.FirstSeenAt,
+		u.ProfileUpdatedAt, u.DisabledAt)
 }
 
 // Conversation is a maurice_conversations row. An empty Title is NULL; a

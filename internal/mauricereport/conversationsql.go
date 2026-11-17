@@ -16,8 +16,10 @@ func (a *sqlArgs) add(v any) string {
 }
 
 // conversationSQL builds the conversation list query: the page of matching
-// conversations first (filtered, ordered and limited on conversation and
-// owner columns only), then the turn and model metadata of those rows.
+// conversations first (filtered on conversation and owner columns and on
+// EXISTS predicates over the conversation's turns, LLM calls, tool calls and
+// messages, then ordered and limited on conversation columns), then the turn
+// and model metadata of those rows.
 // conversationID, when set, selects that one conversation instead of a
 // cursor position. Every value is a placeholder.
 func conversationSQL(q conversationQuery, after *cursor, conversationID string, limit int) (string, []any) {

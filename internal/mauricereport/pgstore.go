@@ -23,7 +23,7 @@ func NewPGStore(pool *pgxpool.Pool) *PGStore {
 
 // Instances lists the instances that have users, by name.
 func (s *PGStore) Instances(ctx context.Context, page PageRequest) (InstancePage, error) {
-	limit, after, err := pageOf(cursorInstances, page)
+	limit, after, err := pageOf(cursorInstances, "", page)
 	if err != nil {
 		return InstancePage{}, err
 	}
@@ -43,7 +43,8 @@ func (s *PGStore) Instances(ctx context.Context, page PageRequest) (InstancePage
 	}
 	instances, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (Instance, error) {
 		var i Instance
-		return i, row.Scan(&i.Name, &i.UserCount)
+		err := row.Scan(&i.Name, &i.UserCount)
+		return i, err
 	})
 	if err != nil {
 		return InstancePage{}, fmt.Errorf("list instances: %w", err)
@@ -66,7 +67,11 @@ func (s *PGStore) Users(ctx context.Context, instance string, page PageRequest) 
 	if err != nil {
 		return UserPage{}, err
 	}
-	limit, after, err := pageOf(cursorUsers, page)
+	scope, err := usersScope(instance)
+	if err != nil {
+		return UserPage{}, err
+	}
+	limit, after, err := pageOf(cursorUsers, scope, page)
 	if err != nil {
 		return UserPage{}, err
 	}
@@ -89,8 +94,9 @@ func (s *PGStore) Users(ctx context.Context, instance string, page PageRequest) 
 	}
 	users, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (User, error) {
 		var u User
-		return u, row.Scan(&u.ID, &u.Instance, &u.AuthProvider, &u.Username, &u.DisplayName,
+		err := row.Scan(&u.ID, &u.Instance, &u.AuthProvider, &u.Username, &u.DisplayName,
 			&u.Email, &u.FirstSeenAt, &u.ProfileUpdatedAt, &u.DisabledAt)
+		return u, err
 	})
 	if err != nil {
 		return UserPage{}, fmt.Errorf("list users: %w", err)
@@ -99,7 +105,7 @@ func (s *PGStore) Users(ctx context.Context, instance string, page PageRequest) 
 	result := UserPage{Users: users}
 	if more {
 		last := users[len(users)-1]
-		if result.NextCursor, err = keyCursor(cursorUsers, last.FirstSeenAt, last.ID); err != nil {
+		if result.NextCursor, err = keyCursor(cursorUsers, scope, last.FirstSeenAt, last.ID); err != nil {
 			return UserPage{}, err
 		}
 	}
@@ -113,7 +119,11 @@ func (s *PGStore) Conversations(ctx context.Context, filter ConversationFilter, 
 	if err != nil {
 		return ConversationPage{}, err
 	}
-	limit, after, err := pageOf(cursorConversations, page)
+	scope, err := q.scope()
+	if err != nil {
+		return ConversationPage{}, err
+	}
+	limit, after, err := pageOf(cursorConversations, scope, page)
 	if err != nil {
 		return ConversationPage{}, err
 	}
@@ -129,7 +139,7 @@ func (s *PGStore) Conversations(ctx context.Context, filter ConversationFilter, 
 	result := ConversationPage{Conversations: conversations}
 	if more {
 		last := conversations[len(conversations)-1]
-		if result.NextCursor, err = keyCursor(cursorConversations, last.CreatedAt, last.ID); err != nil {
+		if result.NextCursor, err = keyCursor(cursorConversations, scope, last.CreatedAt, last.ID); err != nil {
 			return ConversationPage{}, err
 		}
 	}
@@ -187,13 +197,14 @@ func (s *PGStore) queryConversations(ctx context.Context, sql string, args []any
 	return conversations, nil
 }
 
-// pageOf resolves the limit and decodes the cursor of a page request.
-func pageOf(kind cursorKind, page PageRequest) (int, *cursor, error) {
+// pageOf resolves the limit and decodes the cursor of a page request read
+// from scope.
+func pageOf(kind cursorKind, scope string, page PageRequest) (int, *cursor, error) {
 	limit, err := pageLimit(page.Limit)
 	if err != nil {
 		return 0, nil, err
 	}
-	after, err := decodeCursor(kind, page.Cursor)
+	after, err := decodeCursor(kind, scope, page.Cursor)
 	if err != nil {
 		return 0, nil, err
 	}

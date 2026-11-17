@@ -72,10 +72,13 @@ func sorted(ids ...string) []string {
 
 func TestConversationMetadataComesFromStoredTurns(t *testing.T) {
 	store, s := newConvSeed(t)
-	conv := s.conversation("Habs", t0)
+	updated := t0.Add(time.Hour)
+	conv := s.seed.Conversation(mauricefixtures.Conversation{UserID: s.user, Title: "Habs", CreatedAt: t0, UpdatedAt: updated})
 	s.callTurn(conv, 0, mauricefixtures.StatusSucceeded, providerOllama, modelQwen, "", t0)
 	s.callTurn(conv, 1, mauricefixtures.StatusFailed, providerAnthropic, modelSonnet, toolPlayer, t0.Add(time.Minute))
 	s.callTurn(conv, 2, mauricefixtures.StatusCancelled, providerAnthropic, modelSonnet, "", t0.Add(2*time.Minute))
+	lastStart := t0.Add(3 * time.Minute)
+	s.turn(conv, 3, mauricefixtures.StatusRunning, lastStart)
 	s.seed.Call(mauricefixtures.Call{ConversationID: conv, Provider: providerAnthropic, Model: "titler", StartedAt: t0})
 	empty := s.conversation("", t0.Add(-time.Hour))
 
@@ -84,18 +87,21 @@ func TestConversationMetadataComesFromStoredTurns(t *testing.T) {
 	require.Equal(t, []string{conv, empty}, conversationIDs(page))
 
 	c := page.Conversations[0]
-	cancelled := TurnCancelled
+	running := TurnRunning
 	title := "Habs"
-	lastStart := t0.Add(2 * time.Minute)
+	require.NotNil(t, c.LastTurnStartedAt)
+	assert.True(t, c.LastTurnStartedAt.Equal(lastStart), "got %s", c.LastTurnStartedAt)
+	assert.True(t, c.CreatedAt.Equal(t0), "created_at: got %s", c.CreatedAt)
+	assert.True(t, c.UpdatedAt.Equal(updated), "updated_at: got %s", c.UpdatedAt)
+	// The instants are checked above; normalize their location for Equal.
+	c.CreatedAt, c.UpdatedAt, c.LastTurnStartedAt = t0, updated, &lastStart
 	assert.Equal(t, Conversation{
 		ID: conv, Instance: instanceFull, UserID: s.user, Username: "eric", Title: &title,
-		CreatedAt: c.CreatedAt, UpdatedAt: c.UpdatedAt, Status: &cancelled, LastTurnStartedAt: c.LastTurnStartedAt,
-		Turns:  TurnCounts{Succeeded: 1, Failed: 1, Cancelled: 1},
+		CreatedAt: t0, UpdatedAt: updated, Status: &running, LastTurnStartedAt: &lastStart,
+		Turns:  TurnCounts{Running: 1, Succeeded: 1, Failed: 1, Cancelled: 1},
 		Models: []Model{{providerAnthropic, modelSonnet}, {providerOllama, modelQwen}},
 	}, c, "status of the latest turn; title generation's model not listed")
-	require.NotNil(t, c.LastTurnStartedAt)
-	assert.True(t, c.LastTurnStartedAt.Equal(lastStart))
-	assert.EqualValues(t, 3, c.Turns.Total())
+	assert.EqualValues(t, 4, c.Turns.Total())
 
 	e := page.Conversations[1]
 	assert.Nil(t, e.Title)

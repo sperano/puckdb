@@ -90,16 +90,36 @@ func TestUsersPagesOneInstanceWithTies(t *testing.T) {
 
 func TestUsersReturnsProfileMetadata(t *testing.T) {
 	store, seed := openStore(t)
+	profileUpdated := t0.Add(time.Hour)
+	disabled := t0.Add(2 * time.Hour)
 	id := seed.User(mauricefixtures.User{Instance: instanceCrapettes, Provider: "cloudflare", Subject: "sub-1",
-		Username: "eric@example.com", Email: "eric@example.com", FirstSeenAt: t0})
+		Username: "eric@example.com", DisplayName: "Eric", Email: "eric@example.com", FirstSeenAt: t0,
+		ProfileUpdatedAt: profileUpdated, DisabledAt: &disabled})
 	page, err := store.Users(context.Background(), instanceCrapettes, PageRequest{})
 	require.NoError(t, err)
 	require.Len(t, page.Users, 1)
 	u := page.Users[0]
-	email := "eric@example.com"
+	assert.True(t, u.FirstSeenAt.Equal(t0), "first_seen_at: got %s", u.FirstSeenAt)
+	assert.True(t, u.ProfileUpdatedAt.Equal(profileUpdated), "profile_updated_at: got %s", u.ProfileUpdatedAt)
+	require.NotNil(t, u.DisabledAt)
+	assert.True(t, u.DisabledAt.Equal(disabled), "disabled_at: got %s", u.DisabledAt)
+	// The instants are checked above; normalize their location for Equal.
+	u.FirstSeenAt, u.ProfileUpdatedAt, u.DisabledAt = t0, profileUpdated, &disabled
+	email, displayName := "eric@example.com", "Eric"
 	assert.Equal(t, User{ID: id, Instance: instanceCrapettes, AuthProvider: "cloudflare", Username: email,
-		Email: &email, FirstSeenAt: u.FirstSeenAt, ProfileUpdatedAt: u.ProfileUpdatedAt}, u)
-	assert.True(t, u.FirstSeenAt.Equal(t0))
+		DisplayName: &displayName, Email: &email, FirstSeenAt: t0, ProfileUpdatedAt: profileUpdated,
+		DisabledAt: &disabled}, u)
+}
+
+func TestUsersWithoutOptionalProfileFieldsAreNull(t *testing.T) {
+	store, seed := openStore(t)
+	seed.User(mauricefixtures.User{Instance: instanceCrapettes, Username: "eric", FirstSeenAt: t0})
+	page, err := store.Users(context.Background(), instanceCrapettes, PageRequest{})
+	require.NoError(t, err)
+	require.Len(t, page.Users, 1)
+	assert.Nil(t, page.Users[0].DisplayName)
+	assert.Nil(t, page.Users[0].Email)
+	assert.Nil(t, page.Users[0].DisabledAt)
 }
 
 func TestUsersOfAnInstanceWithoutUsersIsAnEmptyPage(t *testing.T) {

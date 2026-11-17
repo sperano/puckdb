@@ -2,6 +2,7 @@ package mauricereport
 
 import (
 	"context"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -85,6 +86,69 @@ func TestSearchPatternEscapesWildcards(t *testing.T) {
 	assert.Empty(t, blank, "blank is no search")
 }
 
+// The bound applies to the trimmed search, so blank is no search at any
+// length and surrounding spaces do not count.
+func TestSearchPatternBoundsTheTrimmedText(t *testing.T) {
+	t.Parallel()
+	blank, err := searchPattern(strings.Repeat(" ", MaxSearchRunes+50))
+	require.NoError(t, err)
+	assert.Empty(t, blank)
+
+	longest := strings.Repeat("é", MaxSearchRunes)
+	got, err := searchPattern(" " + longest + " ")
+	require.NoError(t, err)
+	assert.Equal(t, "%"+longest+"%", got)
+
+	_, err = searchPattern(" " + longest + "é ")
+	require.ErrorIs(t, err, ErrInvalidArgument)
+	assert.EqualError(t, err, "invalid argument: search is 201 characters, at most 200")
+}
+
+func filterScope(t *testing.T, f ConversationFilter) string {
+	t.Helper()
+	q, err := validateFilter(f)
+	require.NoError(t, err)
+	scope, err := q.scope()
+	require.NoError(t, err)
+	return scope
+}
+
+// Every field that selects rows changes the scope; status order, UUID case
+// and surrounding search spaces, which select the same rows, do not.
+func TestConversationScopeFollowsTheSelection(t *testing.T) {
+	t.Parallel()
+	base := ConversationFilter{Instance: testInstance, Statuses: []TurnStatus{TurnFailed, TurnRunning},
+		UserID: "0b5f3a52-8a4b-4a52-9d55-2a6fb3e6a001", Search: "habs"}
+	scope := filterScope(t, base)
+
+	same := base
+	same.Statuses = []TurnStatus{TurnRunning, TurnFailed, TurnRunning}
+	same.UserID = strings.ToUpper(base.UserID)
+	same.Search = " habs "
+	assert.Equal(t, scope, filterScope(t, same))
+
+	for name, edit := range map[string]func(*ConversationFilter){
+		"instance":        func(f *ConversationFilter) { f.Instance = "maurice-crapettes" },
+		"user":            func(f *ConversationFilter) { f.UserID = "" },
+		"from":            func(f *ConversationFilter) { f.From = "2026-11-05" },
+		"to":              func(f *ConversationFilter) { f.To = "2026-11-05" },
+		"statuses":        func(f *ConversationFilter) { f.Statuses = []TurnStatus{TurnFailed} },
+		"provider":        func(f *ConversationFilter) { f.Provider = "anthropic" },
+		"model":           func(f *ConversationFilter) { f.Model = "qwen3" },
+		"toolName":        func(f *ConversationFilter) { f.ToolName = "get_player" },
+		"search":          func(f *ConversationFilter) { f.Search = "leafs" },
+		"include deleted": func(f *ConversationFilter) { f.IncludeDeleted = true },
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			f := base
+			f.Statuses = slices.Clone(base.Statuses)
+			edit(&f)
+			assert.NotEqual(t, scope, filterScope(t, f))
+		})
+	}
+}
+
 func TestPageLimit(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
@@ -107,7 +171,13 @@ func TestStoreRejectsInvalidInputBeforeQuerying(t *testing.T) {
 	t.Parallel()
 	s := NewPGStore(nil)
 	ctx := context.Background()
-	usersCursor, err := keyCursor(cursorUsers, time.Now(), "0b5f3a52-8a4b-4a52-9d55-2a6fb3e6a001")
+	const id = "0b5f3a52-8a4b-4a52-9d55-2a6fb3e6a001"
+	scope, err := usersScope(testInstance)
+	require.NoError(t, err)
+	usersCursor, err := keyCursor(cursorUsers, scope, time.Now(), id)
+	require.NoError(t, err)
+	failedOnly := ConversationFilter{Instance: testInstance, Statuses: []TurnStatus{TurnFailed}}
+	conversationsCursor, err := keyCursor(cursorConversations, filterScope(t, failedOnly), time.Now(), id)
 	require.NoError(t, err)
 
 	_, err = s.Instances(ctx, PageRequest{Limit: MaxLimit + 1})
@@ -118,6 +188,10 @@ func TestStoreRejectsInvalidInputBeforeQuerying(t *testing.T) {
 	assert.ErrorIs(t, err, ErrInvalidArgument)
 	_, err = s.Users(ctx, testInstance, PageRequest{Cursor: "%%%"})
 	assert.ErrorIs(t, err, ErrInvalidCursor)
+	_, err = s.Users(ctx, "maurice-crapettes", PageRequest{Cursor: usersCursor})
+	assert.ErrorIs(t, err, ErrInvalidCursor, "another instance's users cursor")
+	_, err = s.Conversations(ctx, ConversationFilter{Instance: testInstance}, PageRequest{Cursor: conversationsCursor})
+	assert.ErrorIs(t, err, ErrInvalidCursor, "a cursor issued under another filter")
 	_, err = s.Conversations(ctx, ConversationFilter{Instance: testInstance}, PageRequest{Cursor: usersCursor})
 	assert.ErrorIs(t, err, ErrInvalidCursor, "a users cursor on the conversation list")
 	_, err = s.Conversations(ctx, ConversationFilter{Instance: testInstance, From: "yesterday"}, PageRequest{})

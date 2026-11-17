@@ -988,10 +988,10 @@ type MauriceReportingConversationFilter struct {
 	// The turn has a tool call of this name (exact).
 	ToolName *string `json:"toolName,omitempty"`
 	// Case-insensitive literal substring (% and _ match themselves; surrounding
-	// whitespace trimmed, blank = no search, at most 200 characters) of the
-	// title or of a retained user or assistant message of any turn, failed and
-	// cancelled ones included. Tool results, system messages, tool arguments
-	// and provider inputs are never searched.
+	// whitespace trimmed first: blank = no search, the trimmed text at most 200
+	// characters) of the title or of a retained user or assistant message of
+	// any turn, failed and cancelled ones included. Tool results, system
+	// messages, tool arguments and provider inputs are never searched.
 	Search *string `json:"search,omitempty"`
 	// Also return conversations their owner deleted (default false).
 	IncludeDeleted *bool `json:"includeDeleted,omitempty"`

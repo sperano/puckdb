@@ -108,7 +108,7 @@ func TestReportingFieldsRefuseUnauthorizedRequests(t *testing.T) {
 }
 
 // reportingWorld is the same Authentik identity on the full and the public
-// instance, plus another public user, each with conversations.
+// instance, each with conversations, plus another public user with none.
 type reportingWorld struct {
 	fullUser, publicUser, otherUser string
 	fullConv, publicConv, deleted   string
@@ -149,12 +149,13 @@ func gqlData[T any](t *testing.T, resp gqlResponse) T {
 }
 
 type conversationItem struct {
-	ID        string  `json:"id"`
-	Instance  string  `json:"instance"`
-	UserID    string  `json:"userId"`
-	Status    *string `json:"status"`
-	DeletedAt *string `json:"deletedAt"`
-	Turns     struct {
+	ID                string  `json:"id"`
+	Instance          string  `json:"instance"`
+	UserID            string  `json:"userId"`
+	Status            *string `json:"status"`
+	LastTurnStartedAt *string `json:"lastTurnStartedAt"`
+	DeletedAt         *string `json:"deletedAt"`
+	Turns             struct {
 		Total     int `json:"total"`
 		Cancelled int `json:"cancelled"`
 	} `json:"turns"`
@@ -166,7 +167,7 @@ type conversationItem struct {
 
 const conversationsQuery = `query($filter: MauriceReportingConversationFilter!, $limit: Int, $cursor: String) {
 	mauriceReportingConversations(filter: $filter, limit: $limit, cursor: $cursor) {
-		items { id instance userId status deletedAt turns { total cancelled } models { provider model } }
+		items { id instance userId status lastTurnStartedAt deletedAt turns { total cancelled } models { provider model } }
 		nextCursor
 	}
 }`
@@ -261,6 +262,9 @@ func TestReportingDeletedConversationsNeedIncludeDeleted(t *testing.T) {
 	require.Len(t, shown.Page.Items, 1)
 	assert.Equal(t, w.deleted, shown.Page.Items[0].ID, "newest first")
 	assert.Equal(t, "2026-11-10T16:00:00Z", *shown.Page.Items[0].DeletedAt)
+	assert.Nil(t, shown.Page.Items[0].Status, "a conversation without turns has no status")
+	assert.Nil(t, shown.Page.Items[0].LastTurnStartedAt)
+	assert.Zero(t, shown.Page.Items[0].Turns.Total)
 	require.NotNil(t, shown.Page.NextCursor)
 
 	next := gqlData[conversationsData](t, postGraphQL(t, server, adminHeaders(), conversationsQuery,
@@ -268,6 +272,11 @@ func TestReportingDeletedConversationsNeedIncludeDeleted(t *testing.T) {
 			"cursor": *shown.Page.NextCursor}))
 	require.Len(t, next.Page.Items, 1)
 	assert.Equal(t, w.publicConv, next.Page.Items[0].ID)
+	require.NotNil(t, next.Page.Items[0].Status)
+	assert.Equal(t, "CANCELLED", *next.Page.Items[0].Status)
+	require.NotNil(t, next.Page.Items[0].LastTurnStartedAt)
+	assert.Equal(t, "2026-11-10T15:00:00Z", *next.Page.Items[0].LastTurnStartedAt)
+	assert.Equal(t, 1, next.Page.Items[0].Turns.Total)
 	assert.Nil(t, next.Page.NextCursor)
 }
 

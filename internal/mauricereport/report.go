@@ -39,7 +39,8 @@ var (
 	// ErrInvalidArgument is a malformed or out-of-range input: a limit, a
 	// date, a status, a name, a search string or an ID.
 	ErrInvalidArgument = errors.New("invalid argument")
-	// ErrInvalidCursor is a cursor this API did not issue for that list.
+	// ErrInvalidCursor is a cursor this API did not issue for that list,
+	// instance and filter.
 	ErrInvalidCursor = errors.New("invalid cursor")
 	// ErrUserNotInInstance is a user ID that names no user of the selected
 	// instance, whether it exists elsewhere or not.
@@ -143,7 +144,8 @@ type ConversationPage struct {
 }
 
 // ConversationFilter selects conversations. Instance is required; every
-// other field left zero does not filter. The turn fields (From, To,
+// other field left zero does not filter, except IncludeDeleted, whose zero
+// value excludes deleted conversations. The turn fields (From, To,
 // Statuses, Provider, Model, ToolName) must all hold for one turn of the
 // conversation; Search and the owner fields apply to the conversation.
 type ConversationFilter struct {

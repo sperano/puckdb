@@ -8408,8 +8408,9 @@ extend type Mutation {
 # Pagination: limit defaults to 50 and must be 1..200 (out of range is an
 # error, not clamped); pass a page's nextCursor as cursor for the next page.
 # nextCursor is null on the last page; an empty list is an empty page, not
-# an error. A cursor is opaque and only valid for the list that issued it
-# (another list's, a malformed or an edited one is "invalid cursor"). Lists
+# an error. A cursor is opaque and only valid for the list that issued it,
+# with the same instance and filter: another list's, instance's or filter's,
+# a malformed one or one of another version is "invalid cursor". Lists
 # page by immutable keys, so rows never move between pages; a row inserted
 # before the cursor's position appears on no page of that pass.
 
@@ -8519,10 +8520,10 @@ input MauriceReportingConversationFilter {
 	toolName: String
 	"""
 	Case-insensitive literal substring (% and _ match themselves; surrounding
-	whitespace trimmed, blank = no search, at most 200 characters) of the
-	title or of a retained user or assistant message of any turn, failed and
-	cancelled ones included. Tool results, system messages, tool arguments
-	and provider inputs are never searched.
+	whitespace trimmed first: blank = no search, the trimmed text at most 200
+	characters) of the title or of a retained user or assistant message of
+	any turn, failed and cancelled ones included. Tool results, system
+	messages, tool arguments and provider inputs are never searched.
 	"""
 	search: String
 	"""Also return conversations their owner deleted (default false)."""

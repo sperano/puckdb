@@ -4,7 +4,8 @@
 // Resolver holds the
 // shared dependencies (database pool, Redis, Temporal client, the
 // draftrank/draftboard services, Maurice), schema.resolvers.go,
-// data.resolvers.go and draft*.resolvers.go/simulation.resolvers.go
+// data.resolvers.go, maurice_reporting.resolvers.go and
+// draft*.resolvers.go/simulation.resolvers.go
 // implement the generated query/mutation interfaces, and
 // workflow_start.go/convert.go/draft_convert.go
 // hold the shared start/cancel plumbing and GraphQL-shape conversions.

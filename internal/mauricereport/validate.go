@@ -2,6 +2,7 @@ package mauricereport
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -29,6 +30,25 @@ type conversationQuery struct {
 func (q conversationQuery) hasTurnFilter() bool {
 	return q.from != nil || q.until != nil || len(q.statuses) > 0 ||
 		q.provider != "" || q.model != "" || q.toolName != ""
+}
+
+// scope is the cursor scope of q: every field that selects rows, with the
+// statuses sorted, since their order does not change the selection.
+func (q conversationQuery) scope() (string, error) {
+	statuses := slices.Clone(q.statuses)
+	slices.Sort(statuses)
+	return scopeHash(struct {
+		Instance       string     `json:"instance"`
+		UserID         *uuid.UUID `json:"user_id"`
+		From           *time.Time `json:"from"`
+		Until          *time.Time `json:"until"`
+		Statuses       []string   `json:"statuses"`
+		Provider       string     `json:"provider"`
+		Model          string     `json:"model"`
+		ToolName       string     `json:"tool_name"`
+		SearchPattern  string     `json:"search_pattern"`
+		IncludeDeleted bool       `json:"include_deleted"`
+	}{q.instance, q.userID, q.from, q.until, statuses, q.provider, q.model, q.toolName, q.searchPattern, q.includeDeleted})
 }
 
 // validateFilter checks f and returns its query form.
@@ -170,15 +190,16 @@ func validateStatuses(statuses []TurnStatus) ([]string, error) {
 // so the search is matched as a literal substring.
 var likeEscaper = strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`)
 
-// searchPattern returns the ILIKE pattern of a search; blank is no search.
-// Surrounding whitespace is trimmed.
+// searchPattern returns the ILIKE pattern of a search. Surrounding
+// whitespace is trimmed first: blank is no search, and MaxSearchRunes bounds
+// the trimmed text.
 func searchPattern(search string) (string, error) {
-	if err := checkText("search", search, MaxSearchRunes); err != nil {
-		return "", err
-	}
 	trimmed := strings.TrimSpace(search)
 	if trimmed == "" {
 		return "", nil
+	}
+	if err := checkText("search", trimmed, MaxSearchRunes); err != nil {
+		return "", err
 	}
 	return "%" + likeEscaper.Replace(trimmed) + "%", nil
 }
