@@ -66,6 +66,7 @@ go tool gqlgen generate   # GraphQL (from puckdb root dir; gqlgen is pinned via 
 | `maurice` | Interactive AI hockey chat REPL |
 | `user link-team` / `user unlink-team` | Link or unlink a Maurice user to a Yahoo team by hand (`internal/yahoolink`), for a user whose Yahoo email differs from their login email: links the team's Yahoo account (guid, so every season's teams of it) when every manager resolves to one, else the team alone; unlinking removes the team link and those account links; both clear the user's own deselection of the team (team picker), unlink only once the login email no longer matches it; `--instance`, `<username> <league id> <team id>` |
 | `user list-teams` | List one user's or every user's linked Yahoo teams on `--instance` |
+| `user reset-team-offer` | Clear one user's (`<username>`) or, with `--all-users`, every user's record of having answered the Maurice team picker's first-login offer on `--instance` (`app_users.team_offer_seen_at`), so it opens again at their next visit; links and deselections stay |
 | `sim` | Hockey pool simulator, all through GraphQL: `create --config <yaml>`, `cancel <pool-id>`, `status <pool-id>`, `tail` (turns and tool calls), `draft <pool-id>`; how far a pool runs is set in its config (`stopAfter`, `maxSeasonDays`, `startDate`/`endDate`), a running pool is never stepped or paused by hand (see wiki `puckdb/simulation.md`) |
 
 ## Package Structure

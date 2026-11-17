@@ -66,6 +66,7 @@ func commandFlagGroups() map[string][]*config.FlagGroup {
 		"puckdb user link-team":           userTeamLinkFlagGroups,
 		"puckdb user unlink-team":         userTeamLinkFlagGroups,
 		"puckdb user list-teams":          userTeamLinkFlagGroups,
+		"puckdb user reset-team-offer":    userResetTeamOfferFlagGroups,
 	}
 }
 

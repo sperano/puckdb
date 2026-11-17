@@ -369,6 +369,10 @@ const (
 	// Required by the api command.
 	FlagInstance = "instance"
 
+	// FlagAllUsers makes `user reset-team-offer` reset every user of the
+	// instance instead of one.
+	FlagAllUsers = "all-users"
+
 	// FlagAuthProvider is the instance's one login provider: authentik
 	// (forward-auth headers) or cloudflare (a verified Cloudflare Access
 	// JWT). Each ignores the other's headers.
@@ -588,6 +592,14 @@ var AppSessionFlags = FlagGroup{
 var UserTeamLinkFlags = FlagGroup{
 	Flags: []FlagDef{
 		{FlagInstance, "", "", "Name of the API instance whose users to manage (required)", false},
+	},
+}
+
+// UserResetTeamOfferFlags defines the flags `user reset-team-offer` adds to
+// UserTeamLinkFlags.
+var UserResetTeamOfferFlags = FlagGroup{
+	Flags: []FlagDef{
+		{FlagAllUsers, "", DefaultAllUsers, "Reset every user of the instance instead of the named one", false},
 	},
 }
 

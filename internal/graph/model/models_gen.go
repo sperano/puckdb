@@ -1364,7 +1364,7 @@ type MauriceTeamChoices struct {
 	Season *int `json:"season,omitempty"`
 	// Ordered by league then team ID.
 	Teams []*MauriceTeamChoice `json:"teams"`
-	// Whether the caller already saved or dismissed the first-login offer.
+	// Whether the caller already saved or dismissed the first-login offer; false again after `puckdb user reset-team-offer` clears it.
 	Offered bool `json:"offered"`
 }
 

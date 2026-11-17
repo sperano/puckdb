@@ -27,9 +27,9 @@ func cmdUser() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "user",
 		Short: "Maurice user administration",
-		Long:  `Manage the Yahoo team links behind Maurice's "my team": link-team, unlink-team, list-teams.`,
+		Long:  `Manage the Yahoo team links behind Maurice's "my team": link-team, unlink-team, list-teams; reset-team-offer opens the team picker's first-login offer again.`,
 	}
-	cmd.AddCommand(cmdUserLinkTeam(), cmdUserUnlinkTeam(), cmdUserListTeams())
+	cmd.AddCommand(cmdUserLinkTeam(), cmdUserUnlinkTeam(), cmdUserListTeams(), cmdUserResetTeamOffer())
 	return cmd
 }
 
@@ -58,7 +58,7 @@ func runUserLinkTeam(cmd *cobra.Command, args []string) error {
 	defer pool.Close()
 
 	ctx := cmd.Context()
-	user, err := findUserOrReport(ctx, store, args[0])
+	user, err := findUserOrReport(ctx, store, viper.GetString(config.FlagInstance), args[0])
 	if err != nil {
 		return err
 	}
@@ -101,7 +101,7 @@ func runUserUnlinkTeam(cmd *cobra.Command, args []string) error {
 	defer pool.Close()
 
 	ctx := cmd.Context()
-	user, err := findUserOrReport(ctx, store, args[0])
+	user, err := findUserOrReport(ctx, store, viper.GetString(config.FlagInstance), args[0])
 	if err != nil {
 		return err
 	}
@@ -141,7 +141,7 @@ func runUserListTeams(cmd *cobra.Command, args []string) error {
 	instance := viper.GetString(config.FlagInstance)
 
 	if len(args) == 1 {
-		user, err := findUserOrReport(ctx, store, args[0])
+		user, err := findUserOrReport(ctx, store, instance, args[0])
 		if err != nil {
 			return err
 		}
@@ -172,10 +172,9 @@ func openUserTeamLinkStore(ctx context.Context) (*pgxpool.Pool, *yahoolink.PGSto
 	return pool, yahoolink.NewPGStore(pool), nil
 }
 
-// findUserOrReport resolves username on the configured instance, turning
-// yahoolink's lookup errors into a command-line-friendly message.
-func findUserOrReport(ctx context.Context, store *yahoolink.PGStore, username string) (yahoolink.User, error) {
-	instance := viper.GetString(config.FlagInstance)
+// findUserOrReport resolves username on instance, turning yahoolink's
+// lookup errors into a command-line-friendly message.
+func findUserOrReport(ctx context.Context, store *yahoolink.PGStore, instance, username string) (yahoolink.User, error) {
 	user, err := store.FindUser(ctx, instance, username)
 	if errors.Is(err, yahoolink.ErrUserNotFound) || errors.Is(err, yahoolink.ErrAmbiguousUser) {
 		return yahoolink.User{}, err

@@ -40,7 +40,8 @@ func (c TeamChoice) Linked() bool { return c.Source != "" }
 // TeamChoices is what a Picker offers a user: the teams of Season (a Yahoo
 // start year; 0, with no teams, when no league of the allowlist has a
 // season up to the current one), ordered by league then team, and whether
-// the user already saw the first-login offer (Offered).
+// the user already saved or dismissed the first-login offer (Offered;
+// false again after PGStore.ResetTeamOffer or ResetInstanceTeamOffers).
 type TeamChoices struct {
 	Season  int32
 	Teams   []TeamChoice
