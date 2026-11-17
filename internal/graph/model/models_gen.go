@@ -970,6 +970,70 @@ type MauriceReportingActivity struct {
 	ProcessingSeconds float64 `json:"processingSeconds"`
 }
 
+// An LLM call's metadata; its inputs are read with mauriceReportingCallInput.
+type MauriceReportingCall struct {
+	ID string `json:"id"`
+	// Null for a title generation call, which belongs to no turn.
+	TurnID *string `json:"turnId,omitempty"`
+	// chat_round, forced_final or title_generation.
+	Kind string `json:"kind"`
+	// Null for a title generation call.
+	Round             *int    `json:"round,omitempty"`
+	Provider          string  `json:"provider"`
+	Model             string  `json:"model"`
+	ProviderRequestID *string `json:"providerRequestId,omitempty"`
+	// succeeded or failed.
+	Status       string    `json:"status"`
+	ErrorClass   *string   `json:"errorClass,omitempty"`
+	FinishReason *string   `json:"finishReason,omitempty"`
+	StartedAt    time.Time `json:"startedAt"`
+	CompletedAt  time.Time `json:"completedAt"`
+	// Token counts; null when the provider did not report one, which is not zero.
+	InputTokens              *int64 `json:"inputTokens,omitempty"`
+	OutputTokens             *int64 `json:"outputTokens,omitempty"`
+	CacheCreationInputTokens *int64 `json:"cacheCreationInputTokens,omitempty"`
+	CacheReadInputTokens     *int64 `json:"cacheReadInputTokens,omitempty"`
+	// Messages linked as the request's input (the system prompt excluded).
+	InputMessageCount int64 `json:"inputMessageCount"`
+	// Code points of the stored system prompt; null when none is stored.
+	SystemPromptLength *int64 `json:"systemPromptLength,omitempty"`
+	// Code points of the stored trailing instruction (title generation); null when none.
+	InstructionLength *int64 `json:"instructionLength,omitempty"`
+	// Code points of the stored tool definitions (JSON); null when none.
+	ToolDefinitionsLength *int64 `json:"toolDefinitionsLength,omitempty"`
+	ToolCallCount         int64  `json:"toolCallCount"`
+}
+
+// The exact retained provider input of one LLM call.
+type MauriceReportingCallInput struct {
+	Call *MauriceReportingCall `json:"call"`
+	// Null when none is stored.
+	SystemPrompt *MauriceReportingText `json:"systemPrompt,omitempty"`
+	// The trailing instruction sent after the linked messages (title generation); null when none.
+	Instruction *MauriceReportingText `json:"instruction,omitempty"`
+	// The tool definitions sent, as JSON; null when none.
+	ToolDefinitions *MauriceReportingText `json:"toolDefinitions,omitempty"`
+	// One page of the linked input messages, by number; pass nextCursor for the next.
+	Inputs     []*MauriceReportingCallInputMessage `json:"inputs"`
+	NextCursor *string                             `json:"nextCursor,omitempty"`
+}
+
+// A message linked as an LLM call's input.
+type MauriceReportingCallInputMessage struct {
+	// Position in the request, from 0 (the system prompt excluded).
+	Number int `json:"number"`
+	// The linked message belongs to another conversation: message is null, messageId its only trace.
+	Withheld  bool                     `json:"withheld"`
+	MessageID string                   `json:"messageId"`
+	Message   *MauriceReportingMessage `json:"message,omitempty"`
+}
+
+type MauriceReportingCallPage struct {
+	// A turn's calls by round, ties by id; title generation calls by startedAt, ties by id.
+	Items      []*MauriceReportingCall `json:"items"`
+	NextCursor *string                 `json:"nextCursor,omitempty"`
+}
+
 // A conversation's metadata: never its messages, prompts or tool payloads.
 type MauriceReportingConversation struct {
 	ID        string    `json:"id"`
@@ -1027,6 +1091,16 @@ type MauriceReportingConversationPage struct {
 	NextCursor *string                         `json:"nextCursor,omitempty"`
 }
 
+// The conversation of a detail field.
+type MauriceReportingConversationRef struct {
+	// The owner's instance (required, exact).
+	Instance string `json:"instance"`
+	// The conversation's id.
+	ID string `json:"id"`
+	// Also find it when its owner deleted it (default false).
+	IncludeDeleted *bool `json:"includeDeleted,omitempty"`
+}
+
 // An API instance with at least one user.
 type MauriceReportingInstance struct {
 	Name      string `json:"name"`
@@ -1048,6 +1122,39 @@ type MauriceReportingLatency struct {
 	// 95th percentile, interpolated.
 	P95Seconds *float64 `json:"p95Seconds,omitempty"`
 	MaxSeconds *float64 `json:"maxSeconds,omitempty"`
+}
+
+// A retained message.
+type MauriceReportingMessage struct {
+	ID         string                     `json:"id"`
+	TurnID     string                     `json:"turnId"`
+	TurnNumber int                        `json:"turnNumber"`
+	TurnStatus MauriceReportingTurnStatus `json:"turnStatus"`
+	// The message is part of the chat history Maurice replays to the model: only
+	// messages of a SUCCEEDED turn are. Messages of failed, cancelled and running
+	// turns are retained evidence (the exact prompts sent), not chat.
+	Replayable bool `json:"replayable"`
+	// Position in its turn, from 0.
+	Number    int                         `json:"number"`
+	Role      MauriceReportingMessageRole `json:"role"`
+	CreatedAt time.Time                   `json:"createdAt"`
+	// Code points of the content.
+	ContentLength int64 `json:"contentLength"`
+	// The start of the content. In the transcript only for USER and ASSISTANT
+	// messages: null for TOOL results and SYSTEM messages (read them with
+	// mauriceReportingPayload, kind MESSAGE_CONTENT). In a call's inputs, for
+	// every role.
+	Content *MauriceReportingText `json:"content,omitempty"`
+	// The tool call a TOOL message answers.
+	ResultToolCallID *string `json:"resultToolCallId,omitempty"`
+	// Tool calls this ASSISTANT message requested (mauriceReportingToolCalls lists them).
+	ToolCallCount int64 `json:"toolCallCount"`
+}
+
+type MauriceReportingMessagePage struct {
+	// By turn number, then message number.
+	Items      []*MauriceReportingMessage `json:"items"`
+	NextCursor *string                    `json:"nextCursor,omitempty"`
 }
 
 type MauriceReportingModel struct {
@@ -1074,6 +1181,20 @@ type MauriceReportingOverview struct {
 	Models []*MauriceReportingModelUsage `json:"models"`
 }
 
+// A window of a stored text, counted in Unicode code points: text is the
+// stored value from offset on.
+type MauriceReportingText struct {
+	Text string `json:"text"`
+	// Code points of the stored text before this window.
+	Offset int64 `json:"offset"`
+	// Code points of the whole stored text.
+	Length int64 `json:"length"`
+	// The stored text continues after this window: read it with mauriceReportingPayload from nextOffset.
+	Truncated bool `json:"truncated"`
+	// Offset just past this window when truncated, else null.
+	NextOffset *int64 `json:"nextOffset,omitempty"`
+}
+
 // One token category over a set of LLM calls. A provider that does not report
 // a count leaves it unknown, which is not zero.
 type MauriceReportingTokenCount struct {
@@ -1087,6 +1208,70 @@ type MauriceReportingTokenCount struct {
 	UnreportedCalls int64 `json:"unreportedCalls"`
 	// Every call reported the count (unreportedCalls is 0).
 	Complete bool `json:"complete"`
+}
+
+// A tool call's metadata; its arguments and result are read with mauriceReportingToolCall.
+type MauriceReportingToolCall struct {
+	ID     string `json:"id"`
+	TurnID string `json:"turnId"`
+	// The LLM call that requested it; null for a call kept from the transcript without call telemetry.
+	CallID *string `json:"callId,omitempty"`
+	// The assistant message that requested it, when retained.
+	MessageID *string `json:"messageId,omitempty"`
+	// Position in its request, from 0.
+	Sequence           int     `json:"sequence"`
+	ProviderToolCallID *string `json:"providerToolCallId,omitempty"`
+	Type               string  `json:"type"`
+	Name               string  `json:"name"`
+	// succeeded, tool_error, parse_error or cancelled (requested, never run); null for a transcript-only call.
+	Status      *string    `json:"status,omitempty"`
+	StartedAt   *time.Time `json:"startedAt,omitempty"`
+	CompletedAt *time.Time `json:"completedAt,omitempty"`
+	// The raw arguments parsed as JSON (the parsed projection exists).
+	ArgumentsValid bool `json:"argumentsValid"`
+	// Code points of the raw arguments.
+	ArgumentsRawLength int64 `json:"argumentsRawLength"`
+	// Code points of the result; null when it never ran.
+	ResultLength *int64 `json:"resultLength,omitempty"`
+}
+
+// A tool call with the start of its payloads.
+type MauriceReportingToolCallDetail struct {
+	ToolCall *MauriceReportingToolCall `json:"toolCall"`
+	// The arguments exactly as the model sent them, possibly malformed.
+	ArgumentsRaw *MauriceReportingText `json:"argumentsRaw"`
+	// The parsed JSON projection; null when the raw arguments did not parse.
+	Arguments *MauriceReportingText `json:"arguments,omitempty"`
+	// Null when it never ran.
+	Result *MauriceReportingText `json:"result,omitempty"`
+}
+
+type MauriceReportingToolCallPage struct {
+	// By id: recording order.
+	Items      []*MauriceReportingToolCall `json:"items"`
+	NextCursor *string                     `json:"nextCursor,omitempty"`
+}
+
+// A turn: one prompt and the work behind its answer, counts and usage only.
+type MauriceReportingTurn struct {
+	ID     string                     `json:"id"`
+	Number int                        `json:"number"`
+	Status MauriceReportingTurnStatus `json:"status"`
+	// Its messages are chat history (status SUCCEEDED); see MauriceReportingMessage.replayable.
+	Replayable bool `json:"replayable"`
+	// Bounded label of a failed or cancelled turn (timeout, cancelled, provider_error, tool_error, internal_error, abandoned).
+	ErrorClass *string   `json:"errorClass,omitempty"`
+	StartedAt  time.Time `json:"startedAt"`
+	// Null while running.
+	CompletedAt *time.Time `json:"completedAt,omitempty"`
+	// Warnings returned with the answer (such as unavailable tool servers).
+	Warnings      []string `json:"warnings"`
+	MessageCount  int64    `json:"messageCount"`
+	ToolCallCount int64    `json:"toolCallCount"`
+	// Its LLM calls, title generation excluded (it has no turn).
+	Usage *MauriceReportingUsage `json:"usage"`
+	// Distinct provider/model pairs of its calls, by provider then model.
+	Models []*MauriceReportingModel `json:"models"`
 }
 
 // Number of stored turns per status. A succeeded turn produced an answer, which
@@ -1105,6 +1290,12 @@ type MauriceReportingTurnCounts struct {
 	FailedRate *float64 `json:"failedRate,omitempty"`
 	// cancelled / terminal; null when terminal is 0.
 	CancelledRate *float64 `json:"cancelledRate,omitempty"`
+}
+
+type MauriceReportingTurnPage struct {
+	// By turn number.
+	Items      []*MauriceReportingTurn `json:"items"`
+	NextCursor *string                 `json:"nextCursor,omitempty"`
 }
 
 // LLM calls: each token category kept apart (a cache read is not an input token).
@@ -2491,6 +2682,138 @@ func (e *MauriceDraftWatchState) UnmarshalJSON(b []byte) error {
 }
 
 func (e MauriceDraftWatchState) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type MauriceReportingMessageRole string
+
+const (
+	MauriceReportingMessageRoleSystem    MauriceReportingMessageRole = "SYSTEM"
+	MauriceReportingMessageRoleUser      MauriceReportingMessageRole = "USER"
+	MauriceReportingMessageRoleAssistant MauriceReportingMessageRole = "ASSISTANT"
+	MauriceReportingMessageRoleTool      MauriceReportingMessageRole = "TOOL"
+)
+
+var AllMauriceReportingMessageRole = []MauriceReportingMessageRole{
+	MauriceReportingMessageRoleSystem,
+	MauriceReportingMessageRoleUser,
+	MauriceReportingMessageRoleAssistant,
+	MauriceReportingMessageRoleTool,
+}
+
+func (e MauriceReportingMessageRole) IsValid() bool {
+	switch e {
+	case MauriceReportingMessageRoleSystem, MauriceReportingMessageRoleUser, MauriceReportingMessageRoleAssistant, MauriceReportingMessageRoleTool:
+		return true
+	}
+	return false
+}
+
+func (e MauriceReportingMessageRole) String() string {
+	return string(e)
+}
+
+func (e *MauriceReportingMessageRole) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = MauriceReportingMessageRole(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid MauriceReportingMessageRole", str)
+	}
+	return nil
+}
+
+func (e MauriceReportingMessageRole) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *MauriceReportingMessageRole) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e MauriceReportingMessageRole) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+// A retained payload mauriceReportingPayload reads, and what its id names.
+type MauriceReportingPayloadKind string
+
+const (
+	// A message's content; id is the message id.
+	MauriceReportingPayloadKindMessageContent MauriceReportingPayloadKind = "MESSAGE_CONTENT"
+	// An LLM call's system prompt; id is the call id.
+	MauriceReportingPayloadKindSystemPrompt MauriceReportingPayloadKind = "SYSTEM_PROMPT"
+	// An LLM call's trailing instruction; id is the call id.
+	MauriceReportingPayloadKindInstruction MauriceReportingPayloadKind = "INSTRUCTION"
+	// An LLM call's tool definitions (JSON); id is the call id.
+	MauriceReportingPayloadKindToolDefinitions MauriceReportingPayloadKind = "TOOL_DEFINITIONS"
+	// A tool call's raw arguments; id is the tool call id.
+	MauriceReportingPayloadKindToolArgumentsRaw MauriceReportingPayloadKind = "TOOL_ARGUMENTS_RAW"
+	// A tool call's parsed arguments (JSON); id is the tool call id.
+	MauriceReportingPayloadKindToolArguments MauriceReportingPayloadKind = "TOOL_ARGUMENTS"
+	// A tool call's result; id is the tool call id.
+	MauriceReportingPayloadKindToolResult MauriceReportingPayloadKind = "TOOL_RESULT"
+)
+
+var AllMauriceReportingPayloadKind = []MauriceReportingPayloadKind{
+	MauriceReportingPayloadKindMessageContent,
+	MauriceReportingPayloadKindSystemPrompt,
+	MauriceReportingPayloadKindInstruction,
+	MauriceReportingPayloadKindToolDefinitions,
+	MauriceReportingPayloadKindToolArgumentsRaw,
+	MauriceReportingPayloadKindToolArguments,
+	MauriceReportingPayloadKindToolResult,
+}
+
+func (e MauriceReportingPayloadKind) IsValid() bool {
+	switch e {
+	case MauriceReportingPayloadKindMessageContent, MauriceReportingPayloadKindSystemPrompt, MauriceReportingPayloadKindInstruction, MauriceReportingPayloadKindToolDefinitions, MauriceReportingPayloadKindToolArgumentsRaw, MauriceReportingPayloadKindToolArguments, MauriceReportingPayloadKindToolResult:
+		return true
+	}
+	return false
+}
+
+func (e MauriceReportingPayloadKind) String() string {
+	return string(e)
+}
+
+func (e *MauriceReportingPayloadKind) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = MauriceReportingPayloadKind(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid MauriceReportingPayloadKind", str)
+	}
+	return nil
+}
+
+func (e MauriceReportingPayloadKind) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *MauriceReportingPayloadKind) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e MauriceReportingPayloadKind) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil

@@ -1,0 +1,274 @@
+# Maurice reporting detail — one conversation's transcript, turns, LLM calls
+# and tool calls, and the payloads retained with them, read on demand
+# (internal/mauricereport, detail*.go and pgdetail*.go/pgpayload.go). Same
+# gate and paging rules as maurice_reporting.graphqls; contract on wiki
+# puckdb/maurice-reporting-api.md ("Conversation detail").
+#
+# Every field names its conversation with a MauriceReportingConversationRef
+# and is null when the conversation's owner is not of that instance, it does
+# not exist, or it is deleted and includeDeleted is not true. A nested ID
+# (turn, LLM call, tool call, message) that is not of that conversation is
+# null too, exactly as one that does not exist. A cursor is bound to its
+# list, conversation and parent turn or call.
+#
+# Content is returned only by these fields, never by the lists or the
+# overview: the transcript carries user and assistant text; provider inputs
+# (system prompt, instruction, tool definitions, linked messages), tool
+# arguments and tool results only mauriceReportingCallInput,
+# mauriceReportingToolCall and mauriceReportingPayload. Each text inline is
+# at most 8192 code points, marked truncated when the stored text is longer;
+# mauriceReportingPayload reads the rest in bounded windows.
+
+"""The conversation of a detail field."""
+input MauriceReportingConversationRef {
+	"""The owner's instance (required, exact)."""
+	instance: String!
+	"""The conversation's id."""
+	id: String!
+	"""Also find it when its owner deleted it (default false)."""
+	includeDeleted: Boolean
+}
+
+"""
+A window of a stored text, counted in Unicode code points: text is the
+stored value from offset on.
+"""
+type MauriceReportingText {
+	text: String!
+	"""Code points of the stored text before this window."""
+	offset: Int64!
+	"""Code points of the whole stored text."""
+	length: Int64!
+	"""The stored text continues after this window: read it with mauriceReportingPayload from nextOffset."""
+	truncated: Boolean!
+	"""Offset just past this window when truncated, else null."""
+	nextOffset: Int64
+}
+
+enum MauriceReportingMessageRole {
+	SYSTEM
+	USER
+	ASSISTANT
+	TOOL
+}
+
+"""A retained message."""
+type MauriceReportingMessage {
+	id: String!
+	turnId: String!
+	turnNumber: Int!
+	turnStatus: MauriceReportingTurnStatus!
+	"""
+	The message is part of the chat history Maurice replays to the model: only
+	messages of a SUCCEEDED turn are. Messages of failed, cancelled and running
+	turns are retained evidence (the exact prompts sent), not chat.
+	"""
+	replayable: Boolean!
+	"""Position in its turn, from 0."""
+	number: Int!
+	role: MauriceReportingMessageRole!
+	createdAt: Time!
+	"""Code points of the content."""
+	contentLength: Int64!
+	"""
+	The start of the content. In the transcript only for USER and ASSISTANT
+	messages: null for TOOL results and SYSTEM messages (read them with
+	mauriceReportingPayload, kind MESSAGE_CONTENT). In a call's inputs, for
+	every role.
+	"""
+	content: MauriceReportingText
+	"""The tool call a TOOL message answers."""
+	resultToolCallId: String
+	"""Tool calls this ASSISTANT message requested (mauriceReportingToolCalls lists them)."""
+	toolCallCount: Int64!
+}
+
+type MauriceReportingMessagePage {
+	"""By turn number, then message number."""
+	items: [MauriceReportingMessage!]!
+	nextCursor: String
+}
+
+"""A turn: one prompt and the work behind its answer, counts and usage only."""
+type MauriceReportingTurn {
+	id: String!
+	number: Int!
+	status: MauriceReportingTurnStatus!
+	"""Its messages are chat history (status SUCCEEDED); see MauriceReportingMessage.replayable."""
+	replayable: Boolean!
+	"""Bounded label of a failed or cancelled turn (timeout, cancelled, provider_error, tool_error, internal_error, abandoned)."""
+	errorClass: String
+	startedAt: Time!
+	"""Null while running."""
+	completedAt: Time
+	"""Warnings returned with the answer (such as unavailable tool servers)."""
+	warnings: [String!]!
+	messageCount: Int64!
+	toolCallCount: Int64!
+	"""Its LLM calls, title generation excluded (it has no turn)."""
+	usage: MauriceReportingUsage!
+	"""Distinct provider/model pairs of its calls, by provider then model."""
+	models: [MauriceReportingModel!]!
+}
+
+type MauriceReportingTurnPage {
+	"""By turn number."""
+	items: [MauriceReportingTurn!]!
+	nextCursor: String
+}
+
+"""An LLM call's metadata; its inputs are read with mauriceReportingCallInput."""
+type MauriceReportingCall {
+	id: String!
+	"""Null for a title generation call, which belongs to no turn."""
+	turnId: String
+	"""chat_round, forced_final or title_generation."""
+	kind: String!
+	"""Null for a title generation call."""
+	round: Int
+	provider: String!
+	model: String!
+	providerRequestId: String
+	"""succeeded or failed."""
+	status: String!
+	errorClass: String
+	finishReason: String
+	startedAt: Time!
+	completedAt: Time!
+	"""Token counts; null when the provider did not report one, which is not zero."""
+	inputTokens: Int64
+	outputTokens: Int64
+	cacheCreationInputTokens: Int64
+	cacheReadInputTokens: Int64
+	"""Messages linked as the request's input (the system prompt excluded)."""
+	inputMessageCount: Int64!
+	"""Code points of the stored system prompt; null when none is stored."""
+	systemPromptLength: Int64
+	"""Code points of the stored trailing instruction (title generation); null when none."""
+	instructionLength: Int64
+	"""Code points of the stored tool definitions (JSON); null when none."""
+	toolDefinitionsLength: Int64
+	toolCallCount: Int64!
+}
+
+type MauriceReportingCallPage {
+	"""A turn's calls by round, ties by id; title generation calls by startedAt, ties by id."""
+	items: [MauriceReportingCall!]!
+	nextCursor: String
+}
+
+"""A tool call's metadata; its arguments and result are read with mauriceReportingToolCall."""
+type MauriceReportingToolCall {
+	id: String!
+	turnId: String!
+	"""The LLM call that requested it; null for a call kept from the transcript without call telemetry."""
+	callId: String
+	"""The assistant message that requested it, when retained."""
+	messageId: String
+	"""Position in its request, from 0."""
+	sequence: Int!
+	providerToolCallId: String
+	type: String!
+	name: String!
+	"""succeeded, tool_error, parse_error or cancelled (requested, never run); null for a transcript-only call."""
+	status: String
+	startedAt: Time
+	completedAt: Time
+	"""The raw arguments parsed as JSON (the parsed projection exists)."""
+	argumentsValid: Boolean!
+	"""Code points of the raw arguments."""
+	argumentsRawLength: Int64!
+	"""Code points of the result; null when it never ran."""
+	resultLength: Int64
+}
+
+type MauriceReportingToolCallPage {
+	"""By id: recording order."""
+	items: [MauriceReportingToolCall!]!
+	nextCursor: String
+}
+
+"""A message linked as an LLM call's input."""
+type MauriceReportingCallInputMessage {
+	"""Position in the request, from 0 (the system prompt excluded)."""
+	number: Int!
+	"""The linked message belongs to another conversation: message is null, messageId its only trace."""
+	withheld: Boolean!
+	messageId: String!
+	message: MauriceReportingMessage
+}
+
+"""The exact retained provider input of one LLM call."""
+type MauriceReportingCallInput {
+	call: MauriceReportingCall!
+	"""Null when none is stored."""
+	systemPrompt: MauriceReportingText
+	"""The trailing instruction sent after the linked messages (title generation); null when none."""
+	instruction: MauriceReportingText
+	"""The tool definitions sent, as JSON; null when none."""
+	toolDefinitions: MauriceReportingText
+	"""One page of the linked input messages, by number; pass nextCursor for the next."""
+	inputs: [MauriceReportingCallInputMessage!]!
+	nextCursor: String
+}
+
+"""A tool call with the start of its payloads."""
+type MauriceReportingToolCallDetail {
+	toolCall: MauriceReportingToolCall!
+	"""The arguments exactly as the model sent them, possibly malformed."""
+	argumentsRaw: MauriceReportingText!
+	"""The parsed JSON projection; null when the raw arguments did not parse."""
+	arguments: MauriceReportingText
+	"""Null when it never ran."""
+	result: MauriceReportingText
+}
+
+"""A retained payload mauriceReportingPayload reads, and what its id names."""
+enum MauriceReportingPayloadKind {
+	"""A message's content; id is the message id."""
+	MESSAGE_CONTENT
+	"""An LLM call's system prompt; id is the call id."""
+	SYSTEM_PROMPT
+	"""An LLM call's trailing instruction; id is the call id."""
+	INSTRUCTION
+	"""An LLM call's tool definitions (JSON); id is the call id."""
+	TOOL_DEFINITIONS
+	"""A tool call's raw arguments; id is the tool call id."""
+	TOOL_ARGUMENTS_RAW
+	"""A tool call's parsed arguments (JSON); id is the tool call id."""
+	TOOL_ARGUMENTS
+	"""A tool call's result; id is the tool call id."""
+	TOOL_RESULT
+}
+
+extend type Query {
+	"""
+	The conversation's retained messages, by turn number then message number:
+	failed, cancelled and running turns' messages included, marked not
+	replayable.
+	"""
+	mauriceReportingTranscript(conversation: MauriceReportingConversationRef!, limit: Int, cursor: String): MauriceReportingMessagePage @admin @mauriceReporting
+	"""The conversation's turns with counts and usage."""
+	mauriceReportingTurns(conversation: MauriceReportingConversationRef!, limit: Int, cursor: String): MauriceReportingTurnPage @admin @mauriceReporting
+	"""One turn's LLM calls; null when the turn is not of the conversation."""
+	mauriceReportingTurnCalls(conversation: MauriceReportingConversationRef!, turnId: String!, limit: Int, cursor: String): MauriceReportingCallPage @admin @mauriceReporting
+	"""The conversation's title generation calls, which belong to no turn."""
+	mauriceReportingTitleCalls(conversation: MauriceReportingConversationRef!, limit: Int, cursor: String): MauriceReportingCallPage @admin @mauriceReporting
+	"""One turn's tool calls, metadata only; null when the turn is not of the conversation."""
+	mauriceReportingToolCalls(conversation: MauriceReportingConversationRef!, turnId: String!, limit: Int, cursor: String): MauriceReportingToolCallPage @admin @mauriceReporting
+	"""
+	One LLM call's exact retained input (a turn's or a title generation
+	call's), with one page of its input messages; null when the call is not of
+	the conversation.
+	"""
+	mauriceReportingCallInput(conversation: MauriceReportingConversationRef!, callId: String!, limit: Int, cursor: String): MauriceReportingCallInput @admin @mauriceReporting
+	"""One tool call with the start of its arguments and result; null when it is not of the conversation."""
+	mauriceReportingToolCall(conversation: MauriceReportingConversationRef!, toolCallId: String!): MauriceReportingToolCallDetail @admin @mauriceReporting
+	"""
+	A window of one retained payload: limit code points (default 65536,
+	1..262144) from offset (default 0, at most 1073741824; past the end, an
+	empty window). Null when the message, call or tool call is not of the
+	conversation, or it stores no such value.
+	"""
+	mauriceReportingPayload(conversation: MauriceReportingConversationRef!, kind: MauriceReportingPayloadKind!, id: String!, offset: Int, limit: Int): MauriceReportingText @admin @mauriceReporting
+}
