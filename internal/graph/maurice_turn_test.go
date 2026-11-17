@@ -139,6 +139,8 @@ func TestMauriceTurnModel(t *testing.T) {
 	}{
 		{"running", maurice.TurnReplay{Status: maurice.TurnRunning},
 			model.MauriceTurn{Status: model.MauriceTurnStatusRunning, ToolsUsed: []string{}, Warnings: []string{}}},
+		{"running with started tools", maurice.TurnReplay{Status: maurice.TurnRunning, ToolsUsed: []string{"goals", "goals"}},
+			model.MauriceTurn{Status: model.MauriceTurnStatusRunning, ToolsUsed: []string{"goals", "goals"}, Warnings: []string{}}},
 		{"succeeded", maurice.TurnReplay{Status: maurice.TurnSucceeded, MessageID: "m1", Content: "42 goals",
 			ToolsUsed: []string{"goals"}, Warnings: []string{"partial data"}},
 			model.MauriceTurn{Status: model.MauriceTurnStatusSucceeded, MessageID: str("m1"), Content: str("42 goals"),

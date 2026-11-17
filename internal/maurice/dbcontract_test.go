@@ -62,6 +62,9 @@ func runDBContract(t *testing.T, open envFactory) {
 		{"GetTurnReportsFailure", contractGetTurnReportsFailure},
 		{"GetTurnReportsStaleTurnAbandoned", contractGetTurnReportsStaleTurnAbandoned},
 		{"GetTurnIsOwnerScoped", contractGetTurnIsOwnerScoped},
+		{"GetTurnListsRunningTools", contractGetTurnListsRunningTools},
+		{"GetTurnKeepsToolsOfUnfinishedTurn", contractGetTurnKeepsToolsOfUnfinishedTurn},
+		{"AppendToolNameNeedsRunningTurn", contractAppendToolNameNeedsRunningTurn},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

@@ -222,3 +222,24 @@ func TestNewSQLiteDB_UpgradesLegacySchema(t *testing.T) {
 	}
 	assert.Equal(t, []string{"old question", "old answer", "new question", "new answer"}, contents)
 }
+
+// A database whose turns table predates tool_names gains the column, and a
+// running turn of it lists its tools.
+func TestNewSQLiteDB_AddsTurnToolNames(t *testing.T) {
+	ctx := context.Background()
+	raw, err := sql.Open("sqlite", ":memory:")
+	require.NoError(t, err)
+	t.Cleanup(func() { raw.Close() })
+	_, err = NewSQLiteDB(raw)
+	require.NoError(t, err)
+	_, err = raw.Exec("ALTER TABLE turns DROP COLUMN tool_names")
+	require.NoError(t, err)
+
+	db, err := NewSQLiteDB(raw)
+	require.NoError(t, err)
+	start := beginTurn(t, db, LocalUserID, "", "q")
+	require.NoError(t, db.AppendTurnToolName(ctx, start.TurnID, "goals"))
+	turn, err := db.GetTurn(ctx, LocalUserID, start.TurnID, contractStaleAfter)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"goals"}, turn.ToolsUsed)
+}

@@ -99,7 +99,7 @@ func contractGetTurnFollowsTheTurn(t *testing.T, env contractEnv) {
 	running, err := env.db.GetTurn(ctx, user, start.TurnID, contractStaleAfter)
 	require.NoError(t, err)
 	assert.Equal(t, &Turn{ID: start.TurnID, ConversationID: start.ConversationID,
-		TurnReplay: TurnReplay{Status: TurnRunning, Warnings: []string{}}}, running)
+		TurnReplay: TurnReplay{Status: TurnRunning, ToolsUsed: []string{}, Warnings: []string{}}}, running)
 
 	warnings := []string{"one data source is unavailable"}
 	ids, err := env.db.FinishTurn(ctx, TurnRecord{
@@ -136,6 +136,80 @@ func contractGetTurnReportsFailure(t *testing.T, env contractEnv) {
 	assert.Equal(t, ErrorClassTimeout, turn.ErrorClass)
 	assert.Empty(t, turn.MessageID, "a failed turn has no answer")
 	assert.Empty(t, turn.Content)
+}
+
+// A running turn lists each tool as its call starts, in call order with
+// duplicates; once succeeded, the list comes from its messages instead.
+func contractGetTurnListsRunningTools(t *testing.T, env contractEnv) {
+	ctx := context.Background()
+	user := env.newUser(t)
+	start := beginTurn(t, env.db, user, "", "goals and assists?")
+	for _, name := range []string{"goals", "assists", "goals"} {
+		require.NoError(t, env.db.AppendTurnToolName(ctx, start.TurnID, name))
+	}
+
+	running, err := env.db.GetTurn(ctx, user, start.TurnID, contractStaleAfter)
+	require.NoError(t, err)
+	assert.Equal(t, TurnRunning, running.Status)
+	assert.Equal(t, []string{"goals", "assists", "goals"}, running.ToolsUsed)
+
+	finishTurn(t, env.db, start, "goals and assists?",
+		TurnMessage{Role: "assistant", ToolCalls: []llm.ToolCall{{ID: "c1", Type: "function", Function: llm.ToolCallFunction{Name: "points"}}}},
+		TurnMessage{Role: "tool", Content: "7", ToolCallID: "c1"},
+		TurnMessage{Role: "assistant", Content: "7 points"},
+	)
+	done, err := env.db.GetTurn(ctx, user, start.TurnID, contractStaleAfter)
+	require.NoError(t, err)
+	assert.Equal(t, TurnSucceeded, done.Status)
+	assert.Equal(t, []string{"points"}, done.ToolsUsed, "a succeeded turn lists the tools of its messages")
+}
+
+// A turn that did not succeed keeps the tools it started: failed, cancelled
+// and abandoned alike.
+func contractGetTurnKeepsToolsOfUnfinishedTurn(t *testing.T, env contractEnv) {
+	ctx := context.Background()
+	user := env.newUser(t)
+	for _, status := range []TurnStatus{TurnFailed, TurnCancelled} {
+		start := beginTurn(t, env.db, user, "", "doomed "+string(status))
+		require.NoError(t, env.db.AppendTurnToolName(ctx, start.TurnID, "goals"))
+		_, err := env.db.FinishTurn(ctx, TurnRecord{
+			TurnID: start.TurnID, ConversationID: start.ConversationID, Status: status, ErrorClass: ErrorClassTimeout,
+			Messages: []TurnMessage{{Role: "user", Content: "doomed"}},
+		})
+		require.NoError(t, err)
+		turn, err := env.db.GetTurn(ctx, user, start.TurnID, contractStaleAfter)
+		require.NoError(t, err)
+		assert.Equal(t, status, turn.Status)
+		assert.Equal(t, []string{"goals"}, turn.ToolsUsed, string(status))
+	}
+
+	dead := beginTurn(t, env.db, user, "", "crashed mid-tool")
+	require.NoError(t, env.db.AppendTurnToolName(ctx, dead.TurnID, "standings"))
+	turn, err := env.db.GetTurn(ctx, user, dead.TurnID, 0)
+	require.NoError(t, err)
+	assert.Equal(t, ErrorClassAbandoned, turn.ErrorClass)
+	assert.Equal(t, []string{"standings"}, turn.ToolsUsed)
+}
+
+// Only a running turn takes tool names: a finished, unknown or malformed one
+// is ErrTurnNotRunning, and a finished one keeps its list.
+func contractAppendToolNameNeedsRunningTurn(t *testing.T, env contractEnv) {
+	ctx := context.Background()
+	user := env.newUser(t)
+	start := beginTurn(t, env.db, user, "", "q")
+	require.NoError(t, env.db.AppendTurnToolName(ctx, start.TurnID, "goals"))
+	_, err := env.db.FinishTurn(ctx, TurnRecord{
+		TurnID: start.TurnID, ConversationID: start.ConversationID, Status: TurnFailed, ErrorClass: ErrorClassProvider,
+		Messages: []TurnMessage{{Role: "user", Content: "q"}},
+	})
+	require.NoError(t, err)
+
+	require.ErrorIs(t, env.db.AppendTurnToolName(ctx, start.TurnID, "late"), ErrTurnNotRunning)
+	turn, err := env.db.GetTurn(ctx, user, start.TurnID, contractStaleAfter)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"goals"}, turn.ToolsUsed, "the finished turn's list is unchanged")
+	require.ErrorIs(t, env.db.AppendTurnToolName(ctx, uuid.NewString(), "goals"), ErrTurnNotRunning)
+	require.ErrorIs(t, env.db.AppendTurnToolName(ctx, "not-a-turn", "goals"), ErrTurnNotRunning)
 }
 
 // A running turn whose process died reads as failed and abandoned, so a

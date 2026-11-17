@@ -124,6 +124,7 @@ type MauriceTurn {
 	messageId: String
 	"""The answer; set once SUCCEEDED (it may be empty)."""
 	content: String
+	"""The tools the turn called, in call order, duplicates kept. While RUNNING, each tool is added as its call starts, so the tool being run shows; a FAILED turn keeps the tools it started; a SUCCEEDED turn lists those of its answer's messages."""
 	toolsUsed: [String!]!
 	warnings: [String!]!
 	"""Bounded failure class of a FAILED turn: timeout, cancelled, provider_error, tool_error, internal_error or abandoned."""

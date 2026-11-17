@@ -1375,7 +1375,8 @@ type MauriceTurn struct {
 	// The answer message; set once SUCCEEDED.
 	MessageID *string `json:"messageId,omitempty"`
 	// The answer; set once SUCCEEDED (it may be empty).
-	Content   *string  `json:"content,omitempty"`
+	Content *string `json:"content,omitempty"`
+	// The tools the turn called, in call order, duplicates kept. While RUNNING, each tool is added as its call starts, so the tool being run shows; a FAILED turn keeps the tools it started; a SUCCEEDED turn lists those of its answer's messages.
 	ToolsUsed []string `json:"toolsUsed"`
 	Warnings  []string `json:"warnings"`
 	// Bounded failure class of a FAILED turn: timeout, cancelled, provider_error, tool_error, internal_error or abandoned.

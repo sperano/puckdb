@@ -74,7 +74,7 @@ func TestStartChat_StatusGoesRunningThenSucceeded(t *testing.T) {
 	running, err := svc.GetTurn(context.Background(), testUser, ref.TurnID)
 	require.NoError(t, err)
 	assert.Equal(t, &Turn{ID: ref.TurnID, ConversationID: ref.ConversationID,
-		TurnReplay: TurnReplay{Status: TurnRunning, Warnings: []string{}}}, running)
+		TurnReplay: TurnReplay{Status: TurnRunning, ToolsUsed: []string{}, Warnings: []string{}}}, running)
 
 	close(blocker.release)
 	<-db.committed

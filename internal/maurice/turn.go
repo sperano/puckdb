@@ -28,6 +28,10 @@ const (
 	// own deadline: a commit that failed by timing out has used up
 	// turnPersistTimeout.
 	turnReleaseTimeout = 5 * time.Second
+	// toolNameWriteTimeout bounds recording a starting tool call on the turn
+	// row (recordToolStart), so a slow database delays the call by at most
+	// this much.
+	toolNameWriteTimeout = 5 * time.Second
 	// staleTurnGrace is extra slack before a running turn counts as abandoned.
 	staleTurnGrace = time.Minute
 	// staleTurnAfter is how long a turn may stay running before a new request
@@ -97,7 +101,7 @@ func (s *service) runTurn(ctx context.Context, req ChatRequest, start *TurnStart
 		Str("message", truncateLog(req.Message, maxLogMessageLen)).Msg("maurice chat started")
 
 	rec := newTurnRecorder(s.llmClient, s.provider, s.model, req.Message, s.now)
-	answer, runErr := s.executeTurn(ctx, req.UserID, start.ConversationID, rec)
+	answer, runErr := s.executeTurn(ctx, req.UserID, start, rec)
 
 	record := rec.turnRecord(start, answer, runErr)
 	ids, persistErr := s.finishTurn(ctx, record)
@@ -132,7 +136,8 @@ func (s *service) runTurn(ctx context.Context, req ChatRequest, start *TurnStart
 // executeTurn is the completion stage of a turn: it loads history, discovers
 // the tools, runs the tool loop through the recorder and resolves the final
 // answer. It writes nothing; runTurn persists what the recorder captured.
-func (s *service) executeTurn(ctx context.Context, userID, convID string, rec *turnRecorder) (*turnAnswer, error) {
+func (s *service) executeTurn(ctx context.Context, userID string, start *TurnStart, rec *turnRecorder) (*turnAnswer, error) {
+	convID := start.ConversationID
 	history, historyIDs, err := s.loadHistory(ctx, userID, convID, rec.prompt())
 	if err != nil {
 		return nil, classify(ErrorClassInternal, fmt.Errorf("load history: %w", err))
@@ -144,7 +149,7 @@ func (s *service) executeTurn(ctx context.Context, userID, convID string, rec *t
 	if err != nil {
 		return nil, err
 	}
-	res, err := agentloop.Run(ctx, rec, history, s.mcpToolExecutor(convID, rec, toolSet.Caller), agentloop.Config{
+	res, err := agentloop.Run(ctx, rec, history, s.mcpToolExecutor(start.TurnID, convID, rec, toolSet.Caller), agentloop.Config{
 		Tools:         toolSet.Tools,
 		MaxToolRounds: s.maxToolRounds,
 		MaxTokens:     s.maxTokens,

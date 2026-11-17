@@ -193,12 +193,32 @@ func (db *pgDB) GetTurn(ctx context.Context, userID, turnID string, staleAfter t
 		return nil, fmt.Errorf("decode turn warnings: %w", err)
 	}
 	if turn.Status != TurnSucceeded {
+		if err := json.Unmarshal(row.ToolNames, &turn.ToolsUsed); err != nil {
+			return nil, fmt.Errorf("decode turn tool names: %w", err)
+		}
 		return turn, nil
 	}
 	if err := loadPgAnswer(ctx, db.q, row.ID, &turn.TurnReplay); err != nil {
 		return nil, err
 	}
 	return turn, nil
+}
+
+// AppendTurnToolName records a tool call of a running turn as it starts. A
+// malformed ID names no turn.
+func (db *pgDB) AppendTurnToolName(ctx context.Context, turnID, name string) error {
+	id, err := parseUUID(turnID)
+	if err != nil {
+		return fmt.Errorf("%w: %w", ErrTurnNotRunning, err)
+	}
+	n, err := db.q.AppendTurnToolName(ctx, sqlcdb.AppendTurnToolNameParams{ID: id, ToolName: name})
+	if err != nil {
+		return fmt.Errorf("append turn tool name: %w", err)
+	}
+	if n == 0 {
+		return ErrTurnNotRunning
+	}
+	return nil
 }
 
 func pgTurnToolNames(ctx context.Context, q *sqlcdb.Queries, turnID pgtype.UUID) ([]string, error) {

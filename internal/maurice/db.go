@@ -55,6 +55,11 @@ type DB interface {
 	// input link and tool call. It returns the stored message IDs in record
 	// order.
 	FinishTurn(ctx context.Context, record TurnRecord) ([]string, error)
+	// AppendTurnToolName adds name to the tools a running turn started, in
+	// call order, duplicates kept, so GetTurn lists them on any replica
+	// before the turn finishes. It returns ErrTurnNotRunning, writing
+	// nothing, when the turn is unknown or no longer running.
+	AppendTurnToolName(ctx context.Context, turnID, name string) error
 	// GetTurn returns one of userID's turns, or ErrTurnNotFound. A running
 	// turn older than staleAfter is reported failed as abandoned (the next
 	// BeginTurn on its conversation stores that).
@@ -125,10 +130,14 @@ type TurnStart struct {
 type TurnReplay struct {
 	Status     TurnStatus
 	ErrorClass ErrorClass
-	// MessageID, Content, ToolsUsed and Warnings describe the final answer of a
+	// MessageID, Content and Warnings describe the final answer of a
 	// succeeded turn.
 	MessageID string
 	Content   string
+	// ToolsUsed names the tools a succeeded turn's answer called, from its
+	// messages. GetTurn also fills it for a turn that did not succeed
+	// (running, failed, cancelled or abandoned): the tools it started so far
+	// (AppendTurnToolName).
 	ToolsUsed []string
 	Warnings  []string
 }
