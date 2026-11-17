@@ -13,8 +13,10 @@ import (
 // of ref's conversation: the call's metadata, the first InlineTextRunes of
 // its system prompt, instruction and tool definitions (Payload reads the
 // rest), and one page of its linked input messages, by input number, each
-// with the start of its content whatever its role. found is false when the
-// conversation is not found or the call is not one of its calls.
+// with the start of its content whatever its role, except a withheld
+// message (one of another conversation), which keeps only its ID. found is
+// false when the conversation is not found or the call is not one of its
+// calls.
 func (s *PGStore) CallInput(ctx context.Context, ref ConversationRef, callID string, page PageRequest) (CallInput, bool, error) {
 	r, err := validateRef(ref)
 	if err != nil {

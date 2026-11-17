@@ -19,8 +19,9 @@ import (
 // Payload bounds, in Unicode code points.
 const (
 	// InlineTextRunes bounds each text a detail response carries inline: a
-	// transcript or input message's content, a system prompt, tool
-	// arguments or a tool result. The rest is read through Payload.
+	// transcript or input message's content, a call's system prompt,
+	// instruction and tool definitions, tool arguments or a tool result.
+	// The rest is read through Payload.
 	InlineTextRunes = 8192
 	// DefaultPayloadRunes is the window Payload returns when the caller
 	// names no limit.

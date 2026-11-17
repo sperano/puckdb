@@ -60,7 +60,8 @@ func (r recordingReader) Payload(context.Context, mauricereport.ConversationRef,
 type detailGraphWorld struct {
 	conv, foreign, deleted     string
 	turnOK, turnFailed         string
-	call, title, foreignCall   int64
+	call, final, title         int64
+	foreignCall                int64
 	toolOK, toolBad, foreignTC int64
 	prompt                     string
 }
@@ -81,6 +82,8 @@ func seedDetailGraphWorld(seed *mauricefixtures.Seeder) detailGraphWorld {
 	w.call = seed.Call(mauricefixtures.Call{ConversationID: w.conv, TurnID: w.turnOK, Provider: "anthropic",
 		Model: "claude-sonnet-5-5", StartedAt: reportingT0, InputTokens: mauricefixtures.Tokens(10), SystemPrompt: &w.prompt})
 	seed.CallInput(w.call, 0, question)
+	w.final = seed.Call(mauricefixtures.Call{ConversationID: w.conv, TurnID: w.turnOK, Round: 1, ForcedFinal: true,
+		Provider: "anthropic", Model: "claude-sonnet-5-5", StartedAt: reportingT0.Add(time.Second)})
 	w.toolOK = seed.ToolCall(mauricefixtures.ToolCall{TurnID: w.turnOK, CallID: w.call, MessageID: request,
 		Name: "get_player", ArgumentsRaw: `{"id":1}`, Result: "30 goals", StartedAt: reportingT0})
 	seed.Message(mauricefixtures.Message{ConversationID: w.conv, TurnID: w.turnOK, Number: 2, Role: "tool",
@@ -111,8 +114,8 @@ func ref(instance, id string) map[string]any {
 
 func itoa(id int64) string { return strconv.FormatInt(id, 10) }
 
-const transcriptQuery = `query($ref: MauriceReportingConversationRef!) {
-	mauriceReportingTranscript(conversation: $ref) {
+const transcriptQuery = `query($ref: MauriceReportingConversationRef!, $limit: Int, $cursor: String) {
+	mauriceReportingTranscript(conversation: $ref, limit: $limit, cursor: $cursor) {
 		items { turnNumber turnStatus replayable number role contentLength content { text truncated } resultToolCallId toolCallCount }
 		nextCursor
 	}
@@ -162,6 +165,31 @@ func TestReportingTranscriptMarksEvidenceAndWithholdsToolResults(t *testing.T) {
 	assert.Equal(t, "FAILED", items[4].TurnStatus)
 	assert.False(t, items[4].Replayable, "failed turn evidence is not chat history")
 	assert.Equal(t, "Assists?", items[4].Content.Text)
+}
+
+// limit and cursor reach the store: a page of one message, then the next
+// one from its cursor.
+func TestReportingTranscriptPagesWithLimitAndCursor(t *testing.T) {
+	t.Parallel()
+	server, seed, _ := newReportingDB(t)
+	w := seedDetailGraphWorld(seed)
+	vars := map[string]any{"ref": ref("maurice", w.conv), "limit": 1}
+
+	first := gqlData[transcriptData](t, postGraphQL(t, server, adminHeaders(), transcriptQuery, vars))
+	require.NotNil(t, first.Page)
+	require.Len(t, first.Page.Items, 1)
+	assert.Equal(t, "Goals?", first.Page.Items[0].Content.Text)
+	require.NotNil(t, first.Page.NextCursor)
+
+	vars["cursor"] = *first.Page.NextCursor
+	second := gqlData[transcriptData](t, postGraphQL(t, server, adminHeaders(), transcriptQuery, vars))
+	require.NotNil(t, second.Page)
+	require.Len(t, second.Page.Items, 1)
+	assert.Equal(t, 0, second.Page.Items[0].TurnNumber)
+	assert.Equal(t, 1, second.Page.Items[0].Number)
+	assert.Equal(t, "ASSISTANT", second.Page.Items[0].Role)
+	require.NotNil(t, second.Page.NextCursor, "three messages remain")
+	assert.NotEqual(t, *first.Page.NextCursor, *second.Page.NextCursor)
 }
 
 func TestReportingTurnsAndCallsKeepTitleCallsApart(t *testing.T) {
@@ -216,14 +244,20 @@ func TestReportingTurnsAndCallsKeepTitleCallsApart(t *testing.T) {
 	assert.Equal(t, "FAILED", got.Turns.Items[1].Status)
 	assert.Equal(t, "provider_error", *got.Turns.Items[1].ErrorClass)
 
-	require.Len(t, got.Calls.Items, 1)
+	require.Len(t, got.Calls.Items, 2)
 	call := got.Calls.Items[0]
 	assert.Equal(t, itoa(w.call), call.ID)
 	assert.Equal(t, w.turnOK, *call.TurnID)
+	assert.Equal(t, "chat_round", call.Kind)
 	assert.Equal(t, 0, *call.Round)
 	assert.Equal(t, int64(10), *call.InputTokens)
 	assert.Nil(t, call.OutputTokens)
 	assert.Equal(t, int64(len(w.prompt)), *call.SystemPromptLength)
+	final := got.Calls.Items[1]
+	assert.Equal(t, itoa(w.final), final.ID)
+	assert.Equal(t, "forced_final", final.Kind)
+	assert.Equal(t, 1, *final.Round)
+	assert.Equal(t, int64(2), got.Turns.Items[0].Usage.Calls)
 
 	require.Len(t, got.Titles.Items, 1)
 	assert.Equal(t, itoa(w.title), got.Titles.Items[0].ID)

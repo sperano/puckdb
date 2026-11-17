@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/sperano/puckdb/internal/fixtures/mauricefixtures"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -95,8 +96,12 @@ func TestToolCallDetailKeepsMalformedRawArguments(t *testing.T) {
 	assert.Equal(t, int64(InlineTextRunes+1), ok.Result.Length)
 	assert.True(t, ok.Result.Truncated())
 
-	cancelled, _, err := store.ToolCall(ctx, fullRef(w.conv), idText(w.toolCancelled))
+	cancelled, found, err := store.ToolCall(ctx, fullRef(w.conv), idText(w.toolCancelled))
 	require.NoError(t, err)
+	require.True(t, found)
+	assert.Equal(t, w.toolCancelled, cancelled.ToolCall.ID)
+	assert.Equal(t, mauricefixtures.StatusCancelled, *cancelled.ToolCall.Status)
+	assert.Equal(t, Text{Text: "{}", Length: 2}, cancelled.ArgumentsRaw)
 	assert.Nil(t, cancelled.Result, "never ran")
 }
 
@@ -182,17 +187,27 @@ func TestNestedIDsOfAnotherConversationAreNotFound(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, found, "tool call")
 
-	payloads := []PayloadRequest{
+	foreignPayloads := []PayloadRequest{
 		{Kind: PayloadMessageContent, ID: w.foreignMsg},
 		{Kind: PayloadSystemPrompt, ID: idText(w.foreignCall)},
 		{Kind: PayloadInstruction, ID: idText(w.foreignTitle)},
+		{Kind: PayloadToolDefinitions, ID: idText(w.foreignCall)},
 		{Kind: PayloadToolArgumentsRaw, ID: idText(w.foreignTool)},
+		{Kind: PayloadToolArguments, ID: idText(w.foreignTool)},
 		{Kind: PayloadToolResult, ID: idText(w.foreignTool)},
+	}
+	own := ConversationRef{Instance: instanceCrapettes, ConversationID: w.foreign}
+	for _, req := range foreignPayloads {
+		_, found, err := store.Payload(ctx, own, req)
+		require.NoError(t, err)
+		require.True(t, found, "%s %s: stored, under its own conversation", req.Kind, req.ID)
+	}
+	payloads := append(foreignPayloads, []PayloadRequest{
 		// Stored nothing: no instruction, unparsed arguments, never ran.
 		{Kind: PayloadInstruction, ID: idText(w.callFirst)},
 		{Kind: PayloadToolArguments, ID: idText(w.toolMalformed)},
 		{Kind: PayloadToolResult, ID: idText(w.toolCancelled)},
-	}
+	}...)
 	for _, req := range payloads {
 		got, found, err := store.Payload(ctx, ref, req)
 		require.NoError(t, err)

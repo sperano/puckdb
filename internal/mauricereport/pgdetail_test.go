@@ -34,7 +34,7 @@ type detailWorld struct {
 	foreignTurn, foreignMsg                string
 	foreignCall, foreignTitle, foreignTool int64
 	systemPrompt, toolDefinitions          string
-	toolResult                             string
+	toolResult, answer                     string
 }
 
 func seedDetailWorld(seed *mauricefixtures.Seeder) detailWorld {
@@ -43,6 +43,7 @@ func seedDetailWorld(seed *mauricefixtures.Seeder) detailWorld {
 		systemPrompt:    "Tu es Maurice. " + strings.Repeat("é🏒", InlineTextRunes),
 		toolDefinitions: `[{"name": "get_player"}]`,
 		toolResult:      strings.Repeat("r", InlineTextRunes+1),
+		answer:          "He has 30 goals. " + strings.Repeat("🏒", InlineTextRunes),
 	}
 	owner := seed.User(mauricefixtures.User{Instance: instanceFull, Subject: "eric-uid", Username: "eric", FirstSeenAt: t0})
 	public := seed.User(mauricefixtures.User{Instance: instanceCrapettes, Subject: "eric-uid", Username: "eric", FirstSeenAt: t0})
@@ -78,7 +79,7 @@ func seedSucceededTurn(seed *mauricefixtures.Seeder, w *detailWorld) {
 		return seed.Message(mauricefixtures.Message{ConversationID: w.conv, TurnID: w.turnOK, Number: n,
 			Role: role, Content: content, ResultToolCallID: result})
 	}
-	w.msgAnswer = msg(3, "assistant", "He has 30 goals.", 0)
+	w.msgAnswer = msg(3, "assistant", w.answer, 0)
 	w.msgUser = msg(0, "user", "How many goals?", 0)
 	w.msgCall = msg(1, "assistant", "", 0)
 	w.callSecond = seed.Call(mauricefixtures.Call{ConversationID: w.conv, TurnID: w.turnOK, Round: 1,
@@ -119,7 +120,8 @@ func seedForeign(seed *mauricefixtures.Seeder, w *detailWorld, owner string) {
 	w.foreignMsg = seed.Message(mauricefixtures.Message{ConversationID: w.foreign, TurnID: w.foreignTurn,
 		Role: "user", Content: "secret"})
 	w.foreignCall = seed.Call(mauricefixtures.Call{ConversationID: w.foreign, TurnID: w.foreignTurn,
-		Provider: providerAnthropic, Model: modelSonnet, StartedAt: t0, SystemPrompt: mauricefixtures.Text("secret")})
+		Provider: providerAnthropic, Model: modelSonnet, StartedAt: t0, SystemPrompt: mauricefixtures.Text("secret"),
+		ToolDefinitions: mauricefixtures.Text(`[{"name": "secret"}]`)})
 	w.foreignTitle = seed.Call(mauricefixtures.Call{ConversationID: w.foreign, Provider: providerAnthropic,
 		Model: modelHaiku, StartedAt: t0, Instruction: mauricefixtures.Text("secret")})
 	w.foreignTool = seed.ToolCall(mauricefixtures.ToolCall{TurnID: w.foreignTurn, CallID: w.foreignCall,
@@ -154,13 +156,20 @@ func TestTranscriptOrdersMessagesAndMarksFailedEvidence(t *testing.T) {
 	require.Len(t, got, 6)
 	assert.Equal(t, []string{w.msgUser, w.msgCall, w.msgTool, w.msgAnswer, w.msgFailed}, ids[:5])
 
-	user, call, tool, failed, cancelled := got[0], got[1], got[2], got[4], got[5]
+	user, call, tool, answer, failed, cancelled := got[0], got[1], got[2], got[3], got[4], got[5]
 	assert.Equal(t, &Text{Text: "How many goals?", Length: 15}, user.Content)
 	assert.True(t, user.Replayable())
 	assert.Equal(t, int64(1), call.ToolCalls, "the assistant message's tool request")
 	assert.Nil(t, tool.Content, "a tool result is read only through Payload")
 	assert.Equal(t, int64(InlineTextRunes+1), tool.ContentLength)
 	assert.Equal(t, &w.toolOK, tool.ResultToolCallID)
+	answerRunes := int64(len([]rune(w.answer)))
+	require.NotNil(t, answer.Content)
+	assert.Equal(t, string([]rune(w.answer)[:InlineTextRunes]), answer.Content.Text, "cut at code points, not bytes")
+	assert.Equal(t, answerRunes, answer.Content.Length)
+	assert.Equal(t, answerRunes, answer.ContentLength)
+	assert.True(t, answer.Content.Truncated())
+	assert.Equal(t, int64(InlineTextRunes), answer.Content.End())
 	assert.Equal(t, TurnFailed, failed.TurnStatus)
 	assert.False(t, failed.Replayable(), "a failed turn's prompt is evidence, not chat history")
 	assert.Equal(t, "And assists?", failed.Content.Text)
@@ -229,7 +238,7 @@ func TestTurnCallsAreOrderedByRoundAndTitleCallsKeptApart(t *testing.T) {
 	assert.Equal(t, int64(1), c.InputMessages)
 	assert.Equal(t, int64(len([]rune(w.systemPrompt))), *c.SystemPromptLength)
 	assert.Nil(t, c.InstructionLength)
-	assert.NotNil(t, c.ToolDefinitionsLength)
+	assert.Equal(t, int64(len([]rune(w.toolDefinitions))), *c.ToolDefinitionsLength)
 	assert.Equal(t, int64(100), *c.InputTokens)
 	assert.Nil(t, c.OutputTokens, "not reported")
 	assert.Equal(t, int64(1), c.ToolCalls)

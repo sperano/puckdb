@@ -43,7 +43,8 @@ var (
 	// date, a status, a name, a search string or an ID.
 	ErrInvalidArgument = errors.New("invalid argument")
 	// ErrInvalidCursor is a cursor this API did not issue for that list,
-	// instance and filter.
+	// instance, filter and, for a detail list, conversation and parent turn
+	// or call.
 	ErrInvalidCursor = errors.New("invalid cursor")
 	// ErrUserNotInInstance is a user ID that names no user of the selected
 	// instance, whether it exists elsewhere or not.
