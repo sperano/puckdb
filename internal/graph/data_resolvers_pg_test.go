@@ -23,9 +23,9 @@ func TestLatestNHLDataDate(t *testing.T) {
 		INSERT INTO nhl_day_imports
 			(season, date, importer_version, inputs_hash, input_files)
 		VALUES
-			(20232024, DATE '2024-04-18', 1, 'oldest', 1),
-			(20242025, DATE '2025-04-17', 1, 'older', 1),
-			(20252026, DATE '2025-10-07', 1, 'newest', 1)`)
+			(20242025, DATE '2025-10-07', 1, 'newest-date-first', 1),
+			(20252026, DATE '2025-04-17', 1, 'higher-season-older-date', 1),
+			(20232024, DATE '2024-04-18', 1, 'oldest-date-last', 1)`)
 	require.NoError(t, err)
 
 	got, err = resolver.LatestNHLDataDate(ctx)
