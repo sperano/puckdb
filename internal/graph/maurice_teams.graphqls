@@ -34,7 +34,7 @@ type MauriceTeamChoices {
 	season: Int
 	"""Ordered by league then team ID."""
 	teams: [MauriceTeamChoice!]!
-	"""Whether the caller already saved or dismissed the first-login offer."""
+	"""Whether the caller already saved or dismissed the first-login offer; false again after `puckdb user reset-team-offer` clears it."""
 	offered: Boolean!
 }
 

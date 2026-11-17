@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"slices"
@@ -17,7 +18,11 @@ var userResetTeamOfferFlagGroups = slices.Concat(userTeamLinkFlagGroups, []*conf
 
 // errResetTeamOfferTarget is returned when user reset-team-offer gets both
 // or neither of a username and --all-users.
-var errResetTeamOfferTarget = fmt.Errorf("name one user or pass --%s", config.FlagAllUsers)
+var errResetTeamOfferTarget = fmt.Errorf("name one user or pass --%s, not both", config.FlagAllUsers)
+
+// errEmptyUsername is returned when user reset-team-offer gets an empty
+// username, which names no user.
+var errEmptyUsername = errors.New("username must not be empty")
 
 func cmdUserResetTeamOffer() *cobra.Command {
 	cmd := &cobra.Command{
@@ -33,7 +38,8 @@ func cmdUserResetTeamOffer() *cobra.Command {
 }
 
 func runUserResetTeamOffer(cmd *cobra.Command, args []string) error {
-	username, err := resetTeamOfferTarget(args, viper.GetBool(config.FlagAllUsers))
+	all := viper.GetBool(config.FlagAllUsers)
+	username, err := resetTeamOfferTarget(args, all)
 	if err != nil {
 		return err
 	}
@@ -42,11 +48,15 @@ func runUserResetTeamOffer(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	defer pool.Close()
-	return resetTeamOffer(cmd.Context(), cmd.OutOrStdout(), store, viper.GetString(config.FlagInstance), username)
+	instance := viper.GetString(config.FlagInstance)
+	if all {
+		return resetInstanceTeamOffers(cmd.Context(), cmd.OutOrStdout(), store, instance)
+	}
+	return resetTeamOffer(cmd.Context(), cmd.OutOrStdout(), store, instance, username)
 }
 
-// resetTeamOfferTarget returns the user reset-team-offer resets: the one
-// username in args, or "" for every user with all.
+// resetTeamOfferTarget checks that user reset-team-offer gets exactly one
+// of a username in args and all, and returns the username, "" with all.
 func resetTeamOfferTarget(args []string, all bool) (string, error) {
 	if all == (len(args) == 1) {
 		return "", errResetTeamOfferTarget
@@ -54,20 +64,26 @@ func resetTeamOfferTarget(args []string, all bool) (string, error) {
 	if all {
 		return "", nil
 	}
+	if args[0] == "" {
+		return "", errEmptyUsername
+	}
 	return args[0], nil
 }
 
-// resetTeamOffer resets username's team offer on instance, every user's of
-// instance when username is empty, and reports the outcome to w.
-func resetTeamOffer(ctx context.Context, w io.Writer, store *yahoolink.PGStore, instance, username string) error {
-	if username == "" {
-		n, err := store.ResetInstanceTeamOffers(ctx, instance)
-		if err != nil {
-			return err
-		}
-		_, err = fmt.Fprintf(w, "Reset the team offer of %d user(s) on instance %q.\n", n, instance)
+// resetInstanceTeamOffers resets the team offer of every user of instance
+// and reports how many to w.
+func resetInstanceTeamOffers(ctx context.Context, w io.Writer, store *yahoolink.PGStore, instance string) error {
+	n, err := store.ResetInstanceTeamOffers(ctx, instance)
+	if err != nil {
 		return err
 	}
+	_, err = fmt.Fprintf(w, "Reset the team offer of %d user(s) on instance %q.\n", n, instance)
+	return err
+}
+
+// resetTeamOffer resets username's team offer on instance and reports the
+// outcome to w.
+func resetTeamOffer(ctx context.Context, w io.Writer, store *yahoolink.PGStore, instance, username string) error {
 	user, err := findUserOrReport(ctx, store, instance, username)
 	if err != nil {
 		return err
