@@ -14,10 +14,13 @@
 // carry, and to none for a manager with no earlier season (see
 // yahoo_team_manager_guids in its migration).
 //
-// A link's source is either SourceEmail (the login email matched a
+// A link's source is SourceEmail (the login email matched a
 // yahoo_team_managers.email, case-insensitively, kept in sync at every
-// authenticated request by SyncEmailLinks) or SourceManual (an operator
-// added it for a user whose Yahoo email differs from their login email).
+// authenticated request by SyncEmailLinks), SourceManual (an operator added
+// it for a user whose Yahoo email differs from their login email) or
+// SourceSelf (the user picked the team, Picker). A team the user deselected
+// in the Picker is hidden from their teams whatever link reaches it, until
+// they pick it again or an operator links or unlinks it.
 // league_id/team_id are the legacy numeric Yahoo identifiers yahoo_teams and
 // yahoo_team_managers already use.
 package yahoolink
@@ -40,6 +43,10 @@ const (
 	SourceEmail = "email"
 	// SourceManual marks a link an operator added by hand.
 	SourceManual = "manual"
+	// SourceSelf marks a link the user made by picking the team themself
+	// (Picker.SetTeams): self-declared and unverified, it only changes that
+	// user's own prompt. Like SourceManual, the email resync never removes it.
+	SourceSelf = "self"
 )
 
 // ErrUnknownTeam is returned by Link for a (league, team) pair with no
@@ -108,10 +115,17 @@ func NewPGStore(db DB) *PGStore {
 }
 
 // ListUserTeams returns userID's teams, through either kind of link and
-// each once, with their league's name and season, limited to leagueIDs when it is non-empty (the instance's Yahoo
-// league allowlist; empty means every league), ordered by league then team.
+// each once, with their league's name and season, limited to leagueIDs when
+// it is non-empty (the instance's Yahoo league allowlist; empty means every
+// league), ordered by league then team. A team the user deselected is left
+// out.
 func (s *PGStore) ListUserTeams(ctx context.Context, userID pgtype.UUID, leagueIDs []int32) ([]Link, error) {
-	rows, err := s.queries.ListAppUserYahooTeams(ctx, sqlcdb.ListAppUserYahooTeamsParams{
+	return listUserTeams(ctx, s.queries, userID, leagueIDs)
+}
+
+// listUserTeams is ListUserTeams over q, which may wrap a transaction.
+func listUserTeams(ctx context.Context, q *sqlcdb.Queries, userID pgtype.UUID, leagueIDs []int32) ([]Link, error) {
+	rows, err := q.ListAppUserYahooTeams(ctx, sqlcdb.ListAppUserYahooTeamsParams{
 		UserID: userID, LeagueIds: leagueIDs,
 	})
 	if err != nil {

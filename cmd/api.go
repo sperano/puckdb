@@ -117,9 +117,17 @@ func cmdAPI() *cobra.Command {
 			}
 			defer closeDraftBoard(draftBoard)
 			auth := apiAuth{yahoo: yahooAuthFrom(viper.GetViper()), admin: adminAuthFrom(viper.GetViper())}
+			// The Yahoo league allowlist of both Maurice's prompt and the team
+			// picker: a malformed list fails startup rather than widening
+			// either to every league.
+			yahooLeagues, err := mauriceYahooLeaguesFrom(viper.GetViper())
+			if err != nil {
+				return err
+			}
 			resolver := &graph.Resolver{
 				TemporalClient: temporalClient,
 				RedisClient:    redisClient,
+				MauriceTeams:   yahoolink.NewPicker(pool, yahooLeagues, yahoolink.CurrentSeason),
 				Queries:        queries,
 				DB:             pool,
 				Draft:          draftService,
@@ -129,7 +137,7 @@ func cmdAPI() *cobra.Command {
 			}
 
 			// Initialize Maurice AI chat
-			mauriceService, cleanup, err := initMaurice(cmd.Context(), pool)
+			mauriceService, cleanup, err := initMaurice(cmd.Context(), pool, yahooLeagues)
 			if err != nil {
 				log.Warn().Err(err).Msg("Maurice initialization failed, AI chat will be unavailable")
 			} else {
@@ -355,7 +363,7 @@ func homeHandler(w http.ResponseWriter, r *http.Request) {
 
 // initMaurice sets up the Maurice AI chat service.
 // The pool is shared with the main API.
-func initMaurice(_ context.Context, pool *pgxpool.Pool) (maurice.Service, func(), error) {
+func initMaurice(_ context.Context, pool *pgxpool.Pool, yahooLeagues []int32) (maurice.Service, func(), error) {
 	cfgPath := viper.GetString(config.FlagMauriceConfig)
 	if cfgPath == "" {
 		cfgPath = maurice.DefaultConfigPath()
@@ -380,19 +388,13 @@ func initMaurice(_ context.Context, pool *pgxpool.Pool) (maurice.Service, func()
 	cfg := providerConfigs[entry.Provider]
 	llmClient := llm.NewClientForProvider(entry.Provider, cfg, entry.ID)
 
-	leagueIDs, err := yahoolink.ParseLeagueIDs(viper.GetString(config.FlagMauriceYahooLeagues))
-	if err != nil {
-		mcpClient.Close()
-		return nil, nil, fmt.Errorf("--%s: %w", config.FlagMauriceYahooLeagues, err)
-	}
-
 	svc := maurice.NewService(llmClient, mcpClient, maurice.NewPgDB(pool), maurice.ServiceConfig{
 		Provider:      entry.Provider.String(),
 		Model:         entry.ID,
 		MaxHistory:    viper.GetInt(config.FlagMauriceMaxHistory),
 		MaxTokens:     viper.GetInt(config.FlagMauriceMaxTokens),
 		MaxToolRounds: viper.GetInt(config.FlagMauriceMaxToolRounds),
-		Teams:         newMauriceTeamLister(pool, leagueIDs),
+		Teams:         newMauriceTeamLister(pool, yahooLeagues),
 	})
 
 	cleanup := func() {

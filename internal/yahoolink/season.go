@@ -1,5 +1,7 @@
 package yahoolink
 
+import "github.com/sperano/nhl-api-go/nhl"
+
 // DefaultSeason returns the Yahoo season a user's "my team" refers to: the
 // newest of seasons that is not after current. Both are Yahoo seasons, the
 // start year of the hockey season (yahoo_leagues.season: 2026 for 2026-27;
@@ -17,3 +19,7 @@ func DefaultSeason(seasons []int32, current int32) (int32, bool) {
 	}
 	return best, found
 }
+
+// CurrentSeason returns the current NHL season as a Yahoo season, its start
+// year (2026 during 2026-27), for DefaultSeason's current.
+func CurrentSeason() int32 { return int32(nhl.Current().StartYear()) }

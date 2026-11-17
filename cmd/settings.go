@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"strings"
 	"time"
@@ -18,6 +19,7 @@ import (
 	"github.com/sperano/puckdb/internal/store"
 	"github.com/sperano/puckdb/internal/temporal"
 	"github.com/sperano/puckdb/internal/worker/shared"
+	"github.com/sperano/puckdb/internal/yahoolink"
 	"github.com/spf13/viper"
 	"go.temporal.io/sdk/client"
 	"golang.org/x/time/rate"
@@ -112,6 +114,16 @@ func appAuthFrom(v *viper.Viper) appuser.AuthConfig {
 			Audience:   strings.TrimSpace(v.GetString(config.FlagCloudflareAccessAUD)),
 		},
 	}
+}
+
+// mauriceYahooLeaguesFrom reads --maurice-yahoo-leagues, the Yahoo league
+// allowlist of Maurice's prompt and team picker (empty: every league).
+func mauriceYahooLeaguesFrom(v *viper.Viper) ([]int32, error) {
+	ids, err := yahoolink.ParseLeagueIDs(v.GetString(config.FlagMauriceYahooLeagues))
+	if err != nil {
+		return nil, fmt.Errorf("--%s: %w", config.FlagMauriceYahooLeagues, err)
+	}
+	return ids, nil
 }
 
 // dataPathFrom reads --data-path, the root of the file cache.

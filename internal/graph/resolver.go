@@ -61,8 +61,11 @@ type Resolver struct {
 	TemporalClient client.Client
 	RedisClient    *redis.Client
 	MauriceService maurice.Service
-	Queries        *sqlcdb.Queries
-	DB             txBeginner
+	// MauriceTeams lets a Maurice user pick their own Yahoo teams; nil when
+	// there is no database (the team picker fields then fail).
+	MauriceTeams MauriceTeamPicker
+	Queries      *sqlcdb.Queries
+	DB           txBeginner
 	// Draft serves draft rankings; nil when there is no database.
 	Draft *draftrank.Service
 	// DraftBoard composes persisted live sessions, rankings and recovery controls.

@@ -548,7 +548,7 @@ var MauriceFlags = FlagGroup{
 		{FlagMauriceMaxTokens, "", DefaultMauriceMaxTokens, "Maurice max tokens per completion", false},
 		{FlagMauriceMaxHistory, "", DefaultMauriceMaxHistory, "Maurice max conversation history messages", false},
 		{FlagMauriceMaxToolRounds, "", DefaultMauriceMaxToolRounds, "Maurice max tool call rounds per message", false},
-		{FlagMauriceYahooLeagues, "", DefaultMauriceYahooLeagues, "Comma-separated numeric Yahoo league IDs whose teams Maurice names in the system prompt, e.g. 29249 (default: every league)", false},
+		{FlagMauriceYahooLeagues, "", DefaultMauriceYahooLeagues, "Comma-separated numeric Yahoo league IDs whose teams Maurice names in the system prompt and offers in its team picker, e.g. 29249 (default: every league)", false},
 		{FlagOllamaBaseURL, "", DefaultOllamaBaseURL, "Ollama base URL", false},
 		{FlagAnthropicAPIKey, "", "", "Anthropic API key", true},
 		{FlagOpenAIAPIKey, "", "", "OpenAI API key", true},

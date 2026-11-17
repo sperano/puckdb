@@ -25,14 +25,15 @@ ON CONFLICT (user_id, guid) DO NOTHING;
 
 -- name: DeleteStaleAppUserEmailManagerLinks :exec
 -- Removes user_id's email-sourced guid links not in the current matched
--- set; manual links are never touched here.
+-- set; manual and self links are never touched here.
 DELETE FROM app_user_yahoo_managers
 WHERE user_id = sqlc.arg(user_id)::uuid AND source = 'email'
   AND NOT (guid = ANY(sqlc.arg(guids)::text[]));
 
 -- name: LinkAppUserYahooManager :one
--- Manual admin link; promotes an existing email-sourced link for the same
--- guid to manual (so a resync never removes it) and refreshes linked_at.
+-- Manual admin link; promotes an existing link for the same guid (email or
+-- the user's own pick) to manual, so a resync never removes it, and
+-- refreshes linked_at.
 INSERT INTO app_user_yahoo_managers (user_id, guid, source)
 VALUES (sqlc.arg(user_id)::uuid, sqlc.arg(guid)::text, 'manual')
 ON CONFLICT (user_id, guid) DO UPDATE SET source = 'manual', linked_at = now()
