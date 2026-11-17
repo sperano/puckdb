@@ -21,8 +21,10 @@ var (
 	// ErrIdempotencyKeyReused is returned when an idempotency key comes back
 	// with a different prompt or conversation than its first use.
 	ErrIdempotencyKeyReused = errors.New("idempotency key was already used for a different request")
-	// ErrTurnNotRunning is returned by FinishTurn when the turn is no longer
-	// running (it finished already or was reconciled as abandoned).
+	// ErrTurnNotRunning is returned by FinishTurn and AppendTurnToolName when
+	// the turn is no longer running (it finished already or was reconciled as
+	// abandoned); AppendTurnToolName also returns it for an unknown or
+	// malformed turn ID.
 	ErrTurnNotRunning = errors.New("turn is not running")
 	// ErrTurnNotFound is returned by GetTurn when the turn does not exist,
 	// belongs to another user or sits in a deleted conversation; the cases

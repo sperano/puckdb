@@ -135,7 +135,8 @@ func (s *service) runTurn(ctx context.Context, req ChatRequest, start *TurnStart
 
 // executeTurn is the completion stage of a turn: it loads history, discovers
 // the tools, runs the tool loop through the recorder and resolves the final
-// answer. It writes nothing; runTurn persists what the recorder captured.
+// answer. Its only write is each starting tool's name on the running turn
+// (recordToolStart); runTurn persists everything else the recorder captured.
 func (s *service) executeTurn(ctx context.Context, userID string, start *TurnStart, rec *turnRecorder) (*turnAnswer, error) {
 	convID := start.ConversationID
 	history, historyIDs, err := s.loadHistory(ctx, userID, convID, rec.prompt())
