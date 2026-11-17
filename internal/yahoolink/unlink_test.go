@@ -3,6 +3,7 @@ package yahoolink
 import (
 	"context"
 	"fmt"
+	"slices"
 	"testing"
 	"time"
 
@@ -260,6 +261,40 @@ func TestPGStore_UnlinkRemovesAGUIDOnlyLink(t *testing.T) {
 	assert.Empty(t, links, "the other season's team went with the account")
 }
 
+// TestPGStore_UnlinkRemovesBothAccountsOfACoManagedTeam: a co-managed team
+// whose two accounts the user both holds unlinks both, reported sorted,
+// with each account's other-season team.
+func TestPGStore_UnlinkRemovesBothAccountsOfACoManagedTeam(t *testing.T) {
+	pool := pgtest.Open(t)
+	ctx := context.Background()
+	store := NewPGStore(pool)
+	guids := []string{newGUID(), newGUID()}
+	slices.Sort(guids)
+	league, team := seedLeagueTeam(t, pool, "Two Accounts")
+	user := insertUser(t, pool, "unlink-two-accounts")
+	for i, guid := range guids {
+		seedManagerGUID(t, pool, league, team, int32(i+1), guid, "")
+		other, otherTeam := seedLeagueTeamInSeason(t, pool, fmt.Sprintf("Two Accounts Other %d", i), "Vintage", 2025)
+		seedManagerGUID(t, pool, other, otherTeam, 1, guid, "")
+	}
+	for _, guid := range []string{guids[1], guids[0]} {
+		_, err := pool.Exec(ctx, `INSERT INTO app_user_yahoo_managers (user_id, guid, source) VALUES ($1, $2, 'manual')`, user, guid)
+		require.NoError(t, err)
+	}
+	links, err := store.ListUserTeams(ctx, user, nil)
+	require.NoError(t, err)
+	require.Len(t, links, 3, "the team and each account's other-season team")
+
+	removed, err := store.Unlink(ctx, user, "", league, team)
+	require.NoError(t, err)
+	assert.Equal(t, Unlinked{GUIDs: guids}, removed)
+	assert.True(t, removed.Removed())
+
+	links, err = store.ListUserTeams(ctx, user, nil)
+	require.NoError(t, err)
+	assert.Empty(t, links, "both accounts' other-season teams went with them")
+}
+
 // TestPGStore_UnlinkRefusesATeamTheEmailsAccountReaches: a team link is
 // refused when the login email resolves to a guid one of the team's
 // managers resolves to, even with no guid link held yet: the next login's
@@ -346,21 +381,30 @@ func TestPGStore_UnlinkReportsOnlyTheGUIDLinksItDeleted(t *testing.T) {
 	assert.Equal(t, Unlinked{}, got.removed)
 }
 
+// lockPollInterval is the pause between two checks of pg_stat_activity
+// while waiting for a statement to block.
+const lockPollInterval = 10 * time.Millisecond
+
 // waitUntilBlockedBy returns once some backend waits on a lock pid holds,
-// failing the test if Unlink's done channel delivers first or ctx ends.
+// checking every lockPollInterval, and fails the test if Unlink's done
+// channel delivers first or ctx ends.
 func waitUntilBlockedBy[T any](ctx context.Context, t *testing.T, pool *pgxpool.Pool, pid int32, done <-chan T) {
 	t.Helper()
+	ticker := time.NewTicker(lockPollInterval)
+	defer ticker.Stop()
 	for {
-		select {
-		case got := <-done:
-			t.Fatalf("returned before blocking on the other transaction: %+v", got)
-		default:
-		}
 		var blocked bool
 		require.NoError(t, pool.QueryRow(ctx,
 			`SELECT EXISTS (SELECT 1 FROM pg_stat_activity WHERE $1::integer = ANY(pg_blocking_pids(pid)))`, pid).Scan(&blocked))
 		if blocked {
 			return
+		}
+		select {
+		case got := <-done:
+			t.Fatalf("returned before blocking on the other transaction: %+v", got)
+		case <-ctx.Done():
+			t.Fatalf("no backend blocked on backend %d's locks within %s", pid, lockWaitTimeout)
+		case <-ticker.C:
 		}
 	}
 }
