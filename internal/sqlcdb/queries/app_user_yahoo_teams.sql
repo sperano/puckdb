@@ -36,11 +36,14 @@ WHERE user_id = sqlc.arg(user_id)::uuid AND source = 'email'
   );
 
 -- name: ListAppUserYahooTeams :many
--- One user's linked teams, ordered by league then team, limited to
+-- One user's linked teams with their league's name and season (Yahoo's
+-- start year, 2026 for 2026-27), ordered by league then team, limited to
 -- league_ids when it is non-empty (the instance's Yahoo league allowlist).
-SELECT l.league_id, l.team_id, l.source, l.linked_at, t.name AS team_name
+SELECT l.league_id, l.team_id, l.source, l.linked_at, t.name AS team_name,
+       lg.name AS league_name, lg.season
 FROM app_user_yahoo_teams l
 JOIN yahoo_teams t ON t.league_id = l.league_id AND t.id = l.team_id
+JOIN yahoo_leagues lg ON lg.id = l.league_id
 WHERE l.user_id = sqlc.arg(user_id)::uuid
   AND (coalesce(cardinality(sqlc.arg(league_ids)::integer[]), 0) = 0 OR l.league_id = ANY(sqlc.arg(league_ids)::integer[]))
 ORDER BY l.league_id, l.team_id;

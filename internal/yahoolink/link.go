@@ -49,13 +49,17 @@ var ErrAmbiguousUser = errors.New("username matches more than one user")
 // authenticated request.
 var ErrEmailLinkStillMatches = errors.New("link still matches the login email")
 
-// Link is one Yahoo team a user manages.
+// Link is one Yahoo team a user manages. LeagueName and Season (the
+// league's yahoo_leagues.season, Yahoo's start year: 2026 for 2026-27) are
+// filled by ListUserTeams only.
 type Link struct {
-	LeagueID int32
-	TeamID   int32
-	TeamName string
-	Source   string
-	LinkedAt time.Time
+	LeagueID   int32
+	TeamID     int32
+	TeamName   string
+	LeagueName string
+	Season     int32
+	Source     string
+	LinkedAt   time.Time
 }
 
 // User identifies the app_users row an admin command resolved by username.
@@ -83,9 +87,9 @@ func NewPGStore(db sqlcdb.DBTX) *PGStore {
 	return &PGStore{queries: sqlcdb.New(db)}
 }
 
-// ListUserTeams returns userID's linked teams, limited to leagueIDs when it
-// is non-empty (the instance's Yahoo league allowlist; empty means every
-// league), ordered by league then team.
+// ListUserTeams returns userID's linked teams with their league's name and
+// season, limited to leagueIDs when it is non-empty (the instance's Yahoo
+// league allowlist; empty means every league), ordered by league then team.
 func (s *PGStore) ListUserTeams(ctx context.Context, userID pgtype.UUID, leagueIDs []int32) ([]Link, error) {
 	rows, err := s.queries.ListAppUserYahooTeams(ctx, sqlcdb.ListAppUserYahooTeamsParams{
 		UserID: userID, LeagueIds: leagueIDs,
@@ -95,7 +99,11 @@ func (s *PGStore) ListUserTeams(ctx context.Context, userID pgtype.UUID, leagueI
 	}
 	links := make([]Link, len(rows))
 	for i, r := range rows {
-		links[i] = Link{LeagueID: r.LeagueID, TeamID: r.TeamID, TeamName: r.TeamName, Source: r.Source, LinkedAt: r.LinkedAt.Time}
+		links[i] = Link{
+			LeagueID: r.LeagueID, TeamID: r.TeamID, TeamName: r.TeamName,
+			LeagueName: r.LeagueName, Season: r.Season,
+			Source: r.Source, LinkedAt: r.LinkedAt.Time,
+		}
 	}
 	return links, nil
 }
@@ -140,8 +148,8 @@ func (s *PGStore) FindUser(ctx context.Context, instance, username string) (User
 // team. A link already present for the pair, of either source, becomes
 // SourceManual: an operator linking it by hand always wins over a later
 // email resync. Returns ErrUnknownTeam when no yahoo_teams row matches.
-// The returned Link's TeamName is always empty: call ListUserTeams for a
-// display row.
+// The returned Link's TeamName, LeagueName and Season are always empty:
+// call ListUserTeams for a display row.
 func (s *PGStore) Link(ctx context.Context, userID pgtype.UUID, leagueID, teamID int32) (Link, error) {
 	row, err := s.queries.LinkAppUserYahooTeam(ctx, sqlcdb.LinkAppUserYahooTeamParams{
 		UserID: userID, LeagueID: leagueID, TeamID: teamID,

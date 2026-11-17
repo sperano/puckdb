@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/sperano/nhl-api-go/nhl"
 	"github.com/sperano/puckdb/internal/llm"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -27,7 +28,9 @@ func (f *fakeTeamLister) ListUserTeams(_ context.Context, userID string) ([]User
 func TestChat_SystemPromptNamesConfiguredTeams(t *testing.T) {
 	llmMock := &mockLLMClient{responses: []*llm.Response{{Content: "answer"}}}
 	cfg := testConfig
-	cfg.Teams = &fakeTeamLister{userID: testUser, teams: []UserTeam{{LeagueID: 29249, TeamID: 8, TeamName: "Les Peter Stastny"}}}
+	cfg.Teams = &fakeTeamLister{userID: testUser, teams: []UserTeam{{
+		LeagueID: 29249, TeamID: 8, TeamName: "Les Peter Stastny", LeagueName: "Crapettes", Season: int32(nhl.Current().StartYear()),
+	}}}
 	svc := NewService(llmMock, newMockMCP(), newTestDB(t), cfg)
 
 	_, err := svc.Chat(context.Background(), ask("who manages my team?"))
@@ -35,7 +38,7 @@ func TestChat_SystemPromptNamesConfiguredTeams(t *testing.T) {
 	require.NoError(t, svc.Close())
 
 	require.GreaterOrEqual(t, len(llmMock.requests), 1)
-	assert.Contains(t, llmMock.requests[0].Messages[0].Content, "Les Peter Stastny (team 8, league 29249)")
+	assert.Contains(t, llmMock.requests[0].Messages[0].Content, "the user manages Les Peter Stastny (team 8) in Crapettes (league 29249)")
 }
 
 func TestChat_NoTeamListerNamesNoTeam(t *testing.T) {

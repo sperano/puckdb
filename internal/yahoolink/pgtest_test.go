@@ -14,6 +14,11 @@ import (
 // PostgreSQL-backed test settings (see CLAUDE.md "Database-backed tests").
 const (
 	testInstance = "puckdb-test"
+	// testSeason is the yahoo_leagues.season seedLeagueTeam stores: Yahoo's
+	// start year, as the importer writes it (2026 for 2026-27).
+	testSeason = 2026
+	// testLeagueName is the yahoo_leagues.name seedLeagueTeam stores.
+	testLeagueName = "yahoolink test"
 )
 
 // newLeagueID returns a Yahoo league ID no fixture elsewhere in the test
@@ -24,12 +29,19 @@ func newLeagueID() int32 { return 10_000_000 + rand.Int32N(1_000_000_000-10_000_
 // the league and team IDs.
 func seedLeagueTeam(t *testing.T, pool *pgxpool.Pool, teamName string) (leagueID, teamID int32) {
 	t.Helper()
+	return seedLeagueTeamInSeason(t, pool, teamName, testLeagueName, testSeason)
+}
+
+// seedLeagueTeamInSeason is seedLeagueTeam for a league named leagueName in
+// season (a Yahoo start year).
+func seedLeagueTeamInSeason(t *testing.T, pool *pgxpool.Pool, teamName, leagueName string, season int32) (leagueID, teamID int32) {
+	t.Helper()
 	leagueID, teamID = newLeagueID(), 1
 	key := fmt.Sprintf("465.l.%d", leagueID)
 	ctx := context.Background()
 	_, err := pool.Exec(ctx,
-		`INSERT INTO yahoo_leagues (id, league_key, name, season) VALUES ($1, $2, 'yahoolink test', 20262027)`,
-		leagueID, key)
+		`INSERT INTO yahoo_leagues (id, league_key, name, season) VALUES ($1, $2, $3, $4)`,
+		leagueID, key, leagueName, season)
 	require.NoError(t, err)
 	seedTeam(t, pool, leagueID, teamID, teamName)
 	return leagueID, teamID

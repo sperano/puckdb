@@ -103,10 +103,13 @@ type TeamLister interface {
 }
 
 // UserTeam is one Yahoo team a user manages, named in the system prompt.
+// Season is the league's Yahoo season, its start year (2026 for 2026-27).
 type UserTeam struct {
-	LeagueID int32
-	TeamID   int32
-	TeamName string
+	LeagueID   int32
+	TeamID     int32
+	TeamName   string
+	LeagueName string
+	Season     int32
 }
 
 // ServiceConfig configures NewService. Provider and Model name the LLM the
