@@ -287,3 +287,33 @@ func TestPGStore_ListUserTeamsPicksTheEarliestLink(t *testing.T) {
 	assert.Equal(t, SourceManual, got[otherUsername].Source)
 	assert.Empty(t, got[otherUsername].GUID)
 }
+
+// TestPGStore_ListInstanceLinksHidesADeselectedTeam: a team the user
+// deselected in the picker is left out of the admin list, though the
+// operator's manual link to it stays.
+func TestPGStore_ListInstanceLinksHidesADeselectedTeam(t *testing.T) {
+	pool := pgtest.Open(t)
+	ctx := context.Background()
+	store := NewPGStore(pool)
+	league, team1 := seedLeagueTeam(t, pool, "Deselected")
+	seedTeam(t, pool, league, 2, "Kept")
+	username := uniqueUsername("deselecting")
+	user := insertUser(t, pool, username)
+	for _, team := range []int32{team1, 2} {
+		_, err := store.Link(ctx, user, league, team)
+		require.NoError(t, err)
+	}
+	_, err := newTestPicker(pool, testSeason, league).SetTeams(ctx, userIDText(user), []TeamRef{{league, 2}})
+	require.NoError(t, err)
+
+	links, err := store.ListInstanceLinks(ctx, testInstance)
+	require.NoError(t, err)
+	var listed []teamKey
+	for _, l := range links {
+		if l.Username == username {
+			listed = append(listed, teamKey{l.Link.LeagueID, l.Link.TeamID})
+		}
+	}
+	assert.Equal(t, []teamKey{{league, 2}}, listed)
+	assert.Equal(t, 1, countTeamLinksTo(t, pool, user, league, team1), "the manual link stays, hidden")
+}

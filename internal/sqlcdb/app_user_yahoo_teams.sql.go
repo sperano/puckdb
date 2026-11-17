@@ -33,14 +33,14 @@ type DeleteStaleAppUserEmailTeamLinksParams struct {
 // among the given pairs, the email's unresolved matches: the user's email
 // changed, the manager row's did, or the row now resolves to a guid (its
 // team link gives way to the guid link). Manual links are never touched
-// here regardless of their pair.
+// here regardless of their pair, nor the user's own picks (self).
 func (q *Queries) DeleteStaleAppUserEmailTeamLinks(ctx context.Context, arg DeleteStaleAppUserEmailTeamLinksParams) error {
 	_, err := q.db.Exec(ctx, deleteStaleAppUserEmailTeamLinks, arg.UserID, arg.LeagueIds, arg.TeamIds)
 	return err
 }
 
 const findAppUserByInstanceUsername = `-- name: FindAppUserByInstanceUsername :many
-SELECT id, username, email FROM app_users WHERE instance = $1::text AND username = $2::text
+SELECT id, username FROM app_users WHERE instance = $1::text AND username = $2::text
 `
 
 type FindAppUserByInstanceUsernameParams struct {
@@ -51,7 +51,6 @@ type FindAppUserByInstanceUsernameParams struct {
 type FindAppUserByInstanceUsernameRow struct {
 	ID       pgtype.UUID `json:"id"`
 	Username string      `json:"username"`
-	Email    pgtype.Text `json:"email"`
 }
 
 // Username is a mutable snapshot, not unique by constraint; the caller must
@@ -65,7 +64,7 @@ func (q *Queries) FindAppUserByInstanceUsername(ctx context.Context, arg FindApp
 	items := []FindAppUserByInstanceUsernameRow{}
 	for rows.Next() {
 		var i FindAppUserByInstanceUsernameRow
-		if err := rows.Scan(&i.ID, &i.Username, &i.Email); err != nil {
+		if err := rows.Scan(&i.ID, &i.Username); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -109,8 +108,9 @@ type LinkAppUserYahooTeamParams struct {
 	TeamID   int32       `json:"team_id"`
 }
 
-// Manual admin link; promotes an existing email-sourced link for the same
-// pair to manual (so a resync never removes it) and refreshes linked_at.
+// Manual admin link; promotes an existing link for the same pair (email or
+// the user's own pick) to manual, so a resync never removes it, and
+// refreshes linked_at.
 func (q *Queries) LinkAppUserYahooTeam(ctx context.Context, arg LinkAppUserYahooTeamParams) (AppUserYahooTeam, error) {
 	row := q.db.QueryRow(ctx, linkAppUserYahooTeam, arg.UserID, arg.LeagueID, arg.TeamID)
 	var i AppUserYahooTeam
@@ -141,8 +141,12 @@ SELECT DISTINCT ON (k.league_id, k.team_id)
 FROM links k
 JOIN yahoo_teams t ON t.league_id = k.league_id AND t.id = k.team_id
 JOIN yahoo_leagues lg ON lg.id = k.league_id
-WHERE coalesce(cardinality($1::integer[]), 0) = 0 OR k.league_id = ANY($1::integer[])
-ORDER BY k.league_id, k.team_id, (k.source = 'manual') DESC, (k.guid <> '') DESC, k.linked_at, k.guid
+WHERE (coalesce(cardinality($1::integer[]), 0) = 0 OR k.league_id = ANY($1::integer[]))
+  AND NOT EXISTS (
+      SELECT 1 FROM app_user_yahoo_team_rejections r
+      WHERE r.user_id = $2::uuid AND r.league_id = k.league_id AND r.team_id = k.team_id
+  )
+ORDER BY k.league_id, k.team_id, (k.source = 'manual') DESC, (k.source = 'self') DESC, (k.guid <> '') DESC, k.linked_at, k.guid
 `
 
 type ListAppUserYahooTeamsParams struct {
@@ -165,8 +169,10 @@ type ListAppUserYahooTeamsRow struct {
 // gives that guid, whichever season) or a team link, with their league's
 // name and season (Yahoo's start year, 2026 for 2026-27), ordered by league
 // then team, limited to league_ids when it is non-empty (the instance's
-// Yahoo league allowlist). A team reached by several links is listed once:
-// a manual link first, then a guid link, then the earliest.
+// Yahoo league allowlist), leaving out the teams the user deselected
+// (app_user_yahoo_team_rejections). A team reached by several links is
+// listed once: a manual link first, then the user's own pick, then a guid
+// link, then the earliest.
 func (q *Queries) ListAppUserYahooTeams(ctx context.Context, arg ListAppUserYahooTeamsParams) ([]ListAppUserYahooTeamsRow, error) {
 	rows, err := q.db.Query(ctx, listAppUserYahooTeams, arg.LeagueIds, arg.UserID)
 	if err != nil {
@@ -208,7 +214,11 @@ WITH links AS (
     SELECT DISTINCT ON (k.user_id, k.league_id, k.team_id)
            k.user_id, k.league_id, k.team_id, k.source, k.linked_at, k.guid
     FROM links k
-    ORDER BY k.user_id, k.league_id, k.team_id, (k.source = 'manual') DESC, (k.guid <> '') DESC, k.linked_at, k.guid
+    WHERE NOT EXISTS (
+        SELECT 1 FROM app_user_yahoo_team_rejections r
+        WHERE r.user_id = k.user_id AND r.league_id = k.league_id AND r.team_id = k.team_id
+    )
+    ORDER BY k.user_id, k.league_id, k.team_id, (k.source = 'manual') DESC, (k.source = 'self') DESC, (k.guid <> '') DESC, k.linked_at, k.guid
 )
 SELECT u.username, p.league_id, p.team_id, p.source, p.linked_at, p.guid::text AS guid, t.name AS team_name
 FROM picked p
@@ -228,9 +238,9 @@ type ListInstanceAppUserYahooTeamsRow struct {
 	TeamName string             `json:"team_name"`
 }
 
-// Every user's teams on one instance, for the admin list command; a team
-// reached by several of a user's links is listed once, picked as by
-// ListAppUserYahooTeams.
+// Every user's teams on one instance, for the admin list command, without
+// the teams each user deselected; a team reached by several of a user's
+// links is listed once, picked as by ListAppUserYahooTeams.
 func (q *Queries) ListInstanceAppUserYahooTeams(ctx context.Context, instance string) ([]ListInstanceAppUserYahooTeamsRow, error) {
 	rows, err := q.db.Query(ctx, listInstanceAppUserYahooTeams, instance)
 	if err != nil {
@@ -307,7 +317,12 @@ func (q *Queries) ListManagersByEmail(ctx context.Context, email string) ([]List
 
 const syncAppUserEmailTeamLinks = `-- name: SyncAppUserEmailTeamLinks :exec
 INSERT INTO app_user_yahoo_teams (user_id, league_id, team_id, source)
-SELECT $1::uuid, unnest($2::integer[]), unnest($3::integer[]), 'email'
+SELECT $1::uuid, p.league_id, p.team_id, 'email'
+FROM (SELECT unnest($2::integer[]) AS league_id, unnest($3::integer[]) AS team_id) p
+WHERE NOT EXISTS (
+    SELECT 1 FROM app_user_yahoo_team_rejections r
+    WHERE r.user_id = $1::uuid AND r.league_id = p.league_id AND r.team_id = p.team_id
+)
 ON CONFLICT (user_id, league_id, team_id) DO NOTHING
 `
 
@@ -321,7 +336,8 @@ type SyncAppUserEmailTeamLinksParams struct {
 // the caller passes the email's matches whose rows resolve to no guid (a
 // row resolving to one gets a guid link instead). A link already present under any source is left alone:
 // ON CONFLICT DO NOTHING never promotes a manual link or re-stamps
-// linked_at on one already synced. Call with DeleteStaleAppUserEmailTeamLinks
+// linked_at on one already synced. A team the user deselected
+// (app_user_yahoo_team_rejections) gets no link. Call with DeleteStaleAppUserEmailTeamLinks
 // to also drop email links the current match set no longer contains.
 func (q *Queries) SyncAppUserEmailTeamLinks(ctx context.Context, arg SyncAppUserEmailTeamLinksParams) error {
 	_, err := q.db.Exec(ctx, syncAppUserEmailTeamLinks, arg.UserID, arg.LeagueIds, arg.TeamIds)

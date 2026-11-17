@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/sperano/puckdb/internal/sqlcdb"
@@ -20,13 +21,34 @@ const foreignKeyViolation = "23503"
 // same guid, so the user also gets that account's teams of every other
 // season; otherwise (no manager, an unresolved guid, a co-managed team
 // whose managers resolve differently) a team link. A link already present
-// for the guid or pair, of either source, becomes SourceManual: an operator
-// linking it by hand always wins over a later email resync. Returns
-// ErrUnknownTeam when no yahoo_teams row matches. The returned Link's
-// TeamName, LeagueName and Season are always empty: call ListUserTeams for a
-// display row.
+// for the guid or pair, of any source (email or self), becomes
+// SourceManual: an operator linking it by hand always wins over a later
+// email resync. Returns ErrUnknownTeam only when no yahoo_teams row matches
+// (a team with no manager row gets a team link, as a pick of it does in
+// Picker.SetTeams) and ErrUserNotFound for no such user. It also removes the
+// user's deselection of the team (Picker.SetTeams), in the same
+// transaction: the operator's link wins. It takes the user row lock first,
+// so it serializes with SetTeams. The returned Link's TeamName, LeagueName
+// and Season are always empty: call ListUserTeams for a display row.
 func (s *PGStore) Link(ctx context.Context, userID pgtype.UUID, leagueID, teamID int32) (Link, error) {
-	managers, err := s.queries.ListYahooTeamManagerGUIDs(ctx, sqlcdb.ListYahooTeamManagerGUIDsParams{
+	var linked Link
+	err := pgx.BeginFunc(ctx, s.db, func(tx pgx.Tx) error {
+		var err error
+		linked, err = link(ctx, sqlcdb.New(tx), userID, leagueID, teamID)
+		return err
+	})
+	if err != nil {
+		return Link{}, err
+	}
+	return linked, nil
+}
+
+// link is Link's body, over the transaction's queries q.
+func link(ctx context.Context, q *sqlcdb.Queries, userID pgtype.UUID, leagueID, teamID int32) (Link, error) {
+	if _, err := lockUser(ctx, q, userID); err != nil {
+		return Link{}, err
+	}
+	managers, err := q.ListYahooTeamManagerGUIDs(ctx, sqlcdb.ListYahooTeamManagerGUIDsParams{
 		LeagueID: leagueID, TeamID: teamID,
 	})
 	if err != nil {
@@ -35,8 +57,11 @@ func (s *PGStore) Link(ctx context.Context, userID pgtype.UUID, leagueID, teamID
 	if len(managers) == 0 {
 		return Link{}, fmt.Errorf("%w: league %d team %d", ErrUnknownTeam, leagueID, teamID)
 	}
+	if err := clearRejections(ctx, q, userID, []teamKey{{leagueID, teamID}}); err != nil {
+		return Link{}, err
+	}
 	if guid, ok := singleGUID(managers); ok {
-		row, err := s.queries.LinkAppUserYahooManager(ctx, sqlcdb.LinkAppUserYahooManagerParams{
+		row, err := q.LinkAppUserYahooManager(ctx, sqlcdb.LinkAppUserYahooManagerParams{
 			UserID: userID, Guid: guid,
 		})
 		if err != nil {
@@ -44,7 +69,7 @@ func (s *PGStore) Link(ctx context.Context, userID pgtype.UUID, leagueID, teamID
 		}
 		return Link{LeagueID: leagueID, TeamID: teamID, GUID: row.Guid, Source: row.Source, LinkedAt: row.LinkedAt.Time}, nil
 	}
-	row, err := s.queries.LinkAppUserYahooTeam(ctx, sqlcdb.LinkAppUserYahooTeamParams{
+	row, err := q.LinkAppUserYahooTeam(ctx, sqlcdb.LinkAppUserYahooTeamParams{
 		UserID: userID, LeagueID: leagueID, TeamID: teamID,
 	})
 	if err != nil {

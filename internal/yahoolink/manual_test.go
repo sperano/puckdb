@@ -2,6 +2,7 @@ package yahoolink
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -210,4 +211,152 @@ func TestPGStore_LinkPromotesEmailGUIDLinkToManual(t *testing.T) {
 	require.Len(t, links, 1)
 	assert.Equal(t, SourceManual, links[0].Source)
 	assert.Equal(t, guid, links[0].GUID)
+}
+
+// TestPGStore_LinkClearsADeselectionOnTheGUIDBranch: link-team on a
+// deselected team whose manager resolves to a guid links the account as
+// manual and removes the deselection.
+func TestPGStore_LinkClearsADeselectionOnTheGUIDBranch(t *testing.T) {
+	pool := pgtest.Open(t)
+	ctx := context.Background()
+	store := NewPGStore(pool)
+	guid := newGUID()
+	league, team := seedLeagueTeam(t, pool, "Guid Team")
+	seedManagerGUID(t, pool, league, team, 1, guid, "")
+	user := insertUser(t, pool, "deselected")
+	picker := newTestPicker(pool, testSeason, league)
+	_, err := picker.SetTeams(ctx, userIDText(user), []TeamRef{{league, team}})
+	require.NoError(t, err)
+	_, err = picker.SetTeams(ctx, userIDText(user), nil)
+	require.NoError(t, err)
+	require.Equal(t, 1, countRejections(t, pool, user), "fixture: the team is deselected")
+
+	link, err := store.Link(ctx, user, league, team)
+	require.NoError(t, err)
+	assert.Equal(t, guid, link.GUID, "the guid branch")
+	assert.Equal(t, 0, countRejections(t, pool, user))
+	links, err := store.ListUserTeams(ctx, user, nil)
+	require.NoError(t, err)
+	require.Len(t, links, 1)
+	assert.Equal(t, Link{LeagueID: league, TeamID: team, GUID: guid, Source: SourceManual}, Link{
+		LeagueID: links[0].LeagueID, TeamID: links[0].TeamID, GUID: links[0].GUID, Source: links[0].Source,
+	})
+}
+
+// TestPGStore_LinkAndUnlinkWaitForTheUsersSelection: Link and Unlink take
+// the user row lock SetTeams holds, so a deselection committed while they
+// wait is seen, and cleared, instead of hiding the operator's change.
+func TestPGStore_LinkAndUnlinkWaitForTheUsersSelection(t *testing.T) {
+	pool := pgtest.Open(t)
+	store := NewPGStore(pool)
+	tests := []struct {
+		name string
+		op   func(ctx context.Context, user pgtype.UUID, league, team int32) (any, error)
+		want any
+	}{
+		{name: "link", op: func(ctx context.Context, user pgtype.UUID, league, team int32) (any, error) {
+			l, err := store.Link(ctx, user, league, team)
+			return l.Source, err
+		}, want: SourceManual},
+		{name: "unlink", op: func(ctx context.Context, user pgtype.UUID, league, team int32) (any, error) {
+			return store.Unlink(ctx, user, league, team)
+		}, want: Unlinked{Rejection: true}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(context.Background(), lockWaitTimeout)
+			defer cancel()
+			league, team := seedLeagueTeam(t, pool, "Raced")
+			seedManagerGUID(t, pool, league, team, 1, hiddenGUID, "")
+			user := insertUser(t, pool, "raced")
+
+			selection, err := pool.Begin(ctx)
+			require.NoError(t, err)
+			defer func() { _ = selection.Rollback(context.Background()) }()
+			var pid int32
+			require.NoError(t, selection.QueryRow(ctx, `SELECT pg_backend_pid()`).Scan(&pid))
+			q := sqlcdb.New(selection)
+			require.NoError(t, markOfferSeen(ctx, q, user))
+			require.NoError(t, rejectTeams(ctx, q, user, []teamKey{{league, team}}))
+
+			type result struct {
+				got any
+				err error
+			}
+			done := make(chan result, 1)
+			go func() {
+				got, err := tt.op(ctx, user, league, team)
+				done <- result{got, err}
+			}()
+			waitUntilBlockedBy(ctx, t, pool, pid, done)
+			require.NoError(t, selection.Commit(ctx))
+
+			got := <-done
+			require.NoError(t, got.err)
+			assert.Equal(t, tt.want, got.got)
+			assert.Equal(t, 0, countRejections(t, pool, user), "the deselection committed meanwhile is cleared")
+		})
+	}
+}
+
+// TestPGStore_UnlinkMatchesTheEmailALoginCommittedWhileItWaits: Unlink
+// reads the login email under the user row lock, so a login that changes
+// it to a manager's email while Unlink waits makes the unlink refused,
+// where the email read before the lock would have let it delete a link the
+// next request recreates.
+func TestPGStore_UnlinkMatchesTheEmailALoginCommittedWhileItWaits(t *testing.T) {
+	pool := pgtest.Open(t)
+	ctx, cancel := context.WithTimeout(context.Background(), lockWaitTimeout)
+	defer cancel()
+	store := NewPGStore(pool)
+	email := uniqueUsername("new-address") + "@example.com"
+	league, team := seedLeagueTeam(t, pool, "New Address")
+	seedManagerGUID(t, pool, league, team, 1, hiddenGUID, email)
+	user := insertUser(t, pool, "new-address")
+	setUserEmail(t, pool, user, uniqueUsername("old-address")+"@example.com")
+	_, err := store.Link(ctx, user, league, team)
+	require.NoError(t, err)
+
+	login, err := pool.Begin(ctx)
+	require.NoError(t, err)
+	defer func() { _ = login.Rollback(context.Background()) }()
+	var pid int32
+	require.NoError(t, login.QueryRow(ctx, `SELECT pg_backend_pid()`).Scan(&pid))
+	_, err = login.Exec(ctx, `UPDATE app_users SET email = $2 WHERE id = $1`, user, email)
+	require.NoError(t, err)
+
+	type result struct {
+		removed Unlinked
+		err     error
+	}
+	done := make(chan result, 1)
+	go func() {
+		removed, err := store.Unlink(ctx, user, league, team)
+		done <- result{removed, err}
+	}()
+	waitUntilBlockedBy(ctx, t, pool, pid, done)
+	require.NoError(t, login.Commit(ctx))
+
+	got := <-done
+	require.ErrorIs(t, got.err, ErrEmailLinkStillMatches)
+	assert.Equal(t, 1, countUserTeamLinks(t, pool, user), "the refused unlink changed nothing")
+}
+
+// TestPGStore_LinkAndUnlinkRefuseAMissingUser: both fail with
+// ErrUserNotFound for an ID no app_users row has, changing nothing.
+func TestPGStore_LinkAndUnlinkRefuseAMissingUser(t *testing.T) {
+	pool := pgtest.Open(t)
+	ctx := context.Background()
+	store := NewPGStore(pool)
+	league, team := seedLeagueTeam(t, pool, "Nobody's")
+	seedManagerGUID(t, pool, league, team, 1, hiddenGUID, "")
+	missing := pgtype.UUID{Bytes: [16]byte{0xde, 0xad, 0xbe, 0xef}, Valid: true}
+	want := fmt.Sprintf("%s: id %s", ErrUserNotFound, missing)
+
+	_, err := store.Link(ctx, missing, league, team)
+	require.ErrorIs(t, err, ErrUserNotFound)
+	assert.EqualError(t, err, want)
+	_, err = store.Unlink(ctx, missing, league, team)
+	require.ErrorIs(t, err, ErrUserNotFound)
+	assert.EqualError(t, err, want)
 }

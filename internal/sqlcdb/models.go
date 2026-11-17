@@ -761,6 +761,7 @@ type AppUser struct {
 	DisabledAt       pgtype.Timestamptz `json:"disabled_at"`
 	Instance         string             `json:"instance"`
 	Email            pgtype.Text        `json:"email"`
+	TeamOfferSeenAt  pgtype.Timestamptz `json:"team_offer_seen_at"`
 }
 
 type AppUserUsage struct {
@@ -793,6 +794,13 @@ type AppUserYahooTeam struct {
 	TeamID   int32              `json:"team_id"`
 	Source   string             `json:"source"`
 	LinkedAt pgtype.Timestamptz `json:"linked_at"`
+}
+
+type AppUserYahooTeamRejection struct {
+	UserID     pgtype.UUID        `json:"user_id"`
+	LeagueID   int32              `json:"league_id"`
+	TeamID     int32              `json:"team_id"`
+	RejectedAt pgtype.Timestamptz `json:"rejected_at"`
 }
 
 type ClubGoalieStat struct {

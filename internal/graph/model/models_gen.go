@@ -1153,6 +1153,30 @@ type MauriceReportingUserPage struct {
 	NextCursor *string                 `json:"nextCursor,omitempty"`
 }
 
+// A Yahoo team the caller may pick.
+type MauriceTeamChoice struct {
+	LeagueID   int    `json:"leagueId"`
+	LeagueName string `json:"leagueName"`
+	TeamID     int    `json:"teamId"`
+	TeamName   string `json:"teamName"`
+	// The team's managers' Yahoo nicknames, by manager ID; never their emails.
+	ManagerNicknames []string `json:"managerNicknames"`
+	// Whether the caller's Maurice prompt names the team as theirs.
+	Linked bool `json:"linked"`
+	// The link the caller reaches the team through; null when not linked.
+	LinkSource *MauriceTeamLinkSource `json:"linkSource,omitempty"`
+}
+
+// The teams of the default season in the instance's Yahoo leagues.
+type MauriceTeamChoices struct {
+	// Yahoo season (start year: 2026 for 2026-27) of the teams: the newest season of the instance's leagues not after the current NHL season; null, with no teams, when there is none.
+	Season *int `json:"season,omitempty"`
+	// Ordered by league then team ID.
+	Teams []*MauriceTeamChoice `json:"teams"`
+	// Whether the caller already saved or dismissed the first-login offer.
+	Offered bool `json:"offered"`
+}
+
 type MauriceTurn struct {
 	ID             string            `json:"id"`
 	ConversationID string            `json:"conversationId"`
@@ -1493,6 +1517,12 @@ type Team struct {
 	DivisionAbbrev   string  `json:"divisionAbbrev"`
 	ConferenceName   *string `json:"conferenceName,omitempty"`
 	ConferenceAbbrev *string `json:"conferenceAbbrev,omitempty"`
+}
+
+// A Yahoo team by its numeric league and team IDs.
+type TeamRef struct {
+	LeagueID int `json:"leagueId"`
+	TeamID   int `json:"teamId"`
 }
 
 type TrulyUnmatchedPlayer struct {
@@ -2551,6 +2581,67 @@ func (e *MauriceReportingTurnStatus) UnmarshalJSON(b []byte) error {
 }
 
 func (e MauriceReportingTurnStatus) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+// How the caller is linked to a team.
+type MauriceTeamLinkSource string
+
+const (
+	// The login email matches one of the team's Yahoo managers.
+	MauriceTeamLinkSourceEmail MauriceTeamLinkSource = "EMAIL"
+	// An operator linked it (puckdb user link-team).
+	MauriceTeamLinkSourceManual MauriceTeamLinkSource = "MANUAL"
+	// The caller picked it (mauriceSetTeams).
+	MauriceTeamLinkSourceSelf MauriceTeamLinkSource = "SELF"
+)
+
+var AllMauriceTeamLinkSource = []MauriceTeamLinkSource{
+	MauriceTeamLinkSourceEmail,
+	MauriceTeamLinkSourceManual,
+	MauriceTeamLinkSourceSelf,
+}
+
+func (e MauriceTeamLinkSource) IsValid() bool {
+	switch e {
+	case MauriceTeamLinkSourceEmail, MauriceTeamLinkSourceManual, MauriceTeamLinkSourceSelf:
+		return true
+	}
+	return false
+}
+
+func (e MauriceTeamLinkSource) String() string {
+	return string(e)
+}
+
+func (e *MauriceTeamLinkSource) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = MauriceTeamLinkSource(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid MauriceTeamLinkSource", str)
+	}
+	return nil
+}
+
+func (e MauriceTeamLinkSource) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *MauriceTeamLinkSource) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e MauriceTeamLinkSource) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil

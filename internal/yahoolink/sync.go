@@ -15,8 +15,9 @@ import (
 // for one that does not. It removes userID's own email-sourced links the
 // match no longer gives (an email change, the manager row's, or a row that
 // now resolves to a guid, whose team link gives way to the guid link). It
-// never touches SourceManual links. An empty email matches nothing, so it
-// clears every email-sourced link.
+// never touches SourceManual or SourceSelf links, and makes no team link to
+// a team the user deselected (Picker.SetTeams). An empty email matches
+// nothing, so it clears every email-sourced link.
 //
 // q must wrap the login transaction (appuser.PGStore.Resolve's), so the user
 // row and its links commit together.

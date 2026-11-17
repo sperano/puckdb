@@ -186,3 +186,15 @@ func TestCloseOrWarn(t *testing.T) {
 		"message": "failed to close redis client",
 	}, entry)
 }
+
+func TestMauriceYahooLeaguesFrom(t *testing.T) {
+	t.Parallel()
+	ids, err := mauriceYahooLeaguesFrom(boundViper(t, nil, &config.MauriceFlags))
+	require.NoError(t, err)
+	assert.Empty(t, ids, "the default allows every league")
+	ids, err = mauriceYahooLeaguesFrom(boundViper(t, []string{"--maurice-yahoo-leagues=29249, 1001"}, &config.MauriceFlags))
+	require.NoError(t, err)
+	assert.Equal(t, []int32{29249, 1001}, ids)
+	_, err = mauriceYahooLeaguesFrom(boundViper(t, []string{"--maurice-yahoo-leagues=465.l.29249"}, &config.MauriceFlags))
+	require.EqualError(t, err, `--maurice-yahoo-leagues: invalid Yahoo league ID "465.l.29249": want a positive number, e.g. 29249`)
+}

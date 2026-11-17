@@ -23,7 +23,7 @@ type DeleteStaleAppUserEmailManagerLinksParams struct {
 }
 
 // Removes user_id's email-sourced guid links not in the current matched
-// set; manual links are never touched here.
+// set; manual and self links are never touched here.
 func (q *Queries) DeleteStaleAppUserEmailManagerLinks(ctx context.Context, arg DeleteStaleAppUserEmailManagerLinksParams) error {
 	_, err := q.db.Exec(ctx, deleteStaleAppUserEmailManagerLinks, arg.UserID, arg.Guids)
 	return err
@@ -41,8 +41,9 @@ type LinkAppUserYahooManagerParams struct {
 	Guid   string      `json:"guid"`
 }
 
-// Manual admin link; promotes an existing email-sourced link for the same
-// guid to manual (so a resync never removes it) and refreshes linked_at.
+// Manual admin link; promotes an existing link for the same guid (email or
+// the user's own pick) to manual, so a resync never removes it, and
+// refreshes linked_at.
 func (q *Queries) LinkAppUserYahooManager(ctx context.Context, arg LinkAppUserYahooManagerParams) (AppUserYahooManager, error) {
 	row := q.db.QueryRow(ctx, linkAppUserYahooManager, arg.UserID, arg.Guid)
 	var i AppUserYahooManager

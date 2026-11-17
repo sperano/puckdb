@@ -14,10 +14,14 @@
 // carry, and to none for a manager with no earlier season (see
 // yahoo_team_manager_guids in its migration).
 //
-// A link's source is either SourceEmail (the login email matched a
+// A link's source is SourceEmail (the login email matched a
 // yahoo_team_managers.email, case-insensitively, kept in sync at every
-// authenticated request by SyncEmailLinks) or SourceManual (an operator
-// added it for a user whose Yahoo email differs from their login email).
+// authenticated request by SyncEmailLinks), SourceManual (an operator added
+// it for a user whose Yahoo email differs from their login email) or
+// SourceSelf (the user picked the team, Picker). A team the user deselected
+// in the Picker is hidden from their teams whatever link reaches it, until
+// they pick it again, or an operator links it, or unlinks it once the login
+// email no longer matches the team.
 // league_id/team_id are the legacy numeric Yahoo identifiers yahoo_teams and
 // yahoo_team_managers already use.
 package yahoolink
@@ -40,6 +44,10 @@ const (
 	SourceEmail = "email"
 	// SourceManual marks a link an operator added by hand.
 	SourceManual = "manual"
+	// SourceSelf marks a link the user made by picking the team themself
+	// (Picker.SetTeams): self-declared and unverified, it only changes that
+	// user's own prompt. Like SourceManual, the email resync never removes it.
+	SourceSelf = "self"
 )
 
 // ErrUnknownTeam is returned by Link for a (league, team) pair with no
@@ -53,10 +61,10 @@ var ErrUserNotFound = errors.New("no such user")
 // user: username is a mutable snapshot, not a unique key.
 var ErrAmbiguousUser = errors.New("username matches more than one user")
 
-// ErrEmailLinkStillMatches is returned by Unlink for a link, of either
-// source, the given login email still matches: removing it would only be
-// undone by SyncEmailLinks, as SourceEmail, on the user's next
-// authenticated request.
+// ErrEmailLinkStillMatches is returned by Unlink for a link, of any source
+// (email, manual or self), the user's login email (read under the user-row
+// lock) still matches: removing it would only be undone by SyncEmailLinks,
+// as SourceEmail, on the user's next authenticated request.
 var ErrEmailLinkStillMatches = errors.New("link still matches the login email")
 
 // Link is one Yahoo team a user manages. GUID is the Yahoo account of the
@@ -79,7 +87,6 @@ type Link struct {
 type User struct {
 	ID       pgtype.UUID
 	Username string
-	Email    string
 }
 
 // InstanceLink is one Link together with its owner's username, for the
@@ -108,10 +115,17 @@ func NewPGStore(db DB) *PGStore {
 }
 
 // ListUserTeams returns userID's teams, through either kind of link and
-// each once, with their league's name and season, limited to leagueIDs when it is non-empty (the instance's Yahoo
-// league allowlist; empty means every league), ordered by league then team.
+// each once, with their league's name and season, limited to leagueIDs when
+// it is non-empty (the instance's Yahoo league allowlist; empty means every
+// league), ordered by league then team. A team the user deselected is left
+// out.
 func (s *PGStore) ListUserTeams(ctx context.Context, userID pgtype.UUID, leagueIDs []int32) ([]Link, error) {
-	rows, err := s.queries.ListAppUserYahooTeams(ctx, sqlcdb.ListAppUserYahooTeamsParams{
+	return listUserTeams(ctx, s.queries, userID, leagueIDs)
+}
+
+// listUserTeams is ListUserTeams over q, which may wrap a transaction.
+func listUserTeams(ctx context.Context, q *sqlcdb.Queries, userID pgtype.UUID, leagueIDs []int32) ([]Link, error) {
+	rows, err := q.ListAppUserYahooTeams(ctx, sqlcdb.ListAppUserYahooTeamsParams{
 		UserID: userID, LeagueIds: leagueIDs,
 	})
 	if err != nil {
@@ -161,7 +175,7 @@ func (s *PGStore) FindUser(ctx context.Context, instance, username string) (User
 	case 0:
 		return User{}, fmt.Errorf("%w: %q on instance %q", ErrUserNotFound, username, instance)
 	case 1:
-		return User{ID: rows[0].ID, Username: rows[0].Username, Email: rows[0].Email.String}, nil
+		return User{ID: rows[0].ID, Username: rows[0].Username}, nil
 	default:
 		return User{}, fmt.Errorf("%w: %q on instance %q", ErrAmbiguousUser, username, instance)
 	}

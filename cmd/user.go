@@ -37,7 +37,7 @@ func cmdUserLinkTeam() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "link-team <username> <league id> <team id>",
 		Short:   "Link a user to a Yahoo team by hand",
-		Long:    `Link a user to a Yahoo team, for a user whose Yahoo email differs from their login email. When every manager of the team resolves to one Yahoo account (guid), the account is linked, so the user also gets its teams of every other season, including seasons imported later; otherwise (no manager, a hidden guid with no earlier season to recover it from, a co-managed team) the team alone is linked. Promotes an existing email-sourced link to manual, so a later email resync never removes it.`,
+		Long:    `Link a user to a Yahoo team, for a user whose Yahoo email differs from their login email. When every manager of the team resolves to one Yahoo account (guid), the account is linked, so the user also gets its teams of every other season, including seasons imported later; otherwise (no manager, a hidden guid with no earlier season to recover it from, a co-managed team) the team alone is linked. Promotes an existing link the email resync or the user's own pick made to manual, and clears the user's deselection of the team (Maurice team picker).`,
 		Args:    cobra.ExactArgs(3),
 		PreRunE: bindFlagsPreRunE(userTeamLinkFlagGroups...),
 		RunE:    runUserLinkTeam,
@@ -80,7 +80,7 @@ func cmdUserUnlinkTeam() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "unlink-team <username> <league id> <team id>",
 		Short:   "Remove a user's link to a Yahoo team",
-		Long:    `Remove every link through which a user reaches a Yahoo team, whether made by email match or by hand: the team link, and the links to the Yahoo accounts (guids) managing it, which also removes those accounts' teams of every other season. Refuses when the login email still matches a manager of the team or one of those accounts: fix the Yahoo manager's email instead, since a resync would just recreate the link.`,
+		Long:    `Remove every link through which a user reaches a Yahoo team, whether made by email match, by hand or by the user's own pick (Maurice team picker): the team link, and the links to the Yahoo accounts (guids) managing it, which also removes those accounts' teams of every other season. Refuses when the login email still matches a manager of the team or one of those accounts: fix the Yahoo manager's email instead, since a resync would just recreate the link. Otherwise also clears the user's deselection of the team (Maurice team picker).`,
 		Args:    cobra.ExactArgs(3),
 		PreRunE: bindFlagsPreRunE(userTeamLinkFlagGroups...),
 		RunE:    runUserUnlinkTeam,
@@ -105,7 +105,7 @@ func runUserUnlinkTeam(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	removed, err := store.Unlink(ctx, user.ID, user.Email, leagueID, teamID)
+	removed, err := store.Unlink(ctx, user.ID, leagueID, teamID)
 	if err != nil {
 		return err
 	}
@@ -113,7 +113,7 @@ func runUserUnlinkTeam(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("%s has no link to league %d team %d", user.Username, leagueID, teamID)
 	}
 	log.Info().Str("username", user.Username).Int32("league_id", leagueID).Int32("team_id", teamID).
-		Bool("team_link", removed.Team).Strs("guids", removed.GUIDs).
+		Bool("team_link", removed.Team).Strs("guids", removed.GUIDs).Bool("deselection", removed.Rejection).
 		Msg("removed user's links to Yahoo team")
 	return nil
 }
@@ -122,7 +122,7 @@ func cmdUserListTeams() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "list-teams [username]",
 		Short:   "List users' Yahoo team links",
-		Long:    `List every Yahoo team link on the instance, or one user's when username is given.`,
+		Long:    `List every Yahoo team link on the instance, or one user's when username is given. A team the user deselected in the team picker is left out.`,
 		Args:    cobra.MaximumNArgs(1),
 		PreRunE: bindFlagsPreRunE(userTeamLinkFlagGroups...),
 		RunE:    runUserListTeams,

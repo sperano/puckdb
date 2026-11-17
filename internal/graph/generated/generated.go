@@ -875,6 +875,22 @@ type ComplexityRoot struct {
 		NextCursor func(childComplexity int) int
 	}
 
+	MauriceTeamChoice struct {
+		LeagueID         func(childComplexity int) int
+		LeagueName       func(childComplexity int) int
+		LinkSource       func(childComplexity int) int
+		Linked           func(childComplexity int) int
+		ManagerNicknames func(childComplexity int) int
+		TeamID           func(childComplexity int) int
+		TeamName         func(childComplexity int) int
+	}
+
+	MauriceTeamChoices struct {
+		Offered func(childComplexity int) int
+		Season  func(childComplexity int) int
+		Teams   func(childComplexity int) int
+	}
+
 	MauriceTurn struct {
 		Content        func(childComplexity int) int
 		ConversationID func(childComplexity int) int
@@ -928,6 +944,8 @@ type ComplexityRoot struct {
 		MauriceChat                  func(childComplexity int, conversationID *string, message string, idempotencyKey *string) int
 		MauriceChatStart             func(childComplexity int, conversationID *string, message string, idempotencyKey string) int
 		MauriceDeleteConversation    func(childComplexity int, id string) int
+		MauriceDismissTeamOffer      func(childComplexity int) int
+		MauriceSetTeams              func(childComplexity int, teams []*model.TeamRef) int
 		ProcessPlayers               func(childComplexity int, input *model.ProcessPlayersInput) int
 		RefreshDraftRankings         func(childComplexity int, input *model.RefreshDraftRankingsInput) int
 		RefreshMauriceDraftBoard     func(childComplexity int, input model.MauriceDraftSessionRefInput) int
@@ -1063,6 +1081,7 @@ type ComplexityRoot struct {
 		MauriceReportingOverview       func(childComplexity int, filter model.MauriceReportingConversationFilter) int
 		MauriceReportingUserActivity   func(childComplexity int, filter model.MauriceReportingConversationFilter, limit *int, cursor *string) int
 		MauriceReportingUsers          func(childComplexity int, instance string, limit *int, cursor *string) int
+		MauriceTeamChoices             func(childComplexity int) int
 		MauriceTurn                    func(childComplexity int, id string) int
 		Player                         func(childComplexity int, id int64) int
 		PlayerSeasonTotals             func(childComplexity int, playerID int64) int
@@ -1325,6 +1344,8 @@ type MutationResolver interface {
 	UndoMauriceDraftPick(ctx context.Context, input model.MauriceDraftSlotInput) (*model.MauriceDraftSyncStatus, error)
 	ResolveMauriceDraftConflict(ctx context.Context, input model.MauriceDraftResolveInput) (*model.MauriceDraftSyncStatus, error)
 	SetMauriceDraftShortlist(ctx context.Context, input model.MauriceDraftShortlistInput) (*model.MauriceDraftSyncStatus, error)
+	MauriceSetTeams(ctx context.Context, teams []*model.TeamRef) (*model.MauriceTeamChoices, error)
+	MauriceDismissTeamOffer(ctx context.Context) (bool, error)
 	CreateSimPool(ctx context.Context, input model.CreateSimPoolInput) (*model.SimPool, error)
 	CancelSimPool(ctx context.Context, poolID int) (*model.SimPool, error)
 }
@@ -1394,6 +1415,7 @@ type QueryResolver interface {
 	MauriceReportingConversation(ctx context.Context, instance string, id string, includeDeleted *bool) (*model.MauriceReportingConversation, error)
 	MauriceReportingOverview(ctx context.Context, filter model.MauriceReportingConversationFilter) (*model.MauriceReportingOverview, error)
 	MauriceReportingUserActivity(ctx context.Context, filter model.MauriceReportingConversationFilter, limit *int, cursor *string) (*model.MauriceReportingUserActivityPage, error)
+	MauriceTeamChoices(ctx context.Context) (*model.MauriceTeamChoices, error)
 	SimPool(ctx context.Context, id int) (*model.SimPool, error)
 	SimPools(ctx context.Context) ([]*model.SimPool, error)
 	SimTransactions(ctx context.Context, poolID int, agentID *int, date *string, limit *int) ([]*model.SimTransaction, error)
@@ -5157,6 +5179,68 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.MauriceReportingUserPage.NextCursor(childComplexity), true
 
+	case "MauriceTeamChoice.leagueId":
+		if e.ComplexityRoot.MauriceTeamChoice.LeagueID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceTeamChoice.LeagueID(childComplexity), true
+	case "MauriceTeamChoice.leagueName":
+		if e.ComplexityRoot.MauriceTeamChoice.LeagueName == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceTeamChoice.LeagueName(childComplexity), true
+	case "MauriceTeamChoice.linkSource":
+		if e.ComplexityRoot.MauriceTeamChoice.LinkSource == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceTeamChoice.LinkSource(childComplexity), true
+	case "MauriceTeamChoice.linked":
+		if e.ComplexityRoot.MauriceTeamChoice.Linked == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceTeamChoice.Linked(childComplexity), true
+	case "MauriceTeamChoice.managerNicknames":
+		if e.ComplexityRoot.MauriceTeamChoice.ManagerNicknames == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceTeamChoice.ManagerNicknames(childComplexity), true
+	case "MauriceTeamChoice.teamId":
+		if e.ComplexityRoot.MauriceTeamChoice.TeamID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceTeamChoice.TeamID(childComplexity), true
+	case "MauriceTeamChoice.teamName":
+		if e.ComplexityRoot.MauriceTeamChoice.TeamName == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceTeamChoice.TeamName(childComplexity), true
+
+	case "MauriceTeamChoices.offered":
+		if e.ComplexityRoot.MauriceTeamChoices.Offered == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceTeamChoices.Offered(childComplexity), true
+	case "MauriceTeamChoices.season":
+		if e.ComplexityRoot.MauriceTeamChoices.Season == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceTeamChoices.Season(childComplexity), true
+	case "MauriceTeamChoices.teams":
+		if e.ComplexityRoot.MauriceTeamChoices.Teams == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceTeamChoices.Teams(childComplexity), true
+
 	case "MauriceTurn.content":
 		if e.ComplexityRoot.MauriceTurn.Content == nil {
 			break
@@ -5515,6 +5599,23 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.MauriceDeleteConversation(childComplexity, args["id"].(string)), true
+	case "Mutation.mauriceDismissTeamOffer":
+		if e.ComplexityRoot.Mutation.MauriceDismissTeamOffer == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Mutation.MauriceDismissTeamOffer(childComplexity), true
+	case "Mutation.mauriceSetTeams":
+		if e.ComplexityRoot.Mutation.MauriceSetTeams == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_mauriceSetTeams_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.MauriceSetTeams(childComplexity, args["teams"].([]*model.TeamRef)), true
 	case "Mutation.processPlayers":
 		if e.ComplexityRoot.Mutation.ProcessPlayers == nil {
 			break
@@ -6367,6 +6468,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.MauriceReportingUsers(childComplexity, args["instance"].(string), args["limit"].(*int), args["cursor"].(*string)), true
+	case "Query.mauriceTeamChoices":
+		if e.ComplexityRoot.Query.MauriceTeamChoices == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.MauriceTeamChoices(childComplexity), true
 	case "Query.mauriceTurn":
 		if e.ComplexityRoot.Query.MauriceTurn == nil {
 			break
@@ -7472,6 +7579,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputRefreshNewsInput,
 		ec.unmarshalInputSeasonsInput,
 		ec.unmarshalInputSimRosterPositionInput,
+		ec.unmarshalInputTeamRef,
 	)
 	first := true
 
@@ -9042,6 +9150,63 @@ extend type Query {
 	cursor is bound to the filter, like the conversation list's.
 	"""
 	mauriceReportingUserActivity(filter: MauriceReportingConversationFilter!, limit: Int, cursor: String): MauriceReportingUserActivityPage! @admin @mauriceReporting
+}
+`, BuiltIn: false},
+	{Name: "../maurice_teams.graphqls", Input: `# Maurice team picker: the caller picks their own Yahoo teams, for a login
+# email that differs from their Yahoo manager email. Every field needs the
+# instance's login identity and is scoped to the caller. A pick is
+# self-declared and unverified: it only changes the caller's own Maurice
+# prompt, and several users may pick the same team (co-managers).
+
+"""How the caller is linked to a team."""
+enum MauriceTeamLinkSource {
+	"""The login email matches one of the team's Yahoo managers."""
+	EMAIL
+	"""An operator linked it (puckdb user link-team)."""
+	MANUAL
+	"""The caller picked it (mauriceSetTeams)."""
+	SELF
+}
+
+"""A Yahoo team the caller may pick."""
+type MauriceTeamChoice {
+	leagueId: Int!
+	leagueName: String!
+	teamId: Int!
+	teamName: String!
+	"""The team's managers' Yahoo nicknames, by manager ID; never their emails."""
+	managerNicknames: [String!]!
+	"""Whether the caller's Maurice prompt names the team as theirs."""
+	linked: Boolean!
+	"""The link the caller reaches the team through; null when not linked."""
+	linkSource: MauriceTeamLinkSource
+}
+
+"""The teams of the default season in the instance's Yahoo leagues."""
+type MauriceTeamChoices {
+	"""Yahoo season (start year: 2026 for 2026-27) of the teams: the newest season of the instance's leagues not after the current NHL season; null, with no teams, when there is none."""
+	season: Int
+	"""Ordered by league then team ID."""
+	teams: [MauriceTeamChoice!]!
+	"""Whether the caller already saved or dismissed the first-login offer."""
+	offered: Boolean!
+}
+
+"""A Yahoo team by its numeric league and team IDs."""
+input TeamRef {
+	leagueId: Int!
+	teamId: Int!
+}
+
+extend type Query {
+	mauriceTeamChoices: MauriceTeamChoices!
+}
+
+extend type Mutation {
+	"""Makes teams the caller's selection among mauriceTeamChoices' teams (the others are deselected, and stay so even when the login email matches them; links outside the choices are untouched) and marks the offer as seen. Fails, changing nothing, for a team outside the choices."""
+	mauriceSetTeams(teams: [TeamRef!]!): MauriceTeamChoices!
+	"""Marks the offer as seen, changing no team."""
+	mauriceDismissTeamOffer: Boolean!
 }
 `, BuiltIn: false},
 	{Name: "../schema.graphqls", Input: `# GraphQL schema example
@@ -11328,6 +11493,38 @@ func (ec *executionContext) childFields_MauriceReportingUserPage(ctx context.Con
 	return nil, fmt.Errorf("no field named %q was found under type MauriceReportingUserPage", field.Name)
 }
 
+func (ec *executionContext) childFields_MauriceTeamChoice(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "leagueId":
+		return ec.fieldContext_MauriceTeamChoice_leagueId(ctx, field)
+	case "leagueName":
+		return ec.fieldContext_MauriceTeamChoice_leagueName(ctx, field)
+	case "teamId":
+		return ec.fieldContext_MauriceTeamChoice_teamId(ctx, field)
+	case "teamName":
+		return ec.fieldContext_MauriceTeamChoice_teamName(ctx, field)
+	case "managerNicknames":
+		return ec.fieldContext_MauriceTeamChoice_managerNicknames(ctx, field)
+	case "linked":
+		return ec.fieldContext_MauriceTeamChoice_linked(ctx, field)
+	case "linkSource":
+		return ec.fieldContext_MauriceTeamChoice_linkSource(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type MauriceTeamChoice", field.Name)
+}
+
+func (ec *executionContext) childFields_MauriceTeamChoices(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "season":
+		return ec.fieldContext_MauriceTeamChoices_season(ctx, field)
+	case "teams":
+		return ec.fieldContext_MauriceTeamChoices_teams(ctx, field)
+	case "offered":
+		return ec.fieldContext_MauriceTeamChoices_offered(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type MauriceTeamChoices", field.Name)
+}
+
 func (ec *executionContext) childFields_MauriceTurn(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "id":
@@ -12257,6 +12454,20 @@ func (ec *executionContext) field_Mutation_mauriceDeleteConversation_args(ctx co
 		return nil, err
 	}
 	args["id"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_mauriceSetTeams_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "teams",
+		func(ctx context.Context, v any) ([]*model.TeamRef, error) {
+			return ec.unmarshalNTeamRef2ᚕᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐTeamRefᚄ(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["teams"] = arg0
 	return args, nil
 }
 
@@ -28009,6 +28220,245 @@ func (ec *executionContext) fieldContext_MauriceReportingUserPage_nextCursor(_ c
 	return graphql.NewScalarFieldContext("MauriceReportingUserPage", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
+func (ec *executionContext) _MauriceTeamChoice_leagueId(ctx context.Context, field graphql.CollectedField, obj *model.MauriceTeamChoice) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceTeamChoice_leagueId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.LeagueID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceTeamChoice_leagueId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceTeamChoice", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceTeamChoice_leagueName(ctx context.Context, field graphql.CollectedField, obj *model.MauriceTeamChoice) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceTeamChoice_leagueName(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.LeagueName, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceTeamChoice_leagueName(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceTeamChoice", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceTeamChoice_teamId(ctx context.Context, field graphql.CollectedField, obj *model.MauriceTeamChoice) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceTeamChoice_teamId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.TeamID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceTeamChoice_teamId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceTeamChoice", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceTeamChoice_teamName(ctx context.Context, field graphql.CollectedField, obj *model.MauriceTeamChoice) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceTeamChoice_teamName(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.TeamName, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceTeamChoice_teamName(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceTeamChoice", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceTeamChoice_managerNicknames(ctx context.Context, field graphql.CollectedField, obj *model.MauriceTeamChoice) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceTeamChoice_managerNicknames(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ManagerNicknames, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []string) graphql.Marshaler {
+			return ec.marshalNString2ᚕstringᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceTeamChoice_managerNicknames(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceTeamChoice", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceTeamChoice_linked(ctx context.Context, field graphql.CollectedField, obj *model.MauriceTeamChoice) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceTeamChoice_linked(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Linked, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceTeamChoice_linked(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceTeamChoice", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceTeamChoice_linkSource(ctx context.Context, field graphql.CollectedField, obj *model.MauriceTeamChoice) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceTeamChoice_linkSource(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.LinkSource, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.MauriceTeamLinkSource) graphql.Marshaler {
+			return ec.marshalOMauriceTeamLinkSource2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceTeamLinkSource(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceTeamChoice_linkSource(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceTeamChoice", field, false, false, errors.New("field of type MauriceTeamLinkSource does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceTeamChoices_season(ctx context.Context, field graphql.CollectedField, obj *model.MauriceTeamChoices) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceTeamChoices_season(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Season, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *int) graphql.Marshaler {
+			return ec.marshalOInt2ᚖint(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceTeamChoices_season(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceTeamChoices", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceTeamChoices_teams(ctx context.Context, field graphql.CollectedField, obj *model.MauriceTeamChoices) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceTeamChoices_teams(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Teams, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.MauriceTeamChoice) graphql.Marshaler {
+			return ec.marshalNMauriceTeamChoice2ᚕᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceTeamChoiceᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceTeamChoices_teams(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MauriceTeamChoices",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_MauriceTeamChoice(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MauriceTeamChoices_offered(ctx context.Context, field graphql.CollectedField, obj *model.MauriceTeamChoices) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceTeamChoices_offered(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Offered, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceTeamChoices_offered(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceTeamChoices", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
 func (ec *executionContext) _MauriceTurn_id(ctx context.Context, field graphql.CollectedField, obj *model.MauriceTurn) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -29805,6 +30255,73 @@ func (ec *executionContext) fieldContext_Mutation_setMauriceDraftShortlist(ctx c
 		return fc, err
 	}
 	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_mauriceSetTeams(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_mauriceSetTeams(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().MauriceSetTeams(ctx, fc.Args["teams"].([]*model.TeamRef))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.MauriceTeamChoices) graphql.Marshaler {
+			return ec.marshalNMauriceTeamChoices2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceTeamChoices(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_mauriceSetTeams(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_MauriceTeamChoices(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_mauriceSetTeams_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_mauriceDismissTeamOffer(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_mauriceDismissTeamOffer(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Mutation().MauriceDismissTeamOffer(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_mauriceDismissTeamOffer(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Mutation", field, true, true, errors.New("field of type Boolean does not have child fields"))
 }
 
 func (ec *executionContext) _Mutation_createSimPool(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
@@ -33818,6 +34335,38 @@ func (ec *executionContext) fieldContext_Query_mauriceReportingUserActivity(ctx 
 	if fc.Args, err = ec.field_Query_mauriceReportingUserActivity_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_mauriceTeamChoices(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_mauriceTeamChoices(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().MauriceTeamChoices(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.MauriceTeamChoices) graphql.Marshaler {
+			return ec.marshalNMauriceTeamChoices2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceTeamChoices(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_mauriceTeamChoices(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_MauriceTeamChoices(ctx, field)
+		},
 	}
 	return fc, nil
 }
@@ -39825,6 +40374,43 @@ func (ec *executionContext) unmarshalInputSimRosterPositionInput(ctx context.Con
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputTeamRef(ctx context.Context, obj any) (model.TeamRef, error) {
+	var it model.TeamRef
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"leagueId", "teamId"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "leagueId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("leagueId"))
+			data, err := ec.unmarshalNInt2int(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.LeagueID = data
+		case "teamId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("teamId"))
+			data, err := ec.unmarshalNInt2int(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.TeamID = data
+		}
+	}
+	return it, nil
+}
+
 // endregion **************************** input.gotpl *****************************
 
 // region    ************************** interface.gotpl ***************************
@@ -44785,6 +45371,118 @@ func (ec *executionContext) _MauriceReportingUserPage(ctx context.Context, sel a
 	return out
 }
 
+var mauriceTeamChoiceImplementors = []string{"MauriceTeamChoice"}
+
+func (ec *executionContext) _MauriceTeamChoice(ctx context.Context, sel ast.SelectionSet, obj *model.MauriceTeamChoice) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, mauriceTeamChoiceImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("MauriceTeamChoice")
+		case "leagueId":
+			out.Values[i] = ec._MauriceTeamChoice_leagueId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "leagueName":
+			out.Values[i] = ec._MauriceTeamChoice_leagueName(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "teamId":
+			out.Values[i] = ec._MauriceTeamChoice_teamId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "teamName":
+			out.Values[i] = ec._MauriceTeamChoice_teamName(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "managerNicknames":
+			out.Values[i] = ec._MauriceTeamChoice_managerNicknames(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "linked":
+			out.Values[i] = ec._MauriceTeamChoice_linked(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "linkSource":
+			out.Values[i] = ec._MauriceTeamChoice_linkSource(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferred), math.MaxInt32)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var mauriceTeamChoicesImplementors = []string{"MauriceTeamChoices"}
+
+func (ec *executionContext) _MauriceTeamChoices(ctx context.Context, sel ast.SelectionSet, obj *model.MauriceTeamChoices) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, mauriceTeamChoicesImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("MauriceTeamChoices")
+		case "season":
+			out.Values[i] = ec._MauriceTeamChoices_season(ctx, field, obj)
+		case "teams":
+			out.Values[i] = ec._MauriceTeamChoices_teams(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "offered":
+			out.Values[i] = ec._MauriceTeamChoices_offered(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferred), math.MaxInt32)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
 var mauriceTurnImplementors = []string{"MauriceTurn"}
 
 func (ec *executionContext) _MauriceTurn(ctx context.Context, sel ast.SelectionSet, obj *model.MauriceTurn) graphql.Marshaler {
@@ -45217,6 +45915,20 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "setMauriceDraftShortlist":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_setMauriceDraftShortlist(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "mauriceSetTeams":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_mauriceSetTeams(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "mauriceDismissTeamOffer":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_mauriceDismissTeamOffer(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -47033,6 +47745,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_mauriceReportingUserActivity(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "mauriceTeamChoices":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_mauriceTeamChoices(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
@@ -50488,6 +51222,46 @@ func (ec *executionContext) marshalNMauriceReportingUserPage2ᚖgithubᚗcomᚋs
 	return ec._MauriceReportingUserPage(ctx, sel, v)
 }
 
+func (ec *executionContext) marshalNMauriceTeamChoice2ᚕᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceTeamChoiceᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.MauriceTeamChoice) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNMauriceTeamChoice2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceTeamChoice(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNMauriceTeamChoice2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceTeamChoice(ctx context.Context, sel ast.SelectionSet, v *model.MauriceTeamChoice) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._MauriceTeamChoice(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNMauriceTeamChoices2githubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceTeamChoices(ctx context.Context, sel ast.SelectionSet, v model.MauriceTeamChoices) graphql.Marshaler {
+	return ec._MauriceTeamChoices(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNMauriceTeamChoices2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceTeamChoices(ctx context.Context, sel ast.SelectionSet, v *model.MauriceTeamChoices) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._MauriceTeamChoices(ctx, sel, v)
+}
+
 func (ec *executionContext) marshalNMauriceTurnStart2githubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceTurnStart(ctx context.Context, sel ast.SelectionSet, v model.MauriceTurnStart) graphql.Marshaler {
 	return ec._MauriceTurnStart(ctx, sel, &v)
 }
@@ -51036,6 +51810,26 @@ func (ec *executionContext) marshalNTeam2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋin
 		return graphql.Null
 	}
 	return ec._Team(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNTeamRef2ᚕᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐTeamRefᚄ(ctx context.Context, v any) ([]*model.TeamRef, error) {
+	var vSlice []any
+	vSlice = graphql.CoerceList(v)
+	var err error
+	res := make([]*model.TeamRef, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNTeamRef2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐTeamRef(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
+}
+
+func (ec *executionContext) unmarshalNTeamRef2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐTeamRef(ctx context.Context, v any) (*model.TeamRef, error) {
+	res, err := ec.unmarshalInputTeamRef(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
 }
 
 func (ec *executionContext) unmarshalNTemporalWorkflowStatus2githubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐTemporalWorkflowStatus(ctx context.Context, v any) (model.TemporalWorkflowStatus, error) {
@@ -51659,6 +52453,22 @@ func (ec *executionContext) unmarshalOMauriceReportingTurnStatus2ᚖgithubᚗcom
 }
 
 func (ec *executionContext) marshalOMauriceReportingTurnStatus2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceReportingTurnStatus(ctx context.Context, sel ast.SelectionSet, v *model.MauriceReportingTurnStatus) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return v
+}
+
+func (ec *executionContext) unmarshalOMauriceTeamLinkSource2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceTeamLinkSource(ctx context.Context, v any) (*model.MauriceTeamLinkSource, error) {
+	if v == nil {
+		return nil, nil
+	}
+	var res = new(model.MauriceTeamLinkSource)
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOMauriceTeamLinkSource2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceTeamLinkSource(ctx context.Context, sel ast.SelectionSet, v *model.MauriceTeamLinkSource) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}

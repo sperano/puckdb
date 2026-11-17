@@ -1,0 +1,56 @@
+# Maurice team picker: the caller picks their own Yahoo teams, for a login
+# email that differs from their Yahoo manager email. Every field needs the
+# instance's login identity and is scoped to the caller. A pick is
+# self-declared and unverified: it only changes the caller's own Maurice
+# prompt, and several users may pick the same team (co-managers).
+
+"""How the caller is linked to a team."""
+enum MauriceTeamLinkSource {
+	"""The login email matches one of the team's Yahoo managers."""
+	EMAIL
+	"""An operator linked it (puckdb user link-team)."""
+	MANUAL
+	"""The caller picked it (mauriceSetTeams)."""
+	SELF
+}
+
+"""A Yahoo team the caller may pick."""
+type MauriceTeamChoice {
+	leagueId: Int!
+	leagueName: String!
+	teamId: Int!
+	teamName: String!
+	"""The team's managers' Yahoo nicknames, by manager ID; never their emails."""
+	managerNicknames: [String!]!
+	"""Whether the caller's Maurice prompt names the team as theirs."""
+	linked: Boolean!
+	"""The link the caller reaches the team through; null when not linked."""
+	linkSource: MauriceTeamLinkSource
+}
+
+"""The teams of the default season in the instance's Yahoo leagues."""
+type MauriceTeamChoices {
+	"""Yahoo season (start year: 2026 for 2026-27) of the teams: the newest season of the instance's leagues not after the current NHL season; null, with no teams, when there is none."""
+	season: Int
+	"""Ordered by league then team ID."""
+	teams: [MauriceTeamChoice!]!
+	"""Whether the caller already saved or dismissed the first-login offer."""
+	offered: Boolean!
+}
+
+"""A Yahoo team by its numeric league and team IDs."""
+input TeamRef {
+	leagueId: Int!
+	teamId: Int!
+}
+
+extend type Query {
+	mauriceTeamChoices: MauriceTeamChoices!
+}
+
+extend type Mutation {
+	"""Makes teams the caller's selection among mauriceTeamChoices' teams (the others are deselected, and stay so even when the login email matches them; links outside the choices are untouched) and marks the offer as seen. Fails, changing nothing, for a team outside the choices."""
+	mauriceSetTeams(teams: [TeamRef!]!): MauriceTeamChoices!
+	"""Marks the offer as seen, changing no team."""
+	mauriceDismissTeamOffer: Boolean!
+}
