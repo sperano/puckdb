@@ -18,8 +18,9 @@ WHERE m.email <> '' AND lower(m.email) = lower(sqlc.arg(email)::text)
 ORDER BY m.league_id, m.team_id, m.id;
 
 -- name: SyncAppUserEmailTeamLinks :exec
--- Links user_id to every (league_id, team_id) pair found by email, as
--- source='email'. A link already present under any source is left alone:
+-- Links user_id to the given (league_id, team_id) pairs, as source='email':
+-- the caller passes the email's matches whose rows resolve to no guid (a
+-- row resolving to one gets a guid link instead). A link already present under any source is left alone:
 -- ON CONFLICT DO NOTHING never promotes a manual link or re-stamps
 -- linked_at on one already synced. Call with DeleteStaleAppUserEmailTeamLinks
 -- to also drop email links the current match set no longer contains.
@@ -28,9 +29,11 @@ SELECT sqlc.arg(user_id)::uuid, unnest(sqlc.arg(league_ids)::integer[]), unnest(
 ON CONFLICT (user_id, league_id, team_id) DO NOTHING;
 
 -- name: DeleteStaleAppUserEmailTeamLinks :exec
--- Removes user_id's email-sourced links whose (league_id, team_id) is not in
--- the current matched set (the user's email changed, or the manager row's
--- did); manual links are never touched here regardless of their pair.
+-- Removes user_id's email-sourced links whose (league_id, team_id) is not
+-- among the given pairs, the email's unresolved matches: the user's email
+-- changed, the manager row's did, or the row now resolves to a guid (its
+-- team link gives way to the guid link). Manual links are never touched
+-- here regardless of their pair.
 WITH matched(league_id, team_id) AS (
     SELECT unnest(sqlc.arg(league_ids)::integer[]), unnest(sqlc.arg(team_ids)::integer[])
 )

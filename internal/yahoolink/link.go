@@ -29,6 +29,7 @@ import (
 	"slices"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/sperano/puckdb/internal/sqlcdb"
 )
@@ -88,15 +89,22 @@ type InstanceLink struct {
 	Link     Link
 }
 
+// DB is what a PGStore runs on: a pool, or a transaction (whose Begin opens
+// a savepoint).
+type DB interface {
+	sqlcdb.DBTX
+	Begin(ctx context.Context) (pgx.Tx, error)
+}
+
 // PGStore reads and writes app_user_yahoo_managers and app_user_yahoo_teams.
 type PGStore struct {
+	db      DB
 	queries *sqlcdb.Queries
 }
 
-// NewPGStore returns a PGStore over db, which may be a pool or a
-// transaction (sqlcdb.DBTX).
-func NewPGStore(db sqlcdb.DBTX) *PGStore {
-	return &PGStore{queries: sqlcdb.New(db)}
+// NewPGStore returns a PGStore over db.
+func NewPGStore(db DB) *PGStore {
+	return &PGStore{db: db, queries: sqlcdb.New(db)}
 }
 
 // ListUserTeams returns userID's teams, through either kind of link and

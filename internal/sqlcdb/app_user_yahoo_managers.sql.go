@@ -154,9 +154,10 @@ func (q *Queries) SyncAppUserEmailManagerLinks(ctx context.Context, arg SyncAppU
 	return err
 }
 
-const unlinkAppUserYahooManagers = `-- name: UnlinkAppUserYahooManagers :execrows
+const unlinkAppUserYahooManagers = `-- name: UnlinkAppUserYahooManagers :many
 DELETE FROM app_user_yahoo_managers
 WHERE user_id = $1::uuid AND guid = ANY($2::text[])
+RETURNING guid
 `
 
 type UnlinkAppUserYahooManagersParams struct {
@@ -164,10 +165,23 @@ type UnlinkAppUserYahooManagersParams struct {
 	Guids  []string    `json:"guids"`
 }
 
-func (q *Queries) UnlinkAppUserYahooManagers(ctx context.Context, arg UnlinkAppUserYahooManagersParams) (int64, error) {
-	result, err := q.db.Exec(ctx, unlinkAppUserYahooManagers, arg.UserID, arg.Guids)
+// Removes user_id's links to guids, returning the guids this call deleted.
+func (q *Queries) UnlinkAppUserYahooManagers(ctx context.Context, arg UnlinkAppUserYahooManagersParams) ([]string, error) {
+	rows, err := q.db.Query(ctx, unlinkAppUserYahooManagers, arg.UserID, arg.Guids)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
-	return result.RowsAffected(), nil
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var guid string
+		if err := rows.Scan(&guid); err != nil {
+			return nil, err
+		}
+		items = append(items, guid)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }

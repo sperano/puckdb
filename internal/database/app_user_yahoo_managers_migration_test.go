@@ -66,7 +66,8 @@ func userTeamLinks(t *testing.T, conn *pgx.Conn, userID string) []string {
 // Up resolves hidden guids through the email, turns team links of a
 // single-account team into one account link per user (manual winning, the
 // earliest linked_at kept) and leaves co-managed and unresolved teams as
-// team links; down turns every account link back into team links.
+// team links; down turns every account link back into team links, promoting
+// an existing team link a manual account link reaches.
 func TestIntegration_AppUserYahooManagersMigration(t *testing.T) {
 	conn, dbURL := freshDatabase(t)
 	migrateTo(t, dbURL, appUserYahooManagersVersion-1)
@@ -117,10 +118,18 @@ func TestIntegration_AppUserYahooManagersMigration(t *testing.T) {
 		rejection{code: sqlStateUniqueViolation, constraint: "app_user_yahoo_managers_pkey"},
 		`INSERT INTO app_user_yahoo_managers (user_id, guid, source) VALUES ($1, $2, 'manual')`, managersUser2, managersGUID)
 
+	// A guid link reaching a team that already has a team link: user 1's
+	// manual GUIDTWO link meets its email team link to league 3, user 2's
+	// email GUIDTHREE link an email team link it gets here.
+	execSQL(t, conn, `INSERT INTO app_user_yahoo_managers (user_id, guid, source) VALUES ($1, 'GUIDTWO', 'manual')`, managersUser1)
+	execSQL(t, conn, `INSERT INTO app_user_yahoo_managers (user_id, guid, source) VALUES ($1, 'GUIDTHREE', 'email')`, managersUser2)
+	execSQL(t, conn, `INSERT INTO app_user_yahoo_teams (user_id, league_id, team_id, source) VALUES ($1, 3, 1, 'email')`, managersUser2)
+
 	migrateTo(t, dbURL, appUserYahooManagersVersion-1)
-	assert.Equal(t, []string{"1:manual", "2:manual", "3:email", "4:manual", "5:manual"}, userTeamLinks(t, conn, managersUser1),
-		"every team the account reaches comes back as a team link")
-	assert.Equal(t, []string{"1:email", "2:email", "5:email"}, userTeamLinks(t, conn, managersUser2))
+	assert.Equal(t, []string{"1:manual", "2:manual", "3:manual", "4:manual", "5:manual"}, userTeamLinks(t, conn, managersUser1),
+		"every team the account reaches comes back as a team link, an existing one promoted by a manual guid link")
+	assert.Equal(t, []string{"1:email", "2:email", "3:email", "5:email"}, userTeamLinks(t, conn, managersUser2),
+		"an email guid link leaves an existing email team link as it is")
 	assert.Equal(t, 0, countRows(t, conn,
 		`SELECT count(*) FROM pg_class WHERE relname IN ('app_user_yahoo_managers', 'yahoo_team_manager_guids')`))
 }

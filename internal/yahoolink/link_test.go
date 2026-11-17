@@ -3,6 +3,7 @@ package yahoolink
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/sperano/puckdb/internal/fixtures/pgtest"
 	"github.com/stretchr/testify/assert"
@@ -223,7 +224,66 @@ func TestPGStore_ListUserTeamsFiltersGUIDTeamsByAllowlist(t *testing.T) {
 	_, err := store.Link(ctx, user, allowed, allowedTeam)
 	require.NoError(t, err)
 
+	all, err := store.ListUserTeams(ctx, user, nil)
+	require.NoError(t, err)
+	require.ElementsMatch(t, []teamKey{{allowed, allowedTeam}, {other, otherTeam}}, teamKeys(all))
+	for _, l := range all {
+		require.Equal(t, guid, l.GUID, "both teams come through the guid link")
+	}
+
 	scoped, err := store.ListUserTeams(ctx, user, []int32{allowed})
 	require.NoError(t, err)
 	assert.Equal(t, []teamKey{{allowed, allowedTeam}}, teamKeys(scoped))
+}
+
+// TestPGStore_ListUserTeamsPicksTheEarliestLink: a co-managed team reached
+// through two of a user's email guid links is listed once, under the
+// earlier link, even when its guid sorts last; another user on the same
+// team keeps their own row in the admin list.
+func TestPGStore_ListUserTeamsPicksTheEarliestLink(t *testing.T) {
+	pool := pgtest.Open(t)
+	ctx := context.Background()
+	store := NewPGStore(pool)
+	guidA := newGUID()
+	guidB := guidA + "B"
+	league, team := seedLeagueTeam(t, pool, "Two Accounts")
+	seedManagerGUID(t, pool, league, team, 1, guidA, "")
+	seedManagerGUID(t, pool, league, team, 2, guidB, "")
+	username, otherUsername := uniqueUsername("earliest"), uniqueUsername("earliest-other")
+	user := insertUser(t, pool, username)
+	earlier := time.Date(2026, time.January, 1, 0, 0, 0, 0, time.UTC)
+	later := earlier.AddDate(0, 1, 0)
+	for _, l := range []struct {
+		guid     string
+		linkedAt time.Time
+	}{{guidA, later}, {guidB, earlier}} {
+		_, err := pool.Exec(ctx, `INSERT INTO app_user_yahoo_managers (user_id, guid, source, linked_at) VALUES ($1, $2, 'email', $3)`,
+			user, l.guid, l.linkedAt)
+		require.NoError(t, err)
+	}
+	otherUser := insertUser(t, pool, otherUsername)
+	_, err := pool.Exec(ctx, `INSERT INTO app_user_yahoo_teams (user_id, league_id, team_id, source) VALUES ($1, $2, $3, 'manual')`,
+		otherUser, league, team)
+	require.NoError(t, err)
+
+	links, err := store.ListUserTeams(ctx, user, nil)
+	require.NoError(t, err)
+	require.Len(t, links, 1)
+	assert.Equal(t, guidB, links[0].GUID)
+	assert.True(t, earlier.Equal(links[0].LinkedAt), "linked_at %s", links[0].LinkedAt)
+
+	instance, err := store.ListInstanceLinks(ctx, testInstance)
+	require.NoError(t, err)
+	got := map[string]Link{}
+	for _, l := range instance {
+		if l.Link.LeagueID == league {
+			require.NotContains(t, got, l.Username, "one row per user and team")
+			got[l.Username] = l.Link
+		}
+	}
+	require.Len(t, got, 2, "each user keeps their own row")
+	assert.Equal(t, guidB, got[username].GUID, "the admin list picks the same earliest link")
+	assert.True(t, earlier.Equal(got[username].LinkedAt))
+	assert.Equal(t, SourceManual, got[otherUsername].Source)
+	assert.Empty(t, got[otherUsername].GUID)
 }

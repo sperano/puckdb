@@ -177,10 +177,11 @@ func TestSyncEmailLinks_StaleDeleteMatchesLeagueAndTeam(t *testing.T) {
 	assert.Equal(t, teamA, links[0].TeamID)
 }
 
-// TestSyncEmailLinks_LinksTheRecoveredAccount: the login email matches only
-// a current-season row whose guid is hidden; the account its older row
-// carries is linked, giving the user that older team under another email
-// too.
+// TestSyncEmailLinks_LinksTheRecoveredAccount: the login email matches the
+// 2025 row, with the account's real guid, and the current-season row, whose
+// guid is hidden; the 2019 row carries the same guid under another email.
+// The account is linked once, giving the user all three teams, the hidden
+// one included.
 func TestSyncEmailLinks_LinksTheRecoveredAccount(t *testing.T) {
 	pool := pgtest.Open(t)
 	q := sqlcdb.New(pool)
@@ -295,6 +296,38 @@ func TestSyncEmailLinks_StaleGUIDLinkDroppedManualKept(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, links, 1)
 	assert.Equal(t, manualGUID, links[0].GUID)
+	assert.Equal(t, SourceManual, links[0].Source)
+}
+
+// TestSyncEmailLinks_KeepsAManualGUIDLinkTheEmailMatches: a resync whose
+// email resolves to a guid the user holds by hand leaves that link manual,
+// with its linked_at, so a resync under another email still keeps it.
+func TestSyncEmailLinks_KeepsAManualGUIDLinkTheEmailMatches(t *testing.T) {
+	pool := pgtest.Open(t)
+	q := sqlcdb.New(pool)
+	ctx := context.Background()
+	store := NewPGStore(pool)
+	guid := newGUID()
+	email := uniqueUsername("manualguid") + "@example.com"
+	league, team := seedLeagueTeam(t, pool, "Manual Account")
+	seedManagerGUID(t, pool, league, team, 1, guid, email)
+	user := insertUser(t, pool, "manualguid")
+	link, err := store.Link(ctx, user, league, team)
+	require.NoError(t, err)
+	require.Equal(t, guid, link.GUID)
+
+	require.NoError(t, SyncEmailLinks(ctx, q, user, email))
+	links, err := store.ListUserTeams(ctx, user, nil)
+	require.NoError(t, err)
+	require.Len(t, links, 1)
+	assert.Equal(t, SourceManual, links[0].Source)
+	assert.True(t, link.LinkedAt.Equal(links[0].LinkedAt), "linked_at kept: %s, was %s", links[0].LinkedAt, link.LinkedAt)
+
+	require.NoError(t, SyncEmailLinks(ctx, q, user, uniqueUsername("someoneelse")+"@example.com"))
+	links, err = store.ListUserTeams(ctx, user, nil)
+	require.NoError(t, err)
+	require.Len(t, links, 1)
+	assert.Equal(t, guid, links[0].GUID)
 	assert.Equal(t, SourceManual, links[0].Source)
 }
 

@@ -44,6 +44,8 @@ SELECT guid FROM app_user_yahoo_managers
 WHERE user_id = sqlc.arg(user_id)::uuid AND guid = ANY(sqlc.arg(guids)::text[])
 ORDER BY guid;
 
--- name: UnlinkAppUserYahooManagers :execrows
+-- name: UnlinkAppUserYahooManagers :many
+-- Removes user_id's links to guids, returning the guids this call deleted.
 DELETE FROM app_user_yahoo_managers
-WHERE user_id = sqlc.arg(user_id)::uuid AND guid = ANY(sqlc.arg(guids)::text[]);
+WHERE user_id = sqlc.arg(user_id)::uuid AND guid = ANY(sqlc.arg(guids)::text[])
+RETURNING guid;
