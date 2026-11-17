@@ -24,15 +24,45 @@ const (
 	cursorUsers         cursorKind = "users"
 	cursorConversations cursorKind = "conversations"
 	cursorUserActivity  cursorKind = "user_activity"
+	cursorMessages      cursorKind = "messages"
+	cursorTurns         cursorKind = "turns"
+	cursorTurnCalls     cursorKind = "turn_calls"
+	cursorTitleCalls    cursorKind = "title_calls"
+	cursorToolCalls     cursorKind = "tool_calls"
+	cursorCallInputs    cursorKind = "call_inputs"
 )
+
+// cursorShape is the sort key a cursor kind holds: a Name, an At, an ID
+// and how many integer Keys.
+type cursorShape struct {
+	name, at, id bool
+	keys         int
+}
+
+// cursorShapes holds the shape of every kind; a kind without one is
+// ErrInvalidCursor.
+var cursorShapes = map[cursorKind]cursorShape{
+	cursorInstances:     {name: true},
+	cursorUsers:         {at: true, id: true},
+	cursorConversations: {at: true, id: true},
+	cursorUserActivity:  {at: true, id: true},
+	cursorMessages:      {keys: 2},           // turn number, message number
+	cursorTurns:         {keys: 1},           // turn number
+	cursorTurnCalls:     {keys: 2},           // round, call ID
+	cursorTitleCalls:    {at: true, keys: 1}, // started_at, call ID
+	cursorToolCalls:     {keys: 1},           // tool call ID
+	cursorCallInputs:    {keys: 1},           // input number
+}
 
 // cursor is the position after the last row of a page: its sort key.
 // Instances sort by Name; users and user activity by (At = first_seen_at,
-// ID) and conversations by (At = created_at, ID), all descending. Scope
-// identifies the selection the page was read from (usersScope;
-// conversationQuery.scope for conversations and user activity; empty for
-// instances), so a cursor sent with another instance or filter is refused
-// instead of skipping that selection's rows before its position.
+// ID) and conversations by (At = created_at, ID), all descending; the
+// conversation detail lists by Keys (and At for title calls), ascending
+// (cursorShapes). Scope identifies the selection the page was read from
+// (usersScope; conversationQuery.scope for conversations and user activity;
+// detailScope for the detail lists; empty for instances), so a cursor sent
+// with another instance, filter or parent is refused instead of skipping
+// that selection's rows before its position.
 type cursor struct {
 	Version int        `json:"v"`
 	Kind    cursorKind `json:"k"`
@@ -40,6 +70,7 @@ type cursor struct {
 	Name    string     `json:"n,omitempty"`
 	At      *time.Time `json:"t,omitempty"`
 	ID      *uuid.UUID `json:"id,omitempty"`
+	Keys    []int64    `json:"p,omitempty"`
 }
 
 // encodeCursor returns the opaque form of c.
@@ -77,10 +108,9 @@ func decodeCursor(kind cursorKind, scope, encoded string) (*cursor, error) {
 
 // complete reports whether c holds exactly the sort key of its kind.
 func (c cursor) complete() bool {
-	if c.Kind == cursorInstances {
-		return c.Name != "" && c.At == nil && c.ID == nil
-	}
-	return c.Name == "" && c.At != nil && c.ID != nil
+	shape, ok := cursorShapes[c.Kind]
+	return ok && (c.Name != "") == shape.name && (c.At != nil) == shape.at &&
+		(c.ID != nil) == shape.id && len(c.Keys) == shape.keys
 }
 
 // keyCursor encodes the (at, id) position of a users, user activity or

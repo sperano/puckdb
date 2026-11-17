@@ -20,6 +20,7 @@ type MauriceReportingReader interface {
 	Conversation(ctx context.Context, instance, id string, includeDeleted bool) (mauricereport.Conversation, bool, error)
 	Overview(ctx context.Context, filter mauricereport.ConversationFilter) (mauricereport.Overview, error)
 	UserActivity(ctx context.Context, filter mauricereport.ConversationFilter, page mauricereport.PageRequest) (mauricereport.UserActivityPage, error)
+	MauriceReportingDetailReader
 }
 
 // errMauriceReportingNotConfigured is returned when the resolver has no

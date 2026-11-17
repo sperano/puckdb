@@ -8,6 +8,7 @@ package mauricefixtures
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"testing"
 	"time"
@@ -153,14 +154,17 @@ type Message struct {
 	Number         int
 	Role           string
 	Content        string
+	// ResultToolCallID is the tool call a tool message answers; 0 is NULL.
+	ResultToolCallID int64
 }
 
 // Message inserts m and returns its ID.
 func (s *Seeder) Message(m Message) string {
 	s.t.Helper()
-	return s.uuid(`INSERT INTO maurice_messages (conversation_id, turn_id, message_number, role, content)
-		VALUES ($1::uuid, $2::uuid, $3, $4::chat_role, $5) RETURNING id::text`,
-		m.ConversationID, m.TurnID, m.Number, m.Role, m.Content)
+	return s.uuid(`INSERT INTO maurice_messages (conversation_id, turn_id, message_number, role, content,
+		result_tool_call_id)
+		VALUES ($1::uuid, $2::uuid, $3, $4::chat_role, $5, NULLIF($6, 0)) RETURNING id::text`,
+		m.ConversationID, m.TurnID, m.Number, m.Role, m.Content, m.ResultToolCallID)
 }
 
 // Call is a maurice_llm_calls row: a chat round of TurnID, or a title
@@ -177,17 +181,26 @@ type Call struct {
 	// Failed stores a failed call (with an error class); the default is
 	// succeeded.
 	Failed bool
+	// ForcedFinal stores a turn call as forced_final instead of chat_round.
+	ForcedFinal bool
 	// Token counts; nil is NULL, a count the provider did not report.
 	InputTokens              *int64
 	OutputTokens             *int64
 	CacheCreationInputTokens *int64
 	CacheReadInputTokens     *int64
+	// Retained request inputs; nil is NULL. ToolDefinitions is JSON.
+	SystemPrompt    *string
+	Instruction     *string
+	ToolDefinitions *string
 }
 
 // Call inserts c and returns its ID.
 func (s *Seeder) Call(c Call) int64 {
 	s.t.Helper()
 	kind, turnID, round := "chat_round", &c.TurnID, &c.Round
+	if c.ForcedFinal {
+		kind = "forced_final"
+	}
 	if c.TurnID == "" {
 		kind, turnID, round = "title_generation", nil, nil
 	}
@@ -198,13 +211,29 @@ func (s *Seeder) Call(c Call) int64 {
 	var id int64
 	err := s.pool.QueryRow(context.Background(), `INSERT INTO maurice_llm_calls (conversation_id, turn_id,
 		call_kind, round_number, provider, model, status, started_at, completed_at, error_class,
-		input_tokens, output_tokens, cache_creation_input_tokens, cache_read_input_tokens)
-		VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING id`,
+		input_tokens, output_tokens, cache_creation_input_tokens, cache_read_input_tokens,
+		system_prompt, instruction, tool_definitions)
+		VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17::jsonb)
+		RETURNING id`,
 		c.ConversationID, turnID, kind, round, c.Provider, c.Model, status, c.StartedAt,
 		c.StartedAt.Add(orDefault(c.Duration)), errorClass(status),
-		c.InputTokens, c.OutputTokens, c.CacheCreationInputTokens, c.CacheReadInputTokens).Scan(&id)
+		c.InputTokens, c.OutputTokens, c.CacheCreationInputTokens, c.CacheReadInputTokens,
+		c.SystemPrompt, c.Instruction, c.ToolDefinitions).Scan(&id)
 	require.NoError(s.t, err)
 	return id
+}
+
+// CallInput links message messageID as input number of call callID.
+func (s *Seeder) CallInput(callID int64, number int, messageID string) {
+	s.t.Helper()
+	_, err := s.pool.Exec(context.Background(), `INSERT INTO maurice_llm_call_messages (llm_call_id,
+		input_number, message_id) VALUES ($1, $2, $3::uuid)`, callID, number, messageID)
+	require.NoError(s.t, err)
+}
+
+// Text returns a pointer to s, for the retained inputs of a Call.
+func Text(s string) *string {
+	return &s
 }
 
 // Tokens returns a pointer to n, for the token counts of a Call.
@@ -220,27 +249,53 @@ func orDefault(d time.Duration) time.Duration {
 	return d
 }
 
-// ToolCall is a succeeded maurice_tool_calls row requested by call CallID
-// of turn TurnID.
+// ToolCall is a maurice_tool_calls row of turn TurnID. Status defaults to
+// succeeded; a cancelled call never ran (no start, completion or result).
+// CallID 0 is a transcript-only call (no LLM call, no status), MessageID ""
+// no requesting message. The parsed arguments are ArgumentsRaw when it is
+// valid JSON, NULL otherwise.
 type ToolCall struct {
 	TurnID       string
 	CallID       int64
+	MessageID    string
 	Sequence     int
 	Name         string
 	ArgumentsRaw string
 	Result       string
+	Status       string
 	StartedAt    time.Time
 }
 
 // ToolCall inserts c and returns its ID.
 func (s *Seeder) ToolCall(c ToolCall) int64 {
 	s.t.Helper()
+	if c.Status == "" {
+		c.Status = StatusSucceeded
+	}
+	var (
+		status         *string
+		result         = &c.Result
+		started, ended = &c.StartedAt, c.StartedAt.Add(turnDuration)
+		completed      = &ended
+		callID         *int64
+	)
+	if c.CallID != 0 {
+		callID, status = &c.CallID, &c.Status
+	}
+	if c.Status == StatusCancelled || callID == nil {
+		result, started, completed = nil, nil, nil
+	}
+	var arguments *string
+	if json.Valid([]byte(c.ArgumentsRaw)) {
+		arguments = &c.ArgumentsRaw
+	}
 	var id int64
 	err := s.pool.QueryRow(context.Background(), `INSERT INTO maurice_tool_calls (turn_id, llm_call_id,
-		sequence_number, tool_name, arguments_raw, result, status, started_at, completed_at)
-		VALUES ($1::uuid, $2, $3, $4, $5, $6, 'succeeded', $7, $8) RETURNING id`,
-		c.TurnID, c.CallID, c.Sequence, c.Name, c.ArgumentsRaw, c.Result, c.StartedAt,
-		c.StartedAt.Add(turnDuration)).Scan(&id)
+		message_id, sequence_number, tool_name, arguments, arguments_raw, result, status, started_at, completed_at)
+		VALUES ($1::uuid, $2, NULLIF($3, '')::uuid, $4, $5, $6::jsonb, $7, $8, $9, $10, $11)
+		RETURNING id`,
+		c.TurnID, callID, c.MessageID, c.Sequence, c.Name, arguments, c.ArgumentsRaw, result, status,
+		started, completed).Scan(&id)
 	require.NoError(s.t, err)
 	return id
 }

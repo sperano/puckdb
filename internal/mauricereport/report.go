@@ -1,9 +1,11 @@
 // Package mauricereport is the read-only, cross-instance reporting contract
-// over the Maurice tables: instance, user and conversation browsing and the
-// usage overview (overview.go) for the private admin, with every user,
-// conversation, aggregate and nested lookup scoped through
-// app_users.instance. It returns metadata and aggregates only: never message
-// content, prompts, tool arguments or tool results.
+// over the Maurice tables: instance, user and conversation browsing, the
+// usage overview (overview.go) and one conversation's detail (detail.go)
+// for the private admin, with every user, conversation, aggregate and
+// nested lookup scoped through app_users.instance. The lists and the
+// overview return metadata and aggregates only, never message content,
+// prompts, tool arguments or tool results; only the detail reads return
+// content, bounded and on request.
 //
 // Authorization is the caller's: the GraphQL @mauriceReporting directive
 // (internal/graph) gates every field. The API contract (filters, date and
@@ -41,7 +43,8 @@ var (
 	// date, a status, a name, a search string or an ID.
 	ErrInvalidArgument = errors.New("invalid argument")
 	// ErrInvalidCursor is a cursor this API did not issue for that list,
-	// instance and filter.
+	// instance, filter and, for a detail list, conversation and parent turn
+	// or call.
 	ErrInvalidCursor = errors.New("invalid cursor")
 	// ErrUserNotInInstance is a user ID that names no user of the selected
 	// instance, whether it exists elsewhere or not.

@@ -79,13 +79,21 @@ func (r recordingReader) UserActivity(context.Context, mauricereport.Conversatio
 	return mauricereport.UserActivityPage{}, nil
 }
 
-const reportingFieldsQuery = `{
+const reportingFieldsQuery = `query($ref: MauriceReportingConversationRef! = {instance: "maurice", id: "0b5f3a52-8a4b-4a52-9d55-2a6fb3e6a001"}) {
 	mauriceReportingInstances { items { name } }
 	mauriceReportingUsers(instance: "maurice") { items { id } }
 	mauriceReportingConversations(filter: {instance: "maurice"}) { items { id } }
 	mauriceReportingConversation(instance: "maurice", id: "0b5f3a52-8a4b-4a52-9d55-2a6fb3e6a001") { id }
 	mauriceReportingOverview(filter: {instance: "maurice"}) { userCount }
 	mauriceReportingUserActivity(filter: {instance: "maurice"}) { items { active } }
+	mauriceReportingTranscript(conversation: $ref) { items { id } }
+	mauriceReportingTurns(conversation: $ref) { items { id } }
+	mauriceReportingTurnCalls(conversation: $ref, turnId: "0b5f3a52-8a4b-4a52-9d55-2a6fb3e6a002") { items { id } }
+	mauriceReportingTitleCalls(conversation: $ref) { items { id } }
+	mauriceReportingToolCalls(conversation: $ref, turnId: "0b5f3a52-8a4b-4a52-9d55-2a6fb3e6a002") { items { id } }
+	mauriceReportingCallInput(conversation: $ref, callId: "1") { call { id } }
+	mauriceReportingToolCall(conversation: $ref, toolCallId: "1") { argumentsRaw { text } }
+	mauriceReportingPayload(conversation: $ref, kind: TOOL_RESULT, id: "1") { text }
 }`
 
 func TestReportingFieldsRefuseUnauthorizedRequests(t *testing.T) {

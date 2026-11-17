@@ -107,6 +107,10 @@ func TestReportingFieldsCarryBothDirectives(t *testing.T) {
 		"Query.mauriceReportingInstances", "Query.mauriceReportingUsers",
 		"Query.mauriceReportingConversations", "Query.mauriceReportingConversation",
 		"Query.mauriceReportingOverview", "Query.mauriceReportingUserActivity",
+		"Query.mauriceReportingTranscript", "Query.mauriceReportingTurns",
+		"Query.mauriceReportingTurnCalls", "Query.mauriceReportingTitleCalls",
+		"Query.mauriceReportingToolCalls", "Query.mauriceReportingCallInput",
+		"Query.mauriceReportingToolCall", "Query.mauriceReportingPayload",
 	}, reporting)
 }
 

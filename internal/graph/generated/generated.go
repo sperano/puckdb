@@ -761,6 +761,51 @@ type ComplexityRoot struct {
 		Usage              func(childComplexity int) int
 	}
 
+	MauriceReportingCall struct {
+		CacheCreationInputTokens func(childComplexity int) int
+		CacheReadInputTokens     func(childComplexity int) int
+		CompletedAt              func(childComplexity int) int
+		ErrorClass               func(childComplexity int) int
+		FinishReason             func(childComplexity int) int
+		ID                       func(childComplexity int) int
+		InputMessageCount        func(childComplexity int) int
+		InputTokens              func(childComplexity int) int
+		InstructionLength        func(childComplexity int) int
+		Kind                     func(childComplexity int) int
+		Model                    func(childComplexity int) int
+		OutputTokens             func(childComplexity int) int
+		Provider                 func(childComplexity int) int
+		ProviderRequestID        func(childComplexity int) int
+		Round                    func(childComplexity int) int
+		StartedAt                func(childComplexity int) int
+		Status                   func(childComplexity int) int
+		SystemPromptLength       func(childComplexity int) int
+		ToolCallCount            func(childComplexity int) int
+		ToolDefinitionsLength    func(childComplexity int) int
+		TurnID                   func(childComplexity int) int
+	}
+
+	MauriceReportingCallInput struct {
+		Call            func(childComplexity int) int
+		Inputs          func(childComplexity int) int
+		Instruction     func(childComplexity int) int
+		NextCursor      func(childComplexity int) int
+		SystemPrompt    func(childComplexity int) int
+		ToolDefinitions func(childComplexity int) int
+	}
+
+	MauriceReportingCallInputMessage struct {
+		Message   func(childComplexity int) int
+		MessageID func(childComplexity int) int
+		Number    func(childComplexity int) int
+		Withheld  func(childComplexity int) int
+	}
+
+	MauriceReportingCallPage struct {
+		Items      func(childComplexity int) int
+		NextCursor func(childComplexity int) int
+	}
+
 	MauriceReportingConversation struct {
 		CreatedAt         func(childComplexity int) int
 		DeletedAt         func(childComplexity int) int
@@ -799,6 +844,26 @@ type ComplexityRoot struct {
 		P95Seconds  func(childComplexity int) int
 	}
 
+	MauriceReportingMessage struct {
+		Content          func(childComplexity int) int
+		ContentLength    func(childComplexity int) int
+		CreatedAt        func(childComplexity int) int
+		ID               func(childComplexity int) int
+		Number           func(childComplexity int) int
+		Replayable       func(childComplexity int) int
+		ResultToolCallID func(childComplexity int) int
+		Role             func(childComplexity int) int
+		ToolCallCount    func(childComplexity int) int
+		TurnID           func(childComplexity int) int
+		TurnNumber       func(childComplexity int) int
+		TurnStatus       func(childComplexity int) int
+	}
+
+	MauriceReportingMessagePage struct {
+		Items      func(childComplexity int) int
+		NextCursor func(childComplexity int) int
+	}
+
 	MauriceReportingModel struct {
 		Model    func(childComplexity int) int
 		Provider func(childComplexity int) int
@@ -818,11 +883,63 @@ type ComplexityRoot struct {
 		UserCount       func(childComplexity int) int
 	}
 
+	MauriceReportingText struct {
+		Length     func(childComplexity int) int
+		NextOffset func(childComplexity int) int
+		Offset     func(childComplexity int) int
+		Text       func(childComplexity int) int
+		Truncated  func(childComplexity int) int
+	}
+
 	MauriceReportingTokenCount struct {
 		Complete        func(childComplexity int) int
 		ReportedCalls   func(childComplexity int) int
 		Total           func(childComplexity int) int
 		UnreportedCalls func(childComplexity int) int
+	}
+
+	MauriceReportingToolCall struct {
+		ArgumentsRawLength func(childComplexity int) int
+		ArgumentsValid     func(childComplexity int) int
+		CallID             func(childComplexity int) int
+		CompletedAt        func(childComplexity int) int
+		ID                 func(childComplexity int) int
+		MessageID          func(childComplexity int) int
+		Name               func(childComplexity int) int
+		ProviderToolCallID func(childComplexity int) int
+		ResultLength       func(childComplexity int) int
+		Sequence           func(childComplexity int) int
+		StartedAt          func(childComplexity int) int
+		Status             func(childComplexity int) int
+		TurnID             func(childComplexity int) int
+		Type               func(childComplexity int) int
+	}
+
+	MauriceReportingToolCallDetail struct {
+		Arguments    func(childComplexity int) int
+		ArgumentsRaw func(childComplexity int) int
+		Result       func(childComplexity int) int
+		ToolCall     func(childComplexity int) int
+	}
+
+	MauriceReportingToolCallPage struct {
+		Items      func(childComplexity int) int
+		NextCursor func(childComplexity int) int
+	}
+
+	MauriceReportingTurn struct {
+		CompletedAt   func(childComplexity int) int
+		ErrorClass    func(childComplexity int) int
+		ID            func(childComplexity int) int
+		MessageCount  func(childComplexity int) int
+		Models        func(childComplexity int) int
+		Number        func(childComplexity int) int
+		Replayable    func(childComplexity int) int
+		StartedAt     func(childComplexity int) int
+		Status        func(childComplexity int) int
+		ToolCallCount func(childComplexity int) int
+		Usage         func(childComplexity int) int
+		Warnings      func(childComplexity int) int
 	}
 
 	MauriceReportingTurnCounts struct {
@@ -835,6 +952,11 @@ type ComplexityRoot struct {
 		SucceededRate func(childComplexity int) int
 		Terminal      func(childComplexity int) int
 		Total         func(childComplexity int) int
+	}
+
+	MauriceReportingTurnPage struct {
+		Items      func(childComplexity int) int
+		NextCursor func(childComplexity int) int
 	}
 
 	MauriceReportingUsage struct {
@@ -1075,10 +1197,18 @@ type ComplexityRoot struct {
 		MauriceConversations           func(childComplexity int, limit *int) int
 		MauriceDraftBoard              func(childComplexity int, input model.MauriceDraftBoardInput) int
 		MauriceDraftEvents             func(childComplexity int, league string, season *int, afterStateVersion int64, limit *int) int
+		MauriceReportingCallInput      func(childComplexity int, conversation model.MauriceReportingConversationRef, callID string, limit *int, cursor *string) int
 		MauriceReportingConversation   func(childComplexity int, instance string, id string, includeDeleted *bool) int
 		MauriceReportingConversations  func(childComplexity int, filter model.MauriceReportingConversationFilter, limit *int, cursor *string) int
 		MauriceReportingInstances      func(childComplexity int, limit *int, cursor *string) int
 		MauriceReportingOverview       func(childComplexity int, filter model.MauriceReportingConversationFilter) int
+		MauriceReportingPayload        func(childComplexity int, conversation model.MauriceReportingConversationRef, kind model.MauriceReportingPayloadKind, id string, offset *int, limit *int) int
+		MauriceReportingTitleCalls     func(childComplexity int, conversation model.MauriceReportingConversationRef, limit *int, cursor *string) int
+		MauriceReportingToolCall       func(childComplexity int, conversation model.MauriceReportingConversationRef, toolCallID string) int
+		MauriceReportingToolCalls      func(childComplexity int, conversation model.MauriceReportingConversationRef, turnID string, limit *int, cursor *string) int
+		MauriceReportingTranscript     func(childComplexity int, conversation model.MauriceReportingConversationRef, limit *int, cursor *string) int
+		MauriceReportingTurnCalls      func(childComplexity int, conversation model.MauriceReportingConversationRef, turnID string, limit *int, cursor *string) int
+		MauriceReportingTurns          func(childComplexity int, conversation model.MauriceReportingConversationRef, limit *int, cursor *string) int
 		MauriceReportingUserActivity   func(childComplexity int, filter model.MauriceReportingConversationFilter, limit *int, cursor *string) int
 		MauriceReportingUsers          func(childComplexity int, instance string, limit *int, cursor *string) int
 		MauriceTeamChoices             func(childComplexity int) int
@@ -1413,6 +1543,14 @@ type QueryResolver interface {
 	MauriceReportingUsers(ctx context.Context, instance string, limit *int, cursor *string) (*model.MauriceReportingUserPage, error)
 	MauriceReportingConversations(ctx context.Context, filter model.MauriceReportingConversationFilter, limit *int, cursor *string) (*model.MauriceReportingConversationPage, error)
 	MauriceReportingConversation(ctx context.Context, instance string, id string, includeDeleted *bool) (*model.MauriceReportingConversation, error)
+	MauriceReportingTranscript(ctx context.Context, conversation model.MauriceReportingConversationRef, limit *int, cursor *string) (*model.MauriceReportingMessagePage, error)
+	MauriceReportingTurns(ctx context.Context, conversation model.MauriceReportingConversationRef, limit *int, cursor *string) (*model.MauriceReportingTurnPage, error)
+	MauriceReportingTurnCalls(ctx context.Context, conversation model.MauriceReportingConversationRef, turnID string, limit *int, cursor *string) (*model.MauriceReportingCallPage, error)
+	MauriceReportingTitleCalls(ctx context.Context, conversation model.MauriceReportingConversationRef, limit *int, cursor *string) (*model.MauriceReportingCallPage, error)
+	MauriceReportingToolCalls(ctx context.Context, conversation model.MauriceReportingConversationRef, turnID string, limit *int, cursor *string) (*model.MauriceReportingToolCallPage, error)
+	MauriceReportingCallInput(ctx context.Context, conversation model.MauriceReportingConversationRef, callID string, limit *int, cursor *string) (*model.MauriceReportingCallInput, error)
+	MauriceReportingToolCall(ctx context.Context, conversation model.MauriceReportingConversationRef, toolCallID string) (*model.MauriceReportingToolCallDetail, error)
+	MauriceReportingPayload(ctx context.Context, conversation model.MauriceReportingConversationRef, kind model.MauriceReportingPayloadKind, id string, offset *int, limit *int) (*model.MauriceReportingText, error)
 	MauriceReportingOverview(ctx context.Context, filter model.MauriceReportingConversationFilter) (*model.MauriceReportingOverview, error)
 	MauriceReportingUserActivity(ctx context.Context, filter model.MauriceReportingConversationFilter, limit *int, cursor *string) (*model.MauriceReportingUserActivityPage, error)
 	MauriceTeamChoices(ctx context.Context) (*model.MauriceTeamChoices, error)
@@ -4750,6 +4888,208 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.MauriceReportingActivity.Usage(childComplexity), true
 
+	case "MauriceReportingCall.cacheCreationInputTokens":
+		if e.ComplexityRoot.MauriceReportingCall.CacheCreationInputTokens == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceReportingCall.CacheCreationInputTokens(childComplexity), true
+	case "MauriceReportingCall.cacheReadInputTokens":
+		if e.ComplexityRoot.MauriceReportingCall.CacheReadInputTokens == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceReportingCall.CacheReadInputTokens(childComplexity), true
+	case "MauriceReportingCall.completedAt":
+		if e.ComplexityRoot.MauriceReportingCall.CompletedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceReportingCall.CompletedAt(childComplexity), true
+	case "MauriceReportingCall.errorClass":
+		if e.ComplexityRoot.MauriceReportingCall.ErrorClass == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceReportingCall.ErrorClass(childComplexity), true
+	case "MauriceReportingCall.finishReason":
+		if e.ComplexityRoot.MauriceReportingCall.FinishReason == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceReportingCall.FinishReason(childComplexity), true
+	case "MauriceReportingCall.id":
+		if e.ComplexityRoot.MauriceReportingCall.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceReportingCall.ID(childComplexity), true
+	case "MauriceReportingCall.inputMessageCount":
+		if e.ComplexityRoot.MauriceReportingCall.InputMessageCount == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceReportingCall.InputMessageCount(childComplexity), true
+	case "MauriceReportingCall.inputTokens":
+		if e.ComplexityRoot.MauriceReportingCall.InputTokens == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceReportingCall.InputTokens(childComplexity), true
+	case "MauriceReportingCall.instructionLength":
+		if e.ComplexityRoot.MauriceReportingCall.InstructionLength == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceReportingCall.InstructionLength(childComplexity), true
+	case "MauriceReportingCall.kind":
+		if e.ComplexityRoot.MauriceReportingCall.Kind == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceReportingCall.Kind(childComplexity), true
+	case "MauriceReportingCall.model":
+		if e.ComplexityRoot.MauriceReportingCall.Model == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceReportingCall.Model(childComplexity), true
+	case "MauriceReportingCall.outputTokens":
+		if e.ComplexityRoot.MauriceReportingCall.OutputTokens == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceReportingCall.OutputTokens(childComplexity), true
+	case "MauriceReportingCall.provider":
+		if e.ComplexityRoot.MauriceReportingCall.Provider == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceReportingCall.Provider(childComplexity), true
+	case "MauriceReportingCall.providerRequestId":
+		if e.ComplexityRoot.MauriceReportingCall.ProviderRequestID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceReportingCall.ProviderRequestID(childComplexity), true
+	case "MauriceReportingCall.round":
+		if e.ComplexityRoot.MauriceReportingCall.Round == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceReportingCall.Round(childComplexity), true
+	case "MauriceReportingCall.startedAt":
+		if e.ComplexityRoot.MauriceReportingCall.StartedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceReportingCall.StartedAt(childComplexity), true
+	case "MauriceReportingCall.status":
+		if e.ComplexityRoot.MauriceReportingCall.Status == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceReportingCall.Status(childComplexity), true
+	case "MauriceReportingCall.systemPromptLength":
+		if e.ComplexityRoot.MauriceReportingCall.SystemPromptLength == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceReportingCall.SystemPromptLength(childComplexity), true
+	case "MauriceReportingCall.toolCallCount":
+		if e.ComplexityRoot.MauriceReportingCall.ToolCallCount == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceReportingCall.ToolCallCount(childComplexity), true
+	case "MauriceReportingCall.toolDefinitionsLength":
+		if e.ComplexityRoot.MauriceReportingCall.ToolDefinitionsLength == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceReportingCall.ToolDefinitionsLength(childComplexity), true
+	case "MauriceReportingCall.turnId":
+		if e.ComplexityRoot.MauriceReportingCall.TurnID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceReportingCall.TurnID(childComplexity), true
+
+	case "MauriceReportingCallInput.call":
+		if e.ComplexityRoot.MauriceReportingCallInput.Call == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceReportingCallInput.Call(childComplexity), true
+	case "MauriceReportingCallInput.inputs":
+		if e.ComplexityRoot.MauriceReportingCallInput.Inputs == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceReportingCallInput.Inputs(childComplexity), true
+	case "MauriceReportingCallInput.instruction":
+		if e.ComplexityRoot.MauriceReportingCallInput.Instruction == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceReportingCallInput.Instruction(childComplexity), true
+	case "MauriceReportingCallInput.nextCursor":
+		if e.ComplexityRoot.MauriceReportingCallInput.NextCursor == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceReportingCallInput.NextCursor(childComplexity), true
+	case "MauriceReportingCallInput.systemPrompt":
+		if e.ComplexityRoot.MauriceReportingCallInput.SystemPrompt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceReportingCallInput.SystemPrompt(childComplexity), true
+	case "MauriceReportingCallInput.toolDefinitions":
+		if e.ComplexityRoot.MauriceReportingCallInput.ToolDefinitions == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceReportingCallInput.ToolDefinitions(childComplexity), true
+
+	case "MauriceReportingCallInputMessage.message":
+		if e.ComplexityRoot.MauriceReportingCallInputMessage.Message == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceReportingCallInputMessage.Message(childComplexity), true
+	case "MauriceReportingCallInputMessage.messageId":
+		if e.ComplexityRoot.MauriceReportingCallInputMessage.MessageID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceReportingCallInputMessage.MessageID(childComplexity), true
+	case "MauriceReportingCallInputMessage.number":
+		if e.ComplexityRoot.MauriceReportingCallInputMessage.Number == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceReportingCallInputMessage.Number(childComplexity), true
+	case "MauriceReportingCallInputMessage.withheld":
+		if e.ComplexityRoot.MauriceReportingCallInputMessage.Withheld == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceReportingCallInputMessage.Withheld(childComplexity), true
+
+	case "MauriceReportingCallPage.items":
+		if e.ComplexityRoot.MauriceReportingCallPage.Items == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceReportingCallPage.Items(childComplexity), true
+	case "MauriceReportingCallPage.nextCursor":
+		if e.ComplexityRoot.MauriceReportingCallPage.NextCursor == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceReportingCallPage.NextCursor(childComplexity), true
+
 	case "MauriceReportingConversation.createdAt":
 		if e.ComplexityRoot.MauriceReportingConversation.CreatedAt == nil {
 			break
@@ -4893,6 +5233,92 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.MauriceReportingLatency.P95Seconds(childComplexity), true
 
+	case "MauriceReportingMessage.content":
+		if e.ComplexityRoot.MauriceReportingMessage.Content == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceReportingMessage.Content(childComplexity), true
+	case "MauriceReportingMessage.contentLength":
+		if e.ComplexityRoot.MauriceReportingMessage.ContentLength == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceReportingMessage.ContentLength(childComplexity), true
+	case "MauriceReportingMessage.createdAt":
+		if e.ComplexityRoot.MauriceReportingMessage.CreatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceReportingMessage.CreatedAt(childComplexity), true
+	case "MauriceReportingMessage.id":
+		if e.ComplexityRoot.MauriceReportingMessage.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceReportingMessage.ID(childComplexity), true
+	case "MauriceReportingMessage.number":
+		if e.ComplexityRoot.MauriceReportingMessage.Number == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceReportingMessage.Number(childComplexity), true
+	case "MauriceReportingMessage.replayable":
+		if e.ComplexityRoot.MauriceReportingMessage.Replayable == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceReportingMessage.Replayable(childComplexity), true
+	case "MauriceReportingMessage.resultToolCallId":
+		if e.ComplexityRoot.MauriceReportingMessage.ResultToolCallID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceReportingMessage.ResultToolCallID(childComplexity), true
+	case "MauriceReportingMessage.role":
+		if e.ComplexityRoot.MauriceReportingMessage.Role == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceReportingMessage.Role(childComplexity), true
+	case "MauriceReportingMessage.toolCallCount":
+		if e.ComplexityRoot.MauriceReportingMessage.ToolCallCount == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceReportingMessage.ToolCallCount(childComplexity), true
+	case "MauriceReportingMessage.turnId":
+		if e.ComplexityRoot.MauriceReportingMessage.TurnID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceReportingMessage.TurnID(childComplexity), true
+	case "MauriceReportingMessage.turnNumber":
+		if e.ComplexityRoot.MauriceReportingMessage.TurnNumber == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceReportingMessage.TurnNumber(childComplexity), true
+	case "MauriceReportingMessage.turnStatus":
+		if e.ComplexityRoot.MauriceReportingMessage.TurnStatus == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceReportingMessage.TurnStatus(childComplexity), true
+
+	case "MauriceReportingMessagePage.items":
+		if e.ComplexityRoot.MauriceReportingMessagePage.Items == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceReportingMessagePage.Items(childComplexity), true
+	case "MauriceReportingMessagePage.nextCursor":
+		if e.ComplexityRoot.MauriceReportingMessagePage.NextCursor == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceReportingMessagePage.NextCursor(childComplexity), true
+
 	case "MauriceReportingModel.model":
 		if e.ComplexityRoot.MauriceReportingModel.Model == nil {
 			break
@@ -4956,6 +5382,37 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.MauriceReportingOverview.UserCount(childComplexity), true
 
+	case "MauriceReportingText.length":
+		if e.ComplexityRoot.MauriceReportingText.Length == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceReportingText.Length(childComplexity), true
+	case "MauriceReportingText.nextOffset":
+		if e.ComplexityRoot.MauriceReportingText.NextOffset == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceReportingText.NextOffset(childComplexity), true
+	case "MauriceReportingText.offset":
+		if e.ComplexityRoot.MauriceReportingText.Offset == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceReportingText.Offset(childComplexity), true
+	case "MauriceReportingText.text":
+		if e.ComplexityRoot.MauriceReportingText.Text == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceReportingText.Text(childComplexity), true
+	case "MauriceReportingText.truncated":
+		if e.ComplexityRoot.MauriceReportingText.Truncated == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceReportingText.Truncated(childComplexity), true
+
 	case "MauriceReportingTokenCount.complete":
 		if e.ComplexityRoot.MauriceReportingTokenCount.Complete == nil {
 			break
@@ -4980,6 +5437,202 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.MauriceReportingTokenCount.UnreportedCalls(childComplexity), true
+
+	case "MauriceReportingToolCall.argumentsRawLength":
+		if e.ComplexityRoot.MauriceReportingToolCall.ArgumentsRawLength == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceReportingToolCall.ArgumentsRawLength(childComplexity), true
+	case "MauriceReportingToolCall.argumentsValid":
+		if e.ComplexityRoot.MauriceReportingToolCall.ArgumentsValid == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceReportingToolCall.ArgumentsValid(childComplexity), true
+	case "MauriceReportingToolCall.callId":
+		if e.ComplexityRoot.MauriceReportingToolCall.CallID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceReportingToolCall.CallID(childComplexity), true
+	case "MauriceReportingToolCall.completedAt":
+		if e.ComplexityRoot.MauriceReportingToolCall.CompletedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceReportingToolCall.CompletedAt(childComplexity), true
+	case "MauriceReportingToolCall.id":
+		if e.ComplexityRoot.MauriceReportingToolCall.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceReportingToolCall.ID(childComplexity), true
+	case "MauriceReportingToolCall.messageId":
+		if e.ComplexityRoot.MauriceReportingToolCall.MessageID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceReportingToolCall.MessageID(childComplexity), true
+	case "MauriceReportingToolCall.name":
+		if e.ComplexityRoot.MauriceReportingToolCall.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceReportingToolCall.Name(childComplexity), true
+	case "MauriceReportingToolCall.providerToolCallId":
+		if e.ComplexityRoot.MauriceReportingToolCall.ProviderToolCallID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceReportingToolCall.ProviderToolCallID(childComplexity), true
+	case "MauriceReportingToolCall.resultLength":
+		if e.ComplexityRoot.MauriceReportingToolCall.ResultLength == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceReportingToolCall.ResultLength(childComplexity), true
+	case "MauriceReportingToolCall.sequence":
+		if e.ComplexityRoot.MauriceReportingToolCall.Sequence == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceReportingToolCall.Sequence(childComplexity), true
+	case "MauriceReportingToolCall.startedAt":
+		if e.ComplexityRoot.MauriceReportingToolCall.StartedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceReportingToolCall.StartedAt(childComplexity), true
+	case "MauriceReportingToolCall.status":
+		if e.ComplexityRoot.MauriceReportingToolCall.Status == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceReportingToolCall.Status(childComplexity), true
+	case "MauriceReportingToolCall.turnId":
+		if e.ComplexityRoot.MauriceReportingToolCall.TurnID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceReportingToolCall.TurnID(childComplexity), true
+	case "MauriceReportingToolCall.type":
+		if e.ComplexityRoot.MauriceReportingToolCall.Type == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceReportingToolCall.Type(childComplexity), true
+
+	case "MauriceReportingToolCallDetail.arguments":
+		if e.ComplexityRoot.MauriceReportingToolCallDetail.Arguments == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceReportingToolCallDetail.Arguments(childComplexity), true
+	case "MauriceReportingToolCallDetail.argumentsRaw":
+		if e.ComplexityRoot.MauriceReportingToolCallDetail.ArgumentsRaw == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceReportingToolCallDetail.ArgumentsRaw(childComplexity), true
+	case "MauriceReportingToolCallDetail.result":
+		if e.ComplexityRoot.MauriceReportingToolCallDetail.Result == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceReportingToolCallDetail.Result(childComplexity), true
+	case "MauriceReportingToolCallDetail.toolCall":
+		if e.ComplexityRoot.MauriceReportingToolCallDetail.ToolCall == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceReportingToolCallDetail.ToolCall(childComplexity), true
+
+	case "MauriceReportingToolCallPage.items":
+		if e.ComplexityRoot.MauriceReportingToolCallPage.Items == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceReportingToolCallPage.Items(childComplexity), true
+	case "MauriceReportingToolCallPage.nextCursor":
+		if e.ComplexityRoot.MauriceReportingToolCallPage.NextCursor == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceReportingToolCallPage.NextCursor(childComplexity), true
+
+	case "MauriceReportingTurn.completedAt":
+		if e.ComplexityRoot.MauriceReportingTurn.CompletedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceReportingTurn.CompletedAt(childComplexity), true
+	case "MauriceReportingTurn.errorClass":
+		if e.ComplexityRoot.MauriceReportingTurn.ErrorClass == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceReportingTurn.ErrorClass(childComplexity), true
+	case "MauriceReportingTurn.id":
+		if e.ComplexityRoot.MauriceReportingTurn.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceReportingTurn.ID(childComplexity), true
+	case "MauriceReportingTurn.messageCount":
+		if e.ComplexityRoot.MauriceReportingTurn.MessageCount == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceReportingTurn.MessageCount(childComplexity), true
+	case "MauriceReportingTurn.models":
+		if e.ComplexityRoot.MauriceReportingTurn.Models == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceReportingTurn.Models(childComplexity), true
+	case "MauriceReportingTurn.number":
+		if e.ComplexityRoot.MauriceReportingTurn.Number == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceReportingTurn.Number(childComplexity), true
+	case "MauriceReportingTurn.replayable":
+		if e.ComplexityRoot.MauriceReportingTurn.Replayable == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceReportingTurn.Replayable(childComplexity), true
+	case "MauriceReportingTurn.startedAt":
+		if e.ComplexityRoot.MauriceReportingTurn.StartedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceReportingTurn.StartedAt(childComplexity), true
+	case "MauriceReportingTurn.status":
+		if e.ComplexityRoot.MauriceReportingTurn.Status == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceReportingTurn.Status(childComplexity), true
+	case "MauriceReportingTurn.toolCallCount":
+		if e.ComplexityRoot.MauriceReportingTurn.ToolCallCount == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceReportingTurn.ToolCallCount(childComplexity), true
+	case "MauriceReportingTurn.usage":
+		if e.ComplexityRoot.MauriceReportingTurn.Usage == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceReportingTurn.Usage(childComplexity), true
+	case "MauriceReportingTurn.warnings":
+		if e.ComplexityRoot.MauriceReportingTurn.Warnings == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceReportingTurn.Warnings(childComplexity), true
 
 	case "MauriceReportingTurnCounts.cancelled":
 		if e.ComplexityRoot.MauriceReportingTurnCounts.Cancelled == nil {
@@ -5035,6 +5688,19 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.MauriceReportingTurnCounts.Total(childComplexity), true
+
+	case "MauriceReportingTurnPage.items":
+		if e.ComplexityRoot.MauriceReportingTurnPage.Items == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceReportingTurnPage.Items(childComplexity), true
+	case "MauriceReportingTurnPage.nextCursor":
+		if e.ComplexityRoot.MauriceReportingTurnPage.NextCursor == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceReportingTurnPage.NextCursor(childComplexity), true
 
 	case "MauriceReportingUsage.cacheCreationInputTokens":
 		if e.ComplexityRoot.MauriceReportingUsage.CacheCreationInputTokens == nil {
@@ -6402,6 +7068,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.MauriceDraftEvents(childComplexity, args["league"].(string), args["season"].(*int), args["afterStateVersion"].(int64), args["limit"].(*int)), true
+	case "Query.mauriceReportingCallInput":
+		if e.ComplexityRoot.Query.MauriceReportingCallInput == nil {
+			break
+		}
+
+		args, err := ec.field_Query_mauriceReportingCallInput_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.MauriceReportingCallInput(childComplexity, args["conversation"].(model.MauriceReportingConversationRef), args["callId"].(string), args["limit"].(*int), args["cursor"].(*string)), true
 	case "Query.mauriceReportingConversation":
 		if e.ComplexityRoot.Query.MauriceReportingConversation == nil {
 			break
@@ -6446,6 +7123,83 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.MauriceReportingOverview(childComplexity, args["filter"].(model.MauriceReportingConversationFilter)), true
+	case "Query.mauriceReportingPayload":
+		if e.ComplexityRoot.Query.MauriceReportingPayload == nil {
+			break
+		}
+
+		args, err := ec.field_Query_mauriceReportingPayload_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.MauriceReportingPayload(childComplexity, args["conversation"].(model.MauriceReportingConversationRef), args["kind"].(model.MauriceReportingPayloadKind), args["id"].(string), args["offset"].(*int), args["limit"].(*int)), true
+	case "Query.mauriceReportingTitleCalls":
+		if e.ComplexityRoot.Query.MauriceReportingTitleCalls == nil {
+			break
+		}
+
+		args, err := ec.field_Query_mauriceReportingTitleCalls_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.MauriceReportingTitleCalls(childComplexity, args["conversation"].(model.MauriceReportingConversationRef), args["limit"].(*int), args["cursor"].(*string)), true
+	case "Query.mauriceReportingToolCall":
+		if e.ComplexityRoot.Query.MauriceReportingToolCall == nil {
+			break
+		}
+
+		args, err := ec.field_Query_mauriceReportingToolCall_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.MauriceReportingToolCall(childComplexity, args["conversation"].(model.MauriceReportingConversationRef), args["toolCallId"].(string)), true
+	case "Query.mauriceReportingToolCalls":
+		if e.ComplexityRoot.Query.MauriceReportingToolCalls == nil {
+			break
+		}
+
+		args, err := ec.field_Query_mauriceReportingToolCalls_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.MauriceReportingToolCalls(childComplexity, args["conversation"].(model.MauriceReportingConversationRef), args["turnId"].(string), args["limit"].(*int), args["cursor"].(*string)), true
+	case "Query.mauriceReportingTranscript":
+		if e.ComplexityRoot.Query.MauriceReportingTranscript == nil {
+			break
+		}
+
+		args, err := ec.field_Query_mauriceReportingTranscript_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.MauriceReportingTranscript(childComplexity, args["conversation"].(model.MauriceReportingConversationRef), args["limit"].(*int), args["cursor"].(*string)), true
+	case "Query.mauriceReportingTurnCalls":
+		if e.ComplexityRoot.Query.MauriceReportingTurnCalls == nil {
+			break
+		}
+
+		args, err := ec.field_Query_mauriceReportingTurnCalls_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.MauriceReportingTurnCalls(childComplexity, args["conversation"].(model.MauriceReportingConversationRef), args["turnId"].(string), args["limit"].(*int), args["cursor"].(*string)), true
+	case "Query.mauriceReportingTurns":
+		if e.ComplexityRoot.Query.MauriceReportingTurns == nil {
+			break
+		}
+
+		args, err := ec.field_Query_mauriceReportingTurns_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.MauriceReportingTurns(childComplexity, args["conversation"].(model.MauriceReportingConversationRef), args["limit"].(*int), args["cursor"].(*string)), true
 	case "Query.mauriceReportingUserActivity":
 		if e.ComplexityRoot.Query.MauriceReportingUserActivity == nil {
 			break
@@ -7573,6 +8327,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputMauriceDraftShortlistInput,
 		ec.unmarshalInputMauriceDraftSlotInput,
 		ec.unmarshalInputMauriceReportingConversationFilter,
+		ec.unmarshalInputMauriceReportingConversationRef,
 		ec.unmarshalInputPlayerFilter,
 		ec.unmarshalInputProcessPlayersInput,
 		ec.unmarshalInputRefreshDraftRankingsInput,
@@ -9018,6 +9773,281 @@ extend type Query {
 	when it does not exist, or when it is deleted and includeDeleted is not true.
 	"""
 	mauriceReportingConversation(instance: String!, id: String!, includeDeleted: Boolean): MauriceReportingConversation @admin @mauriceReporting
+}
+`, BuiltIn: false},
+	{Name: "../maurice_reporting_detail.graphqls", Input: `# Maurice reporting detail — one conversation's transcript, turns, LLM calls
+# and tool calls, and the payloads retained with them, read on demand
+# (internal/mauricereport, detail*.go and pgdetail*.go/pgpayload.go). Same
+# gate and paging rules as maurice_reporting.graphqls; contract on wiki
+# puckdb/maurice-reporting-api.md ("Conversation detail").
+#
+# Every field names its conversation with a MauriceReportingConversationRef
+# and is null when the conversation's owner is not of that instance, it does
+# not exist, or it is deleted and includeDeleted is not true. A nested ID
+# (turn, LLM call, tool call, message) that is not of that conversation is
+# null too, exactly as one that does not exist. A cursor is bound to its
+# list, conversation and parent turn or call.
+#
+# Content is returned only by these fields, never by the lists or the
+# overview: the transcript carries user and assistant text; provider inputs
+# (system prompt, instruction, tool definitions, linked messages), tool
+# arguments and tool results only mauriceReportingCallInput,
+# mauriceReportingToolCall and mauriceReportingPayload. Each text inline is
+# at most 8192 code points, marked truncated when the stored text is longer;
+# mauriceReportingPayload reads the rest in bounded windows.
+
+"""The conversation of a detail field."""
+input MauriceReportingConversationRef {
+	"""The owner's instance (required, exact)."""
+	instance: String!
+	"""The conversation's id."""
+	id: String!
+	"""Also find it when its owner deleted it (default false)."""
+	includeDeleted: Boolean
+}
+
+"""
+A window of a stored text, counted in Unicode code points: text is the
+stored value from offset on.
+"""
+type MauriceReportingText {
+	text: String!
+	"""Code points of the stored text before this window."""
+	offset: Int64!
+	"""Code points of the whole stored text."""
+	length: Int64!
+	"""The stored text continues after this window: read it with mauriceReportingPayload from nextOffset."""
+	truncated: Boolean!
+	"""Offset just past this window when truncated, else null."""
+	nextOffset: Int64
+}
+
+enum MauriceReportingMessageRole {
+	SYSTEM
+	USER
+	ASSISTANT
+	TOOL
+}
+
+"""A retained message."""
+type MauriceReportingMessage {
+	id: String!
+	turnId: String!
+	turnNumber: Int!
+	turnStatus: MauriceReportingTurnStatus!
+	"""
+	The message is part of the chat history Maurice replays to the model: only
+	messages of a SUCCEEDED turn are. Messages of failed, cancelled and running
+	turns are retained evidence (the exact prompts sent), not chat.
+	"""
+	replayable: Boolean!
+	"""Position in its turn, from 0."""
+	number: Int!
+	role: MauriceReportingMessageRole!
+	createdAt: Time!
+	"""Code points of the content."""
+	contentLength: Int64!
+	"""
+	The start of the content. In the transcript only for USER and ASSISTANT
+	messages: null for TOOL results and SYSTEM messages (read them with
+	mauriceReportingPayload, kind MESSAGE_CONTENT). In a call's inputs, for
+	every role.
+	"""
+	content: MauriceReportingText
+	"""The tool call a TOOL message answers."""
+	resultToolCallId: String
+	"""Tool calls this ASSISTANT message requested (mauriceReportingToolCalls lists them)."""
+	toolCallCount: Int64!
+}
+
+type MauriceReportingMessagePage {
+	"""By turn number, then message number."""
+	items: [MauriceReportingMessage!]!
+	nextCursor: String
+}
+
+"""A turn: one prompt and the work behind its answer, counts and usage only."""
+type MauriceReportingTurn {
+	id: String!
+	number: Int!
+	status: MauriceReportingTurnStatus!
+	"""Its messages are chat history (status SUCCEEDED); see MauriceReportingMessage.replayable."""
+	replayable: Boolean!
+	"""Bounded label of a failed or cancelled turn (timeout, cancelled, provider_error, tool_error, internal_error, abandoned)."""
+	errorClass: String
+	startedAt: Time!
+	"""Null while running."""
+	completedAt: Time
+	"""Warnings returned with the answer (such as unavailable tool servers)."""
+	warnings: [String!]!
+	messageCount: Int64!
+	toolCallCount: Int64!
+	"""Its LLM calls, title generation excluded (it has no turn)."""
+	usage: MauriceReportingUsage!
+	"""Distinct provider/model pairs of its calls, by provider then model."""
+	models: [MauriceReportingModel!]!
+}
+
+type MauriceReportingTurnPage {
+	"""By turn number."""
+	items: [MauriceReportingTurn!]!
+	nextCursor: String
+}
+
+"""An LLM call's metadata; its inputs are read with mauriceReportingCallInput."""
+type MauriceReportingCall {
+	id: String!
+	"""Null for a title generation call, which belongs to no turn."""
+	turnId: String
+	"""chat_round, forced_final or title_generation."""
+	kind: String!
+	"""Null for a title generation call."""
+	round: Int
+	provider: String!
+	model: String!
+	providerRequestId: String
+	"""succeeded or failed."""
+	status: String!
+	errorClass: String
+	finishReason: String
+	startedAt: Time!
+	completedAt: Time!
+	"""Token counts; null when the provider did not report one, which is not zero."""
+	inputTokens: Int64
+	outputTokens: Int64
+	cacheCreationInputTokens: Int64
+	cacheReadInputTokens: Int64
+	"""Messages linked as the request's input (the system prompt excluded)."""
+	inputMessageCount: Int64!
+	"""Code points of the stored system prompt; null when none is stored."""
+	systemPromptLength: Int64
+	"""Code points of the stored trailing instruction (title generation); null when none."""
+	instructionLength: Int64
+	"""Code points of the stored tool definitions (JSON); null when none."""
+	toolDefinitionsLength: Int64
+	toolCallCount: Int64!
+}
+
+type MauriceReportingCallPage {
+	"""A turn's calls by round, ties by id; title generation calls by startedAt, ties by id."""
+	items: [MauriceReportingCall!]!
+	nextCursor: String
+}
+
+"""A tool call's metadata; its arguments and result are read with mauriceReportingToolCall."""
+type MauriceReportingToolCall {
+	id: String!
+	turnId: String!
+	"""The LLM call that requested it; null for a call kept from the transcript without call telemetry."""
+	callId: String
+	"""The assistant message that requested it, when retained."""
+	messageId: String
+	"""Position in its request, from 0."""
+	sequence: Int!
+	providerToolCallId: String
+	type: String!
+	name: String!
+	"""succeeded, tool_error, parse_error or cancelled (requested, never run); null for a transcript-only call."""
+	status: String
+	startedAt: Time
+	completedAt: Time
+	"""The raw arguments parsed as JSON (the parsed projection exists)."""
+	argumentsValid: Boolean!
+	"""Code points of the raw arguments."""
+	argumentsRawLength: Int64!
+	"""Code points of the result; null when it never ran."""
+	resultLength: Int64
+}
+
+type MauriceReportingToolCallPage {
+	"""By id: recording order."""
+	items: [MauriceReportingToolCall!]!
+	nextCursor: String
+}
+
+"""A message linked as an LLM call's input."""
+type MauriceReportingCallInputMessage {
+	"""Position in the request, from 0 (the system prompt excluded)."""
+	number: Int!
+	"""The linked message belongs to another conversation: message is null, messageId its only trace."""
+	withheld: Boolean!
+	messageId: String!
+	message: MauriceReportingMessage
+}
+
+"""The exact retained provider input of one LLM call."""
+type MauriceReportingCallInput {
+	call: MauriceReportingCall!
+	"""Null when none is stored."""
+	systemPrompt: MauriceReportingText
+	"""The trailing instruction sent after the linked messages (title generation); null when none."""
+	instruction: MauriceReportingText
+	"""The tool definitions sent, as JSON; null when none."""
+	toolDefinitions: MauriceReportingText
+	"""One page of the linked input messages, by number; pass nextCursor for the next."""
+	inputs: [MauriceReportingCallInputMessage!]!
+	nextCursor: String
+}
+
+"""A tool call with the start of its payloads."""
+type MauriceReportingToolCallDetail {
+	toolCall: MauriceReportingToolCall!
+	"""The arguments exactly as the model sent them, possibly malformed."""
+	argumentsRaw: MauriceReportingText!
+	"""The parsed JSON projection; null when the raw arguments did not parse."""
+	arguments: MauriceReportingText
+	"""Null when it never ran."""
+	result: MauriceReportingText
+}
+
+"""A retained payload mauriceReportingPayload reads, and what its id names."""
+enum MauriceReportingPayloadKind {
+	"""A message's content; id is the message id."""
+	MESSAGE_CONTENT
+	"""An LLM call's system prompt; id is the call id."""
+	SYSTEM_PROMPT
+	"""An LLM call's trailing instruction; id is the call id."""
+	INSTRUCTION
+	"""An LLM call's tool definitions (JSON); id is the call id."""
+	TOOL_DEFINITIONS
+	"""A tool call's raw arguments; id is the tool call id."""
+	TOOL_ARGUMENTS_RAW
+	"""A tool call's parsed arguments (JSON); id is the tool call id."""
+	TOOL_ARGUMENTS
+	"""A tool call's result; id is the tool call id."""
+	TOOL_RESULT
+}
+
+extend type Query {
+	"""
+	The conversation's retained messages, by turn number then message number:
+	failed, cancelled and running turns' messages included, marked not
+	replayable.
+	"""
+	mauriceReportingTranscript(conversation: MauriceReportingConversationRef!, limit: Int, cursor: String): MauriceReportingMessagePage @admin @mauriceReporting
+	"""The conversation's turns with counts and usage."""
+	mauriceReportingTurns(conversation: MauriceReportingConversationRef!, limit: Int, cursor: String): MauriceReportingTurnPage @admin @mauriceReporting
+	"""One turn's LLM calls; null when the turn is not of the conversation."""
+	mauriceReportingTurnCalls(conversation: MauriceReportingConversationRef!, turnId: String!, limit: Int, cursor: String): MauriceReportingCallPage @admin @mauriceReporting
+	"""The conversation's title generation calls, which belong to no turn."""
+	mauriceReportingTitleCalls(conversation: MauriceReportingConversationRef!, limit: Int, cursor: String): MauriceReportingCallPage @admin @mauriceReporting
+	"""One turn's tool calls, metadata only; null when the turn is not of the conversation."""
+	mauriceReportingToolCalls(conversation: MauriceReportingConversationRef!, turnId: String!, limit: Int, cursor: String): MauriceReportingToolCallPage @admin @mauriceReporting
+	"""
+	One LLM call's exact retained input (a turn's or a title generation
+	call's), with one page of its input messages; null when the call is not of
+	the conversation.
+	"""
+	mauriceReportingCallInput(conversation: MauriceReportingConversationRef!, callId: String!, limit: Int, cursor: String): MauriceReportingCallInput @admin @mauriceReporting
+	"""One tool call with the start of its arguments and result; null when it is not of the conversation."""
+	mauriceReportingToolCall(conversation: MauriceReportingConversationRef!, toolCallId: String!): MauriceReportingToolCallDetail @admin @mauriceReporting
+	"""
+	A window of one retained payload: limit code points (default 65536,
+	1..262144) from offset (default 0, at most 1073741824; past the end, an
+	empty window). Null when the message, call or tool call is not of the
+	conversation, or it stores no such value.
+	"""
+	mauriceReportingPayload(conversation: MauriceReportingConversationRef!, kind: MauriceReportingPayloadKind!, id: String!, offset: Int, limit: Int): MauriceReportingText @admin @mauriceReporting
 }
 `, BuiltIn: false},
 	{Name: "../maurice_reporting_overview.graphqls", Input: `# Maurice reporting overview — usage and execution outcome aggregates over
@@ -11265,6 +12295,96 @@ func (ec *executionContext) childFields_MauriceReportingActivity(ctx context.Con
 	return nil, fmt.Errorf("no field named %q was found under type MauriceReportingActivity", field.Name)
 }
 
+func (ec *executionContext) childFields_MauriceReportingCall(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_MauriceReportingCall_id(ctx, field)
+	case "turnId":
+		return ec.fieldContext_MauriceReportingCall_turnId(ctx, field)
+	case "kind":
+		return ec.fieldContext_MauriceReportingCall_kind(ctx, field)
+	case "round":
+		return ec.fieldContext_MauriceReportingCall_round(ctx, field)
+	case "provider":
+		return ec.fieldContext_MauriceReportingCall_provider(ctx, field)
+	case "model":
+		return ec.fieldContext_MauriceReportingCall_model(ctx, field)
+	case "providerRequestId":
+		return ec.fieldContext_MauriceReportingCall_providerRequestId(ctx, field)
+	case "status":
+		return ec.fieldContext_MauriceReportingCall_status(ctx, field)
+	case "errorClass":
+		return ec.fieldContext_MauriceReportingCall_errorClass(ctx, field)
+	case "finishReason":
+		return ec.fieldContext_MauriceReportingCall_finishReason(ctx, field)
+	case "startedAt":
+		return ec.fieldContext_MauriceReportingCall_startedAt(ctx, field)
+	case "completedAt":
+		return ec.fieldContext_MauriceReportingCall_completedAt(ctx, field)
+	case "inputTokens":
+		return ec.fieldContext_MauriceReportingCall_inputTokens(ctx, field)
+	case "outputTokens":
+		return ec.fieldContext_MauriceReportingCall_outputTokens(ctx, field)
+	case "cacheCreationInputTokens":
+		return ec.fieldContext_MauriceReportingCall_cacheCreationInputTokens(ctx, field)
+	case "cacheReadInputTokens":
+		return ec.fieldContext_MauriceReportingCall_cacheReadInputTokens(ctx, field)
+	case "inputMessageCount":
+		return ec.fieldContext_MauriceReportingCall_inputMessageCount(ctx, field)
+	case "systemPromptLength":
+		return ec.fieldContext_MauriceReportingCall_systemPromptLength(ctx, field)
+	case "instructionLength":
+		return ec.fieldContext_MauriceReportingCall_instructionLength(ctx, field)
+	case "toolDefinitionsLength":
+		return ec.fieldContext_MauriceReportingCall_toolDefinitionsLength(ctx, field)
+	case "toolCallCount":
+		return ec.fieldContext_MauriceReportingCall_toolCallCount(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type MauriceReportingCall", field.Name)
+}
+
+func (ec *executionContext) childFields_MauriceReportingCallInput(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "call":
+		return ec.fieldContext_MauriceReportingCallInput_call(ctx, field)
+	case "systemPrompt":
+		return ec.fieldContext_MauriceReportingCallInput_systemPrompt(ctx, field)
+	case "instruction":
+		return ec.fieldContext_MauriceReportingCallInput_instruction(ctx, field)
+	case "toolDefinitions":
+		return ec.fieldContext_MauriceReportingCallInput_toolDefinitions(ctx, field)
+	case "inputs":
+		return ec.fieldContext_MauriceReportingCallInput_inputs(ctx, field)
+	case "nextCursor":
+		return ec.fieldContext_MauriceReportingCallInput_nextCursor(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type MauriceReportingCallInput", field.Name)
+}
+
+func (ec *executionContext) childFields_MauriceReportingCallInputMessage(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "number":
+		return ec.fieldContext_MauriceReportingCallInputMessage_number(ctx, field)
+	case "withheld":
+		return ec.fieldContext_MauriceReportingCallInputMessage_withheld(ctx, field)
+	case "messageId":
+		return ec.fieldContext_MauriceReportingCallInputMessage_messageId(ctx, field)
+	case "message":
+		return ec.fieldContext_MauriceReportingCallInputMessage_message(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type MauriceReportingCallInputMessage", field.Name)
+}
+
+func (ec *executionContext) childFields_MauriceReportingCallPage(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "items":
+		return ec.fieldContext_MauriceReportingCallPage_items(ctx, field)
+	case "nextCursor":
+		return ec.fieldContext_MauriceReportingCallPage_nextCursor(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type MauriceReportingCallPage", field.Name)
+}
+
 func (ec *executionContext) childFields_MauriceReportingConversation(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "id":
@@ -11341,6 +12461,46 @@ func (ec *executionContext) childFields_MauriceReportingLatency(ctx context.Cont
 	return nil, fmt.Errorf("no field named %q was found under type MauriceReportingLatency", field.Name)
 }
 
+func (ec *executionContext) childFields_MauriceReportingMessage(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_MauriceReportingMessage_id(ctx, field)
+	case "turnId":
+		return ec.fieldContext_MauriceReportingMessage_turnId(ctx, field)
+	case "turnNumber":
+		return ec.fieldContext_MauriceReportingMessage_turnNumber(ctx, field)
+	case "turnStatus":
+		return ec.fieldContext_MauriceReportingMessage_turnStatus(ctx, field)
+	case "replayable":
+		return ec.fieldContext_MauriceReportingMessage_replayable(ctx, field)
+	case "number":
+		return ec.fieldContext_MauriceReportingMessage_number(ctx, field)
+	case "role":
+		return ec.fieldContext_MauriceReportingMessage_role(ctx, field)
+	case "createdAt":
+		return ec.fieldContext_MauriceReportingMessage_createdAt(ctx, field)
+	case "contentLength":
+		return ec.fieldContext_MauriceReportingMessage_contentLength(ctx, field)
+	case "content":
+		return ec.fieldContext_MauriceReportingMessage_content(ctx, field)
+	case "resultToolCallId":
+		return ec.fieldContext_MauriceReportingMessage_resultToolCallId(ctx, field)
+	case "toolCallCount":
+		return ec.fieldContext_MauriceReportingMessage_toolCallCount(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type MauriceReportingMessage", field.Name)
+}
+
+func (ec *executionContext) childFields_MauriceReportingMessagePage(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "items":
+		return ec.fieldContext_MauriceReportingMessagePage_items(ctx, field)
+	case "nextCursor":
+		return ec.fieldContext_MauriceReportingMessagePage_nextCursor(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type MauriceReportingMessagePage", field.Name)
+}
+
 func (ec *executionContext) childFields_MauriceReportingModel(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "provider":
@@ -11379,6 +12539,22 @@ func (ec *executionContext) childFields_MauriceReportingOverview(ctx context.Con
 	return nil, fmt.Errorf("no field named %q was found under type MauriceReportingOverview", field.Name)
 }
 
+func (ec *executionContext) childFields_MauriceReportingText(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "text":
+		return ec.fieldContext_MauriceReportingText_text(ctx, field)
+	case "offset":
+		return ec.fieldContext_MauriceReportingText_offset(ctx, field)
+	case "length":
+		return ec.fieldContext_MauriceReportingText_length(ctx, field)
+	case "truncated":
+		return ec.fieldContext_MauriceReportingText_truncated(ctx, field)
+	case "nextOffset":
+		return ec.fieldContext_MauriceReportingText_nextOffset(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type MauriceReportingText", field.Name)
+}
+
 func (ec *executionContext) childFields_MauriceReportingTokenCount(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "total":
@@ -11391,6 +12567,94 @@ func (ec *executionContext) childFields_MauriceReportingTokenCount(ctx context.C
 		return ec.fieldContext_MauriceReportingTokenCount_complete(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type MauriceReportingTokenCount", field.Name)
+}
+
+func (ec *executionContext) childFields_MauriceReportingToolCall(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_MauriceReportingToolCall_id(ctx, field)
+	case "turnId":
+		return ec.fieldContext_MauriceReportingToolCall_turnId(ctx, field)
+	case "callId":
+		return ec.fieldContext_MauriceReportingToolCall_callId(ctx, field)
+	case "messageId":
+		return ec.fieldContext_MauriceReportingToolCall_messageId(ctx, field)
+	case "sequence":
+		return ec.fieldContext_MauriceReportingToolCall_sequence(ctx, field)
+	case "providerToolCallId":
+		return ec.fieldContext_MauriceReportingToolCall_providerToolCallId(ctx, field)
+	case "type":
+		return ec.fieldContext_MauriceReportingToolCall_type(ctx, field)
+	case "name":
+		return ec.fieldContext_MauriceReportingToolCall_name(ctx, field)
+	case "status":
+		return ec.fieldContext_MauriceReportingToolCall_status(ctx, field)
+	case "startedAt":
+		return ec.fieldContext_MauriceReportingToolCall_startedAt(ctx, field)
+	case "completedAt":
+		return ec.fieldContext_MauriceReportingToolCall_completedAt(ctx, field)
+	case "argumentsValid":
+		return ec.fieldContext_MauriceReportingToolCall_argumentsValid(ctx, field)
+	case "argumentsRawLength":
+		return ec.fieldContext_MauriceReportingToolCall_argumentsRawLength(ctx, field)
+	case "resultLength":
+		return ec.fieldContext_MauriceReportingToolCall_resultLength(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type MauriceReportingToolCall", field.Name)
+}
+
+func (ec *executionContext) childFields_MauriceReportingToolCallDetail(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "toolCall":
+		return ec.fieldContext_MauriceReportingToolCallDetail_toolCall(ctx, field)
+	case "argumentsRaw":
+		return ec.fieldContext_MauriceReportingToolCallDetail_argumentsRaw(ctx, field)
+	case "arguments":
+		return ec.fieldContext_MauriceReportingToolCallDetail_arguments(ctx, field)
+	case "result":
+		return ec.fieldContext_MauriceReportingToolCallDetail_result(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type MauriceReportingToolCallDetail", field.Name)
+}
+
+func (ec *executionContext) childFields_MauriceReportingToolCallPage(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "items":
+		return ec.fieldContext_MauriceReportingToolCallPage_items(ctx, field)
+	case "nextCursor":
+		return ec.fieldContext_MauriceReportingToolCallPage_nextCursor(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type MauriceReportingToolCallPage", field.Name)
+}
+
+func (ec *executionContext) childFields_MauriceReportingTurn(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_MauriceReportingTurn_id(ctx, field)
+	case "number":
+		return ec.fieldContext_MauriceReportingTurn_number(ctx, field)
+	case "status":
+		return ec.fieldContext_MauriceReportingTurn_status(ctx, field)
+	case "replayable":
+		return ec.fieldContext_MauriceReportingTurn_replayable(ctx, field)
+	case "errorClass":
+		return ec.fieldContext_MauriceReportingTurn_errorClass(ctx, field)
+	case "startedAt":
+		return ec.fieldContext_MauriceReportingTurn_startedAt(ctx, field)
+	case "completedAt":
+		return ec.fieldContext_MauriceReportingTurn_completedAt(ctx, field)
+	case "warnings":
+		return ec.fieldContext_MauriceReportingTurn_warnings(ctx, field)
+	case "messageCount":
+		return ec.fieldContext_MauriceReportingTurn_messageCount(ctx, field)
+	case "toolCallCount":
+		return ec.fieldContext_MauriceReportingTurn_toolCallCount(ctx, field)
+	case "usage":
+		return ec.fieldContext_MauriceReportingTurn_usage(ctx, field)
+	case "models":
+		return ec.fieldContext_MauriceReportingTurn_models(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type MauriceReportingTurn", field.Name)
 }
 
 func (ec *executionContext) childFields_MauriceReportingTurnCounts(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -11415,6 +12679,16 @@ func (ec *executionContext) childFields_MauriceReportingTurnCounts(ctx context.C
 		return ec.fieldContext_MauriceReportingTurnCounts_cancelledRate(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type MauriceReportingTurnCounts", field.Name)
+}
+
+func (ec *executionContext) childFields_MauriceReportingTurnPage(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "items":
+		return ec.fieldContext_MauriceReportingTurnPage_items(ctx, field)
+	case "nextCursor":
+		return ec.fieldContext_MauriceReportingTurnPage_nextCursor(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type MauriceReportingTurnPage", field.Name)
 }
 
 func (ec *executionContext) childFields_MauriceReportingUsage(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -12953,6 +14227,44 @@ func (ec *executionContext) field_Query_mauriceDraftEvents_args(ctx context.Cont
 	return args, nil
 }
 
+func (ec *executionContext) field_Query_mauriceReportingCallInput_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "conversation",
+		func(ctx context.Context, v any) (model.MauriceReportingConversationRef, error) {
+			return ec.unmarshalNMauriceReportingConversationRef2githubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceReportingConversationRef(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["conversation"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "callId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["callId"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "limit",
+		func(ctx context.Context, v any) (*int, error) {
+			return ec.unmarshalOInt2ᚖint(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["limit"] = arg2
+	arg3, err := graphql.ProcessArgField(ctx, rawArgs, "cursor",
+		func(ctx context.Context, v any) (*string, error) {
+			return ec.unmarshalOString2ᚖstring(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["cursor"] = arg3
+	return args, nil
+}
+
 func (ec *executionContext) field_Query_mauriceReportingConversation_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -13046,6 +14358,240 @@ func (ec *executionContext) field_Query_mauriceReportingOverview_args(ctx contex
 		return nil, err
 	}
 	args["filter"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_mauriceReportingPayload_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "conversation",
+		func(ctx context.Context, v any) (model.MauriceReportingConversationRef, error) {
+			return ec.unmarshalNMauriceReportingConversationRef2githubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceReportingConversationRef(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["conversation"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "kind",
+		func(ctx context.Context, v any) (model.MauriceReportingPayloadKind, error) {
+			return ec.unmarshalNMauriceReportingPayloadKind2githubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceReportingPayloadKind(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["kind"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg2
+	arg3, err := graphql.ProcessArgField(ctx, rawArgs, "offset",
+		func(ctx context.Context, v any) (*int, error) {
+			return ec.unmarshalOInt2ᚖint(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["offset"] = arg3
+	arg4, err := graphql.ProcessArgField(ctx, rawArgs, "limit",
+		func(ctx context.Context, v any) (*int, error) {
+			return ec.unmarshalOInt2ᚖint(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["limit"] = arg4
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_mauriceReportingTitleCalls_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "conversation",
+		func(ctx context.Context, v any) (model.MauriceReportingConversationRef, error) {
+			return ec.unmarshalNMauriceReportingConversationRef2githubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceReportingConversationRef(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["conversation"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "limit",
+		func(ctx context.Context, v any) (*int, error) {
+			return ec.unmarshalOInt2ᚖint(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["limit"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "cursor",
+		func(ctx context.Context, v any) (*string, error) {
+			return ec.unmarshalOString2ᚖstring(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["cursor"] = arg2
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_mauriceReportingToolCall_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "conversation",
+		func(ctx context.Context, v any) (model.MauriceReportingConversationRef, error) {
+			return ec.unmarshalNMauriceReportingConversationRef2githubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceReportingConversationRef(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["conversation"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "toolCallId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["toolCallId"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_mauriceReportingToolCalls_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "conversation",
+		func(ctx context.Context, v any) (model.MauriceReportingConversationRef, error) {
+			return ec.unmarshalNMauriceReportingConversationRef2githubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceReportingConversationRef(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["conversation"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "turnId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["turnId"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "limit",
+		func(ctx context.Context, v any) (*int, error) {
+			return ec.unmarshalOInt2ᚖint(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["limit"] = arg2
+	arg3, err := graphql.ProcessArgField(ctx, rawArgs, "cursor",
+		func(ctx context.Context, v any) (*string, error) {
+			return ec.unmarshalOString2ᚖstring(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["cursor"] = arg3
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_mauriceReportingTranscript_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "conversation",
+		func(ctx context.Context, v any) (model.MauriceReportingConversationRef, error) {
+			return ec.unmarshalNMauriceReportingConversationRef2githubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceReportingConversationRef(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["conversation"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "limit",
+		func(ctx context.Context, v any) (*int, error) {
+			return ec.unmarshalOInt2ᚖint(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["limit"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "cursor",
+		func(ctx context.Context, v any) (*string, error) {
+			return ec.unmarshalOString2ᚖstring(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["cursor"] = arg2
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_mauriceReportingTurnCalls_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "conversation",
+		func(ctx context.Context, v any) (model.MauriceReportingConversationRef, error) {
+			return ec.unmarshalNMauriceReportingConversationRef2githubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceReportingConversationRef(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["conversation"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "turnId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["turnId"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "limit",
+		func(ctx context.Context, v any) (*int, error) {
+			return ec.unmarshalOInt2ᚖint(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["limit"] = arg2
+	arg3, err := graphql.ProcessArgField(ctx, rawArgs, "cursor",
+		func(ctx context.Context, v any) (*string, error) {
+			return ec.unmarshalOString2ᚖstring(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["cursor"] = arg3
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_mauriceReportingTurns_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "conversation",
+		func(ctx context.Context, v any) (model.MauriceReportingConversationRef, error) {
+			return ec.unmarshalNMauriceReportingConversationRef2githubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceReportingConversationRef(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["conversation"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "limit",
+		func(ctx context.Context, v any) (*int, error) {
+			return ec.unmarshalOInt2ᚖint(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["limit"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "cursor",
+		func(ctx context.Context, v any) (*string, error) {
+			return ec.unmarshalOString2ᚖstring(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["cursor"] = arg2
 	return args, nil
 }
 
@@ -26489,6 +28035,828 @@ func (ec *executionContext) fieldContext_MauriceReportingActivity_processingSeco
 	return graphql.NewScalarFieldContext("MauriceReportingActivity", field, false, false, errors.New("field of type Float does not have child fields"))
 }
 
+func (ec *executionContext) _MauriceReportingCall_id(ctx context.Context, field graphql.CollectedField, obj *model.MauriceReportingCall) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceReportingCall_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceReportingCall_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceReportingCall", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceReportingCall_turnId(ctx context.Context, field graphql.CollectedField, obj *model.MauriceReportingCall) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceReportingCall_turnId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.TurnID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceReportingCall_turnId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceReportingCall", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceReportingCall_kind(ctx context.Context, field graphql.CollectedField, obj *model.MauriceReportingCall) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceReportingCall_kind(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Kind, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceReportingCall_kind(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceReportingCall", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceReportingCall_round(ctx context.Context, field graphql.CollectedField, obj *model.MauriceReportingCall) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceReportingCall_round(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Round, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *int) graphql.Marshaler {
+			return ec.marshalOInt2ᚖint(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceReportingCall_round(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceReportingCall", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceReportingCall_provider(ctx context.Context, field graphql.CollectedField, obj *model.MauriceReportingCall) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceReportingCall_provider(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Provider, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceReportingCall_provider(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceReportingCall", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceReportingCall_model(ctx context.Context, field graphql.CollectedField, obj *model.MauriceReportingCall) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceReportingCall_model(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Model, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceReportingCall_model(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceReportingCall", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceReportingCall_providerRequestId(ctx context.Context, field graphql.CollectedField, obj *model.MauriceReportingCall) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceReportingCall_providerRequestId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ProviderRequestID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceReportingCall_providerRequestId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceReportingCall", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceReportingCall_status(ctx context.Context, field graphql.CollectedField, obj *model.MauriceReportingCall) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceReportingCall_status(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Status, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceReportingCall_status(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceReportingCall", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceReportingCall_errorClass(ctx context.Context, field graphql.CollectedField, obj *model.MauriceReportingCall) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceReportingCall_errorClass(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ErrorClass, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceReportingCall_errorClass(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceReportingCall", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceReportingCall_finishReason(ctx context.Context, field graphql.CollectedField, obj *model.MauriceReportingCall) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceReportingCall_finishReason(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.FinishReason, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceReportingCall_finishReason(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceReportingCall", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceReportingCall_startedAt(ctx context.Context, field graphql.CollectedField, obj *model.MauriceReportingCall) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceReportingCall_startedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.StartedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceReportingCall_startedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceReportingCall", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceReportingCall_completedAt(ctx context.Context, field graphql.CollectedField, obj *model.MauriceReportingCall) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceReportingCall_completedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CompletedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceReportingCall_completedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceReportingCall", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceReportingCall_inputTokens(ctx context.Context, field graphql.CollectedField, obj *model.MauriceReportingCall) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceReportingCall_inputTokens(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.InputTokens, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *int64) graphql.Marshaler {
+			return ec.marshalOInt642ᚖint64(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceReportingCall_inputTokens(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceReportingCall", field, false, false, errors.New("field of type Int64 does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceReportingCall_outputTokens(ctx context.Context, field graphql.CollectedField, obj *model.MauriceReportingCall) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceReportingCall_outputTokens(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.OutputTokens, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *int64) graphql.Marshaler {
+			return ec.marshalOInt642ᚖint64(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceReportingCall_outputTokens(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceReportingCall", field, false, false, errors.New("field of type Int64 does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceReportingCall_cacheCreationInputTokens(ctx context.Context, field graphql.CollectedField, obj *model.MauriceReportingCall) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceReportingCall_cacheCreationInputTokens(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CacheCreationInputTokens, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *int64) graphql.Marshaler {
+			return ec.marshalOInt642ᚖint64(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceReportingCall_cacheCreationInputTokens(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceReportingCall", field, false, false, errors.New("field of type Int64 does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceReportingCall_cacheReadInputTokens(ctx context.Context, field graphql.CollectedField, obj *model.MauriceReportingCall) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceReportingCall_cacheReadInputTokens(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CacheReadInputTokens, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *int64) graphql.Marshaler {
+			return ec.marshalOInt642ᚖint64(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceReportingCall_cacheReadInputTokens(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceReportingCall", field, false, false, errors.New("field of type Int64 does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceReportingCall_inputMessageCount(ctx context.Context, field graphql.CollectedField, obj *model.MauriceReportingCall) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceReportingCall_inputMessageCount(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.InputMessageCount, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int64) graphql.Marshaler {
+			return ec.marshalNInt642int64(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceReportingCall_inputMessageCount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceReportingCall", field, false, false, errors.New("field of type Int64 does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceReportingCall_systemPromptLength(ctx context.Context, field graphql.CollectedField, obj *model.MauriceReportingCall) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceReportingCall_systemPromptLength(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.SystemPromptLength, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *int64) graphql.Marshaler {
+			return ec.marshalOInt642ᚖint64(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceReportingCall_systemPromptLength(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceReportingCall", field, false, false, errors.New("field of type Int64 does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceReportingCall_instructionLength(ctx context.Context, field graphql.CollectedField, obj *model.MauriceReportingCall) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceReportingCall_instructionLength(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.InstructionLength, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *int64) graphql.Marshaler {
+			return ec.marshalOInt642ᚖint64(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceReportingCall_instructionLength(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceReportingCall", field, false, false, errors.New("field of type Int64 does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceReportingCall_toolDefinitionsLength(ctx context.Context, field graphql.CollectedField, obj *model.MauriceReportingCall) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceReportingCall_toolDefinitionsLength(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ToolDefinitionsLength, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *int64) graphql.Marshaler {
+			return ec.marshalOInt642ᚖint64(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceReportingCall_toolDefinitionsLength(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceReportingCall", field, false, false, errors.New("field of type Int64 does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceReportingCall_toolCallCount(ctx context.Context, field graphql.CollectedField, obj *model.MauriceReportingCall) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceReportingCall_toolCallCount(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ToolCallCount, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int64) graphql.Marshaler {
+			return ec.marshalNInt642int64(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceReportingCall_toolCallCount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceReportingCall", field, false, false, errors.New("field of type Int64 does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceReportingCallInput_call(ctx context.Context, field graphql.CollectedField, obj *model.MauriceReportingCallInput) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceReportingCallInput_call(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Call, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.MauriceReportingCall) graphql.Marshaler {
+			return ec.marshalNMauriceReportingCall2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceReportingCall(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceReportingCallInput_call(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MauriceReportingCallInput",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_MauriceReportingCall(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MauriceReportingCallInput_systemPrompt(ctx context.Context, field graphql.CollectedField, obj *model.MauriceReportingCallInput) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceReportingCallInput_systemPrompt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.SystemPrompt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.MauriceReportingText) graphql.Marshaler {
+			return ec.marshalOMauriceReportingText2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceReportingText(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceReportingCallInput_systemPrompt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MauriceReportingCallInput",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_MauriceReportingText(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MauriceReportingCallInput_instruction(ctx context.Context, field graphql.CollectedField, obj *model.MauriceReportingCallInput) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceReportingCallInput_instruction(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Instruction, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.MauriceReportingText) graphql.Marshaler {
+			return ec.marshalOMauriceReportingText2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceReportingText(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceReportingCallInput_instruction(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MauriceReportingCallInput",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_MauriceReportingText(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MauriceReportingCallInput_toolDefinitions(ctx context.Context, field graphql.CollectedField, obj *model.MauriceReportingCallInput) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceReportingCallInput_toolDefinitions(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ToolDefinitions, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.MauriceReportingText) graphql.Marshaler {
+			return ec.marshalOMauriceReportingText2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceReportingText(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceReportingCallInput_toolDefinitions(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MauriceReportingCallInput",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_MauriceReportingText(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MauriceReportingCallInput_inputs(ctx context.Context, field graphql.CollectedField, obj *model.MauriceReportingCallInput) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceReportingCallInput_inputs(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Inputs, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.MauriceReportingCallInputMessage) graphql.Marshaler {
+			return ec.marshalNMauriceReportingCallInputMessage2ᚕᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceReportingCallInputMessageᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceReportingCallInput_inputs(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MauriceReportingCallInput",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_MauriceReportingCallInputMessage(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MauriceReportingCallInput_nextCursor(ctx context.Context, field graphql.CollectedField, obj *model.MauriceReportingCallInput) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceReportingCallInput_nextCursor(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.NextCursor, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceReportingCallInput_nextCursor(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceReportingCallInput", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceReportingCallInputMessage_number(ctx context.Context, field graphql.CollectedField, obj *model.MauriceReportingCallInputMessage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceReportingCallInputMessage_number(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Number, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceReportingCallInputMessage_number(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceReportingCallInputMessage", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceReportingCallInputMessage_withheld(ctx context.Context, field graphql.CollectedField, obj *model.MauriceReportingCallInputMessage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceReportingCallInputMessage_withheld(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Withheld, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceReportingCallInputMessage_withheld(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceReportingCallInputMessage", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceReportingCallInputMessage_messageId(ctx context.Context, field graphql.CollectedField, obj *model.MauriceReportingCallInputMessage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceReportingCallInputMessage_messageId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.MessageID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceReportingCallInputMessage_messageId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceReportingCallInputMessage", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceReportingCallInputMessage_message(ctx context.Context, field graphql.CollectedField, obj *model.MauriceReportingCallInputMessage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceReportingCallInputMessage_message(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Message, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.MauriceReportingMessage) graphql.Marshaler {
+			return ec.marshalOMauriceReportingMessage2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceReportingMessage(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceReportingCallInputMessage_message(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MauriceReportingCallInputMessage",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_MauriceReportingMessage(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MauriceReportingCallPage_items(ctx context.Context, field graphql.CollectedField, obj *model.MauriceReportingCallPage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceReportingCallPage_items(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Items, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.MauriceReportingCall) graphql.Marshaler {
+			return ec.marshalNMauriceReportingCall2ᚕᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceReportingCallᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceReportingCallPage_items(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MauriceReportingCallPage",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_MauriceReportingCall(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MauriceReportingCallPage_nextCursor(ctx context.Context, field graphql.CollectedField, obj *model.MauriceReportingCallPage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceReportingCallPage_nextCursor(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.NextCursor, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceReportingCallPage_nextCursor(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceReportingCallPage", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
 func (ec *executionContext) _MauriceReportingConversation_id(ctx context.Context, field graphql.CollectedField, obj *model.MauriceReportingConversation) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -27054,6 +29422,346 @@ func (ec *executionContext) fieldContext_MauriceReportingLatency_maxSeconds(_ co
 	return graphql.NewScalarFieldContext("MauriceReportingLatency", field, false, false, errors.New("field of type Float does not have child fields"))
 }
 
+func (ec *executionContext) _MauriceReportingMessage_id(ctx context.Context, field graphql.CollectedField, obj *model.MauriceReportingMessage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceReportingMessage_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceReportingMessage_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceReportingMessage", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceReportingMessage_turnId(ctx context.Context, field graphql.CollectedField, obj *model.MauriceReportingMessage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceReportingMessage_turnId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.TurnID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceReportingMessage_turnId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceReportingMessage", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceReportingMessage_turnNumber(ctx context.Context, field graphql.CollectedField, obj *model.MauriceReportingMessage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceReportingMessage_turnNumber(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.TurnNumber, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceReportingMessage_turnNumber(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceReportingMessage", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceReportingMessage_turnStatus(ctx context.Context, field graphql.CollectedField, obj *model.MauriceReportingMessage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceReportingMessage_turnStatus(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.TurnStatus, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v model.MauriceReportingTurnStatus) graphql.Marshaler {
+			return ec.marshalNMauriceReportingTurnStatus2githubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceReportingTurnStatus(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceReportingMessage_turnStatus(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceReportingMessage", field, false, false, errors.New("field of type MauriceReportingTurnStatus does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceReportingMessage_replayable(ctx context.Context, field graphql.CollectedField, obj *model.MauriceReportingMessage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceReportingMessage_replayable(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Replayable, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceReportingMessage_replayable(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceReportingMessage", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceReportingMessage_number(ctx context.Context, field graphql.CollectedField, obj *model.MauriceReportingMessage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceReportingMessage_number(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Number, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceReportingMessage_number(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceReportingMessage", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceReportingMessage_role(ctx context.Context, field graphql.CollectedField, obj *model.MauriceReportingMessage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceReportingMessage_role(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Role, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v model.MauriceReportingMessageRole) graphql.Marshaler {
+			return ec.marshalNMauriceReportingMessageRole2githubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceReportingMessageRole(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceReportingMessage_role(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceReportingMessage", field, false, false, errors.New("field of type MauriceReportingMessageRole does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceReportingMessage_createdAt(ctx context.Context, field graphql.CollectedField, obj *model.MauriceReportingMessage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceReportingMessage_createdAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CreatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceReportingMessage_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceReportingMessage", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceReportingMessage_contentLength(ctx context.Context, field graphql.CollectedField, obj *model.MauriceReportingMessage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceReportingMessage_contentLength(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ContentLength, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int64) graphql.Marshaler {
+			return ec.marshalNInt642int64(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceReportingMessage_contentLength(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceReportingMessage", field, false, false, errors.New("field of type Int64 does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceReportingMessage_content(ctx context.Context, field graphql.CollectedField, obj *model.MauriceReportingMessage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceReportingMessage_content(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Content, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.MauriceReportingText) graphql.Marshaler {
+			return ec.marshalOMauriceReportingText2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceReportingText(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceReportingMessage_content(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MauriceReportingMessage",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_MauriceReportingText(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MauriceReportingMessage_resultToolCallId(ctx context.Context, field graphql.CollectedField, obj *model.MauriceReportingMessage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceReportingMessage_resultToolCallId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ResultToolCallID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceReportingMessage_resultToolCallId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceReportingMessage", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceReportingMessage_toolCallCount(ctx context.Context, field graphql.CollectedField, obj *model.MauriceReportingMessage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceReportingMessage_toolCallCount(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ToolCallCount, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int64) graphql.Marshaler {
+			return ec.marshalNInt642int64(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceReportingMessage_toolCallCount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceReportingMessage", field, false, false, errors.New("field of type Int64 does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceReportingMessagePage_items(ctx context.Context, field graphql.CollectedField, obj *model.MauriceReportingMessagePage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceReportingMessagePage_items(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Items, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.MauriceReportingMessage) graphql.Marshaler {
+			return ec.marshalNMauriceReportingMessage2ᚕᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceReportingMessageᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceReportingMessagePage_items(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MauriceReportingMessagePage",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_MauriceReportingMessage(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MauriceReportingMessagePage_nextCursor(ctx context.Context, field graphql.CollectedField, obj *model.MauriceReportingMessagePage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceReportingMessagePage_nextCursor(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.NextCursor, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceReportingMessagePage_nextCursor(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceReportingMessagePage", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
 func (ec *executionContext) _MauriceReportingModel_provider(ctx context.Context, field graphql.CollectedField, obj *model.MauriceReportingModel) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -27311,6 +30019,121 @@ func (ec *executionContext) fieldContext_MauriceReportingOverview_models(_ conte
 	return fc, nil
 }
 
+func (ec *executionContext) _MauriceReportingText_text(ctx context.Context, field graphql.CollectedField, obj *model.MauriceReportingText) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceReportingText_text(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Text, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceReportingText_text(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceReportingText", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceReportingText_offset(ctx context.Context, field graphql.CollectedField, obj *model.MauriceReportingText) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceReportingText_offset(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Offset, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int64) graphql.Marshaler {
+			return ec.marshalNInt642int64(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceReportingText_offset(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceReportingText", field, false, false, errors.New("field of type Int64 does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceReportingText_length(ctx context.Context, field graphql.CollectedField, obj *model.MauriceReportingText) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceReportingText_length(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Length, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int64) graphql.Marshaler {
+			return ec.marshalNInt642int64(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceReportingText_length(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceReportingText", field, false, false, errors.New("field of type Int64 does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceReportingText_truncated(ctx context.Context, field graphql.CollectedField, obj *model.MauriceReportingText) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceReportingText_truncated(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Truncated, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceReportingText_truncated(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceReportingText", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceReportingText_nextOffset(ctx context.Context, field graphql.CollectedField, obj *model.MauriceReportingText) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceReportingText_nextOffset(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.NextOffset, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *int64) graphql.Marshaler {
+			return ec.marshalOInt642ᚖint64(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceReportingText_nextOffset(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceReportingText", field, false, false, errors.New("field of type Int64 does not have child fields"))
+}
+
 func (ec *executionContext) _MauriceReportingTokenCount_total(ctx context.Context, field graphql.CollectedField, obj *model.MauriceReportingTokenCount) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -27401,6 +30224,805 @@ func (ec *executionContext) _MauriceReportingTokenCount_complete(ctx context.Con
 }
 func (ec *executionContext) fieldContext_MauriceReportingTokenCount_complete(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("MauriceReportingTokenCount", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceReportingToolCall_id(ctx context.Context, field graphql.CollectedField, obj *model.MauriceReportingToolCall) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceReportingToolCall_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceReportingToolCall_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceReportingToolCall", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceReportingToolCall_turnId(ctx context.Context, field graphql.CollectedField, obj *model.MauriceReportingToolCall) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceReportingToolCall_turnId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.TurnID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceReportingToolCall_turnId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceReportingToolCall", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceReportingToolCall_callId(ctx context.Context, field graphql.CollectedField, obj *model.MauriceReportingToolCall) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceReportingToolCall_callId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CallID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceReportingToolCall_callId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceReportingToolCall", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceReportingToolCall_messageId(ctx context.Context, field graphql.CollectedField, obj *model.MauriceReportingToolCall) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceReportingToolCall_messageId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.MessageID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceReportingToolCall_messageId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceReportingToolCall", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceReportingToolCall_sequence(ctx context.Context, field graphql.CollectedField, obj *model.MauriceReportingToolCall) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceReportingToolCall_sequence(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Sequence, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceReportingToolCall_sequence(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceReportingToolCall", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceReportingToolCall_providerToolCallId(ctx context.Context, field graphql.CollectedField, obj *model.MauriceReportingToolCall) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceReportingToolCall_providerToolCallId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ProviderToolCallID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceReportingToolCall_providerToolCallId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceReportingToolCall", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceReportingToolCall_type(ctx context.Context, field graphql.CollectedField, obj *model.MauriceReportingToolCall) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceReportingToolCall_type(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Type, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceReportingToolCall_type(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceReportingToolCall", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceReportingToolCall_name(ctx context.Context, field graphql.CollectedField, obj *model.MauriceReportingToolCall) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceReportingToolCall_name(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceReportingToolCall_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceReportingToolCall", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceReportingToolCall_status(ctx context.Context, field graphql.CollectedField, obj *model.MauriceReportingToolCall) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceReportingToolCall_status(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Status, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceReportingToolCall_status(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceReportingToolCall", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceReportingToolCall_startedAt(ctx context.Context, field graphql.CollectedField, obj *model.MauriceReportingToolCall) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceReportingToolCall_startedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.StartedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
+			return ec.marshalOTime2ᚖtimeᚐTime(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceReportingToolCall_startedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceReportingToolCall", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceReportingToolCall_completedAt(ctx context.Context, field graphql.CollectedField, obj *model.MauriceReportingToolCall) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceReportingToolCall_completedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CompletedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
+			return ec.marshalOTime2ᚖtimeᚐTime(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceReportingToolCall_completedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceReportingToolCall", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceReportingToolCall_argumentsValid(ctx context.Context, field graphql.CollectedField, obj *model.MauriceReportingToolCall) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceReportingToolCall_argumentsValid(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ArgumentsValid, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceReportingToolCall_argumentsValid(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceReportingToolCall", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceReportingToolCall_argumentsRawLength(ctx context.Context, field graphql.CollectedField, obj *model.MauriceReportingToolCall) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceReportingToolCall_argumentsRawLength(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ArgumentsRawLength, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int64) graphql.Marshaler {
+			return ec.marshalNInt642int64(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceReportingToolCall_argumentsRawLength(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceReportingToolCall", field, false, false, errors.New("field of type Int64 does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceReportingToolCall_resultLength(ctx context.Context, field graphql.CollectedField, obj *model.MauriceReportingToolCall) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceReportingToolCall_resultLength(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ResultLength, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *int64) graphql.Marshaler {
+			return ec.marshalOInt642ᚖint64(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceReportingToolCall_resultLength(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceReportingToolCall", field, false, false, errors.New("field of type Int64 does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceReportingToolCallDetail_toolCall(ctx context.Context, field graphql.CollectedField, obj *model.MauriceReportingToolCallDetail) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceReportingToolCallDetail_toolCall(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ToolCall, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.MauriceReportingToolCall) graphql.Marshaler {
+			return ec.marshalNMauriceReportingToolCall2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceReportingToolCall(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceReportingToolCallDetail_toolCall(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MauriceReportingToolCallDetail",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_MauriceReportingToolCall(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MauriceReportingToolCallDetail_argumentsRaw(ctx context.Context, field graphql.CollectedField, obj *model.MauriceReportingToolCallDetail) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceReportingToolCallDetail_argumentsRaw(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ArgumentsRaw, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.MauriceReportingText) graphql.Marshaler {
+			return ec.marshalNMauriceReportingText2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceReportingText(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceReportingToolCallDetail_argumentsRaw(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MauriceReportingToolCallDetail",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_MauriceReportingText(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MauriceReportingToolCallDetail_arguments(ctx context.Context, field graphql.CollectedField, obj *model.MauriceReportingToolCallDetail) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceReportingToolCallDetail_arguments(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Arguments, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.MauriceReportingText) graphql.Marshaler {
+			return ec.marshalOMauriceReportingText2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceReportingText(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceReportingToolCallDetail_arguments(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MauriceReportingToolCallDetail",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_MauriceReportingText(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MauriceReportingToolCallDetail_result(ctx context.Context, field graphql.CollectedField, obj *model.MauriceReportingToolCallDetail) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceReportingToolCallDetail_result(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Result, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.MauriceReportingText) graphql.Marshaler {
+			return ec.marshalOMauriceReportingText2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceReportingText(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceReportingToolCallDetail_result(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MauriceReportingToolCallDetail",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_MauriceReportingText(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MauriceReportingToolCallPage_items(ctx context.Context, field graphql.CollectedField, obj *model.MauriceReportingToolCallPage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceReportingToolCallPage_items(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Items, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.MauriceReportingToolCall) graphql.Marshaler {
+			return ec.marshalNMauriceReportingToolCall2ᚕᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceReportingToolCallᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceReportingToolCallPage_items(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MauriceReportingToolCallPage",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_MauriceReportingToolCall(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MauriceReportingToolCallPage_nextCursor(ctx context.Context, field graphql.CollectedField, obj *model.MauriceReportingToolCallPage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceReportingToolCallPage_nextCursor(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.NextCursor, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceReportingToolCallPage_nextCursor(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceReportingToolCallPage", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceReportingTurn_id(ctx context.Context, field graphql.CollectedField, obj *model.MauriceReportingTurn) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceReportingTurn_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceReportingTurn_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceReportingTurn", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceReportingTurn_number(ctx context.Context, field graphql.CollectedField, obj *model.MauriceReportingTurn) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceReportingTurn_number(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Number, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceReportingTurn_number(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceReportingTurn", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceReportingTurn_status(ctx context.Context, field graphql.CollectedField, obj *model.MauriceReportingTurn) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceReportingTurn_status(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Status, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v model.MauriceReportingTurnStatus) graphql.Marshaler {
+			return ec.marshalNMauriceReportingTurnStatus2githubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceReportingTurnStatus(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceReportingTurn_status(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceReportingTurn", field, false, false, errors.New("field of type MauriceReportingTurnStatus does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceReportingTurn_replayable(ctx context.Context, field graphql.CollectedField, obj *model.MauriceReportingTurn) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceReportingTurn_replayable(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Replayable, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceReportingTurn_replayable(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceReportingTurn", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceReportingTurn_errorClass(ctx context.Context, field graphql.CollectedField, obj *model.MauriceReportingTurn) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceReportingTurn_errorClass(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ErrorClass, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceReportingTurn_errorClass(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceReportingTurn", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceReportingTurn_startedAt(ctx context.Context, field graphql.CollectedField, obj *model.MauriceReportingTurn) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceReportingTurn_startedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.StartedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceReportingTurn_startedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceReportingTurn", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceReportingTurn_completedAt(ctx context.Context, field graphql.CollectedField, obj *model.MauriceReportingTurn) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceReportingTurn_completedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CompletedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
+			return ec.marshalOTime2ᚖtimeᚐTime(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceReportingTurn_completedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceReportingTurn", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceReportingTurn_warnings(ctx context.Context, field graphql.CollectedField, obj *model.MauriceReportingTurn) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceReportingTurn_warnings(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Warnings, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []string) graphql.Marshaler {
+			return ec.marshalNString2ᚕstringᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceReportingTurn_warnings(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceReportingTurn", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceReportingTurn_messageCount(ctx context.Context, field graphql.CollectedField, obj *model.MauriceReportingTurn) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceReportingTurn_messageCount(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.MessageCount, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int64) graphql.Marshaler {
+			return ec.marshalNInt642int64(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceReportingTurn_messageCount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceReportingTurn", field, false, false, errors.New("field of type Int64 does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceReportingTurn_toolCallCount(ctx context.Context, field graphql.CollectedField, obj *model.MauriceReportingTurn) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceReportingTurn_toolCallCount(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ToolCallCount, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int64) graphql.Marshaler {
+			return ec.marshalNInt642int64(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceReportingTurn_toolCallCount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceReportingTurn", field, false, false, errors.New("field of type Int64 does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceReportingTurn_usage(ctx context.Context, field graphql.CollectedField, obj *model.MauriceReportingTurn) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceReportingTurn_usage(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Usage, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.MauriceReportingUsage) graphql.Marshaler {
+			return ec.marshalNMauriceReportingUsage2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceReportingUsage(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceReportingTurn_usage(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MauriceReportingTurn",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_MauriceReportingUsage(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MauriceReportingTurn_models(ctx context.Context, field graphql.CollectedField, obj *model.MauriceReportingTurn) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceReportingTurn_models(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Models, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.MauriceReportingModel) graphql.Marshaler {
+			return ec.marshalNMauriceReportingModel2ᚕᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceReportingModelᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceReportingTurn_models(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MauriceReportingTurn",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_MauriceReportingModel(ctx, field)
+		},
+	}
+	return fc, nil
 }
 
 func (ec *executionContext) _MauriceReportingTurnCounts_total(ctx context.Context, field graphql.CollectedField, obj *model.MauriceReportingTurnCounts) (ret graphql.Marshaler) {
@@ -27608,6 +31230,61 @@ func (ec *executionContext) _MauriceReportingTurnCounts_cancelledRate(ctx contex
 }
 func (ec *executionContext) fieldContext_MauriceReportingTurnCounts_cancelledRate(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("MauriceReportingTurnCounts", field, false, false, errors.New("field of type Float does not have child fields"))
+}
+
+func (ec *executionContext) _MauriceReportingTurnPage_items(ctx context.Context, field graphql.CollectedField, obj *model.MauriceReportingTurnPage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceReportingTurnPage_items(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Items, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.MauriceReportingTurn) graphql.Marshaler {
+			return ec.marshalNMauriceReportingTurn2ᚕᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceReportingTurnᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceReportingTurnPage_items(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MauriceReportingTurnPage",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_MauriceReportingTurn(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MauriceReportingTurnPage_nextCursor(ctx context.Context, field graphql.CollectedField, obj *model.MauriceReportingTurnPage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceReportingTurnPage_nextCursor(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.NextCursor, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceReportingTurnPage_nextCursor(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceReportingTurnPage", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
 func (ec *executionContext) _MauriceReportingUsage_calls(ctx context.Context, field graphql.CollectedField, obj *model.MauriceReportingUsage) (ret graphql.Marshaler) {
@@ -34211,6 +37888,518 @@ func (ec *executionContext) fieldContext_Query_mauriceReportingConversation(ctx 
 	return fc, nil
 }
 
+func (ec *executionContext) _Query_mauriceReportingTranscript(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_mauriceReportingTranscript(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().MauriceReportingTranscript(ctx, fc.Args["conversation"].(model.MauriceReportingConversationRef), fc.Args["limit"].(*int), fc.Args["cursor"].(*string))
+		},
+		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
+			directive0 := next
+
+			directive1 := func(ctx context.Context) (any, error) {
+				if ec.Directives.Admin == nil {
+					var zeroVal *model.MauriceReportingMessagePage
+					return zeroVal, errors.New("directive admin is not implemented")
+				}
+				return ec.Directives.Admin(ctx, nil, directive0)
+			}
+			directive2 := func(ctx context.Context) (any, error) {
+				if ec.Directives.MauriceReporting == nil {
+					var zeroVal *model.MauriceReportingMessagePage
+					return zeroVal, errors.New("directive mauriceReporting is not implemented")
+				}
+				return ec.Directives.MauriceReporting(ctx, nil, directive1)
+			}
+
+			next = directive2
+			return next
+		},
+		func(ctx context.Context, selections ast.SelectionSet, v *model.MauriceReportingMessagePage) graphql.Marshaler {
+			return ec.marshalOMauriceReportingMessagePage2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceReportingMessagePage(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Query_mauriceReportingTranscript(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_MauriceReportingMessagePage(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_mauriceReportingTranscript_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_mauriceReportingTurns(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_mauriceReportingTurns(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().MauriceReportingTurns(ctx, fc.Args["conversation"].(model.MauriceReportingConversationRef), fc.Args["limit"].(*int), fc.Args["cursor"].(*string))
+		},
+		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
+			directive0 := next
+
+			directive1 := func(ctx context.Context) (any, error) {
+				if ec.Directives.Admin == nil {
+					var zeroVal *model.MauriceReportingTurnPage
+					return zeroVal, errors.New("directive admin is not implemented")
+				}
+				return ec.Directives.Admin(ctx, nil, directive0)
+			}
+			directive2 := func(ctx context.Context) (any, error) {
+				if ec.Directives.MauriceReporting == nil {
+					var zeroVal *model.MauriceReportingTurnPage
+					return zeroVal, errors.New("directive mauriceReporting is not implemented")
+				}
+				return ec.Directives.MauriceReporting(ctx, nil, directive1)
+			}
+
+			next = directive2
+			return next
+		},
+		func(ctx context.Context, selections ast.SelectionSet, v *model.MauriceReportingTurnPage) graphql.Marshaler {
+			return ec.marshalOMauriceReportingTurnPage2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceReportingTurnPage(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Query_mauriceReportingTurns(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_MauriceReportingTurnPage(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_mauriceReportingTurns_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_mauriceReportingTurnCalls(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_mauriceReportingTurnCalls(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().MauriceReportingTurnCalls(ctx, fc.Args["conversation"].(model.MauriceReportingConversationRef), fc.Args["turnId"].(string), fc.Args["limit"].(*int), fc.Args["cursor"].(*string))
+		},
+		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
+			directive0 := next
+
+			directive1 := func(ctx context.Context) (any, error) {
+				if ec.Directives.Admin == nil {
+					var zeroVal *model.MauriceReportingCallPage
+					return zeroVal, errors.New("directive admin is not implemented")
+				}
+				return ec.Directives.Admin(ctx, nil, directive0)
+			}
+			directive2 := func(ctx context.Context) (any, error) {
+				if ec.Directives.MauriceReporting == nil {
+					var zeroVal *model.MauriceReportingCallPage
+					return zeroVal, errors.New("directive mauriceReporting is not implemented")
+				}
+				return ec.Directives.MauriceReporting(ctx, nil, directive1)
+			}
+
+			next = directive2
+			return next
+		},
+		func(ctx context.Context, selections ast.SelectionSet, v *model.MauriceReportingCallPage) graphql.Marshaler {
+			return ec.marshalOMauriceReportingCallPage2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceReportingCallPage(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Query_mauriceReportingTurnCalls(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_MauriceReportingCallPage(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_mauriceReportingTurnCalls_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_mauriceReportingTitleCalls(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_mauriceReportingTitleCalls(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().MauriceReportingTitleCalls(ctx, fc.Args["conversation"].(model.MauriceReportingConversationRef), fc.Args["limit"].(*int), fc.Args["cursor"].(*string))
+		},
+		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
+			directive0 := next
+
+			directive1 := func(ctx context.Context) (any, error) {
+				if ec.Directives.Admin == nil {
+					var zeroVal *model.MauriceReportingCallPage
+					return zeroVal, errors.New("directive admin is not implemented")
+				}
+				return ec.Directives.Admin(ctx, nil, directive0)
+			}
+			directive2 := func(ctx context.Context) (any, error) {
+				if ec.Directives.MauriceReporting == nil {
+					var zeroVal *model.MauriceReportingCallPage
+					return zeroVal, errors.New("directive mauriceReporting is not implemented")
+				}
+				return ec.Directives.MauriceReporting(ctx, nil, directive1)
+			}
+
+			next = directive2
+			return next
+		},
+		func(ctx context.Context, selections ast.SelectionSet, v *model.MauriceReportingCallPage) graphql.Marshaler {
+			return ec.marshalOMauriceReportingCallPage2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceReportingCallPage(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Query_mauriceReportingTitleCalls(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_MauriceReportingCallPage(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_mauriceReportingTitleCalls_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_mauriceReportingToolCalls(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_mauriceReportingToolCalls(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().MauriceReportingToolCalls(ctx, fc.Args["conversation"].(model.MauriceReportingConversationRef), fc.Args["turnId"].(string), fc.Args["limit"].(*int), fc.Args["cursor"].(*string))
+		},
+		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
+			directive0 := next
+
+			directive1 := func(ctx context.Context) (any, error) {
+				if ec.Directives.Admin == nil {
+					var zeroVal *model.MauriceReportingToolCallPage
+					return zeroVal, errors.New("directive admin is not implemented")
+				}
+				return ec.Directives.Admin(ctx, nil, directive0)
+			}
+			directive2 := func(ctx context.Context) (any, error) {
+				if ec.Directives.MauriceReporting == nil {
+					var zeroVal *model.MauriceReportingToolCallPage
+					return zeroVal, errors.New("directive mauriceReporting is not implemented")
+				}
+				return ec.Directives.MauriceReporting(ctx, nil, directive1)
+			}
+
+			next = directive2
+			return next
+		},
+		func(ctx context.Context, selections ast.SelectionSet, v *model.MauriceReportingToolCallPage) graphql.Marshaler {
+			return ec.marshalOMauriceReportingToolCallPage2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceReportingToolCallPage(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Query_mauriceReportingToolCalls(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_MauriceReportingToolCallPage(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_mauriceReportingToolCalls_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_mauriceReportingCallInput(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_mauriceReportingCallInput(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().MauriceReportingCallInput(ctx, fc.Args["conversation"].(model.MauriceReportingConversationRef), fc.Args["callId"].(string), fc.Args["limit"].(*int), fc.Args["cursor"].(*string))
+		},
+		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
+			directive0 := next
+
+			directive1 := func(ctx context.Context) (any, error) {
+				if ec.Directives.Admin == nil {
+					var zeroVal *model.MauriceReportingCallInput
+					return zeroVal, errors.New("directive admin is not implemented")
+				}
+				return ec.Directives.Admin(ctx, nil, directive0)
+			}
+			directive2 := func(ctx context.Context) (any, error) {
+				if ec.Directives.MauriceReporting == nil {
+					var zeroVal *model.MauriceReportingCallInput
+					return zeroVal, errors.New("directive mauriceReporting is not implemented")
+				}
+				return ec.Directives.MauriceReporting(ctx, nil, directive1)
+			}
+
+			next = directive2
+			return next
+		},
+		func(ctx context.Context, selections ast.SelectionSet, v *model.MauriceReportingCallInput) graphql.Marshaler {
+			return ec.marshalOMauriceReportingCallInput2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceReportingCallInput(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Query_mauriceReportingCallInput(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_MauriceReportingCallInput(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_mauriceReportingCallInput_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_mauriceReportingToolCall(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_mauriceReportingToolCall(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().MauriceReportingToolCall(ctx, fc.Args["conversation"].(model.MauriceReportingConversationRef), fc.Args["toolCallId"].(string))
+		},
+		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
+			directive0 := next
+
+			directive1 := func(ctx context.Context) (any, error) {
+				if ec.Directives.Admin == nil {
+					var zeroVal *model.MauriceReportingToolCallDetail
+					return zeroVal, errors.New("directive admin is not implemented")
+				}
+				return ec.Directives.Admin(ctx, nil, directive0)
+			}
+			directive2 := func(ctx context.Context) (any, error) {
+				if ec.Directives.MauriceReporting == nil {
+					var zeroVal *model.MauriceReportingToolCallDetail
+					return zeroVal, errors.New("directive mauriceReporting is not implemented")
+				}
+				return ec.Directives.MauriceReporting(ctx, nil, directive1)
+			}
+
+			next = directive2
+			return next
+		},
+		func(ctx context.Context, selections ast.SelectionSet, v *model.MauriceReportingToolCallDetail) graphql.Marshaler {
+			return ec.marshalOMauriceReportingToolCallDetail2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceReportingToolCallDetail(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Query_mauriceReportingToolCall(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_MauriceReportingToolCallDetail(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_mauriceReportingToolCall_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_mauriceReportingPayload(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_mauriceReportingPayload(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().MauriceReportingPayload(ctx, fc.Args["conversation"].(model.MauriceReportingConversationRef), fc.Args["kind"].(model.MauriceReportingPayloadKind), fc.Args["id"].(string), fc.Args["offset"].(*int), fc.Args["limit"].(*int))
+		},
+		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
+			directive0 := next
+
+			directive1 := func(ctx context.Context) (any, error) {
+				if ec.Directives.Admin == nil {
+					var zeroVal *model.MauriceReportingText
+					return zeroVal, errors.New("directive admin is not implemented")
+				}
+				return ec.Directives.Admin(ctx, nil, directive0)
+			}
+			directive2 := func(ctx context.Context) (any, error) {
+				if ec.Directives.MauriceReporting == nil {
+					var zeroVal *model.MauriceReportingText
+					return zeroVal, errors.New("directive mauriceReporting is not implemented")
+				}
+				return ec.Directives.MauriceReporting(ctx, nil, directive1)
+			}
+
+			next = directive2
+			return next
+		},
+		func(ctx context.Context, selections ast.SelectionSet, v *model.MauriceReportingText) graphql.Marshaler {
+			return ec.marshalOMauriceReportingText2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceReportingText(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Query_mauriceReportingPayload(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_MauriceReportingText(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_mauriceReportingPayload_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Query_mauriceReportingOverview(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -40082,6 +44271,50 @@ func (ec *executionContext) unmarshalInputMauriceReportingConversationFilter(ctx
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputMauriceReportingConversationRef(ctx context.Context, obj any) (model.MauriceReportingConversationRef, error) {
+	var it model.MauriceReportingConversationRef
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"instance", "id", "includeDeleted"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "instance":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("instance"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Instance = data
+		case "id":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("id"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ID = data
+		case "includeDeleted":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("includeDeleted"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.IncludeDeleted = data
+		}
+	}
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputPlayerFilter(ctx context.Context, obj any) (model.PlayerFilter, error) {
 	var it model.PlayerFilter
 	if obj == nil {
@@ -44573,6 +48806,253 @@ func (ec *executionContext) _MauriceReportingActivity(ctx context.Context, sel a
 	return out
 }
 
+var mauriceReportingCallImplementors = []string{"MauriceReportingCall"}
+
+func (ec *executionContext) _MauriceReportingCall(ctx context.Context, sel ast.SelectionSet, obj *model.MauriceReportingCall) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, mauriceReportingCallImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("MauriceReportingCall")
+		case "id":
+			out.Values[i] = ec._MauriceReportingCall_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "turnId":
+			out.Values[i] = ec._MauriceReportingCall_turnId(ctx, field, obj)
+		case "kind":
+			out.Values[i] = ec._MauriceReportingCall_kind(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "round":
+			out.Values[i] = ec._MauriceReportingCall_round(ctx, field, obj)
+		case "provider":
+			out.Values[i] = ec._MauriceReportingCall_provider(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "model":
+			out.Values[i] = ec._MauriceReportingCall_model(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "providerRequestId":
+			out.Values[i] = ec._MauriceReportingCall_providerRequestId(ctx, field, obj)
+		case "status":
+			out.Values[i] = ec._MauriceReportingCall_status(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "errorClass":
+			out.Values[i] = ec._MauriceReportingCall_errorClass(ctx, field, obj)
+		case "finishReason":
+			out.Values[i] = ec._MauriceReportingCall_finishReason(ctx, field, obj)
+		case "startedAt":
+			out.Values[i] = ec._MauriceReportingCall_startedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "completedAt":
+			out.Values[i] = ec._MauriceReportingCall_completedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "inputTokens":
+			out.Values[i] = ec._MauriceReportingCall_inputTokens(ctx, field, obj)
+		case "outputTokens":
+			out.Values[i] = ec._MauriceReportingCall_outputTokens(ctx, field, obj)
+		case "cacheCreationInputTokens":
+			out.Values[i] = ec._MauriceReportingCall_cacheCreationInputTokens(ctx, field, obj)
+		case "cacheReadInputTokens":
+			out.Values[i] = ec._MauriceReportingCall_cacheReadInputTokens(ctx, field, obj)
+		case "inputMessageCount":
+			out.Values[i] = ec._MauriceReportingCall_inputMessageCount(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "systemPromptLength":
+			out.Values[i] = ec._MauriceReportingCall_systemPromptLength(ctx, field, obj)
+		case "instructionLength":
+			out.Values[i] = ec._MauriceReportingCall_instructionLength(ctx, field, obj)
+		case "toolDefinitionsLength":
+			out.Values[i] = ec._MauriceReportingCall_toolDefinitionsLength(ctx, field, obj)
+		case "toolCallCount":
+			out.Values[i] = ec._MauriceReportingCall_toolCallCount(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferred), math.MaxInt32)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var mauriceReportingCallInputImplementors = []string{"MauriceReportingCallInput"}
+
+func (ec *executionContext) _MauriceReportingCallInput(ctx context.Context, sel ast.SelectionSet, obj *model.MauriceReportingCallInput) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, mauriceReportingCallInputImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("MauriceReportingCallInput")
+		case "call":
+			out.Values[i] = ec._MauriceReportingCallInput_call(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "systemPrompt":
+			out.Values[i] = ec._MauriceReportingCallInput_systemPrompt(ctx, field, obj)
+		case "instruction":
+			out.Values[i] = ec._MauriceReportingCallInput_instruction(ctx, field, obj)
+		case "toolDefinitions":
+			out.Values[i] = ec._MauriceReportingCallInput_toolDefinitions(ctx, field, obj)
+		case "inputs":
+			out.Values[i] = ec._MauriceReportingCallInput_inputs(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "nextCursor":
+			out.Values[i] = ec._MauriceReportingCallInput_nextCursor(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferred), math.MaxInt32)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var mauriceReportingCallInputMessageImplementors = []string{"MauriceReportingCallInputMessage"}
+
+func (ec *executionContext) _MauriceReportingCallInputMessage(ctx context.Context, sel ast.SelectionSet, obj *model.MauriceReportingCallInputMessage) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, mauriceReportingCallInputMessageImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("MauriceReportingCallInputMessage")
+		case "number":
+			out.Values[i] = ec._MauriceReportingCallInputMessage_number(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "withheld":
+			out.Values[i] = ec._MauriceReportingCallInputMessage_withheld(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "messageId":
+			out.Values[i] = ec._MauriceReportingCallInputMessage_messageId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "message":
+			out.Values[i] = ec._MauriceReportingCallInputMessage_message(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferred), math.MaxInt32)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var mauriceReportingCallPageImplementors = []string{"MauriceReportingCallPage"}
+
+func (ec *executionContext) _MauriceReportingCallPage(ctx context.Context, sel ast.SelectionSet, obj *model.MauriceReportingCallPage) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, mauriceReportingCallPageImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("MauriceReportingCallPage")
+		case "items":
+			out.Values[i] = ec._MauriceReportingCallPage_items(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "nextCursor":
+			out.Values[i] = ec._MauriceReportingCallPage_nextCursor(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferred), math.MaxInt32)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
 var mauriceReportingConversationImplementors = []string{"MauriceReportingConversation"}
 
 func (ec *executionContext) _MauriceReportingConversation(ctx context.Context, sel ast.SelectionSet, obj *model.MauriceReportingConversation) graphql.Marshaler {
@@ -44828,6 +49308,135 @@ func (ec *executionContext) _MauriceReportingLatency(ctx context.Context, sel as
 	return out
 }
 
+var mauriceReportingMessageImplementors = []string{"MauriceReportingMessage"}
+
+func (ec *executionContext) _MauriceReportingMessage(ctx context.Context, sel ast.SelectionSet, obj *model.MauriceReportingMessage) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, mauriceReportingMessageImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("MauriceReportingMessage")
+		case "id":
+			out.Values[i] = ec._MauriceReportingMessage_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "turnId":
+			out.Values[i] = ec._MauriceReportingMessage_turnId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "turnNumber":
+			out.Values[i] = ec._MauriceReportingMessage_turnNumber(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "turnStatus":
+			out.Values[i] = ec._MauriceReportingMessage_turnStatus(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "replayable":
+			out.Values[i] = ec._MauriceReportingMessage_replayable(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "number":
+			out.Values[i] = ec._MauriceReportingMessage_number(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "role":
+			out.Values[i] = ec._MauriceReportingMessage_role(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "createdAt":
+			out.Values[i] = ec._MauriceReportingMessage_createdAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "contentLength":
+			out.Values[i] = ec._MauriceReportingMessage_contentLength(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "content":
+			out.Values[i] = ec._MauriceReportingMessage_content(ctx, field, obj)
+		case "resultToolCallId":
+			out.Values[i] = ec._MauriceReportingMessage_resultToolCallId(ctx, field, obj)
+		case "toolCallCount":
+			out.Values[i] = ec._MauriceReportingMessage_toolCallCount(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferred), math.MaxInt32)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var mauriceReportingMessagePageImplementors = []string{"MauriceReportingMessagePage"}
+
+func (ec *executionContext) _MauriceReportingMessagePage(ctx context.Context, sel ast.SelectionSet, obj *model.MauriceReportingMessagePage) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, mauriceReportingMessagePageImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("MauriceReportingMessagePage")
+		case "items":
+			out.Values[i] = ec._MauriceReportingMessagePage_items(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "nextCursor":
+			out.Values[i] = ec._MauriceReportingMessagePage_nextCursor(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferred), math.MaxInt32)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
 var mauriceReportingModelImplementors = []string{"MauriceReportingModel"}
 
 func (ec *executionContext) _MauriceReportingModel(ctx context.Context, sel ast.SelectionSet, obj *model.MauriceReportingModel) graphql.Marshaler {
@@ -44980,6 +49589,62 @@ func (ec *executionContext) _MauriceReportingOverview(ctx context.Context, sel a
 	return out
 }
 
+var mauriceReportingTextImplementors = []string{"MauriceReportingText"}
+
+func (ec *executionContext) _MauriceReportingText(ctx context.Context, sel ast.SelectionSet, obj *model.MauriceReportingText) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, mauriceReportingTextImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("MauriceReportingText")
+		case "text":
+			out.Values[i] = ec._MauriceReportingText_text(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "offset":
+			out.Values[i] = ec._MauriceReportingText_offset(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "length":
+			out.Values[i] = ec._MauriceReportingText_length(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "truncated":
+			out.Values[i] = ec._MauriceReportingText_truncated(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "nextOffset":
+			out.Values[i] = ec._MauriceReportingText_nextOffset(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferred), math.MaxInt32)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
 var mauriceReportingTokenCountImplementors = []string{"MauriceReportingTokenCount"}
 
 func (ec *executionContext) _MauriceReportingTokenCount(ctx context.Context, sel ast.SelectionSet, obj *model.MauriceReportingTokenCount) graphql.Marshaler {
@@ -45005,6 +49670,266 @@ func (ec *executionContext) _MauriceReportingTokenCount(ctx context.Context, sel
 			}
 		case "complete":
 			out.Values[i] = ec._MauriceReportingTokenCount_complete(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferred), math.MaxInt32)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var mauriceReportingToolCallImplementors = []string{"MauriceReportingToolCall"}
+
+func (ec *executionContext) _MauriceReportingToolCall(ctx context.Context, sel ast.SelectionSet, obj *model.MauriceReportingToolCall) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, mauriceReportingToolCallImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("MauriceReportingToolCall")
+		case "id":
+			out.Values[i] = ec._MauriceReportingToolCall_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "turnId":
+			out.Values[i] = ec._MauriceReportingToolCall_turnId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "callId":
+			out.Values[i] = ec._MauriceReportingToolCall_callId(ctx, field, obj)
+		case "messageId":
+			out.Values[i] = ec._MauriceReportingToolCall_messageId(ctx, field, obj)
+		case "sequence":
+			out.Values[i] = ec._MauriceReportingToolCall_sequence(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "providerToolCallId":
+			out.Values[i] = ec._MauriceReportingToolCall_providerToolCallId(ctx, field, obj)
+		case "type":
+			out.Values[i] = ec._MauriceReportingToolCall_type(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "name":
+			out.Values[i] = ec._MauriceReportingToolCall_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "status":
+			out.Values[i] = ec._MauriceReportingToolCall_status(ctx, field, obj)
+		case "startedAt":
+			out.Values[i] = ec._MauriceReportingToolCall_startedAt(ctx, field, obj)
+		case "completedAt":
+			out.Values[i] = ec._MauriceReportingToolCall_completedAt(ctx, field, obj)
+		case "argumentsValid":
+			out.Values[i] = ec._MauriceReportingToolCall_argumentsValid(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "argumentsRawLength":
+			out.Values[i] = ec._MauriceReportingToolCall_argumentsRawLength(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "resultLength":
+			out.Values[i] = ec._MauriceReportingToolCall_resultLength(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferred), math.MaxInt32)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var mauriceReportingToolCallDetailImplementors = []string{"MauriceReportingToolCallDetail"}
+
+func (ec *executionContext) _MauriceReportingToolCallDetail(ctx context.Context, sel ast.SelectionSet, obj *model.MauriceReportingToolCallDetail) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, mauriceReportingToolCallDetailImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("MauriceReportingToolCallDetail")
+		case "toolCall":
+			out.Values[i] = ec._MauriceReportingToolCallDetail_toolCall(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "argumentsRaw":
+			out.Values[i] = ec._MauriceReportingToolCallDetail_argumentsRaw(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "arguments":
+			out.Values[i] = ec._MauriceReportingToolCallDetail_arguments(ctx, field, obj)
+		case "result":
+			out.Values[i] = ec._MauriceReportingToolCallDetail_result(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferred), math.MaxInt32)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var mauriceReportingToolCallPageImplementors = []string{"MauriceReportingToolCallPage"}
+
+func (ec *executionContext) _MauriceReportingToolCallPage(ctx context.Context, sel ast.SelectionSet, obj *model.MauriceReportingToolCallPage) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, mauriceReportingToolCallPageImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("MauriceReportingToolCallPage")
+		case "items":
+			out.Values[i] = ec._MauriceReportingToolCallPage_items(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "nextCursor":
+			out.Values[i] = ec._MauriceReportingToolCallPage_nextCursor(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferred), math.MaxInt32)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var mauriceReportingTurnImplementors = []string{"MauriceReportingTurn"}
+
+func (ec *executionContext) _MauriceReportingTurn(ctx context.Context, sel ast.SelectionSet, obj *model.MauriceReportingTurn) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, mauriceReportingTurnImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("MauriceReportingTurn")
+		case "id":
+			out.Values[i] = ec._MauriceReportingTurn_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "number":
+			out.Values[i] = ec._MauriceReportingTurn_number(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "status":
+			out.Values[i] = ec._MauriceReportingTurn_status(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "replayable":
+			out.Values[i] = ec._MauriceReportingTurn_replayable(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "errorClass":
+			out.Values[i] = ec._MauriceReportingTurn_errorClass(ctx, field, obj)
+		case "startedAt":
+			out.Values[i] = ec._MauriceReportingTurn_startedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "completedAt":
+			out.Values[i] = ec._MauriceReportingTurn_completedAt(ctx, field, obj)
+		case "warnings":
+			out.Values[i] = ec._MauriceReportingTurn_warnings(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "messageCount":
+			out.Values[i] = ec._MauriceReportingTurn_messageCount(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "toolCallCount":
+			out.Values[i] = ec._MauriceReportingTurn_toolCallCount(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "usage":
+			out.Values[i] = ec._MauriceReportingTurn_usage(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "models":
+			out.Values[i] = ec._MauriceReportingTurn_models(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -45078,6 +50003,47 @@ func (ec *executionContext) _MauriceReportingTurnCounts(ctx context.Context, sel
 			out.Values[i] = ec._MauriceReportingTurnCounts_failedRate(ctx, field, obj)
 		case "cancelledRate":
 			out.Values[i] = ec._MauriceReportingTurnCounts_cancelledRate(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferred), math.MaxInt32)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var mauriceReportingTurnPageImplementors = []string{"MauriceReportingTurnPage"}
+
+func (ec *executionContext) _MauriceReportingTurnPage(ctx context.Context, sel ast.SelectionSet, obj *model.MauriceReportingTurnPage) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, mauriceReportingTurnPageImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("MauriceReportingTurnPage")
+		case "items":
+			out.Values[i] = ec._MauriceReportingTurnPage_items(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "nextCursor":
+			out.Values[i] = ec._MauriceReportingTurnPage_nextCursor(ctx, field, obj)
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -47704,6 +52670,158 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_mauriceReportingConversation(ctx, field)
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "mauriceReportingTranscript":
+			field := field
+
+			innerFunc := func(ctx context.Context, _ *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_mauriceReportingTranscript(ctx, field)
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "mauriceReportingTurns":
+			field := field
+
+			innerFunc := func(ctx context.Context, _ *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_mauriceReportingTurns(ctx, field)
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "mauriceReportingTurnCalls":
+			field := field
+
+			innerFunc := func(ctx context.Context, _ *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_mauriceReportingTurnCalls(ctx, field)
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "mauriceReportingTitleCalls":
+			field := field
+
+			innerFunc := func(ctx context.Context, _ *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_mauriceReportingTitleCalls(ctx, field)
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "mauriceReportingToolCalls":
+			field := field
+
+			innerFunc := func(ctx context.Context, _ *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_mauriceReportingToolCalls(ctx, field)
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "mauriceReportingCallInput":
+			field := field
+
+			innerFunc := func(ctx context.Context, _ *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_mauriceReportingCallInput(ctx, field)
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "mauriceReportingToolCall":
+			field := field
+
+			innerFunc := func(ctx context.Context, _ *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_mauriceReportingToolCall(ctx, field)
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "mauriceReportingPayload":
+			field := field
+
+			innerFunc := func(ctx context.Context, _ *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_mauriceReportingPayload(ctx, field)
 				return res
 			}
 
@@ -50941,6 +56059,58 @@ func (ec *executionContext) marshalNMauriceReportingActivity2ᚖgithubᚗcomᚋs
 	return ec._MauriceReportingActivity(ctx, sel, v)
 }
 
+func (ec *executionContext) marshalNMauriceReportingCall2ᚕᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceReportingCallᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.MauriceReportingCall) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNMauriceReportingCall2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceReportingCall(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNMauriceReportingCall2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceReportingCall(ctx context.Context, sel ast.SelectionSet, v *model.MauriceReportingCall) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._MauriceReportingCall(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNMauriceReportingCallInputMessage2ᚕᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceReportingCallInputMessageᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.MauriceReportingCallInputMessage) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNMauriceReportingCallInputMessage2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceReportingCallInputMessage(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNMauriceReportingCallInputMessage2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceReportingCallInputMessage(ctx context.Context, sel ast.SelectionSet, v *model.MauriceReportingCallInputMessage) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._MauriceReportingCallInputMessage(ctx, sel, v)
+}
+
 func (ec *executionContext) marshalNMauriceReportingConversation2ᚕᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceReportingConversationᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.MauriceReportingConversation) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
@@ -50984,6 +56154,11 @@ func (ec *executionContext) marshalNMauriceReportingConversationPage2ᚖgithub�
 		return graphql.Null
 	}
 	return ec._MauriceReportingConversationPage(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNMauriceReportingConversationRef2githubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceReportingConversationRef(ctx context.Context, v any) (model.MauriceReportingConversationRef, error) {
+	res, err := ec.unmarshalInputMauriceReportingConversationRef(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
 }
 
 func (ec *executionContext) marshalNMauriceReportingInstance2ᚕᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceReportingInstanceᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.MauriceReportingInstance) graphql.Marshaler {
@@ -51034,6 +56209,42 @@ func (ec *executionContext) marshalNMauriceReportingLatency2ᚖgithubᚗcomᚋsp
 		return graphql.Null
 	}
 	return ec._MauriceReportingLatency(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNMauriceReportingMessage2ᚕᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceReportingMessageᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.MauriceReportingMessage) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNMauriceReportingMessage2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceReportingMessage(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNMauriceReportingMessage2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceReportingMessage(ctx context.Context, sel ast.SelectionSet, v *model.MauriceReportingMessage) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._MauriceReportingMessage(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNMauriceReportingMessageRole2githubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceReportingMessageRole(ctx context.Context, v any) (model.MauriceReportingMessageRole, error) {
+	var res model.MauriceReportingMessageRole
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNMauriceReportingMessageRole2githubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceReportingMessageRole(ctx context.Context, sel ast.SelectionSet, v model.MauriceReportingMessageRole) graphql.Marshaler {
+	return v
 }
 
 func (ec *executionContext) marshalNMauriceReportingModel2ᚕᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceReportingModelᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.MauriceReportingModel) graphql.Marshaler {
@@ -51102,6 +56313,26 @@ func (ec *executionContext) marshalNMauriceReportingOverview2ᚖgithubᚗcomᚋs
 	return ec._MauriceReportingOverview(ctx, sel, v)
 }
 
+func (ec *executionContext) unmarshalNMauriceReportingPayloadKind2githubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceReportingPayloadKind(ctx context.Context, v any) (model.MauriceReportingPayloadKind, error) {
+	var res model.MauriceReportingPayloadKind
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNMauriceReportingPayloadKind2githubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceReportingPayloadKind(ctx context.Context, sel ast.SelectionSet, v model.MauriceReportingPayloadKind) graphql.Marshaler {
+	return v
+}
+
+func (ec *executionContext) marshalNMauriceReportingText2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceReportingText(ctx context.Context, sel ast.SelectionSet, v *model.MauriceReportingText) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._MauriceReportingText(ctx, sel, v)
+}
+
 func (ec *executionContext) marshalNMauriceReportingTokenCount2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceReportingTokenCount(ctx context.Context, sel ast.SelectionSet, v *model.MauriceReportingTokenCount) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
@@ -51110,6 +56341,58 @@ func (ec *executionContext) marshalNMauriceReportingTokenCount2ᚖgithubᚗcom�
 		return graphql.Null
 	}
 	return ec._MauriceReportingTokenCount(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNMauriceReportingToolCall2ᚕᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceReportingToolCallᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.MauriceReportingToolCall) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNMauriceReportingToolCall2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceReportingToolCall(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNMauriceReportingToolCall2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceReportingToolCall(ctx context.Context, sel ast.SelectionSet, v *model.MauriceReportingToolCall) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._MauriceReportingToolCall(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNMauriceReportingTurn2ᚕᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceReportingTurnᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.MauriceReportingTurn) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNMauriceReportingTurn2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceReportingTurn(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNMauriceReportingTurn2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceReportingTurn(ctx context.Context, sel ast.SelectionSet, v *model.MauriceReportingTurn) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._MauriceReportingTurn(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalNMauriceReportingTurnCounts2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceReportingTurnCounts(ctx context.Context, sel ast.SelectionSet, v *model.MauriceReportingTurnCounts) graphql.Marshaler {
@@ -52399,11 +57682,67 @@ func (ec *executionContext) marshalOMauriceDraftPlayer2ᚖgithubᚗcomᚋsperano
 	return ec._MauriceDraftPlayer(ctx, sel, v)
 }
 
+func (ec *executionContext) marshalOMauriceReportingCallInput2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceReportingCallInput(ctx context.Context, sel ast.SelectionSet, v *model.MauriceReportingCallInput) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._MauriceReportingCallInput(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalOMauriceReportingCallPage2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceReportingCallPage(ctx context.Context, sel ast.SelectionSet, v *model.MauriceReportingCallPage) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._MauriceReportingCallPage(ctx, sel, v)
+}
+
 func (ec *executionContext) marshalOMauriceReportingConversation2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceReportingConversation(ctx context.Context, sel ast.SelectionSet, v *model.MauriceReportingConversation) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
 	return ec._MauriceReportingConversation(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalOMauriceReportingMessage2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceReportingMessage(ctx context.Context, sel ast.SelectionSet, v *model.MauriceReportingMessage) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._MauriceReportingMessage(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalOMauriceReportingMessagePage2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceReportingMessagePage(ctx context.Context, sel ast.SelectionSet, v *model.MauriceReportingMessagePage) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._MauriceReportingMessagePage(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalOMauriceReportingText2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceReportingText(ctx context.Context, sel ast.SelectionSet, v *model.MauriceReportingText) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._MauriceReportingText(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalOMauriceReportingToolCallDetail2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceReportingToolCallDetail(ctx context.Context, sel ast.SelectionSet, v *model.MauriceReportingToolCallDetail) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._MauriceReportingToolCallDetail(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalOMauriceReportingToolCallPage2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceReportingToolCallPage(ctx context.Context, sel ast.SelectionSet, v *model.MauriceReportingToolCallPage) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._MauriceReportingToolCallPage(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalOMauriceReportingTurnPage2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceReportingTurnPage(ctx context.Context, sel ast.SelectionSet, v *model.MauriceReportingTurnPage) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._MauriceReportingTurnPage(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalOMauriceReportingTurnStatus2ᚕgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceReportingTurnStatusᚄ(ctx context.Context, v any) ([]model.MauriceReportingTurnStatus, error) {
