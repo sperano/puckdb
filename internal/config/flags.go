@@ -340,13 +340,20 @@ const (
 // Admin authorization flags
 const (
 	// FlagAdminGroup is the Authentik group (from the X-authentik-groups
-	// header) whose members are granted access to @admin mutations.
+	// header) whose members are granted access to the @admin mutations and
+	// the @mauriceReporting queries.
 	FlagAdminGroup = "admin-group"
 
 	// FlagAdminToken is a shared secret accepted via the X-Admin-Token
 	// header as an alternative to group-based admin authorization. Empty
 	// disables the token path entirely.
 	FlagAdminToken = "admin-token"
+
+	// FlagMauriceReportingEnabled turns on the cross-instance Maurice
+	// reporting GraphQL fields (@mauriceReporting). Only an Authentik
+	// instance with an admin group can enable them, and only a member of
+	// that group (never the admin token) can call them.
+	FlagMauriceReportingEnabled = "maurice-reporting-enabled"
 )
 
 // Application session flags
@@ -587,8 +594,16 @@ var UserTeamLinkFlags = FlagGroup{
 // AdminAuthFlags defines admin authorization flags for the @admin GraphQL directive.
 var AdminAuthFlags = FlagGroup{
 	Flags: []FlagDef{
-		{FlagAdminGroup, "", DefaultAdminGroup, "Authentik group granting access to admin GraphQL mutations", false},
+		{FlagAdminGroup, "", DefaultAdminGroup, "Authentik group granting access to admin GraphQL mutations and, with --maurice-reporting-enabled, the Maurice reporting queries", false},
 		{FlagAdminToken, "", "", "Shared secret token granting access to admin GraphQL mutations (empty disables the token path)", true},
+	},
+}
+
+// MauriceReportingFlags defines the flags of the Maurice reporting fields
+// (api).
+var MauriceReportingFlags = FlagGroup{
+	Flags: []FlagDef{
+		{FlagMauriceReportingEnabled, "", DefaultMauriceReportingEnabled, "Serve the read-only cross-instance Maurice reporting GraphQL fields to the --admin-group Authentik group (Authentik instances only; the admin token never authorizes them)", false},
 	},
 }
 

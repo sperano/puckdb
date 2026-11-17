@@ -103,6 +103,16 @@ func adminAuthFrom(v *viper.Viper) graph.AdminAuth {
 	}
 }
 
+// mauriceReportingFrom reads --maurice-reporting-enabled, with the login
+// provider and the admin group it is checked against.
+func mauriceReportingFrom(v *viper.Viper) graph.ReportingAuth {
+	return graph.ReportingAuth{
+		Enabled:  v.GetBool(config.FlagMauriceReportingEnabled),
+		Provider: appAuthFrom(v).Provider,
+		Group:    v.GetString(config.FlagAdminGroup),
+	}
+}
+
 // appAuthFrom reads --auth-provider and the Cloudflare Access settings.
 func appAuthFrom(v *viper.Viper) appuser.AuthConfig {
 	return appuser.AuthConfig{

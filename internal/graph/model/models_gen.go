@@ -947,6 +947,108 @@ type MauriceMessage struct {
 	CreatedAt time.Time `json:"createdAt"`
 }
 
+// A conversation's metadata: never its messages, prompts or tool payloads.
+type MauriceReportingConversation struct {
+	ID        string    `json:"id"`
+	Instance  string    `json:"instance"`
+	UserID    string    `json:"userId"`
+	Username  string    `json:"username"`
+	Title     *string   `json:"title,omitempty"`
+	CreatedAt time.Time `json:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt"`
+	// Set when its owner deleted it (hidden from them, kept here).
+	DeletedAt *time.Time `json:"deletedAt,omitempty"`
+	// Status of its latest turn (highest turn number); null without turns.
+	Status            *MauriceReportingTurnStatus `json:"status,omitempty"`
+	LastTurnStartedAt *time.Time                  `json:"lastTurnStartedAt,omitempty"`
+	Turns             *MauriceReportingTurnCounts `json:"turns"`
+	// Distinct provider/model pairs of its turns' LLM calls, by provider then model; title generation excluded.
+	Models []*MauriceReportingModel `json:"models"`
+}
+
+// Selects conversations. Every field set must hold (AND). The turn filters
+// (from, to, statuses, provider, model, toolName) must all hold for one and the
+// same turn of the conversation. Title generation calls have no turn, so they
+// never match provider or model.
+type MauriceReportingConversationFilter struct {
+	// The owner's instance (required, exact).
+	Instance string `json:"instance"`
+	// One user of that instance; any other user ID is an error ("user not found in instance").
+	UserID *string `json:"userId,omitempty"`
+	// First UTC day (YYYY-MM-DD, inclusive): the turn started at or after its 00:00 UTC.
+	From *string `json:"from,omitempty"`
+	// Last UTC day (YYYY-MM-DD, inclusive): the turn started before the next day's 00:00 UTC. Not before from.
+	To *string `json:"to,omitempty"`
+	// The turn has any of these statuses.
+	Statuses []MauriceReportingTurnStatus `json:"statuses,omitempty"`
+	// The turn has an LLM call of this provider (exact, case-sensitive); with model, on the same call.
+	Provider *string `json:"provider,omitempty"`
+	// The turn has an LLM call of this model (exact, case-sensitive).
+	Model *string `json:"model,omitempty"`
+	// The turn has a tool call of this name (exact).
+	ToolName *string `json:"toolName,omitempty"`
+	// Case-insensitive literal substring (% and _ match themselves; surrounding
+	// whitespace trimmed first: blank = no search, the trimmed text at most 200
+	// characters) of the title or of a retained user or assistant message of
+	// any turn, failed and cancelled ones included. Tool results, system
+	// messages, tool arguments and provider inputs are never searched.
+	Search *string `json:"search,omitempty"`
+	// Also return conversations their owner deleted (default false).
+	IncludeDeleted *bool `json:"includeDeleted,omitempty"`
+}
+
+type MauriceReportingConversationPage struct {
+	// Newest createdAt first, ties by id.
+	Items      []*MauriceReportingConversation `json:"items"`
+	NextCursor *string                         `json:"nextCursor,omitempty"`
+}
+
+// An API instance with at least one user.
+type MauriceReportingInstance struct {
+	Name      string `json:"name"`
+	UserCount int    `json:"userCount"`
+}
+
+type MauriceReportingInstancePage struct {
+	// By name.
+	Items      []*MauriceReportingInstance `json:"items"`
+	NextCursor *string                     `json:"nextCursor,omitempty"`
+}
+
+type MauriceReportingModel struct {
+	Provider string `json:"provider"`
+	Model    string `json:"model"`
+}
+
+// Number of a conversation's stored turns per status.
+type MauriceReportingTurnCounts struct {
+	Total     int `json:"total"`
+	Running   int `json:"running"`
+	Succeeded int `json:"succeeded"`
+	Failed    int `json:"failed"`
+	Cancelled int `json:"cancelled"`
+}
+
+// A user's profile metadata on one instance.
+type MauriceReportingUser struct {
+	ID       string `json:"id"`
+	Instance string `json:"instance"`
+	// authentik or cloudflare.
+	AuthProvider     string     `json:"authProvider"`
+	Username         string     `json:"username"`
+	DisplayName      *string    `json:"displayName,omitempty"`
+	Email            *string    `json:"email,omitempty"`
+	FirstSeenAt      time.Time  `json:"firstSeenAt"`
+	ProfileUpdatedAt time.Time  `json:"profileUpdatedAt"`
+	DisabledAt       *time.Time `json:"disabledAt,omitempty"`
+}
+
+type MauriceReportingUserPage struct {
+	// Newest firstSeenAt first, ties by id.
+	Items      []*MauriceReportingUser `json:"items"`
+	NextCursor *string                 `json:"nextCursor,omitempty"`
+}
+
 type MauriceTurn struct {
 	ID             string            `json:"id"`
 	ConversationID string            `json:"conversationId"`
@@ -2285,6 +2387,66 @@ func (e *MauriceDraftWatchState) UnmarshalJSON(b []byte) error {
 }
 
 func (e MauriceDraftWatchState) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+// A stored turn status; unlike MauriceTurnStatus, CANCELLED is its own value.
+type MauriceReportingTurnStatus string
+
+const (
+	MauriceReportingTurnStatusRunning   MauriceReportingTurnStatus = "RUNNING"
+	MauriceReportingTurnStatusSucceeded MauriceReportingTurnStatus = "SUCCEEDED"
+	MauriceReportingTurnStatusFailed    MauriceReportingTurnStatus = "FAILED"
+	MauriceReportingTurnStatusCancelled MauriceReportingTurnStatus = "CANCELLED"
+)
+
+var AllMauriceReportingTurnStatus = []MauriceReportingTurnStatus{
+	MauriceReportingTurnStatusRunning,
+	MauriceReportingTurnStatusSucceeded,
+	MauriceReportingTurnStatusFailed,
+	MauriceReportingTurnStatusCancelled,
+}
+
+func (e MauriceReportingTurnStatus) IsValid() bool {
+	switch e {
+	case MauriceReportingTurnStatusRunning, MauriceReportingTurnStatusSucceeded, MauriceReportingTurnStatusFailed, MauriceReportingTurnStatusCancelled:
+		return true
+	}
+	return false
+}
+
+func (e MauriceReportingTurnStatus) String() string {
+	return string(e)
+}
+
+func (e *MauriceReportingTurnStatus) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = MauriceReportingTurnStatus(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid MauriceReportingTurnStatus", str)
+	}
+	return nil
+}
+
+func (e MauriceReportingTurnStatus) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *MauriceReportingTurnStatus) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e MauriceReportingTurnStatus) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil
