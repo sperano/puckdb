@@ -307,16 +307,18 @@ func splitKeys(keys []teamKey) (leagueIDs, teamIDs []int32) {
 }
 
 // lockUser takes the user row lock SetTeams takes first (markOfferSeen), so
-// Link and Unlink serialize with the user's selections and logins. It
-// returns ErrUserNotFound for no such user.
-func lockUser(ctx context.Context, q *sqlcdb.Queries, id pgtype.UUID) error {
-	if _, err := q.LockAppUserForLinks(ctx, id); err != nil {
+// Link and Unlink serialize with the user's selections and logins, and
+// returns the user's login email ("" for none), which no login can change
+// until the transaction ends. It returns ErrUserNotFound for no such user.
+func lockUser(ctx context.Context, q *sqlcdb.Queries, id pgtype.UUID) (string, error) {
+	email, err := q.LockAppUserForLinks(ctx, id)
+	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return fmt.Errorf("%w: id %s", ErrUserNotFound, id)
+			return "", fmt.Errorf("%w: id %s", ErrUserNotFound, id)
 		}
-		return fmt.Errorf("lock user: %w", err)
+		return "", fmt.Errorf("lock user: %w", err)
 	}
-	return nil
+	return email.String, nil
 }
 
 // markOfferSeen records that the user saw the team offer.

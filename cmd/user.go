@@ -105,7 +105,7 @@ func runUserUnlinkTeam(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	removed, err := store.Unlink(ctx, user.ID, user.Email, leagueID, teamID)
+	removed, err := store.Unlink(ctx, user.ID, leagueID, teamID)
 	if err != nil {
 		return err
 	}

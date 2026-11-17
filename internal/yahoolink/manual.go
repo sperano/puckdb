@@ -23,13 +23,13 @@ const foreignKeyViolation = "23503"
 // whose managers resolve differently) a team link. A link already present
 // for the guid or pair, of any source (email or self), becomes
 // SourceManual: an operator linking it by hand always wins over a later
-// email resync. Returns ErrUnknownTeam when no yahoo_teams row matches (a
-// team with no manager row included, unlike Picker.SetTeams, which links a
-// choice of that kind with a team link) and ErrUserNotFound for no such
-// user. It also removes the user's deselection of the team
-// (Picker.SetTeams), in the same transaction: the operator's link wins. It
-// takes the user row lock first, so it serializes with SetTeams. The returned Link's TeamName, LeagueName and Season
-// are always empty: call ListUserTeams for a display row.
+// email resync. Returns ErrUnknownTeam only when no yahoo_teams row matches
+// (a team with no manager row gets a team link, as a pick of it does in
+// Picker.SetTeams) and ErrUserNotFound for no such user. It also removes the
+// user's deselection of the team (Picker.SetTeams), in the same
+// transaction: the operator's link wins. It takes the user row lock first,
+// so it serializes with SetTeams. The returned Link's TeamName, LeagueName
+// and Season are always empty: call ListUserTeams for a display row.
 func (s *PGStore) Link(ctx context.Context, userID pgtype.UUID, leagueID, teamID int32) (Link, error) {
 	var linked Link
 	err := pgx.BeginFunc(ctx, s.db, func(tx pgx.Tx) error {
@@ -45,7 +45,7 @@ func (s *PGStore) Link(ctx context.Context, userID pgtype.UUID, leagueID, teamID
 
 // link is Link's body, over the transaction's queries q.
 func link(ctx context.Context, q *sqlcdb.Queries, userID pgtype.UUID, leagueID, teamID int32) (Link, error) {
-	if err := lockUser(ctx, q, userID); err != nil {
+	if _, err := lockUser(ctx, q, userID); err != nil {
 		return Link{}, err
 	}
 	managers, err := q.ListYahooTeamManagerGUIDs(ctx, sqlcdb.ListYahooTeamManagerGUIDsParams{

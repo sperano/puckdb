@@ -27,11 +27,11 @@ func TestPGStore_LinkAndUnlink(t *testing.T) {
 	assert.Equal(t, SourceManual, link.Source)
 	assert.Empty(t, link.GUID, "a team with no manager is linked by itself")
 
-	removed, err := store.Unlink(ctx, user, "", league, team)
+	removed, err := store.Unlink(ctx, user, league, team)
 	require.NoError(t, err)
 	assert.Equal(t, Unlinked{Team: true}, removed)
 
-	removed, err = store.Unlink(ctx, user, "", league, team)
+	removed, err = store.Unlink(ctx, user, league, team)
 	require.NoError(t, err)
 	assert.Equal(t, Unlinked{}, removed, "a second unlink finds nothing")
 }
@@ -50,9 +50,10 @@ func TestPGStore_UnlinkRefusesEmailSourcedLinkStillMatched(t *testing.T) {
 	league, team := seedLeagueTeam(t, pool, "Stays Linked")
 	seedManager(t, pool, league, team, 1, email)
 	user := insertUser(t, pool, "stays-linked")
+	setUserEmail(t, pool, user, email)
 	require.NoError(t, SyncEmailLinks(ctx, q, user, email))
 
-	_, err := store.Unlink(ctx, user, email, league, team)
+	_, err := store.Unlink(ctx, user, league, team)
 	require.ErrorIs(t, err, ErrEmailLinkStillMatches)
 
 	links, err := store.ListUserTeams(ctx, user, nil)
@@ -73,8 +74,9 @@ func TestPGStore_UnlinkRemovesEmailSourcedLinkOnceUnmatched(t *testing.T) {
 	seedManager(t, pool, league, team, 1, email)
 	user := insertUser(t, pool, "leaves-linked")
 	require.NoError(t, SyncEmailLinks(ctx, q, user, email))
+	setUserEmail(t, pool, user, uniqueUsername("someoneelse")+"@example.com")
 
-	removed, err := store.Unlink(ctx, user, uniqueUsername("someoneelse")+"@example.com", league, team)
+	removed, err := store.Unlink(ctx, user, league, team)
 	require.NoError(t, err)
 	assert.Equal(t, Unlinked{Team: true}, removed)
 
@@ -98,13 +100,14 @@ func TestPGStore_UnlinkRefusesManualLinkStillMatched(t *testing.T) {
 	league, team := seedLeagueTeam(t, pool, "Manual Stays Linked")
 	seedManager(t, pool, league, team, 1, email)
 	user := insertUser(t, pool, "manual-stays-linked")
+	setUserEmail(t, pool, user, email)
 	require.NoError(t, SyncEmailLinks(ctx, q, user, email))
 
 	link, err := store.Link(ctx, user, league, team)
 	require.NoError(t, err)
 	require.Equal(t, SourceManual, link.Source)
 
-	_, err = store.Unlink(ctx, user, email, league, team)
+	_, err = store.Unlink(ctx, user, league, team)
 	require.ErrorIs(t, err, ErrEmailLinkStillMatches)
 
 	links, err := store.ListUserTeams(ctx, user, nil)
@@ -128,11 +131,12 @@ func TestPGStore_UnlinkOtherTeamNotRefusedByEmailMatch(t *testing.T) {
 	seedTeam(t, pool, league, otherTeam, "Other Team")
 	seedManager(t, pool, league, matchedTeam, 1, email)
 	user := insertUser(t, pool, "other-team-user")
+	setUserEmail(t, pool, user, email)
 
 	_, err := store.Link(ctx, user, league, otherTeam)
 	require.NoError(t, err)
 
-	removed, err := store.Unlink(ctx, user, email, league, otherTeam)
+	removed, err := store.Unlink(ctx, user, league, otherTeam)
 	require.NoError(t, err)
 	assert.Equal(t, Unlinked{Team: true}, removed, "a different team in the same league is not refused by the email match on team 1")
 }
@@ -150,8 +154,9 @@ func TestPGStore_UnlinkNotHeldPairWithMatchingEmailReturnsZeroUnlinked(t *testin
 	league, team := seedLeagueTeam(t, pool, "Not Held")
 	seedManager(t, pool, league, team, 1, email)
 	user := insertUser(t, pool, "not-held-user")
+	setUserEmail(t, pool, user, email)
 
-	removed, err := store.Unlink(ctx, user, email, league, team)
+	removed, err := store.Unlink(ctx, user, league, team)
 	require.NoError(t, err)
 	assert.Equal(t, Unlinked{}, removed)
 }
@@ -172,11 +177,12 @@ func TestPGStore_UnlinkSameTeamIDOtherLeagueNotRefusedByEmailMatch(t *testing.T)
 	leagueB, teamB := seedLeagueTeam(t, pool, "League B Team")
 	require.Equal(t, teamA, teamB, "both leagues must assign the same team id for this test to be meaningful")
 	user := insertUser(t, pool, "cross-league-user")
+	setUserEmail(t, pool, user, email)
 
 	_, err := store.Link(ctx, user, leagueB, teamB)
 	require.NoError(t, err)
 
-	removed, err := store.Unlink(ctx, user, email, leagueB, teamB)
+	removed, err := store.Unlink(ctx, user, leagueB, teamB)
 	require.NoError(t, err)
 	assert.Equal(t, Unlinked{Team: true}, removed, "a matching team id in a different league is not refused by the email match in league A")
 }
@@ -200,7 +206,7 @@ func TestPGStore_UnlinkRemovesTheAccount(t *testing.T) {
 		user, league, team)
 	require.NoError(t, err)
 
-	removed, err := store.Unlink(ctx, user, "", league, team)
+	removed, err := store.Unlink(ctx, user, league, team)
 	require.NoError(t, err)
 	assert.Equal(t, Unlinked{Team: true, GUIDs: []string{guid}}, removed)
 
@@ -224,9 +230,10 @@ func TestPGStore_UnlinkRefusesAccountTheEmailStillResolves(t *testing.T) {
 	current, currentTeam := seedLeagueTeam(t, pool, "Current Address")
 	seedManagerGUID(t, pool, current, currentTeam, 1, guid, email)
 	user := insertUser(t, pool, "resolves")
+	setUserEmail(t, pool, user, email)
 	require.NoError(t, SyncEmailLinks(ctx, q, user, email))
 
-	_, err := store.Unlink(ctx, user, email, league, team)
+	_, err := store.Unlink(ctx, user, league, team)
 	require.ErrorIs(t, err, ErrEmailLinkStillMatches)
 
 	links, err := store.ListUserTeams(ctx, user, nil)
@@ -251,7 +258,7 @@ func TestPGStore_UnlinkRemovesAGUIDOnlyLink(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 0, countUserTeamLinks(t, pool, user), "Link made a guid link only")
 
-	removed, err := store.Unlink(ctx, user, "", league, team)
+	removed, err := store.Unlink(ctx, user, league, team)
 	require.NoError(t, err)
 	assert.Equal(t, Unlinked{GUIDs: []string{guid}}, removed)
 	assert.True(t, removed.Removed())
@@ -293,7 +300,7 @@ func TestPGStore_UnlinkRemovesBothAccountsOfACoManagedTeam(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, bystanderLinks, 2, "the team and the first account's other-season team")
 
-	removed, err := store.Unlink(ctx, user, "", league, team)
+	removed, err := store.Unlink(ctx, user, league, team)
 	require.NoError(t, err)
 	assert.Equal(t, Unlinked{GUIDs: guids}, removed)
 	assert.True(t, removed.Removed())
@@ -341,11 +348,12 @@ func TestPGStore_UnlinkRefusesATeamTheEmailsAccountReaches(t *testing.T) {
 			league, team := seedLeagueTeam(t, pool, "Reached")
 			tt.seed(league, team, guid, email)
 			user := insertUser(t, pool, "reaches")
+			setUserEmail(t, pool, user, email)
 			_, err := pool.Exec(ctx, `INSERT INTO app_user_yahoo_teams (user_id, league_id, team_id, source) VALUES ($1, $2, $3, 'manual')`,
 				user, league, team)
 			require.NoError(t, err)
 
-			_, err = store.Unlink(ctx, user, email, league, team)
+			_, err = store.Unlink(ctx, user, league, team)
 			require.ErrorIs(t, err, ErrEmailLinkStillMatches)
 			assert.Equal(t, 1, countUserTeamLinks(t, pool, user), "the refused unlink changed nothing")
 		})
@@ -385,7 +393,7 @@ func TestPGStore_UnlinkReportsOnlyTheGUIDLinksItDeleted(t *testing.T) {
 	}
 	done := make(chan result, 1)
 	go func() {
-		removed, err := store.Unlink(ctx, user, "", league, team)
+		removed, err := store.Unlink(ctx, user, league, team)
 		done <- result{removed, err}
 	}()
 	waitUntilBlockedBy(ctx, t, pool, otherPID, done)
@@ -441,7 +449,7 @@ func TestPGStore_UnlinkFailureRemovesNothing(t *testing.T) {
 	require.NoError(t, err)
 	failGUIDLinkDeletes(t, pool, user)
 
-	removed, err := store.Unlink(ctx, user, "", league, team)
+	removed, err := store.Unlink(ctx, user, league, team)
 	require.ErrorContains(t, err, "unlink yahoo accounts")
 	assert.Equal(t, Unlinked{}, removed)
 	assert.Equal(t, 1, countUserTeamLinks(t, pool, user), "the team link delete was rolled back")

@@ -132,4 +132,4 @@ WHERE user_id = sqlc.arg(user_id)::uuid AND league_id = sqlc.arg(league_id)::int
 -- name: FindAppUserByInstanceUsername :many
 -- Username is a mutable snapshot, not unique by constraint; the caller must
 -- check for more than one match.
-SELECT id, username, email FROM app_users WHERE instance = sqlc.arg(instance)::text AND username = sqlc.arg(username)::text;
+SELECT id, username FROM app_users WHERE instance = sqlc.arg(instance)::text AND username = sqlc.arg(username)::text;

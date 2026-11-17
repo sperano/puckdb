@@ -87,7 +87,6 @@ type Link struct {
 type User struct {
 	ID       pgtype.UUID
 	Username string
-	Email    string
 }
 
 // InstanceLink is one Link together with its owner's username, for the
@@ -176,7 +175,7 @@ func (s *PGStore) FindUser(ctx context.Context, instance, username string) (User
 	case 0:
 		return User{}, fmt.Errorf("%w: %q on instance %q", ErrUserNotFound, username, instance)
 	case 1:
-		return User{ID: rows[0].ID, Username: rows[0].Username, Email: rows[0].Email.String}, nil
+		return User{ID: rows[0].ID, Username: rows[0].Username}, nil
 	default:
 		return User{}, fmt.Errorf("%w: %q on instance %q", ErrAmbiguousUser, username, instance)
 	}

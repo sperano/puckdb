@@ -26,8 +26,8 @@ func (u Unlinked) Removed() bool { return u.Team || len(u.GUIDs) > 0 || u.Reject
 // Unlink removes every link through which userID reaches the given Yahoo
 // team, of any source (email, manual or self): its team link, and its guid links to the team's
 // managers, which also removes those accounts' other teams. It refuses, with
-// ErrEmailLinkStillMatches and removing nothing, when the login email
-// (email) still matches a manager of that team or resolves to a guid one of
+// ErrEmailLinkStillMatches and removing nothing, when the login email, read
+// under the user row lock, still matches a manager of that team or resolves to a guid one of
 // the team's managers resolves to, held or not: a manual link gets no
 // exemption, since an operator's Link promotes a matching email link to
 // manual (and SyncEmailLinks would just recreate it, as SourceEmail, on the
@@ -42,11 +42,11 @@ func (u Unlinked) Removed() bool { return u.Team || len(u.GUIDs) > 0 || u.Reject
 // zero Unlinked means the user had no link to the
 // team, nor a deselection to remove; GUIDs lists only the links this call
 // deleted, sorted.
-func (s *PGStore) Unlink(ctx context.Context, userID pgtype.UUID, email string, leagueID, teamID int32) (Unlinked, error) {
+func (s *PGStore) Unlink(ctx context.Context, userID pgtype.UUID, leagueID, teamID int32) (Unlinked, error) {
 	var removed Unlinked
 	err := pgx.BeginFunc(ctx, s.db, func(tx pgx.Tx) error {
 		var err error
-		removed, err = unlink(ctx, sqlcdb.New(tx), userID, email, leagueID, teamID)
+		removed, err = unlink(ctx, sqlcdb.New(tx), userID, leagueID, teamID)
 		return err
 	})
 	if err != nil {
@@ -56,8 +56,9 @@ func (s *PGStore) Unlink(ctx context.Context, userID pgtype.UUID, email string, 
 }
 
 // unlink is Unlink's body, over the transaction's queries q.
-func unlink(ctx context.Context, q *sqlcdb.Queries, userID pgtype.UUID, email string, leagueID, teamID int32) (Unlinked, error) {
-	if err := lockUser(ctx, q, userID); err != nil {
+func unlink(ctx context.Context, q *sqlcdb.Queries, userID pgtype.UUID, leagueID, teamID int32) (Unlinked, error) {
+	email, err := lockUser(ctx, q, userID)
+	if err != nil {
 		return Unlinked{}, err
 	}
 	held, teamGUIDs, err := heldLinks(ctx, q, userID, leagueID, teamID)

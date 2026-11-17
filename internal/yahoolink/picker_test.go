@@ -383,21 +383,50 @@ func TestUnlink_ClearsTheUsersDeselection(t *testing.T) {
 	league, team := seedLeagueTeam(t, pool, "Email Team")
 	seedManagerGUID(t, pool, league, team, 1, hiddenGUID, email)
 	user := insertUser(t, pool, "owner")
+	setUserEmail(t, pool, user, email)
 	require.NoError(t, SyncEmailLinks(ctx, q, user, email))
 	_, err := newTestPicker(pool, testSeason, league).SetTeams(ctx, userIDText(user), nil)
 	require.NoError(t, err)
 	store := NewPGStore(pool)
 
-	removed, err := store.Unlink(ctx, user, email, league, team)
+	removed, err := store.Unlink(ctx, user, league, team)
 	require.NoError(t, err)
 	assert.Equal(t, Unlinked{}, removed, "the email still matches: nothing to remove, the deselection stays")
 	assert.Equal(t, 1, countRejections(t, pool, user))
 
-	removed, err = store.Unlink(ctx, user, "changed@example.com", league, team)
+	setUserEmail(t, pool, user, uniqueUsername("changed")+"@example.com")
+	removed, err = store.Unlink(ctx, user, league, team)
 	require.NoError(t, err)
 	assert.Equal(t, Unlinked{Rejection: true}, removed)
 	assert.True(t, removed.Removed())
 	assert.Equal(t, 0, countRejections(t, pool, user))
+}
+
+// TestUnlink_RefusesAPickTheEmailStillMatches: a pick (a SourceSelf link)
+// of a team the login email still matches is refused like an email or
+// manual link, and stays.
+func TestUnlink_RefusesAPickTheEmailStillMatches(t *testing.T) {
+	pool := pgtest.Open(t)
+	q := sqlcdb.New(pool)
+	ctx := context.Background()
+
+	email := uniqueUsername("picked") + "@example.com"
+	league, team := seedLeagueTeam(t, pool, "Picked Team")
+	seedManagerGUID(t, pool, league, team, 1, hiddenGUID, email)
+	user := insertUser(t, pool, "picked")
+	setUserEmail(t, pool, user, email)
+	require.NoError(t, SyncEmailLinks(ctx, q, user, email))
+	choices, err := newTestPicker(pool, testSeason, league).SetTeams(ctx, userIDText(user), []TeamRef{{league, team}})
+	require.NoError(t, err)
+	require.Equal(t, []string{state(league, team, SourceSelf)}, choiceState(choices))
+
+	removed, err := NewPGStore(pool).Unlink(ctx, user, league, team)
+	require.ErrorIs(t, err, ErrEmailLinkStillMatches)
+	assert.Equal(t, Unlinked{}, removed)
+	links, err := NewPGStore(pool).ListUserTeams(ctx, user, nil)
+	require.NoError(t, err)
+	require.Len(t, links, 1, "the refused unlink changed nothing")
+	assert.Equal(t, SourceSelf, links[0].Source)
 }
 
 // TestListUserTeams_OwnPickWinsOverAGuidLink: a co-managed team the user

@@ -88,6 +88,15 @@ func insertUserOnInstance(t *testing.T, pool *pgxpool.Pool, instance, username s
 	return id
 }
 
+// setUserEmail sets user's login email, the one Unlink reads under the
+// user row lock.
+func setUserEmail(t *testing.T, pool *pgxpool.Pool, user pgtype.UUID, email string) {
+	t.Helper()
+	tag, err := pool.Exec(context.Background(), `UPDATE app_users SET email = $2 WHERE id = $1`, user, email)
+	require.NoError(t, err)
+	require.Equal(t, int64(1), tag.RowsAffected())
+}
+
 // uniqueUsername returns a username no earlier test run used: the test
 // database is shared and never truncated, so a fixed literal would collide
 // with a prior run's leftover row once FindUser matches on it.

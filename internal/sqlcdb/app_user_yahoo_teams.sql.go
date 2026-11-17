@@ -40,7 +40,7 @@ func (q *Queries) DeleteStaleAppUserEmailTeamLinks(ctx context.Context, arg Dele
 }
 
 const findAppUserByInstanceUsername = `-- name: FindAppUserByInstanceUsername :many
-SELECT id, username, email FROM app_users WHERE instance = $1::text AND username = $2::text
+SELECT id, username FROM app_users WHERE instance = $1::text AND username = $2::text
 `
 
 type FindAppUserByInstanceUsernameParams struct {
@@ -51,7 +51,6 @@ type FindAppUserByInstanceUsernameParams struct {
 type FindAppUserByInstanceUsernameRow struct {
 	ID       pgtype.UUID `json:"id"`
 	Username string      `json:"username"`
-	Email    pgtype.Text `json:"email"`
 }
 
 // Username is a mutable snapshot, not unique by constraint; the caller must
@@ -65,7 +64,7 @@ func (q *Queries) FindAppUserByInstanceUsername(ctx context.Context, arg FindApp
 	items := []FindAppUserByInstanceUsernameRow{}
 	for rows.Next() {
 		var i FindAppUserByInstanceUsernameRow
-		if err := rows.Scan(&i.ID, &i.Username, &i.Email); err != nil {
+		if err := rows.Scan(&i.ID, &i.Username); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
