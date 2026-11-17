@@ -8854,8 +8854,9 @@ type MauriceReportingConversationPage {
 """
 Selects conversations. Every field set must hold (AND). The turn filters
 (from, to, statuses, provider, model, toolName) must all hold for one and the
-same turn of the conversation. Title generation calls have no turn, so they
-never match provider or model.
+same turn of the conversation. Title generation calls have no turn, so a turn
+filter never matches them (a conversation's models exclude them); the overview
+counts in-interval title calls by their own provider and model.
 """
 input MauriceReportingConversationFilter {
 	"""The owner's instance (required, exact)."""

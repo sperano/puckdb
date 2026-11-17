@@ -44,7 +44,9 @@ const userActivityQuery = `query($filter: MauriceReportingConversationFilter!, $
 // seedOverview adds to the public user's conversation of reportingWorld
 // (a cancelled turn at reportingT0 whose sonnet round reports no count): a
 // succeeded 4s turn a minute later with a sonnet round of 100 input and 10
-// output tokens, then a title call reporting 5 input tokens only.
+// output tokens, a title call reporting 5 input tokens only, a succeeded
+// 24s turn with a sonnet round reporting every count (20, 2, 7 cache
+// creation, 40 cache read), then a failed and a running turn.
 func seedOverview(seed *mauricefixtures.Seeder) reportingWorld {
 	w := seedReportingWorld(seed)
 	started := reportingT0.Add(time.Minute)
@@ -54,6 +56,16 @@ func seedOverview(seed *mauricefixtures.Seeder) reportingWorld {
 		StartedAt: started, InputTokens: mauricefixtures.Tokens(100), OutputTokens: mauricefixtures.Tokens(10)})
 	seed.Call(mauricefixtures.Call{ConversationID: w.publicConv, Provider: "anthropic", Model: "claude-sonnet-5-5",
 		StartedAt: reportingT0.Add(2 * time.Minute), InputTokens: mauricefixtures.Tokens(5)})
+	started = reportingT0.Add(3 * time.Minute)
+	turn = seed.Turn(mauricefixtures.Turn{ConversationID: w.publicConv, UserID: w.publicUser, Number: 2,
+		Status: mauricefixtures.StatusSucceeded, StartedAt: started, Duration: 24 * time.Second})
+	seed.Call(mauricefixtures.Call{ConversationID: w.publicConv, TurnID: turn, Provider: "anthropic", Model: "claude-sonnet-5-5",
+		StartedAt: started, InputTokens: mauricefixtures.Tokens(20), OutputTokens: mauricefixtures.Tokens(2),
+		CacheCreationInputTokens: mauricefixtures.Tokens(7), CacheReadInputTokens: mauricefixtures.Tokens(40)})
+	seed.Turn(mauricefixtures.Turn{ConversationID: w.publicConv, UserID: w.publicUser, Number: 3,
+		Status: mauricefixtures.StatusFailed, StartedAt: reportingT0.Add(4 * time.Minute)})
+	seed.Turn(mauricefixtures.Turn{ConversationID: w.publicConv, UserID: w.publicUser, Number: 4,
+		Status: mauricefixtures.StatusRunning, StartedAt: reportingT0.Add(5 * time.Minute)})
 	return w
 }
 
@@ -71,26 +83,26 @@ func TestReportingOverviewServesExactAggregates(t *testing.T) {
 		"userCount": 2, "activeUserCount": 1,
 		"activity": {
 			"conversations": 1,
-			"turns": {"total": 2, "running": 0, "succeeded": 1, "failed": 0, "cancelled": 1, "terminal": 2,
-				"succeededRate": 0.5, "failedRate": 0, "cancelledRate": 0.5},
-			"firstTurnStartedAt": "2026-11-10T15:00:00Z", "lastTurnStartedAt": "2026-11-10T15:01:00Z",
-			"turnLatency": {"count": 1, "meanSeconds": 4, "p50Seconds": 4, "p95Seconds": 4, "maxSeconds": 4},
-			"usage": {"calls": 3, "failedCalls": 0,
-				"inputTokens": {"total": 105, "reportedCalls": 2, "unreportedCalls": 1, "complete": false},
-				"outputTokens": {"total": 10, "reportedCalls": 1, "unreportedCalls": 2, "complete": false},
-				"cacheCreationInputTokens": {"total": null, "reportedCalls": 0, "unreportedCalls": 3, "complete": false},
-				"cacheReadInputTokens": {"total": null, "reportedCalls": 0, "unreportedCalls": 3, "complete": false},
-				"callLatency": {"count": 3, "meanSeconds": 1, "p50Seconds": 1, "p95Seconds": 1, "maxSeconds": 1}},
+			"turns": {"total": 5, "running": 1, "succeeded": 2, "failed": 1, "cancelled": 1, "terminal": 4,
+				"succeededRate": 0.5, "failedRate": 0.25, "cancelledRate": 0.25},
+			"firstTurnStartedAt": "2026-11-10T15:00:00Z", "lastTurnStartedAt": "2026-11-10T15:05:00Z",
+			"turnLatency": {"count": 2, "meanSeconds": 14, "p50Seconds": 14, "p95Seconds": 23, "maxSeconds": 24},
+			"usage": {"calls": 4, "failedCalls": 0,
+				"inputTokens": {"total": 125, "reportedCalls": 3, "unreportedCalls": 1, "complete": false},
+				"outputTokens": {"total": 12, "reportedCalls": 2, "unreportedCalls": 2, "complete": false},
+				"cacheCreationInputTokens": {"total": 7, "reportedCalls": 1, "unreportedCalls": 3, "complete": false},
+				"cacheReadInputTokens": {"total": 40, "reportedCalls": 1, "unreportedCalls": 3, "complete": false},
+				"callLatency": {"count": 4, "meanSeconds": 1, "p50Seconds": 1, "p95Seconds": 1, "maxSeconds": 1}},
 			"titleGeneration": {"calls": 1, "failedCalls": 0,
 				"inputTokens": {"total": 5, "reportedCalls": 1, "unreportedCalls": 0, "complete": true},
 				"outputTokens": {"total": null, "reportedCalls": 0, "unreportedCalls": 1, "complete": false},
 				"cacheCreationInputTokens": {"total": null, "reportedCalls": 0, "unreportedCalls": 1, "complete": false},
 				"cacheReadInputTokens": {"total": null, "reportedCalls": 0, "unreportedCalls": 1, "complete": false},
 				"callLatency": {"count": 1, "meanSeconds": 1, "p50Seconds": 1, "p95Seconds": 1, "maxSeconds": 1}},
-			"processingSeconds": 6
+			"processingSeconds": 31
 		},
-		"models": [{"provider": "anthropic", "model": "claude-sonnet-5-5", "turns": 2,
-			"usage": {"calls": 3, "inputTokens": {"total": 105}}}]
+		"models": [{"provider": "anthropic", "model": "claude-sonnet-5-5", "turns": 3,
+			"usage": {"calls": 4, "inputTokens": {"total": 125}}}]
 	}}`, string(resp.Data))
 }
 
@@ -162,8 +174,8 @@ func TestReportingUserActivityPagesTheInstancesUsers(t *testing.T) {
 	assert.Equal(t, "maurice-crapettes", got.User.Instance)
 	assert.True(t, got.Active)
 	assert.Equal(t, 1, got.Activity.Conversations, "the deleted conversation is left out")
-	assert.Equal(t, 2, got.Activity.Turns.Total)
-	assert.Equal(t, 3, got.Activity.Usage.Calls)
+	assert.Equal(t, 5, got.Activity.Turns.Total)
+	assert.Equal(t, 4, got.Activity.Usage.Calls)
 	assert.Nil(t, second.Page.NextCursor)
 }
 

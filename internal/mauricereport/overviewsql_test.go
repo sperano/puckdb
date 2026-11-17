@@ -107,23 +107,55 @@ func TestOverviewIntervalBoundaries(t *testing.T) {
 	store, s := newConvSeed(t)
 	midnight := time.Date(2026, 11, 10, 0, 0, 0, 0, time.UTC)
 	conv := s.conversation("boundary", midnight)
+	nextMidnight := midnight.Add(24 * time.Hour)
 	s.turn(conv, 0, mauricefixtures.StatusSucceeded, midnight)
+	s.turn(conv, 1, mauricefixtures.StatusSucceeded, nextMidnight)
 	s.seed.Call(mauricefixtures.Call{ConversationID: conv, Provider: providerAnthropic, Model: modelSonnet,
-		StartedAt: midnight.Add(24 * time.Hour), InputTokens: tokens(10)})
+		StartedAt: nextMidnight, InputTokens: tokens(10)})
 
 	tests := []struct {
 		from, to      string
 		turns, titles int64
 	}{
 		{"2026-11-10", "2026-11-10", 1, 0},
-		{"2026-11-10", "2026-11-11", 1, 1},
+		{"2026-11-10", "2026-11-11", 2, 1},
+		{"2026-11-11", "2026-11-11", 1, 1},
 		{"2026-11-09", "2026-11-09", 0, 0},
-		{"2026-11-11", "", 0, 0},
+		{"2026-11-11", "", 1, 1},
+		{"2026-11-12", "", 0, 0},
 		{"", "2026-11-10", 1, 0},
 	}
 	for _, tt := range tests {
 		got := overview(t, store, ConversationFilter{From: tt.from, To: tt.to})
 		assert.Equal(t, tt.turns, got.Activity.Turns.Total(), "turns in [%s, %s]", tt.from, tt.to)
 		assert.Equal(t, tt.titles, got.Activity.TitleGeneration.Calls, "title calls in [%s, %s]", tt.from, tt.to)
+	}
+}
+
+// A turn filter selects turns, not calls: an included turn brings every one
+// of its calls, those of another model included.
+func TestOverviewTurnFilterKeepsTheTurnsOtherCalls(t *testing.T) {
+	store, s := newConvSeed(t)
+	conv := s.conversation("mixed", t0)
+	turn := s.turn(conv, 0, mauricefixtures.StatusSucceeded, t0)
+	s.seed.Call(mauricefixtures.Call{ConversationID: conv, TurnID: turn, Provider: providerOllama, Model: modelQwen,
+		StartedAt: t0, Duration: 2 * time.Second, InputTokens: tokens(7)})
+	s.seed.Call(mauricefixtures.Call{ConversationID: conv, TurnID: turn, Round: 1, Provider: providerAnthropic, Model: modelSonnet,
+		StartedAt: t0.Add(2 * time.Second), Duration: 4 * time.Second, InputTokens: tokens(30)})
+	want := Activity{Conversations: 1, Turns: TurnCounts{Succeeded: 1},
+		FirstTurnStartedAt: at(t0), LastTurnStartedAt: at(t0), TurnLatency: latency(1, 1, 1, 1, 1),
+		Usage: Usage{Calls: 2,
+			InputTokens: reported(37, 2, 0), OutputTokens: reported(0, 0, 2),
+			CacheCreationInputTokens: reported(0, 0, 2), CacheReadInputTokens: reported(0, 0, 2),
+			CallLatency: latency(2, 3, 3, 3.9, 4)},
+		ProcessingSeconds: 1}
+
+	for _, filter := range []ConversationFilter{
+		{Model: modelSonnet},
+		{Provider: providerOllama, Model: modelQwen},
+	} {
+		t.Run(filter.Provider+"/"+filter.Model, func(t *testing.T) {
+			assertActivity(t, want, overview(t, store, filter).Activity)
+		})
 	}
 }

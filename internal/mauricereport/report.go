@@ -99,7 +99,8 @@ type UserPage struct {
 	NextCursor string
 }
 
-// TurnCounts counts a conversation's stored turns by status.
+// TurnCounts counts stored turns by status: a conversation's, or every
+// included turn of an overview's activity.
 type TurnCounts struct {
 	Running   int64
 	Succeeded int64
