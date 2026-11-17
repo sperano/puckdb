@@ -1,15 +1,21 @@
--- Links a Maurice user to the Yahoo teams they manage (app_user_yahoo_teams,
--- see its migration). Case-insensitive email matching is done below by
--- ListManagerLeagueTeamsByEmail; the allowlist filter (empty = every
--- league) by ListAppUserYahooTeams; neither is left to the caller.
+-- Links a Maurice user to the Yahoo teams they manage: app_user_yahoo_teams
+-- (one team; the fallback for a manager row with no resolvable guid) and,
+-- in app_user_yahoo_managers.sql, app_user_yahoo_managers (one Yahoo
+-- account). Case-insensitive email matching is done below by
+-- ListManagersByEmail; the allowlist filter (empty = every league) by
+-- ListAppUserYahooTeams; neither is left to the caller.
 
--- name: ListManagerLeagueTeamsByEmail :many
--- Distinct (league, team) pairs a yahoo_team_managers row claims for email,
--- compared case-insensitively. A blank manager email never matches: it is
--- the unset default, not an empty address.
-SELECT DISTINCT league_id, team_id
-FROM yahoo_team_managers
-WHERE email <> '' AND lower(email) = lower(sqlc.arg(email)::text);
+-- name: ListManagersByEmail :many
+-- Every yahoo_team_managers row whose email matches email, compared
+-- case-insensitively, with the guid yahoo_team_manager_guids resolves it to
+-- (NULL when none). A blank manager email never matches: it is the unset
+-- default, not an empty address.
+SELECT m.league_id, m.team_id, g.guid
+FROM yahoo_team_managers m
+LEFT JOIN yahoo_team_manager_guids g
+    ON g.league_id = m.league_id AND g.team_id = m.team_id AND g.manager_id = m.id
+WHERE m.email <> '' AND lower(m.email) = lower(sqlc.arg(email)::text)
+ORDER BY m.league_id, m.team_id, m.id;
 
 -- name: SyncAppUserEmailTeamLinks :exec
 -- Links user_id to every (league_id, team_id) pair found by email, as
@@ -36,26 +42,60 @@ WHERE user_id = sqlc.arg(user_id)::uuid AND source = 'email'
   );
 
 -- name: ListAppUserYahooTeams :many
--- One user's linked teams with their league's name and season (Yahoo's
--- start year, 2026 for 2026-27), ordered by league then team, limited to
--- league_ids when it is non-empty (the instance's Yahoo league allowlist).
-SELECT l.league_id, l.team_id, l.source, l.linked_at, t.name AS team_name,
+-- One user's teams, through a guid link (every team yahoo_team_manager_guids
+-- gives that guid, whichever season) or a team link, with their league's
+-- name and season (Yahoo's start year, 2026 for 2026-27), ordered by league
+-- then team, limited to league_ids when it is non-empty (the instance's
+-- Yahoo league allowlist). A team reached by several links is listed once:
+-- a manual link first, then a guid link, then the earliest.
+WITH links AS (
+    SELECT g.league_id, g.team_id, a.source, a.linked_at, a.guid
+    FROM app_user_yahoo_managers a
+    JOIN yahoo_team_manager_guids g ON g.guid = a.guid
+    WHERE a.user_id = sqlc.arg(user_id)::uuid
+    UNION ALL
+    SELECT l.league_id, l.team_id, l.source, l.linked_at, ''::text AS guid
+    FROM app_user_yahoo_teams l
+    WHERE l.user_id = sqlc.arg(user_id)::uuid
+)
+SELECT DISTINCT ON (k.league_id, k.team_id)
+       k.league_id, k.team_id, k.source, k.linked_at, k.guid::text AS guid, t.name AS team_name,
        lg.name AS league_name, lg.season
-FROM app_user_yahoo_teams l
-JOIN yahoo_teams t ON t.league_id = l.league_id AND t.id = l.team_id
-JOIN yahoo_leagues lg ON lg.id = l.league_id
-WHERE l.user_id = sqlc.arg(user_id)::uuid
-  AND (coalesce(cardinality(sqlc.arg(league_ids)::integer[]), 0) = 0 OR l.league_id = ANY(sqlc.arg(league_ids)::integer[]))
-ORDER BY l.league_id, l.team_id;
+FROM links k
+JOIN yahoo_teams t ON t.league_id = k.league_id AND t.id = k.team_id
+JOIN yahoo_leagues lg ON lg.id = k.league_id
+WHERE coalesce(cardinality(sqlc.arg(league_ids)::integer[]), 0) = 0 OR k.league_id = ANY(sqlc.arg(league_ids)::integer[])
+ORDER BY k.league_id, k.team_id, (k.source = 'manual') DESC, (k.guid <> '') DESC, k.linked_at, k.guid;
 
 -- name: ListInstanceAppUserYahooTeams :many
--- Every user's linked teams on one instance, for the admin list command.
-SELECT u.username, l.league_id, l.team_id, l.source, l.linked_at, t.name AS team_name
-FROM app_user_yahoo_teams l
-JOIN app_users u ON u.id = l.user_id
-JOIN yahoo_teams t ON t.league_id = l.league_id AND t.id = l.team_id
+-- Every user's teams on one instance, for the admin list command; a team
+-- reached by several of a user's links is listed once, picked as by
+-- ListAppUserYahooTeams.
+WITH links AS (
+    SELECT a.user_id, g.league_id, g.team_id, a.source, a.linked_at, a.guid
+    FROM app_user_yahoo_managers a
+    JOIN yahoo_team_manager_guids g ON g.guid = a.guid
+    UNION ALL
+    SELECT l.user_id, l.league_id, l.team_id, l.source, l.linked_at, ''::text AS guid
+    FROM app_user_yahoo_teams l
+), picked AS (
+    SELECT DISTINCT ON (k.user_id, k.league_id, k.team_id)
+           k.user_id, k.league_id, k.team_id, k.source, k.linked_at, k.guid
+    FROM links k
+    ORDER BY k.user_id, k.league_id, k.team_id, (k.source = 'manual') DESC, (k.guid <> '') DESC, k.linked_at, k.guid
+)
+SELECT u.username, p.league_id, p.team_id, p.source, p.linked_at, p.guid::text AS guid, t.name AS team_name
+FROM picked p
+JOIN app_users u ON u.id = p.user_id
+JOIN yahoo_teams t ON t.league_id = p.league_id AND t.id = p.team_id
 WHERE u.instance = sqlc.arg(instance)::text
-ORDER BY u.username, l.league_id, l.team_id;
+ORDER BY u.username, u.id, p.league_id, p.team_id;
+
+-- name: HasAppUserYahooTeamLink :one
+SELECT EXISTS (
+    SELECT 1 FROM app_user_yahoo_teams
+    WHERE user_id = sqlc.arg(user_id)::uuid AND league_id = sqlc.arg(league_id)::integer AND team_id = sqlc.arg(team_id)::integer
+);
 
 -- name: LinkAppUserYahooTeam :one
 -- Manual admin link; promotes an existing email-sourced link for the same

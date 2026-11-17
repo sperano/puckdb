@@ -74,6 +74,26 @@ func (q *Queries) FindAppUserByInstanceUsername(ctx context.Context, arg FindApp
 	return items, nil
 }
 
+const hasAppUserYahooTeamLink = `-- name: HasAppUserYahooTeamLink :one
+SELECT EXISTS (
+    SELECT 1 FROM app_user_yahoo_teams
+    WHERE user_id = $1::uuid AND league_id = $2::integer AND team_id = $3::integer
+)
+`
+
+type HasAppUserYahooTeamLinkParams struct {
+	UserID   pgtype.UUID `json:"user_id"`
+	LeagueID int32       `json:"league_id"`
+	TeamID   int32       `json:"team_id"`
+}
+
+func (q *Queries) HasAppUserYahooTeamLink(ctx context.Context, arg HasAppUserYahooTeamLinkParams) (bool, error) {
+	row := q.db.QueryRow(ctx, hasAppUserYahooTeamLink, arg.UserID, arg.LeagueID, arg.TeamID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const linkAppUserYahooTeam = `-- name: LinkAppUserYahooTeam :one
 INSERT INTO app_user_yahoo_teams (user_id, league_id, team_id, source)
 VALUES ($1::uuid, $2::integer, $3::integer, 'manual')
@@ -103,19 +123,29 @@ func (q *Queries) LinkAppUserYahooTeam(ctx context.Context, arg LinkAppUserYahoo
 }
 
 const listAppUserYahooTeams = `-- name: ListAppUserYahooTeams :many
-SELECT l.league_id, l.team_id, l.source, l.linked_at, t.name AS team_name,
+WITH links AS (
+    SELECT g.league_id, g.team_id, a.source, a.linked_at, a.guid
+    FROM app_user_yahoo_managers a
+    JOIN yahoo_team_manager_guids g ON g.guid = a.guid
+    WHERE a.user_id = $2::uuid
+    UNION ALL
+    SELECT l.league_id, l.team_id, l.source, l.linked_at, ''::text AS guid
+    FROM app_user_yahoo_teams l
+    WHERE l.user_id = $2::uuid
+)
+SELECT DISTINCT ON (k.league_id, k.team_id)
+       k.league_id, k.team_id, k.source, k.linked_at, k.guid::text AS guid, t.name AS team_name,
        lg.name AS league_name, lg.season
-FROM app_user_yahoo_teams l
-JOIN yahoo_teams t ON t.league_id = l.league_id AND t.id = l.team_id
-JOIN yahoo_leagues lg ON lg.id = l.league_id
-WHERE l.user_id = $1::uuid
-  AND (coalesce(cardinality($2::integer[]), 0) = 0 OR l.league_id = ANY($2::integer[]))
-ORDER BY l.league_id, l.team_id
+FROM links k
+JOIN yahoo_teams t ON t.league_id = k.league_id AND t.id = k.team_id
+JOIN yahoo_leagues lg ON lg.id = k.league_id
+WHERE coalesce(cardinality($1::integer[]), 0) = 0 OR k.league_id = ANY($1::integer[])
+ORDER BY k.league_id, k.team_id, (k.source = 'manual') DESC, (k.guid <> '') DESC, k.linked_at, k.guid
 `
 
 type ListAppUserYahooTeamsParams struct {
-	UserID    pgtype.UUID `json:"user_id"`
 	LeagueIds []int32     `json:"league_ids"`
+	UserID    pgtype.UUID `json:"user_id"`
 }
 
 type ListAppUserYahooTeamsRow struct {
@@ -123,16 +153,20 @@ type ListAppUserYahooTeamsRow struct {
 	TeamID     int32              `json:"team_id"`
 	Source     string             `json:"source"`
 	LinkedAt   pgtype.Timestamptz `json:"linked_at"`
+	Guid       string             `json:"guid"`
 	TeamName   string             `json:"team_name"`
 	LeagueName string             `json:"league_name"`
 	Season     int32              `json:"season"`
 }
 
-// One user's linked teams with their league's name and season (Yahoo's
-// start year, 2026 for 2026-27), ordered by league then team, limited to
-// league_ids when it is non-empty (the instance's Yahoo league allowlist).
+// One user's teams, through a guid link (every team yahoo_team_manager_guids
+// gives that guid, whichever season) or a team link, with their league's
+// name and season (Yahoo's start year, 2026 for 2026-27), ordered by league
+// then team, limited to league_ids when it is non-empty (the instance's
+// Yahoo league allowlist). A team reached by several links is listed once:
+// a manual link first, then a guid link, then the earliest.
 func (q *Queries) ListAppUserYahooTeams(ctx context.Context, arg ListAppUserYahooTeamsParams) ([]ListAppUserYahooTeamsRow, error) {
-	rows, err := q.db.Query(ctx, listAppUserYahooTeams, arg.UserID, arg.LeagueIds)
+	rows, err := q.db.Query(ctx, listAppUserYahooTeams, arg.LeagueIds, arg.UserID)
 	if err != nil {
 		return nil, err
 	}
@@ -145,6 +179,7 @@ func (q *Queries) ListAppUserYahooTeams(ctx context.Context, arg ListAppUserYaho
 			&i.TeamID,
 			&i.Source,
 			&i.LinkedAt,
+			&i.Guid,
 			&i.TeamName,
 			&i.LeagueName,
 			&i.Season,
@@ -160,12 +195,25 @@ func (q *Queries) ListAppUserYahooTeams(ctx context.Context, arg ListAppUserYaho
 }
 
 const listInstanceAppUserYahooTeams = `-- name: ListInstanceAppUserYahooTeams :many
-SELECT u.username, l.league_id, l.team_id, l.source, l.linked_at, t.name AS team_name
-FROM app_user_yahoo_teams l
-JOIN app_users u ON u.id = l.user_id
-JOIN yahoo_teams t ON t.league_id = l.league_id AND t.id = l.team_id
+WITH links AS (
+    SELECT a.user_id, g.league_id, g.team_id, a.source, a.linked_at, a.guid
+    FROM app_user_yahoo_managers a
+    JOIN yahoo_team_manager_guids g ON g.guid = a.guid
+    UNION ALL
+    SELECT l.user_id, l.league_id, l.team_id, l.source, l.linked_at, ''::text AS guid
+    FROM app_user_yahoo_teams l
+), picked AS (
+    SELECT DISTINCT ON (k.user_id, k.league_id, k.team_id)
+           k.user_id, k.league_id, k.team_id, k.source, k.linked_at, k.guid
+    FROM links k
+    ORDER BY k.user_id, k.league_id, k.team_id, (k.source = 'manual') DESC, (k.guid <> '') DESC, k.linked_at, k.guid
+)
+SELECT u.username, p.league_id, p.team_id, p.source, p.linked_at, p.guid::text AS guid, t.name AS team_name
+FROM picked p
+JOIN app_users u ON u.id = p.user_id
+JOIN yahoo_teams t ON t.league_id = p.league_id AND t.id = p.team_id
 WHERE u.instance = $1::text
-ORDER BY u.username, l.league_id, l.team_id
+ORDER BY u.username, u.id, p.league_id, p.team_id
 `
 
 type ListInstanceAppUserYahooTeamsRow struct {
@@ -174,10 +222,13 @@ type ListInstanceAppUserYahooTeamsRow struct {
 	TeamID   int32              `json:"team_id"`
 	Source   string             `json:"source"`
 	LinkedAt pgtype.Timestamptz `json:"linked_at"`
+	Guid     string             `json:"guid"`
 	TeamName string             `json:"team_name"`
 }
 
-// Every user's linked teams on one instance, for the admin list command.
+// Every user's teams on one instance, for the admin list command; a team
+// reached by several of a user's links is listed once, picked as by
+// ListAppUserYahooTeams.
 func (q *Queries) ListInstanceAppUserYahooTeams(ctx context.Context, instance string) ([]ListInstanceAppUserYahooTeamsRow, error) {
 	rows, err := q.db.Query(ctx, listInstanceAppUserYahooTeams, instance)
 	if err != nil {
@@ -193,6 +244,7 @@ func (q *Queries) ListInstanceAppUserYahooTeams(ctx context.Context, instance st
 			&i.TeamID,
 			&i.Source,
 			&i.LinkedAt,
+			&i.Guid,
 			&i.TeamName,
 		); err != nil {
 			return nil, err
@@ -205,35 +257,42 @@ func (q *Queries) ListInstanceAppUserYahooTeams(ctx context.Context, instance st
 	return items, nil
 }
 
-const listManagerLeagueTeamsByEmail = `-- name: ListManagerLeagueTeamsByEmail :many
+const listManagersByEmail = `-- name: ListManagersByEmail :many
 
-SELECT DISTINCT league_id, team_id
-FROM yahoo_team_managers
-WHERE email <> '' AND lower(email) = lower($1::text)
+SELECT m.league_id, m.team_id, g.guid
+FROM yahoo_team_managers m
+LEFT JOIN yahoo_team_manager_guids g
+    ON g.league_id = m.league_id AND g.team_id = m.team_id AND g.manager_id = m.id
+WHERE m.email <> '' AND lower(m.email) = lower($1::text)
+ORDER BY m.league_id, m.team_id, m.id
 `
 
-type ListManagerLeagueTeamsByEmailRow struct {
-	LeagueID int32 `json:"league_id"`
-	TeamID   int32 `json:"team_id"`
+type ListManagersByEmailRow struct {
+	LeagueID int32       `json:"league_id"`
+	TeamID   int32       `json:"team_id"`
+	Guid     pgtype.Text `json:"guid"`
 }
 
-// Links a Maurice user to the Yahoo teams they manage (app_user_yahoo_teams,
-// see its migration). Case-insensitive email matching is done below by
-// ListManagerLeagueTeamsByEmail; the allowlist filter (empty = every
-// league) by ListAppUserYahooTeams; neither is left to the caller.
-// Distinct (league, team) pairs a yahoo_team_managers row claims for email,
-// compared case-insensitively. A blank manager email never matches: it is
-// the unset default, not an empty address.
-func (q *Queries) ListManagerLeagueTeamsByEmail(ctx context.Context, email string) ([]ListManagerLeagueTeamsByEmailRow, error) {
-	rows, err := q.db.Query(ctx, listManagerLeagueTeamsByEmail, email)
+// Links a Maurice user to the Yahoo teams they manage: app_user_yahoo_teams
+// (one team; the fallback for a manager row with no resolvable guid) and,
+// in app_user_yahoo_managers.sql, app_user_yahoo_managers (one Yahoo
+// account). Case-insensitive email matching is done below by
+// ListManagersByEmail; the allowlist filter (empty = every league) by
+// ListAppUserYahooTeams; neither is left to the caller.
+// Every yahoo_team_managers row whose email matches email, compared
+// case-insensitively, with the guid yahoo_team_manager_guids resolves it to
+// (NULL when none). A blank manager email never matches: it is the unset
+// default, not an empty address.
+func (q *Queries) ListManagersByEmail(ctx context.Context, email string) ([]ListManagersByEmailRow, error) {
+	rows, err := q.db.Query(ctx, listManagersByEmail, email)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []ListManagerLeagueTeamsByEmailRow{}
+	items := []ListManagersByEmailRow{}
 	for rows.Next() {
-		var i ListManagerLeagueTeamsByEmailRow
-		if err := rows.Scan(&i.LeagueID, &i.TeamID); err != nil {
+		var i ListManagersByEmailRow
+		if err := rows.Scan(&i.LeagueID, &i.TeamID, &i.Guid); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

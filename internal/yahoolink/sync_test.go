@@ -5,6 +5,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/sperano/puckdb/internal/fixtures/pgtest"
 	"github.com/sperano/puckdb/internal/sqlcdb"
 	"github.com/stretchr/testify/assert"
@@ -173,4 +175,135 @@ func TestSyncEmailLinks_StaleDeleteMatchesLeagueAndTeam(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, links, 1, "only team B's link, in the same league as team A's, must be dropped")
 	assert.Equal(t, teamA, links[0].TeamID)
+}
+
+// TestSyncEmailLinks_LinksTheRecoveredAccount: the login email matches only
+// a current-season row whose guid is hidden; the account its older row
+// carries is linked, giving the user that older team under another email
+// too.
+func TestSyncEmailLinks_LinksTheRecoveredAccount(t *testing.T) {
+	pool := pgtest.Open(t)
+	q := sqlcdb.New(pool)
+	ctx := context.Background()
+	store := NewPGStore(pool)
+	guid := newGUID()
+	email := uniqueUsername("recovered") + "@example.com"
+	past, pastTeam := seedLeagueTeamInSeason(t, pool, "Last Year", "Vintage", 2025)
+	seedManagerGUID(t, pool, past, pastTeam, 1, guid, email)
+	older, olderTeam := seedLeagueTeamInSeason(t, pool, "Long Ago", "Old Pool", 2019)
+	seedManagerGUID(t, pool, older, olderTeam, 1, guid, uniqueUsername("oldaddress")+"@example.com")
+	current, currentTeam := seedLeagueTeamInSeason(t, pool, "This Year", "Crapettes", 2026)
+	seedManagerGUID(t, pool, current, currentTeam, 1, hiddenGUID, email)
+	user := insertUser(t, pool, "recovered")
+
+	require.NoError(t, SyncEmailLinks(ctx, q, user, email))
+
+	links, err := store.ListUserTeams(ctx, user, nil)
+	require.NoError(t, err)
+	assert.ElementsMatch(t, []teamKey{{past, pastTeam}, {older, olderTeam}, {current, currentTeam}}, teamKeys(links))
+	for _, l := range links {
+		assert.Equal(t, guid, l.GUID)
+		assert.Equal(t, SourceEmail, l.Source)
+	}
+	assert.Equal(t, 0, countUserTeamLinks(t, pool, user), "a resolved row makes no team link")
+}
+
+// TestSyncEmailLinks_SplitsResolvedAndUnresolvedRows: an email whose rows
+// carry two accounts links both, and its hidden-guid row, which the email
+// cannot resolve to either, by team.
+func TestSyncEmailLinks_SplitsResolvedAndUnresolvedRows(t *testing.T) {
+	pool := pgtest.Open(t)
+	q := sqlcdb.New(pool)
+	ctx := context.Background()
+	store := NewPGStore(pool)
+	guid1, guid2 := newGUID(), newGUID()
+	email := uniqueUsername("split") + "@example.com"
+	first, firstTeam := seedLeagueTeam(t, pool, "First Account")
+	seedManagerGUID(t, pool, first, firstTeam, 1, guid1, email)
+	second, secondTeam := seedLeagueTeam(t, pool, "Second Account")
+	seedManagerGUID(t, pool, second, secondTeam, 1, guid2, email)
+	hidden, hiddenTeam := seedLeagueTeam(t, pool, "Hidden")
+	seedManagerGUID(t, pool, hidden, hiddenTeam, 1, hiddenGUID, email)
+	user := insertUser(t, pool, "split")
+
+	require.NoError(t, SyncEmailLinks(ctx, q, user, email))
+
+	links, err := store.ListUserTeams(ctx, user, nil)
+	require.NoError(t, err)
+	got := map[teamKey]string{}
+	for _, l := range links {
+		got[teamKey{l.LeagueID, l.TeamID}] = l.GUID
+	}
+	assert.Equal(t, map[teamKey]string{
+		{first, firstTeam}: guid1, {second, secondTeam}: guid2, {hidden, hiddenTeam}: "",
+	}, got)
+}
+
+// TestSyncEmailLinks_TeamLinkGivesWayToTheAccount: an email-sourced team
+// link made while its row had no recoverable guid is replaced by the guid
+// link once an earlier season with that email and a real guid is imported.
+func TestSyncEmailLinks_TeamLinkGivesWayToTheAccount(t *testing.T) {
+	pool := pgtest.Open(t)
+	q := sqlcdb.New(pool)
+	ctx := context.Background()
+	store := NewPGStore(pool)
+	email := uniqueUsername("backfilled") + "@example.com"
+	current, currentTeam := seedLeagueTeam(t, pool, "Hidden Now")
+	seedManagerGUID(t, pool, current, currentTeam, 1, hiddenGUID, email)
+	user := insertUser(t, pool, "backfilled")
+	require.NoError(t, SyncEmailLinks(ctx, q, user, email))
+	require.Equal(t, 1, countUserTeamLinks(t, pool, user))
+
+	guid := newGUID()
+	past, pastTeam := seedLeagueTeamInSeason(t, pool, "Imported Later", "Vintage", 2025)
+	seedManagerGUID(t, pool, past, pastTeam, 1, guid, email)
+	require.NoError(t, SyncEmailLinks(ctx, q, user, email))
+
+	assert.Equal(t, 0, countUserTeamLinks(t, pool, user), "the stale team link is gone")
+	links, err := store.ListUserTeams(ctx, user, nil)
+	require.NoError(t, err)
+	assert.ElementsMatch(t, []teamKey{{current, currentTeam}, {past, pastTeam}}, teamKeys(links))
+	for _, l := range links {
+		assert.Equal(t, guid, l.GUID)
+	}
+}
+
+// TestSyncEmailLinks_StaleGUIDLinkDroppedManualKept: once the email no
+// longer resolves to an account, its email-sourced guid link goes; a manual
+// guid link stays.
+func TestSyncEmailLinks_StaleGUIDLinkDroppedManualKept(t *testing.T) {
+	pool := pgtest.Open(t)
+	q := sqlcdb.New(pool)
+	ctx := context.Background()
+	store := NewPGStore(pool)
+	email := uniqueUsername("staleguid") + "@example.com"
+	emailGUID, manualGUID := newGUID(), newGUID()
+	emailLeague, emailTeam := seedLeagueTeam(t, pool, "By Email")
+	seedManagerGUID(t, pool, emailLeague, emailTeam, 1, emailGUID, email)
+	manualLeague, manualTeam := seedLeagueTeam(t, pool, "By Hand")
+	seedManagerGUID(t, pool, manualLeague, manualTeam, 1, manualGUID, "")
+	user := insertUser(t, pool, "staleguid")
+	_, err := store.Link(ctx, user, manualLeague, manualTeam)
+	require.NoError(t, err)
+	require.NoError(t, SyncEmailLinks(ctx, q, user, email))
+	links, err := store.ListUserTeams(ctx, user, nil)
+	require.NoError(t, err)
+	require.Len(t, links, 2)
+
+	require.NoError(t, SyncEmailLinks(ctx, q, user, uniqueUsername("someoneelse")+"@example.com"))
+	links, err = store.ListUserTeams(ctx, user, nil)
+	require.NoError(t, err)
+	require.Len(t, links, 1)
+	assert.Equal(t, manualGUID, links[0].GUID)
+	assert.Equal(t, SourceManual, links[0].Source)
+}
+
+// countUserTeamLinks counts userID's app_user_yahoo_teams rows: team links
+// only, including those ListUserTeams hides behind a guid link.
+func countUserTeamLinks(t *testing.T, pool *pgxpool.Pool, userID pgtype.UUID) int {
+	t.Helper()
+	var n int
+	require.NoError(t, pool.QueryRow(context.Background(),
+		`SELECT count(*) FROM app_user_yahoo_teams WHERE user_id = $1`, userID).Scan(&n))
+	return n
 }

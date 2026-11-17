@@ -37,7 +37,7 @@ func cmdUserLinkTeam() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "link-team <username> <league id> <team id>",
 		Short:   "Link a user to a Yahoo team by hand",
-		Long:    `Link a user to a Yahoo team, for a user whose Yahoo email differs from their login email. Promotes an existing email-sourced link for the same team to manual, so a later email resync never removes it.`,
+		Long:    `Link a user to a Yahoo team, for a user whose Yahoo email differs from their login email. When every manager of the team resolves to one Yahoo account (guid), the account is linked, so the user also gets its teams of every other season, including seasons imported later; otherwise (no manager, a hidden guid with no earlier season to recover it from, a co-managed team) the team alone is linked. Promotes an existing email-sourced link to manual, so a later email resync never removes it.`,
 		Args:    cobra.ExactArgs(3),
 		PreRunE: bindFlagsPreRunE(userTeamLinkFlagGroups...),
 		RunE:    runUserLinkTeam,
@@ -66,6 +66,11 @@ func runUserLinkTeam(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
+	if link.GUID != "" {
+		log.Info().Str("username", user.Username).Int32("league_id", link.LeagueID).Int32("team_id", link.TeamID).
+			Str("guid", link.GUID).Msg("linked user to the Yahoo account managing the team")
+		return nil
+	}
 	log.Info().Str("username", user.Username).Int32("league_id", link.LeagueID).Int32("team_id", link.TeamID).
 		Msg("linked user to Yahoo team")
 	return nil
@@ -75,7 +80,7 @@ func cmdUserUnlinkTeam() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "unlink-team <username> <league id> <team id>",
 		Short:   "Remove a user's link to a Yahoo team",
-		Long:    `Remove a user's link to a Yahoo team, whether it was made by email match or by hand. Refuses a link, of either source, whose login email still matches it: fix the Yahoo manager's email instead, since a resync would just recreate the link.`,
+		Long:    `Remove every link through which a user reaches a Yahoo team, whether made by email match or by hand: the team link, and the links to the Yahoo accounts (guids) managing it, which also removes those accounts' teams of every other season. Refuses when the login email still matches a manager of the team or one of those accounts: fix the Yahoo manager's email instead, since a resync would just recreate the link.`,
 		Args:    cobra.ExactArgs(3),
 		PreRunE: bindFlagsPreRunE(userTeamLinkFlagGroups...),
 		RunE:    runUserUnlinkTeam,
@@ -104,11 +109,12 @@ func runUserUnlinkTeam(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	if !removed {
+	if !removed.Removed() {
 		return fmt.Errorf("%s has no link to league %d team %d", user.Username, leagueID, teamID)
 	}
 	log.Info().Str("username", user.Username).Int32("league_id", leagueID).Int32("team_id", teamID).
-		Msg("removed user's link to Yahoo team")
+		Bool("team_link", removed.Team).Strs("guids", removed.GUIDs).
+		Msg("removed user's links to Yahoo team")
 	return nil
 }
 
@@ -200,9 +206,10 @@ func printUserTeamLinks(w io.Writer, links []yahoolink.Link, username string) er
 		return err
 	}
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(tw, "LEAGUE_ID\tTEAM_ID\tTEAM_NAME\tSOURCE\tLINKED_AT")
+	fmt.Fprintln(tw, "LEAGUE_ID\tTEAM_ID\tTEAM_NAME\tGUID\tSOURCE\tLINKED_AT")
 	for _, l := range links {
-		fmt.Fprintf(tw, "%d\t%d\t%s\t%s\t%s\n", l.LeagueID, l.TeamID, l.TeamName, l.Source, l.LinkedAt.Format("2006-01-02"))
+		fmt.Fprintf(tw, "%d\t%d\t%s\t%s\t%s\t%s\n",
+			l.LeagueID, l.TeamID, l.TeamName, linkGUID(l), l.Source, l.LinkedAt.Format("2006-01-02"))
 	}
 	return tw.Flush()
 }
@@ -213,10 +220,23 @@ func printInstanceTeamLinks(w io.Writer, links []yahoolink.InstanceLink) error {
 		return err
 	}
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(tw, "USERNAME\tLEAGUE_ID\tTEAM_ID\tTEAM_NAME\tSOURCE\tLINKED_AT")
+	fmt.Fprintln(tw, "USERNAME\tLEAGUE_ID\tTEAM_ID\tTEAM_NAME\tGUID\tSOURCE\tLINKED_AT")
 	for _, l := range links {
-		fmt.Fprintf(tw, "%s\t%d\t%d\t%s\t%s\t%s\n",
-			l.Username, l.Link.LeagueID, l.Link.TeamID, l.Link.TeamName, l.Link.Source, l.Link.LinkedAt.Format("2006-01-02"))
+		fmt.Fprintf(tw, "%s\t%d\t%d\t%s\t%s\t%s\t%s\n",
+			l.Username, l.Link.LeagueID, l.Link.TeamID, l.Link.TeamName, linkGUID(l.Link), l.Link.Source,
+			l.Link.LinkedAt.Format("2006-01-02"))
 	}
 	return tw.Flush()
+}
+
+// noGUID fills the GUID column of a team reached through a team link.
+const noGUID = "-"
+
+// linkGUID is the GUID column of l: the Yahoo account it comes through, or
+// noGUID for a team link.
+func linkGUID(l yahoolink.Link) string {
+	if l.GUID == "" {
+		return noGUID
+	}
+	return l.GUID
 }
