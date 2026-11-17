@@ -263,7 +263,8 @@ func TestPGStore_UnlinkRemovesAGUIDOnlyLink(t *testing.T) {
 
 // TestPGStore_UnlinkRemovesBothAccountsOfACoManagedTeam: a co-managed team
 // whose two accounts the user both holds unlinks both, reported sorted,
-// with each account's other-season team.
+// with each account's other-season team; another user holding one of the
+// accounts keeps it.
 func TestPGStore_UnlinkRemovesBothAccountsOfACoManagedTeam(t *testing.T) {
 	pool := pgtest.Open(t)
 	ctx := context.Background()
@@ -277,13 +278,20 @@ func TestPGStore_UnlinkRemovesBothAccountsOfACoManagedTeam(t *testing.T) {
 		other, otherTeam := seedLeagueTeamInSeason(t, pool, fmt.Sprintf("Two Accounts Other %d", i), "Vintage", 2025)
 		seedManagerGUID(t, pool, other, otherTeam, 1, guid, "")
 	}
-	for _, guid := range []string{guids[1], guids[0]} {
-		_, err := pool.Exec(ctx, `INSERT INTO app_user_yahoo_managers (user_id, guid, source) VALUES ($1, $2, 'manual')`, user, guid)
+	bystander := insertUser(t, pool, "unlink-two-accounts-bystander")
+	for _, held := range []struct {
+		user pgtype.UUID
+		guid string
+	}{{user, guids[1]}, {user, guids[0]}, {bystander, guids[0]}} {
+		_, err := pool.Exec(ctx, `INSERT INTO app_user_yahoo_managers (user_id, guid, source) VALUES ($1, $2, 'manual')`, held.user, held.guid)
 		require.NoError(t, err)
 	}
 	links, err := store.ListUserTeams(ctx, user, nil)
 	require.NoError(t, err)
 	require.Len(t, links, 3, "the team and each account's other-season team")
+	bystanderLinks, err := store.ListUserTeams(ctx, bystander, nil)
+	require.NoError(t, err)
+	require.Len(t, bystanderLinks, 2, "the team and the first account's other-season team")
 
 	removed, err := store.Unlink(ctx, user, "", league, team)
 	require.NoError(t, err)
@@ -293,6 +301,13 @@ func TestPGStore_UnlinkRemovesBothAccountsOfACoManagedTeam(t *testing.T) {
 	links, err = store.ListUserTeams(ctx, user, nil)
 	require.NoError(t, err)
 	assert.Empty(t, links, "both accounts' other-season teams went with them")
+
+	afterLinks, err := store.ListUserTeams(ctx, bystander, nil)
+	require.NoError(t, err)
+	assert.Equal(t, bystanderLinks, afterLinks, "another user's guid link survives the unlink")
+	for _, link := range afterLinks {
+		assert.Equal(t, guids[0], link.GUID)
+	}
 }
 
 // TestPGStore_UnlinkRefusesATeamTheEmailsAccountReaches: a team link is
