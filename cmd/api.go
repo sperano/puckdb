@@ -30,6 +30,7 @@ import (
 	"github.com/sperano/puckdb/internal/httpx"
 	"github.com/sperano/puckdb/internal/llm"
 	"github.com/sperano/puckdb/internal/maurice"
+	"github.com/sperano/puckdb/internal/mauricereport"
 	"github.com/sperano/puckdb/internal/metrics"
 	"github.com/sperano/puckdb/internal/sqlcdb"
 	"github.com/sperano/puckdb/internal/yahoolink"
@@ -62,6 +63,7 @@ var apiFlagGroups = []*config.FlagGroup{
 	&config.MauriceFlags,
 	&config.PostgresFlags,
 	&config.AdminAuthFlags,
+	&config.MauriceReportingFlags,
 	&config.AppSessionFlags,
 	&config.YahooSeasonsFlags,
 	&config.DraftAPIFlags,
@@ -86,11 +88,19 @@ func cmdAPI() *cobra.Command {
 				return fmt.Errorf("open database pool: %w", err)
 			}
 			defer pool.Close()
-			// Before any other client: a missing instance name or a bad
-			// login provider fails fast.
+			// Before any other client: a missing instance name, a bad
+			// login provider or reporting it cannot authorize fails fast.
 			sessions, err := newAppSessions(pool)
 			if err != nil {
 				return err
+			}
+			auth := apiAuth{
+				yahoo:     yahooAuthFrom(viper.GetViper()),
+				admin:     adminAuthFrom(viper.GetViper()),
+				reporting: mauriceReportingFrom(viper.GetViper()),
+			}
+			if err := auth.reporting.Validate(); err != nil {
+				return fmt.Errorf("--%s: %w", config.FlagMauriceReportingEnabled, err)
 			}
 
 			// the oauth2 token for yahoo authentication is cached in redis
@@ -116,7 +126,6 @@ func cmdAPI() *cobra.Command {
 				return err
 			}
 			defer closeDraftBoard(draftBoard)
-			auth := apiAuth{yahoo: yahooAuthFrom(viper.GetViper()), admin: adminAuthFrom(viper.GetViper())}
 			resolver := &graph.Resolver{
 				TemporalClient: temporalClient,
 				RedisClient:    redisClient,
@@ -126,6 +135,8 @@ func cmdAPI() *cobra.Command {
 				DraftBoard:     draftBoard,
 				PublicURL:      auth.yahoo.PublicURL,
 				YahooSeasons:   config.GetYahooSeasonsConfig,
+				// Gated per field by @mauriceReporting.
+				MauriceReporting: mauricereport.NewPGStore(pool),
 			}
 
 			// Initialize Maurice AI chat
@@ -266,10 +277,11 @@ func newAppSessions(pool *pgxpool.Pool) (appSessions, error) {
 }
 
 // apiAuth is how the API server authenticates to Yahoo and authorizes
-// admin GraphQL operations.
+// admin and reporting GraphQL operations.
 type apiAuth struct {
-	yahoo httpx.YahooAuth
-	admin graph.AdminAuth
+	yahoo     httpx.YahooAuth
+	admin     graph.AdminAuth
+	reporting graph.ReportingAuth
 }
 
 func setupAPIRouter(redisClient *redis.Client, resolver *graph.Resolver, sessions appSessions, auth apiAuth) *chi.Mux {
@@ -293,7 +305,7 @@ func setupAPIRouter(redisClient *redis.Client, resolver *graph.Resolver, session
 	// GraphQL
 	r.Route(graphQLPath, func(r chi.Router) {
 		r.Get("/", playgroundHandler().ServeHTTP)
-		r.With(sessions.resolve).Post("/query", graphqlHandler(resolver, auth.admin).ServeHTTP)
+		r.With(sessions.resolve).Post("/query", graphqlHandler(resolver, auth).ServeHTTP)
 	})
 	// Yahoo Oauth2
 	r.Route("/yahoo", func(r chi.Router) {
@@ -304,10 +316,10 @@ func setupAPIRouter(redisClient *redis.Client, resolver *graph.Resolver, session
 	return r
 }
 
-func graphqlHandler(resolver *graph.Resolver, admin graph.AdminAuth) http.Handler {
+func graphqlHandler(resolver *graph.Resolver, auth apiAuth) http.Handler {
 	server := handler.New(generated.NewExecutableSchema(generated.Config{
 		Resolvers:  resolver,
-		Directives: generated.DirectiveRoot{Admin: graph.NewAdminDirective(admin)},
+		Directives: graph.NewDirectiveRoot(auth.admin, auth.reporting),
 	}))
 	server.AddTransport(transport.Options{})
 	server.AddTransport(transport.GET{})

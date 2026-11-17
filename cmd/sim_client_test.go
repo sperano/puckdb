@@ -150,7 +150,7 @@ func TestGraphQLClient_SimFeedsOnOlderServer(t *testing.T) {
 // recognizes, whatever status and encoding gqlgen uses for it.
 func TestSimFieldError_RealHandlerUnknownField(t *testing.T) {
 	t.Parallel()
-	srv := httptest.NewServer(graphqlHandler(&graph.Resolver{}, graph.AdminAuth{}))
+	srv := httptest.NewServer(graphqlHandler(&graph.Resolver{}, apiAuth{}))
 	t.Cleanup(srv.Close)
 	c := newClientForTestServer(srv)
 	const field = "simFieldThisServerLacks"

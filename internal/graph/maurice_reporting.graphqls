@@ -1,0 +1,146 @@
+# Maurice reporting — private, read-only admin browsing of every instance's
+# users and conversations (internal/mauricereport). Contract on wiki
+# puckdb/maurice-reporting-api.md.
+#
+# Every field carries @admin and @mauriceReporting. @mauriceReporting also
+# requires --maurice-reporting-enabled, an Authentik instance and the
+# --admin-group group in X-authentik-groups with an X-authentik-uid identity;
+# the X-Admin-Token that @admin accepts never authorizes it.
+#
+# Pagination: limit defaults to 50 and must be 1..200 (out of range is an
+# error, not clamped); pass a page's nextCursor as cursor for the next page.
+# nextCursor is null on the last page; an empty list is an empty page, not
+# an error. A cursor is opaque and only valid for the list that issued it
+# (another list's, a malformed or an edited one is "invalid cursor"). Lists
+# page by immutable keys, so rows never move between pages; a row inserted
+# before the cursor's position appears on no page of that pass.
+
+directive @mauriceReporting on FIELD_DEFINITION
+
+"""A stored turn status; unlike MauriceTurnStatus, CANCELLED is its own value."""
+enum MauriceReportingTurnStatus {
+	RUNNING
+	SUCCEEDED
+	FAILED
+	CANCELLED
+}
+
+"""An API instance with at least one user."""
+type MauriceReportingInstance {
+	name: String!
+	userCount: Int!
+}
+
+type MauriceReportingInstancePage {
+	"""By name."""
+	items: [MauriceReportingInstance!]!
+	nextCursor: String
+}
+
+"""A user's profile metadata on one instance."""
+type MauriceReportingUser {
+	id: String!
+	instance: String!
+	"""authentik or cloudflare."""
+	authProvider: String!
+	username: String!
+	displayName: String
+	email: String
+	firstSeenAt: Time!
+	profileUpdatedAt: Time!
+	disabledAt: Time
+}
+
+type MauriceReportingUserPage {
+	"""Newest firstSeenAt first, ties by id."""
+	items: [MauriceReportingUser!]!
+	nextCursor: String
+}
+
+"""Number of a conversation's stored turns per status."""
+type MauriceReportingTurnCounts {
+	total: Int!
+	running: Int!
+	succeeded: Int!
+	failed: Int!
+	cancelled: Int!
+}
+
+type MauriceReportingModel {
+	provider: String!
+	model: String!
+}
+
+"""A conversation's metadata: never its messages, prompts or tool payloads."""
+type MauriceReportingConversation {
+	id: String!
+	instance: String!
+	userId: String!
+	username: String!
+	title: String
+	createdAt: Time!
+	updatedAt: Time!
+	"""Set when its owner deleted it (hidden from them, kept here)."""
+	deletedAt: Time
+	"""Status of its latest turn (highest turn number); null without turns."""
+	status: MauriceReportingTurnStatus
+	lastTurnStartedAt: Time
+	turns: MauriceReportingTurnCounts!
+	"""Distinct provider/model pairs of its turns' LLM calls, by provider then model; title generation excluded."""
+	models: [MauriceReportingModel!]!
+}
+
+type MauriceReportingConversationPage {
+	"""Newest createdAt first, ties by id."""
+	items: [MauriceReportingConversation!]!
+	nextCursor: String
+}
+
+"""
+Selects conversations. Every field set must hold (AND). The turn filters
+(from, to, statuses, provider, model, toolName) must all hold for one and the
+same turn of the conversation. Title generation calls have no turn, so they
+never match provider or model.
+"""
+input MauriceReportingConversationFilter {
+	"""The owner's instance (required, exact)."""
+	instance: String!
+	"""One user of that instance; any other user ID is an error ("user not found in instance")."""
+	userId: String
+	"""First UTC day (YYYY-MM-DD, inclusive): the turn started at or after its 00:00 UTC."""
+	from: String
+	"""Last UTC day (YYYY-MM-DD, inclusive): the turn started before the next day's 00:00 UTC. Not before from."""
+	to: String
+	"""The turn has any of these statuses."""
+	statuses: [MauriceReportingTurnStatus!]
+	"""The turn has an LLM call of this provider (exact, case-sensitive); with model, on the same call."""
+	provider: String
+	"""The turn has an LLM call of this model (exact, case-sensitive)."""
+	model: String
+	"""The turn has a tool call of this name (exact)."""
+	toolName: String
+	"""
+	Case-insensitive literal substring (% and _ match themselves; surrounding
+	whitespace trimmed, blank = no search, at most 200 characters) of the
+	title or of a retained user or assistant message of any turn, failed and
+	cancelled ones included. Tool results, system messages, tool arguments
+	and provider inputs are never searched.
+	"""
+	search: String
+	"""Also return conversations their owner deleted (default false)."""
+	includeDeleted: Boolean
+}
+
+extend type Query {
+	"""Instances with users."""
+	mauriceReportingInstances(limit: Int, cursor: String): MauriceReportingInstancePage! @admin @mauriceReporting
+	"""Users of one instance; an instance without users, known or not, is an empty page."""
+	mauriceReportingUsers(instance: String!, limit: Int, cursor: String): MauriceReportingUserPage! @admin @mauriceReporting
+	"""Conversations filter selects."""
+	mauriceReportingConversations(filter: MauriceReportingConversationFilter!, limit: Int, cursor: String): MauriceReportingConversationPage! @admin @mauriceReporting
+	"""
+	One conversation's metadata; null when its owner is not of that instance,
+	when it does not exist, or when it is deleted and includeDeleted is not true.
+	"""
+	mauriceReportingConversation(instance: String!, id: String!, includeDeleted: Boolean): MauriceReportingConversation @admin @mauriceReporting
+}

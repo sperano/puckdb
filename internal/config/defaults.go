@@ -286,6 +286,9 @@ const (
 	// DefaultAdminGroup is the Authentik group whose members are granted
 	// access to the @admin-guarded GraphQL mutations.
 	DefaultAdminGroup = "puckdb-admins"
+	// DefaultMauriceReportingEnabled leaves the Maurice reporting fields
+	// off.
+	DefaultMauriceReportingEnabled = false
 )
 
 // Login provider defaults

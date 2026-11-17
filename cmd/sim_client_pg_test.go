@@ -60,7 +60,7 @@ func newSimGraphQLClient(t *testing.T) (*GraphQLClient, *simfixtures.Seeder, sim
 	pool := simfixtures.NewPool(t, simfixtures.NewDatabase(t))
 	seeder := simfixtures.NewSeeder(t, pool)
 	sc := seedSimScenario(seeder)
-	srv := httptest.NewServer(graphqlHandler(&graph.Resolver{Queries: sqlcdb.New(pool)}, graph.AdminAuth{}))
+	srv := httptest.NewServer(graphqlHandler(&graph.Resolver{Queries: sqlcdb.New(pool)}, apiAuth{}))
 	t.Cleanup(srv.Close)
 	return newClientForTestServer(srv), seeder, sc
 }
