@@ -118,6 +118,15 @@ func TestAdminAuthFrom(t *testing.T) {
 	assert.Equal(t, graph.AdminAuth{Group: "ops", Token: "s3cr3t"}, adminAuthFrom(v))
 }
 
+func TestMauriceReportingFrom(t *testing.T) {
+	t.Parallel()
+	groups := []*config.FlagGroup{&config.MauriceReportingFlags, &config.AdminAuthFlags, &config.AppSessionFlags}
+	assert.Equal(t, graph.ReportingAuth{Provider: appuser.ProviderAuthentik, Group: config.DefaultAdminGroup},
+		mauriceReportingFrom(boundViper(t, nil, groups...)), "off by default")
+	v := boundViper(t, []string{"--maurice-reporting-enabled", "--admin-group=ops", "--auth-provider=cloudflare"}, groups...)
+	assert.Equal(t, graph.ReportingAuth{Enabled: true, Provider: appuser.ProviderCloudflare, Group: "ops"}, mauriceReportingFrom(v))
+}
+
 func TestAppAuthFrom(t *testing.T) {
 	t.Parallel()
 	assert.Equal(t, appuser.AuthConfig{Provider: appuser.ProviderAuthentik},

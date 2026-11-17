@@ -8,7 +8,7 @@ import (
 
 // appUserTeamPickerVersion adds the 'self' link source, team deselections
 // and the team offer flag.
-const appUserTeamPickerVersion = 33
+const appUserTeamPickerVersion = 34
 
 // Up accepts a 'self' link and a deselection of a known team only, deleted
 // with its team; down turns every 'self' link into a manual one, drops the
