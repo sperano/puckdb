@@ -25,9 +25,10 @@ func TestResetTeamOfferTarget(t *testing.T) {
 
 	_, err = resetTeamOfferTarget(nil, false)
 	require.ErrorIs(t, err, errResetTeamOfferTarget)
-	assert.EqualError(t, err, "name one user or pass --all-users, not both")
+	assert.EqualError(t, err, "pass a username or --all-users, exactly one of the two")
 	_, err = resetTeamOfferTarget([]string{"alice"}, true)
 	require.ErrorIs(t, err, errResetTeamOfferTarget)
+	assert.EqualError(t, err, "pass a username or --all-users, exactly one of the two")
 
 	_, err = resetTeamOfferTarget([]string{""}, false)
 	require.ErrorIs(t, err, errEmptyUsername, "an empty username never means every user")
@@ -116,4 +117,24 @@ func TestResetTeamOffer_AllUsers(t *testing.T) {
 		assert.False(t, teamOfferSeen(t, pool, u))
 	}
 	assert.True(t, teamOfferSeen(t, pool, elsewhere), "another instance's user keeps the offer seen")
+}
+
+func TestResetTeamOffers_Dispatch(t *testing.T) {
+	pool := pgtest.Open(t)
+	store := yahoolink.NewPGStore(pool)
+	ctx := context.Background()
+	instance := newResetOfferInstance()
+	alice := insertResetOfferUser(t, pool, instance, "alice", true)
+	bob := insertResetOfferUser(t, pool, instance, "bob", true)
+
+	var out bytes.Buffer
+	require.NoError(t, resetTeamOffers(ctx, &out, store, instance, "alice", false))
+	assert.Equal(t, "Reset alice's team offer; it opens again at their next visit.\n", out.String())
+	assert.False(t, teamOfferSeen(t, pool, alice))
+	assert.True(t, teamOfferSeen(t, pool, bob), "without --all-users only the named user is reset")
+
+	out.Reset()
+	require.NoError(t, resetTeamOffers(ctx, &out, store, instance, "", true))
+	assert.Equal(t, fmt.Sprintf("Reset the team offer of 1 user(s) on instance %q.\n", instance), out.String())
+	assert.False(t, teamOfferSeen(t, pool, bob), "--all-users resets every user of the instance")
 }

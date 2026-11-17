@@ -18,7 +18,7 @@ var userResetTeamOfferFlagGroups = slices.Concat(userTeamLinkFlagGroups, []*conf
 
 // errResetTeamOfferTarget is returned when user reset-team-offer gets both
 // or neither of a username and --all-users.
-var errResetTeamOfferTarget = fmt.Errorf("name one user or pass --%s, not both", config.FlagAllUsers)
+var errResetTeamOfferTarget = fmt.Errorf("pass a username or --%s, exactly one of the two", config.FlagAllUsers)
 
 // errEmptyUsername is returned when user reset-team-offer gets an empty
 // username, which names no user.
@@ -48,11 +48,16 @@ func runUserResetTeamOffer(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	defer pool.Close()
-	instance := viper.GetString(config.FlagInstance)
+	return resetTeamOffers(cmd.Context(), cmd.OutOrStdout(), store, viper.GetString(config.FlagInstance), username, all)
+}
+
+// resetTeamOffers resets the team offer of every user of instance with all,
+// else username's, and reports the outcome to w.
+func resetTeamOffers(ctx context.Context, w io.Writer, store *yahoolink.PGStore, instance, username string, all bool) error {
 	if all {
-		return resetInstanceTeamOffers(cmd.Context(), cmd.OutOrStdout(), store, instance)
+		return resetInstanceTeamOffers(ctx, w, store, instance)
 	}
-	return resetTeamOffer(cmd.Context(), cmd.OutOrStdout(), store, instance, username)
+	return resetTeamOffer(ctx, w, store, instance, username)
 }
 
 // resetTeamOfferTarget checks that user reset-team-offer gets exactly one
