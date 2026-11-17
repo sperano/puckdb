@@ -926,6 +926,7 @@ type ComplexityRoot struct {
 		ImportSeasonsResult            func(childComplexity int) int
 		InitializeProgress             func(childComplexity int) int
 		InitializeResult               func(childComplexity int) int
+		LatestNHLDataDate              func(childComplexity int) int
 		MauriceConversation            func(childComplexity int, id string) int
 		MauriceConversations           func(childComplexity int, limit *int) int
 		MauriceDraftBoard              func(childComplexity int, input model.MauriceDraftBoardInput) int
@@ -1228,6 +1229,7 @@ type QueryResolver interface {
 	MauriceConversations(ctx context.Context, limit *int) ([]*model.MauriceConversation, error)
 	MauriceConversation(ctx context.Context, id string) (*model.MauriceConversationDetail, error)
 	MauriceTurn(ctx context.Context, id string) (*model.MauriceTurn, error)
+	LatestNHLDataDate(ctx context.Context) (*string, error)
 	Seasons(ctx context.Context) ([]*model.Season, error)
 	Season(ctx context.Context, id int) (*model.Season, error)
 	Teams(ctx context.Context, season int) ([]*model.Team, error)
@@ -5633,6 +5635,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.Query.InitializeResult(childComplexity), true
 
+	case "Query.latestNHLDataDate":
+		if e.ComplexityRoot.Query.LatestNHLDataDate == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.LatestNHLDataDate(childComplexity), true
 	case "Query.mauriceConversation":
 		if e.ComplexityRoot.Query.MauriceConversation == nil {
 			break
@@ -7074,6 +7082,9 @@ input GameFilter {
 # --- Data Queries ---
 
 extend type Query {
+  """Latest day successfully imported by the NHL sync, or null when no day has been imported."""
+  latestNHLDataDate: String
+
   # Seasons
   seasons: [Season!]!
   season(id: Int!): Season
@@ -28964,6 +28975,29 @@ func (ec *executionContext) fieldContext_Query_mauriceTurn(ctx context.Context, 
 	return fc, nil
 }
 
+func (ec *executionContext) _Query_latestNHLDataDate(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_latestNHLDataDate(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().LatestNHLDataDate(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Query_latestNHLDataDate(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Query", field, true, true, errors.New("field of type String does not have child fields"))
+}
+
 func (ec *executionContext) _Query_seasons(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -41634,6 +41668,25 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_mauriceTurn(ctx, field)
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "latestNHLDataDate":
+			field := field
+
+			innerFunc := func(ctx context.Context, _ *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_latestNHLDataDate(ctx, field)
 				return res
 			}
 

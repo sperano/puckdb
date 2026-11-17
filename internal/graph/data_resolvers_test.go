@@ -134,6 +134,14 @@ func TestDateResolversAcceptValidAndOmittedDates(t *testing.T) {
 	}
 }
 
+func TestLatestNHLDataDateRequiresDatabase(t *testing.T) {
+	t.Parallel()
+
+	got, err := (&Resolver{}).Query().LatestNHLDataDate(context.Background())
+	require.Error(t, err)
+	assert.Nil(t, got)
+}
+
 func TestGamesPreservesValidDateFilters(t *testing.T) {
 	t.Parallel()
 

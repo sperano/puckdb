@@ -277,7 +277,7 @@ Schema lives in `internal/graph/schema.graphqls`. Each long-running workflow fol
 
 **Workflow queries:** for every workflow above, `<name>Result: WorkflowResult!` and `<name>Progress: ProgressReport`. `processPlayers` additionally exposes `processPlayersResultData: ProcessPlayersResultData`.
 
-**Data queries** (in `internal/graph/data.graphqls`): `seasons`, `teams`, `players`, `games`, `standings`, `boxscore`, `skaterGameLog`, `goalieGameLog`, `playerSeasonTotals`, `edgeSkaterStats`, `edgeGoalieStats`, `edgeTeamStats`
+**Data queries** (in `internal/graph/data.graphqls`): `latestNHLDataDate`, `seasons`, `teams`, `players`, `games`, `standings`, `boxscore`, `skaterGameLog`, `goalieGameLog`, `playerSeasonTotals`, `edgeSkaterStats`, `edgeGoalieStats`, `edgeTeamStats`
 
 **Draft rankings** (in `internal/graph/draft.graphqls`, see wiki `puckdb/draft/rankings-api.md`): `draftLeagues`, `draftRankings`, `draftPlayerComparison`, `draftOverrides`; mutations `createDraftOverride`, `resetDraftOverride`.
 
