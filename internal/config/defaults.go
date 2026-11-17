@@ -287,6 +287,9 @@ const (
 	// access to the @admin-guarded GraphQL fields: the admin mutations and,
 	// with reporting enabled, the Maurice reporting queries.
 	DefaultAdminGroup = "puckdb-admins"
+	// DefaultAllUsers makes `user reset-team-offer` reset only the named
+	// user.
+	DefaultAllUsers = false
 	// DefaultMauriceReportingEnabled leaves the Maurice reporting fields
 	// off.
 	DefaultMauriceReportingEnabled = false

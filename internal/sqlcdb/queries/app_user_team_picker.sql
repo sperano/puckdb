@@ -79,3 +79,20 @@ WHERE l.user_id = sqlc.arg(user_id)::uuid AND l.source IN ('self', 'email')
 DELETE FROM app_user_yahoo_team_rejections r
 USING (SELECT unnest(sqlc.arg(league_ids)::integer[]) AS league_id, unnest(sqlc.arg(team_ids)::integer[]) AS team_id) p
 WHERE r.user_id = sqlc.arg(user_id)::uuid AND r.league_id = p.league_id AND r.team_id = p.team_id;
+
+-- name: ResetAppUserTeamOffer :one
+-- Clears the user's team offer flag, so the first-login offer opens again,
+-- and reports whether the user had seen it. No row: no such user. Links
+-- and deselections stay.
+WITH old AS (
+    SELECT id, team_offer_seen_at FROM app_users WHERE id = sqlc.arg(user_id)::uuid FOR NO KEY UPDATE
+)
+UPDATE app_users u SET team_offer_seen_at = NULL
+FROM old WHERE u.id = old.id
+RETURNING (old.team_offer_seen_at IS NOT NULL)::boolean AS was_seen;
+
+-- name: ResetInstanceTeamOffers :execrows
+-- Clears the team offer flag of every user of instance who saw the offer,
+-- returning how many; links and deselections stay.
+UPDATE app_users SET team_offer_seen_at = NULL
+WHERE instance = sqlc.arg(instance)::text AND team_offer_seen_at IS NOT NULL;

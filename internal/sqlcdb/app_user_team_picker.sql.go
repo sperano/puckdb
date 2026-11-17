@@ -228,3 +228,37 @@ func (q *Queries) RejectAppUserYahooTeams(ctx context.Context, arg RejectAppUser
 	_, err := q.db.Exec(ctx, rejectAppUserYahooTeams, arg.LeagueIds, arg.TeamIds, arg.UserID)
 	return err
 }
+
+const resetAppUserTeamOffer = `-- name: ResetAppUserTeamOffer :one
+WITH old AS (
+    SELECT id, team_offer_seen_at FROM app_users WHERE id = $1::uuid FOR NO KEY UPDATE
+)
+UPDATE app_users u SET team_offer_seen_at = NULL
+FROM old WHERE u.id = old.id
+RETURNING (old.team_offer_seen_at IS NOT NULL)::boolean AS was_seen
+`
+
+// Clears the user's team offer flag, so the first-login offer opens again,
+// and reports whether the user had seen it. No row: no such user. Links
+// and deselections stay.
+func (q *Queries) ResetAppUserTeamOffer(ctx context.Context, userID pgtype.UUID) (bool, error) {
+	row := q.db.QueryRow(ctx, resetAppUserTeamOffer, userID)
+	var was_seen bool
+	err := row.Scan(&was_seen)
+	return was_seen, err
+}
+
+const resetInstanceTeamOffers = `-- name: ResetInstanceTeamOffers :execrows
+UPDATE app_users SET team_offer_seen_at = NULL
+WHERE instance = $1::text AND team_offer_seen_at IS NOT NULL
+`
+
+// Clears the team offer flag of every user of instance who saw the offer,
+// returning how many; links and deselections stay.
+func (q *Queries) ResetInstanceTeamOffers(ctx context.Context, instance string) (int64, error) {
+	result, err := q.db.Exec(ctx, resetInstanceTeamOffers, instance)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
