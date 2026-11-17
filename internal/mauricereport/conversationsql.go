@@ -24,24 +24,12 @@ func (a *sqlArgs) add(v any) string {
 // cursor position. Every value is a placeholder.
 func conversationSQL(q conversationQuery, after *cursor, conversationID string, limit int) (string, []any) {
 	var args sqlArgs
-	where := []string{"u.instance = " + args.add(q.instance)}
-	if q.userID != nil {
-		where = append(where, "u.id = "+args.add(q.userID.String())+"::uuid")
-	}
+	where := conversationConds(q, &args)
 	if conversationID != "" {
 		where = append(where, "c.id = "+args.add(conversationID)+"::uuid")
 	}
-	if !q.includeDeleted {
-		where = append(where, "c.deleted_at IS NULL")
-	}
 	if after != nil {
 		where = append(where, "(c.created_at, c.id) < ("+args.add(*after.At)+"::timestamptz, "+args.add(after.ID.String())+"::uuid)")
-	}
-	if q.hasTurnFilter() {
-		where = append(where, turnFilterSQL(q, &args))
-	}
-	if q.searchPattern != "" {
-		where = append(where, searchSQL(args.add(q.searchPattern)))
 	}
 	sql := `
 		WITH page AS (
@@ -82,10 +70,39 @@ func conversationSQL(q conversationQuery, after *cursor, conversationID string, 
 	return sql, args
 }
 
+// conversationConds are the predicates that select a conversation c of
+// owner u under q: the owner scope, deletion, one turn meeting every
+// turn-level filter, and the search. The conversation list and the overview
+// share them, so both include the same conversations.
+func conversationConds(q conversationQuery, args *sqlArgs) []string {
+	where := []string{"u.instance = " + args.add(q.instance)}
+	if q.userID != nil {
+		where = append(where, "u.id = "+args.add(q.userID.String())+"::uuid")
+	}
+	if !q.includeDeleted {
+		where = append(where, "c.deleted_at IS NULL")
+	}
+	if q.hasTurnFilter() {
+		where = append(where, turnFilterSQL(q, args))
+	}
+	if q.searchPattern != "" {
+		where = append(where, searchSQL(args.add(q.searchPattern)))
+	}
+	return where
+}
+
 // turnFilterSQL is the predicate "one turn of the conversation meets every
 // turn-level filter".
 func turnFilterSQL(q conversationQuery, args *sqlArgs) string {
-	conds := []string{"t.conversation_id = c.id"}
+	conds := append([]string{"t.conversation_id = c.id"}, turnConds(q, args)...)
+	return "EXISTS (SELECT 1 FROM maurice_turns t WHERE " + strings.Join(conds, " AND ") + ")"
+}
+
+// turnConds are the turn-level predicates of q over a turn t: its start in
+// the interval, its status, an LLM call of the provider/model and a tool
+// call of the tool name. Empty when q has no turn filter.
+func turnConds(q conversationQuery, args *sqlArgs) []string {
+	var conds []string
 	if q.from != nil {
 		conds = append(conds, "t.started_at >= "+args.add(*q.from))
 	}
@@ -109,7 +126,7 @@ func turnFilterSQL(q conversationQuery, args *sqlArgs) string {
 		conds = append(conds, "EXISTS (SELECT 1 FROM maurice_tool_calls tc WHERE tc.turn_id = t.id AND tc.tool_name = "+
 			args.add(q.toolName)+")")
 	}
-	return "EXISTS (SELECT 1 FROM maurice_turns t WHERE " + strings.Join(conds, " AND ") + ")"
+	return conds
 }
 
 // searchSQL is the predicate "the title or a retained user or assistant

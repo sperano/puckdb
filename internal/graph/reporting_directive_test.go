@@ -106,6 +106,7 @@ func TestReportingFieldsCarryBothDirectives(t *testing.T) {
 	assert.ElementsMatch(t, []string{
 		"Query.mauriceReportingInstances", "Query.mauriceReportingUsers",
 		"Query.mauriceReportingConversations", "Query.mauriceReportingConversation",
+		"Query.mauriceReportingOverview", "Query.mauriceReportingUserActivity",
 	}, reporting)
 }
 
