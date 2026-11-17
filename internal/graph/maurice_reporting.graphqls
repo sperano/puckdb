@@ -58,13 +58,24 @@ type MauriceReportingUserPage {
 	nextCursor: String
 }
 
-"""Number of a conversation's stored turns per status."""
+"""
+Number of stored turns per status. A succeeded turn produced an answer, which
+says nothing of its quality.
+"""
 type MauriceReportingTurnCounts {
 	total: Int!
 	running: Int!
 	succeeded: Int!
 	failed: Int!
 	cancelled: Int!
+	"""Finished turns (succeeded + failed + cancelled): the denominator of every rate; running turns have no outcome yet."""
+	terminal: Int!
+	"""succeeded / terminal; null when terminal is 0."""
+	succeededRate: Float
+	"""failed / terminal; null when terminal is 0."""
+	failedRate: Float
+	"""cancelled / terminal; null when terminal is 0."""
+	cancelledRate: Float
 }
 
 type MauriceReportingModel {
@@ -100,8 +111,9 @@ type MauriceReportingConversationPage {
 """
 Selects conversations. Every field set must hold (AND). The turn filters
 (from, to, statuses, provider, model, toolName) must all hold for one and the
-same turn of the conversation. Title generation calls have no turn, so they
-never match provider or model.
+same turn of the conversation. Title generation calls have no turn, so a turn
+filter never matches them (a conversation's models exclude them); the overview
+counts in-interval title calls by their own provider and model.
 """
 input MauriceReportingConversationFilter {
 	"""The owner's instance (required, exact)."""

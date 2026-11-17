@@ -1,0 +1,131 @@
+# Maurice reporting overview — usage and execution outcome aggregates over
+# the conversations a MauriceReportingConversationFilter selects
+# (internal/mauricereport). Same gate, instance scope, filter and paging as
+# the browsing fields in maurice_reporting.graphqls; contract on wiki
+# puckdb/maurice-reporting-api.md ("Overview").
+#
+# What a filter includes, for the browser and the overview alike:
+#   - conversations: exactly those mauriceReportingConversations returns;
+#   - turns: the turns of those conversations that meet every turn filter
+#     (from/to on startedAt, statuses, provider/model, toolName); every turn
+#     of them when no turn filter is set;
+#   - LLM calls: every call of an included turn (whatever it started), plus
+#     each title generation call of an included conversation that started in
+#     [from, to] and matches provider/model; with statuses or toolName set,
+#     no title call (it has no turn to meet them).
+# Search, userId and includeDeleted only select conversations. The
+# aggregates read only these rows: never app_user_usage, which is lifetime,
+# includes deleted conversations and turns unreported tokens into zeros.
+#
+# A succeeded turn produced an answer: it says nothing of the answer's
+# quality.
+
+"""
+One token category over a set of LLM calls. A provider that does not report
+a count leaves it unknown, which is not zero.
+"""
+type MauriceReportingTokenCount {
+	"""
+	Sum over the calls that reported it: exact when complete, a lower bound
+	otherwise; null (unknown) when calls ran and none reported it; 0 when no
+	call ran.
+	"""
+	total: Int64
+	"""Calls that reported the count."""
+	reportedCalls: Int64!
+	"""Calls that did not report it."""
+	unreportedCalls: Int64!
+	"""Every call reported the count (unreportedCalls is 0)."""
+	complete: Boolean!
+}
+
+"""Durations in seconds; every statistic is null when count is 0."""
+type MauriceReportingLatency {
+	count: Int64!
+	meanSeconds: Float
+	"""Median, interpolated."""
+	p50Seconds: Float
+	"""95th percentile, interpolated."""
+	p95Seconds: Float
+	maxSeconds: Float
+}
+
+"""LLM calls: each token category kept apart (a cache read is not an input token)."""
+type MauriceReportingUsage {
+	calls: Int64!
+	failedCalls: Int64!
+	inputTokens: MauriceReportingTokenCount!
+	outputTokens: MauriceReportingTokenCount!
+	cacheCreationInputTokens: MauriceReportingTokenCount!
+	cacheReadInputTokens: MauriceReportingTokenCount!
+	"""Duration (completedAt - startedAt) of the succeeded calls."""
+	callLatency: MauriceReportingLatency!
+}
+
+"""The included conversations, turns and LLM calls."""
+type MauriceReportingActivity {
+	conversations: Int64!
+	"""Included turns per stored status, with the outcome rates."""
+	turns: MauriceReportingTurnCounts!
+	"""Earliest included turn's startedAt; null without turns."""
+	firstTurnStartedAt: Time
+	"""Latest included turn's startedAt; null without turns."""
+	lastTurnStartedAt: Time
+	"""Duration (completedAt - startedAt) of the included succeeded turns."""
+	turnLatency: MauriceReportingLatency!
+	"""Every included LLM call: the turns' calls and the title generation calls."""
+	usage: MauriceReportingUsage!
+	"""The title generation part of usage (calls with no turn)."""
+	titleGeneration: MauriceReportingUsage!
+	"""
+	Time Maurice spent processing prompts, in seconds: per conversation, the
+	length of the union of its included finished turns' and title generation
+	calls' [startedAt, completedAt] intervals (so an overlap counts once, and a
+	turn's calls are inside it), summed over conversations. Running turns add
+	nothing. Server processing time, not time anyone spent in the UI.
+	"""
+	processingSeconds: Float!
+}
+
+"""The included LLM calls of one provider and model, title generation included."""
+type MauriceReportingModelUsage {
+	provider: String!
+	model: String!
+	"""Included turns with a call of this model; a turn calling two models counts under both."""
+	turns: Int64!
+	usage: MauriceReportingUsage!
+}
+
+type MauriceReportingOverview {
+	"""Users of the scope (the instance, or the filter's one user), active or not."""
+	userCount: Int64!
+	"""Users with at least one included turn."""
+	activeUserCount: Int64!
+	activity: MauriceReportingActivity!
+	"""By provider then model; the rows' usage adds up to activity.usage."""
+	models: [MauriceReportingModelUsage!]!
+}
+
+"""A user of the scope and the activity of theirs the filter includes."""
+type MauriceReportingUserActivity {
+	user: MauriceReportingUser!
+	"""The user has at least one included turn."""
+	active: Boolean!
+	activity: MauriceReportingActivity!
+}
+
+type MauriceReportingUserActivityPage {
+	"""Every user of the scope, active or not: newest firstSeenAt first, ties by id."""
+	items: [MauriceReportingUserActivity!]!
+	nextCursor: String
+}
+
+extend type Query {
+	"""Aggregates of what filter includes, read from one snapshot."""
+	mauriceReportingOverview(filter: MauriceReportingConversationFilter!): MauriceReportingOverview! @admin @mauriceReporting
+	"""
+	The scope's users, each with the activity of theirs filter includes. The
+	cursor is bound to the filter, like the conversation list's.
+	"""
+	mauriceReportingUserActivity(filter: MauriceReportingConversationFilter!, limit: Int, cursor: String): MauriceReportingUserActivityPage! @admin @mauriceReporting
+}

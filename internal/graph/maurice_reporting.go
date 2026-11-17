@@ -18,6 +18,8 @@ type MauriceReportingReader interface {
 	Users(ctx context.Context, instance string, page mauricereport.PageRequest) (mauricereport.UserPage, error)
 	Conversations(ctx context.Context, filter mauricereport.ConversationFilter, page mauricereport.PageRequest) (mauricereport.ConversationPage, error)
 	Conversation(ctx context.Context, instance, id string, includeDeleted bool) (mauricereport.Conversation, bool, error)
+	Overview(ctx context.Context, filter mauricereport.ConversationFilter) (mauricereport.Overview, error)
+	UserActivity(ctx context.Context, filter mauricereport.ConversationFilter, page mauricereport.PageRequest) (mauricereport.UserActivityPage, error)
 }
 
 // errMauriceReportingNotConfigured is returned when the resolver has no
@@ -103,13 +105,17 @@ func (r *Resolver) mauriceReportingUsers(ctx context.Context, instance string, l
 		NextCursor: optionalString(result.NextCursor),
 	}
 	for i, u := range result.Users {
-		out.Items[i] = &model.MauriceReportingUser{
-			ID: u.ID, Instance: u.Instance, AuthProvider: u.AuthProvider, Username: u.Username,
-			DisplayName: u.DisplayName, Email: u.Email, FirstSeenAt: u.FirstSeenAt,
-			ProfileUpdatedAt: u.ProfileUpdatedAt, DisabledAt: u.DisabledAt,
-		}
+		out.Items[i] = reportingUser(u)
 	}
 	return out, nil
+}
+
+func reportingUser(u mauricereport.User) *model.MauriceReportingUser {
+	return &model.MauriceReportingUser{
+		ID: u.ID, Instance: u.Instance, AuthProvider: u.AuthProvider, Username: u.Username,
+		DisplayName: u.DisplayName, Email: u.Email, FirstSeenAt: u.FirstSeenAt,
+		ProfileUpdatedAt: u.ProfileUpdatedAt, DisabledAt: u.DisabledAt,
+	}
 }
 
 func (r *Resolver) mauriceReportingConversations(ctx context.Context, filter model.MauriceReportingConversationFilter, limit *int, cursor *string) (*model.MauriceReportingConversationPage, error) {
@@ -173,11 +179,8 @@ func reportingConversation(c mauricereport.Conversation) *model.MauriceReporting
 		ID: c.ID, Instance: c.Instance, UserID: c.UserID, Username: c.Username, Title: c.Title,
 		CreatedAt: c.CreatedAt, UpdatedAt: c.UpdatedAt, DeletedAt: c.DeletedAt,
 		LastTurnStartedAt: c.LastTurnStartedAt,
-		Turns: &model.MauriceReportingTurnCounts{
-			Total: int(c.Turns.Total()), Running: int(c.Turns.Running), Succeeded: int(c.Turns.Succeeded),
-			Failed: int(c.Turns.Failed), Cancelled: int(c.Turns.Cancelled),
-		},
-		Models: make([]*model.MauriceReportingModel, len(c.Models)),
+		Turns:             reportingTurnCounts(c.Turns),
+		Models:            make([]*model.MauriceReportingModel, len(c.Models)),
 	}
 	if c.Status != nil {
 		status := model.MauriceReportingTurnStatus(strings.ToUpper(string(*c.Status)))
@@ -187,4 +190,14 @@ func reportingConversation(c mauricereport.Conversation) *model.MauriceReporting
 		out.Models[i] = &model.MauriceReportingModel{Provider: m.Provider, Model: m.Model}
 	}
 	return out
+}
+
+// reportingTurnCounts converts turn counts and derives the outcome rates,
+// over the terminal turns.
+func reportingTurnCounts(c mauricereport.TurnCounts) *model.MauriceReportingTurnCounts {
+	return &model.MauriceReportingTurnCounts{
+		Total: int(c.Total()), Running: int(c.Running), Succeeded: int(c.Succeeded),
+		Failed: int(c.Failed), Cancelled: int(c.Cancelled), Terminal: int(c.Terminal()),
+		SucceededRate: c.Rate(c.Succeeded), FailedRate: c.Rate(c.Failed), CancelledRate: c.Rate(c.Cancelled),
+	}
 }

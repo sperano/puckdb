@@ -69,11 +69,23 @@ func (r recordingReader) Conversation(context.Context, string, string, bool) (ma
 	return mauricereport.Conversation{}, false, nil
 }
 
+func (r recordingReader) Overview(context.Context, mauricereport.ConversationFilter) (mauricereport.Overview, error) {
+	r.t.Error("Overview read")
+	return mauricereport.Overview{}, nil
+}
+
+func (r recordingReader) UserActivity(context.Context, mauricereport.ConversationFilter, mauricereport.PageRequest) (mauricereport.UserActivityPage, error) {
+	r.t.Error("UserActivity read")
+	return mauricereport.UserActivityPage{}, nil
+}
+
 const reportingFieldsQuery = `{
 	mauriceReportingInstances { items { name } }
 	mauriceReportingUsers(instance: "maurice") { items { id } }
 	mauriceReportingConversations(filter: {instance: "maurice"}) { items { id } }
 	mauriceReportingConversation(instance: "maurice", id: "0b5f3a52-8a4b-4a52-9d55-2a6fb3e6a001") { id }
+	mauriceReportingOverview(filter: {instance: "maurice"}) { userCount }
+	mauriceReportingUserActivity(filter: {instance: "maurice"}) { items { active } }
 }`
 
 func TestReportingFieldsRefuseUnauthorizedRequests(t *testing.T) {

@@ -75,31 +75,9 @@ func (s *PGStore) Users(ctx context.Context, instance string, page PageRequest) 
 	if err != nil {
 		return UserPage{}, err
 	}
-	var afterAt *time.Time
-	var afterID *string
-	if after != nil {
-		id := after.ID.String()
-		afterAt, afterID = after.At, &id
-	}
-	rows, err := s.pool.Query(ctx, `
-		SELECT id::text, instance, auth_provider, username, display_name, email,
-		       first_seen_at, profile_updated_at, disabled_at
-		FROM app_users
-		WHERE instance = $1
-		  AND ($2::timestamptz IS NULL OR (first_seen_at, id) < ($2, $3::uuid))
-		ORDER BY first_seen_at DESC, id DESC
-		LIMIT $4`, instance, afterAt, afterID, limit+1)
+	users, err := listUsers(ctx, s.pool, instance, nil, after, limit+1)
 	if err != nil {
-		return UserPage{}, fmt.Errorf("list users: %w", err)
-	}
-	users, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (User, error) {
-		var u User
-		err := row.Scan(&u.ID, &u.Instance, &u.AuthProvider, &u.Username, &u.DisplayName,
-			&u.Email, &u.FirstSeenAt, &u.ProfileUpdatedAt, &u.DisabledAt)
-		return u, err
-	})
-	if err != nil {
-		return UserPage{}, fmt.Errorf("list users: %w", err)
+		return UserPage{}, err
 	}
 	users, more := trimPage(users, limit)
 	result := UserPage{Users: users}
@@ -127,7 +105,7 @@ func (s *PGStore) Conversations(ctx context.Context, filter ConversationFilter, 
 	if err != nil {
 		return ConversationPage{}, err
 	}
-	if err := s.checkUser(ctx, q); err != nil {
+	if err := checkUser(ctx, s.pool, q); err != nil {
 		return ConversationPage{}, err
 	}
 	sql, args := conversationSQL(q, after, "", limit+1)
@@ -168,13 +146,52 @@ func (s *PGStore) Conversation(ctx context.Context, instance, id string, include
 	return conversations[0], true, nil
 }
 
+// querier is a pool or a transaction.
+type querier interface {
+	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
+	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
+}
+
+// listUsers reads up to limit users of instance (only userID when set)
+// after the cursor position, newest first_seen_at first, ties by ID.
+func listUsers(ctx context.Context, db querier, instance string, userID *string, after *cursor, limit int) ([]User, error) {
+	var afterAt *time.Time
+	var afterID *string
+	if after != nil {
+		id := after.ID.String()
+		afterAt, afterID = after.At, &id
+	}
+	rows, err := db.Query(ctx, `
+		SELECT id::text, instance, auth_provider, username, display_name, email,
+		       first_seen_at, profile_updated_at, disabled_at
+		FROM app_users
+		WHERE instance = $1
+		  AND ($2::uuid IS NULL OR id = $2)
+		  AND ($3::timestamptz IS NULL OR (first_seen_at, id) < ($3, $4::uuid))
+		ORDER BY first_seen_at DESC, id DESC
+		LIMIT $5`, instance, userID, afterAt, afterID, limit)
+	if err != nil {
+		return nil, fmt.Errorf("list users: %w", err)
+	}
+	users, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (User, error) {
+		var u User
+		err := row.Scan(&u.ID, &u.Instance, &u.AuthProvider, &u.Username, &u.DisplayName,
+			&u.Email, &u.FirstSeenAt, &u.ProfileUpdatedAt, &u.DisabledAt)
+		return u, err
+	})
+	if err != nil {
+		return nil, fmt.Errorf("list users: %w", err)
+	}
+	return users, nil
+}
+
 // checkUser refuses a user selector naming no user of the instance.
-func (s *PGStore) checkUser(ctx context.Context, q conversationQuery) error {
+func checkUser(ctx context.Context, db querier, q conversationQuery) error {
 	if q.userID == nil {
 		return nil
 	}
 	var one int
-	err := s.pool.QueryRow(ctx,
+	err := db.QueryRow(ctx,
 		`SELECT 1 FROM app_users WHERE id = $1::uuid AND instance = $2`, q.userID.String(), q.instance).Scan(&one)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return ErrUserNotInInstance

@@ -1,12 +1,13 @@
 // Package mauricereport is the read-only, cross-instance reporting contract
-// over the Maurice tables: instance, user and conversation browsing for the
-// private admin, with every user, conversation and nested lookup scoped
-// through app_users.instance. It returns metadata only: never message
+// over the Maurice tables: instance, user and conversation browsing and the
+// usage overview (overview.go) for the private admin, with every user,
+// conversation, aggregate and nested lookup scoped through
+// app_users.instance. It returns metadata and aggregates only: never message
 // content, prompts, tool arguments or tool results.
 //
 // Authorization is the caller's: the GraphQL @mauriceReporting directive
 // (internal/graph) gates every field. The API contract (filters, date and
-// search semantics, pagination) is on the wiki page
+// search semantics, pagination, overview inclusion) is on the wiki page
 // puckdb/maurice-reporting-api.md.
 package mauricereport
 
@@ -98,7 +99,8 @@ type UserPage struct {
 	NextCursor string
 }
 
-// TurnCounts counts a conversation's stored turns by status.
+// TurnCounts counts stored turns by status: a conversation's, or every
+// included turn of an overview's activity.
 type TurnCounts struct {
 	Running   int64
 	Succeeded int64
