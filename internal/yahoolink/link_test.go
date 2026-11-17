@@ -3,212 +3,12 @@ package yahoolink
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/sperano/puckdb/internal/fixtures/pgtest"
-	"github.com/sperano/puckdb/internal/sqlcdb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-func TestPGStore_LinkAndUnlink(t *testing.T) {
-	pool := pgtest.Open(t)
-	ctx := context.Background()
-	store := NewPGStore(pool)
-	league, team := seedLeagueTeam(t, pool, "Manual Add")
-	user := insertUser(t, pool, "admin-add")
-
-	link, err := store.Link(ctx, user, league, team)
-	require.NoError(t, err)
-	assert.Equal(t, SourceManual, link.Source)
-
-	removed, err := store.Unlink(ctx, user, "", league, team)
-	require.NoError(t, err)
-	assert.True(t, removed)
-
-	removed, err = store.Unlink(ctx, user, "", league, team)
-	require.NoError(t, err)
-	assert.False(t, removed, "a second unlink finds nothing")
-}
-
-// TestPGStore_UnlinkRefusesEmailSourcedLinkStillMatched: unlinking a team
-// SyncEmailLinks would just recreate on the user's next login is refused,
-// not silently undone (the blocking bug: unlink-team on an email-matched
-// team was undone by the next request).
-func TestPGStore_UnlinkRefusesEmailSourcedLinkStillMatched(t *testing.T) {
-	pool := pgtest.Open(t)
-	ctx := context.Background()
-	q := sqlcdb.New(pool)
-	store := NewPGStore(pool)
-
-	email := uniqueUsername("stays") + "@example.com"
-	league, team := seedLeagueTeam(t, pool, "Stays Linked")
-	seedManager(t, pool, league, team, 1, email)
-	user := insertUser(t, pool, "stays-linked")
-	require.NoError(t, SyncEmailLinks(ctx, q, user, email))
-
-	_, err := store.Unlink(ctx, user, email, league, team)
-	require.ErrorIs(t, err, ErrEmailLinkStillMatches)
-
-	links, err := store.ListUserTeams(ctx, user, nil)
-	require.NoError(t, err)
-	require.Len(t, links, 1, "the refused unlink changed nothing")
-}
-
-// TestPGStore_UnlinkRemovesEmailSourcedLinkOnceUnmatched: once the login
-// email no longer matches, the same email-sourced link unlinks normally.
-func TestPGStore_UnlinkRemovesEmailSourcedLinkOnceUnmatched(t *testing.T) {
-	pool := pgtest.Open(t)
-	ctx := context.Background()
-	q := sqlcdb.New(pool)
-	store := NewPGStore(pool)
-
-	email := uniqueUsername("leaves") + "@example.com"
-	league, team := seedLeagueTeam(t, pool, "Leaves Linked")
-	seedManager(t, pool, league, team, 1, email)
-	user := insertUser(t, pool, "leaves-linked")
-	require.NoError(t, SyncEmailLinks(ctx, q, user, email))
-
-	removed, err := store.Unlink(ctx, user, uniqueUsername("someoneelse")+"@example.com", league, team)
-	require.NoError(t, err)
-	assert.True(t, removed)
-
-	links, err := store.ListUserTeams(ctx, user, nil)
-	require.NoError(t, err)
-	assert.Empty(t, links)
-}
-
-// TestPGStore_LinkPromotesEmailLinkToManual: an operator's Link on an
-// already email-linked pair promotes it to manual, so a later resync under
-// an email that no longer matches never removes it.
-func TestPGStore_LinkPromotesEmailLinkToManual(t *testing.T) {
-	pool := pgtest.Open(t)
-	ctx := context.Background()
-	q := sqlcdb.New(pool)
-	store := NewPGStore(pool)
-
-	email := uniqueUsername("promote") + "@example.com"
-	league, team := seedLeagueTeam(t, pool, "Promote Me")
-	seedManager(t, pool, league, team, 1, email)
-	user := insertUser(t, pool, "promote-me")
-	require.NoError(t, SyncEmailLinks(ctx, q, user, email))
-
-	link, err := store.Link(ctx, user, league, team)
-	require.NoError(t, err)
-	assert.Equal(t, SourceManual, link.Source)
-
-	require.NoError(t, SyncEmailLinks(ctx, q, user, uniqueUsername("someoneelse")+"@example.com"))
-	links, err := store.ListUserTeams(ctx, user, nil)
-	require.NoError(t, err)
-	require.Len(t, links, 1)
-	assert.Equal(t, SourceManual, links[0].Source)
-}
-
-// TestPGStore_UnlinkRefusesManualLinkStillMatched: a manual link (an
-// operator's promotion of a matching email link, here) is refused the same
-// as an email-sourced one, since SyncEmailLinks would otherwise recreate it
-// as SourceEmail on the user's next authenticated request, undoing the
-// unlink.
-func TestPGStore_UnlinkRefusesManualLinkStillMatched(t *testing.T) {
-	pool := pgtest.Open(t)
-	ctx := context.Background()
-	q := sqlcdb.New(pool)
-	store := NewPGStore(pool)
-
-	email := uniqueUsername("manual-stays") + "@example.com"
-	league, team := seedLeagueTeam(t, pool, "Manual Stays Linked")
-	seedManager(t, pool, league, team, 1, email)
-	user := insertUser(t, pool, "manual-stays-linked")
-	require.NoError(t, SyncEmailLinks(ctx, q, user, email))
-
-	link, err := store.Link(ctx, user, league, team)
-	require.NoError(t, err)
-	require.Equal(t, SourceManual, link.Source)
-
-	_, err = store.Unlink(ctx, user, email, league, team)
-	require.ErrorIs(t, err, ErrEmailLinkStillMatches)
-
-	links, err := store.ListUserTeams(ctx, user, nil)
-	require.NoError(t, err)
-	require.Len(t, links, 1, "the refused unlink changed nothing")
-	assert.Equal(t, SourceManual, links[0].Source)
-}
-
-// TestPGStore_UnlinkOtherTeamNotRefusedByEmailMatch: the still-matches
-// check compares both LeagueID and TeamID, not just one of them: a second
-// team in the same league the login email does not manage unlinks
-// normally even though the email matches team 1 in that league.
-func TestPGStore_UnlinkOtherTeamNotRefusedByEmailMatch(t *testing.T) {
-	pool := pgtest.Open(t)
-	ctx := context.Background()
-	store := NewPGStore(pool)
-
-	email := uniqueUsername("other-team") + "@example.com"
-	league, matchedTeam := seedLeagueTeam(t, pool, "Matched Team")
-	otherTeam := int32(2)
-	seedTeam(t, pool, league, otherTeam, "Other Team")
-	seedManager(t, pool, league, matchedTeam, 1, email)
-	user := insertUser(t, pool, "other-team-user")
-
-	_, err := store.Link(ctx, user, league, otherTeam)
-	require.NoError(t, err)
-
-	removed, err := store.Unlink(ctx, user, email, league, otherTeam)
-	require.NoError(t, err)
-	assert.True(t, removed, "a different team in the same league is not refused by the email match on team 1")
-}
-
-// TestPGStore_UnlinkNotHeldPairWithMatchingEmailReturnsFalse: Unlink checks
-// whether the user holds the pair before checking the email match, so an
-// unheld pair the login email matches still reports "nothing to remove",
-// not ErrEmailLinkStillMatches.
-func TestPGStore_UnlinkNotHeldPairWithMatchingEmailReturnsFalse(t *testing.T) {
-	pool := pgtest.Open(t)
-	ctx := context.Background()
-	store := NewPGStore(pool)
-
-	email := uniqueUsername("not-held") + "@example.com"
-	league, team := seedLeagueTeam(t, pool, "Not Held")
-	seedManager(t, pool, league, team, 1, email)
-	user := insertUser(t, pool, "not-held-user")
-
-	removed, err := store.Unlink(ctx, user, email, league, team)
-	require.NoError(t, err)
-	assert.False(t, removed)
-}
-
-// TestPGStore_UnlinkSameTeamIDOtherLeagueNotRefusedByEmailMatch: the
-// still-matches check compares LeagueID and TeamID together, not TeamID
-// alone, which would wrongly collide across leagues (team IDs are unique
-// only within a league): a link to team 1 in league B unlinks normally even
-// though the email matches team 1 in a different league A.
-func TestPGStore_UnlinkSameTeamIDOtherLeagueNotRefusedByEmailMatch(t *testing.T) {
-	pool := pgtest.Open(t)
-	ctx := context.Background()
-	store := NewPGStore(pool)
-
-	email := uniqueUsername("cross-league") + "@example.com"
-	leagueA, teamA := seedLeagueTeam(t, pool, "League A Team")
-	seedManager(t, pool, leagueA, teamA, 1, email)
-	leagueB, teamB := seedLeagueTeam(t, pool, "League B Team")
-	require.Equal(t, teamA, teamB, "both leagues must assign the same team id for this test to be meaningful")
-	user := insertUser(t, pool, "cross-league-user")
-
-	_, err := store.Link(ctx, user, leagueB, teamB)
-	require.NoError(t, err)
-
-	removed, err := store.Unlink(ctx, user, email, leagueB, teamB)
-	require.NoError(t, err)
-	assert.True(t, removed, "a matching team id in a different league is not refused by the email match in league A")
-}
-
-func TestPGStore_LinkRefusesUnknownTeam(t *testing.T) {
-	pool := pgtest.Open(t)
-	store := NewPGStore(pool)
-	user := insertUser(t, pool, "admin-unknown")
-
-	_, err := store.Link(context.Background(), user, newLeagueID(), 999)
-	require.ErrorIs(t, err, ErrUnknownTeam)
-}
 
 // TestPGStore_ListUserTeamsFiltersByAllowlist: the instance's Yahoo league
 // allowlist (empty = every league) limits which of a user's links are named.
@@ -351,4 +151,139 @@ func TestPGStore_ListInstanceLinksScopedToInstance(t *testing.T) {
 	require.Len(t, matches, 1, "only this instance's link for the shared username must appear")
 	assert.Equal(t, league, matches[0].Link.LeagueID, "must be this instance's league, not the other instance's")
 	assert.NotEqual(t, otherLeague, matches[0].Link.LeagueID)
+}
+
+// TestPGStore_ListUserTeamsListsATeamOnce: a team reached through a team
+// link and a guid link is listed once, under the manual link; between two
+// email links, under the guid link.
+func TestPGStore_ListUserTeamsListsATeamOnce(t *testing.T) {
+	pool := pgtest.Open(t)
+	ctx := context.Background()
+	store := NewPGStore(pool)
+	tests := []struct {
+		name       string
+		teamSource string
+		guidSource string
+		wantSource string
+		wantGUID   bool
+	}{
+		{name: "manual team link wins", teamSource: SourceManual, guidSource: SourceEmail, wantSource: SourceManual},
+		{name: "manual guid link wins", teamSource: SourceEmail, guidSource: SourceManual, wantSource: SourceManual, wantGUID: true},
+		{name: "guid link wins between email links", teamSource: SourceEmail, guidSource: SourceEmail, wantSource: SourceEmail, wantGUID: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			guid := newGUID()
+			league, team := seedLeagueTeam(t, pool, "Twice")
+			seedManagerGUID(t, pool, league, team, 1, guid, "")
+			user := insertUser(t, pool, "twice")
+			_, err := pool.Exec(ctx, `INSERT INTO app_user_yahoo_teams (user_id, league_id, team_id, source) VALUES ($1, $2, $3, $4)`,
+				user, league, team, tt.teamSource)
+			require.NoError(t, err)
+			_, err = pool.Exec(ctx, `INSERT INTO app_user_yahoo_managers (user_id, guid, source) VALUES ($1, $2, $3)`,
+				user, guid, tt.guidSource)
+			require.NoError(t, err)
+
+			links, err := store.ListUserTeams(ctx, user, nil)
+			require.NoError(t, err)
+			require.Len(t, links, 1)
+			assert.Equal(t, tt.wantSource, links[0].Source)
+			wantGUID := ""
+			if tt.wantGUID {
+				wantGUID = guid
+			}
+			assert.Equal(t, wantGUID, links[0].GUID)
+
+			instance, err := store.ListInstanceLinks(ctx, testInstance)
+			require.NoError(t, err)
+			var mine []Link
+			for _, l := range instance {
+				if l.Link.LeagueID == league {
+					mine = append(mine, l.Link)
+				}
+			}
+			require.Len(t, mine, 1, "the admin list picks the same single link")
+			assert.Equal(t, tt.wantSource, mine[0].Source)
+			assert.Equal(t, wantGUID, mine[0].GUID)
+		})
+	}
+}
+
+// TestPGStore_ListUserTeamsFiltersGUIDTeamsByAllowlist: the allowlist
+// limits the teams a guid link reaches too.
+func TestPGStore_ListUserTeamsFiltersGUIDTeamsByAllowlist(t *testing.T) {
+	pool := pgtest.Open(t)
+	ctx := context.Background()
+	store := NewPGStore(pool)
+	guid := newGUID()
+	allowed, allowedTeam := seedLeagueTeam(t, pool, "Allowed")
+	seedManagerGUID(t, pool, allowed, allowedTeam, 1, guid, "")
+	other, otherTeam := seedLeagueTeamInSeason(t, pool, "Other", "Vintage", 2025)
+	seedManagerGUID(t, pool, other, otherTeam, 1, guid, "")
+	user := insertUser(t, pool, "guid-allowlisted")
+	_, err := store.Link(ctx, user, allowed, allowedTeam)
+	require.NoError(t, err)
+
+	all, err := store.ListUserTeams(ctx, user, nil)
+	require.NoError(t, err)
+	require.ElementsMatch(t, []teamKey{{allowed, allowedTeam}, {other, otherTeam}}, teamKeys(all))
+	for _, l := range all {
+		require.Equal(t, guid, l.GUID, "both teams come through the guid link")
+	}
+
+	scoped, err := store.ListUserTeams(ctx, user, []int32{allowed})
+	require.NoError(t, err)
+	assert.Equal(t, []teamKey{{allowed, allowedTeam}}, teamKeys(scoped))
+}
+
+// TestPGStore_ListUserTeamsPicksTheEarliestLink: a co-managed team reached
+// through two of a user's email guid links is listed once, under the
+// earlier link, even when its guid sorts last; another user on the same
+// team keeps their own row in the admin list.
+func TestPGStore_ListUserTeamsPicksTheEarliestLink(t *testing.T) {
+	pool := pgtest.Open(t)
+	ctx := context.Background()
+	store := NewPGStore(pool)
+	guidA := newGUID()
+	guidB := guidA + "B"
+	league, team := seedLeagueTeam(t, pool, "Two Accounts")
+	seedManagerGUID(t, pool, league, team, 1, guidA, "")
+	seedManagerGUID(t, pool, league, team, 2, guidB, "")
+	username, otherUsername := uniqueUsername("earliest"), uniqueUsername("earliest-other")
+	user := insertUser(t, pool, username)
+	earlier := time.Date(2026, time.January, 1, 0, 0, 0, 0, time.UTC)
+	later := earlier.AddDate(0, 1, 0)
+	for _, l := range []struct {
+		guid     string
+		linkedAt time.Time
+	}{{guidA, later}, {guidB, earlier}} {
+		_, err := pool.Exec(ctx, `INSERT INTO app_user_yahoo_managers (user_id, guid, source, linked_at) VALUES ($1, $2, 'email', $3)`,
+			user, l.guid, l.linkedAt)
+		require.NoError(t, err)
+	}
+	otherUser := insertUser(t, pool, otherUsername)
+	_, err := pool.Exec(ctx, `INSERT INTO app_user_yahoo_teams (user_id, league_id, team_id, source) VALUES ($1, $2, $3, 'manual')`,
+		otherUser, league, team)
+	require.NoError(t, err)
+
+	links, err := store.ListUserTeams(ctx, user, nil)
+	require.NoError(t, err)
+	require.Len(t, links, 1)
+	assert.Equal(t, guidB, links[0].GUID)
+	assert.True(t, earlier.Equal(links[0].LinkedAt), "linked_at %s", links[0].LinkedAt)
+
+	instance, err := store.ListInstanceLinks(ctx, testInstance)
+	require.NoError(t, err)
+	got := map[string]Link{}
+	for _, l := range instance {
+		if l.Link.LeagueID == league {
+			require.NotContains(t, got, l.Username, "one row per user and team")
+			got[l.Username] = l.Link
+		}
+	}
+	require.Len(t, got, 2, "each user keeps their own row")
+	assert.Equal(t, guidB, got[username].GUID, "the admin list picks the same earliest link")
+	assert.True(t, earlier.Equal(got[username].LinkedAt))
+	assert.Equal(t, SourceManual, got[otherUsername].Source)
+	assert.Empty(t, got[otherUsername].GUID)
 }

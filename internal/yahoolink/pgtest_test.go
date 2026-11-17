@@ -94,3 +94,28 @@ func insertUserOnInstance(t *testing.T, pool *pgxpool.Pool, instance, username s
 func uniqueUsername(label string) string {
 	return fmt.Sprintf("%s-%d", label, newLeagueID())
 }
+
+// hiddenGUID is the guid Yahoo serves for every current-season manager.
+const hiddenGUID = "--hidden--"
+
+// newGUID returns a Yahoo-style guid no other fixture uses: the email bridge
+// of yahoo_team_manager_guids spans the whole shared table.
+func newGUID() string { return fmt.Sprintf("TESTGUID%d", newLeagueID()) }
+
+// seedManagerGUID gives leagueID/teamID a manager with guid and email.
+func seedManagerGUID(t *testing.T, pool *pgxpool.Pool, leagueID, teamID, managerID int32, guid, email string) {
+	t.Helper()
+	_, err := pool.Exec(context.Background(),
+		`INSERT INTO yahoo_team_managers (league_id, team_id, id, nickname, guid, email) VALUES ($1, $2, $3, 'Manager', $4, $5)`,
+		leagueID, teamID, managerID, guid, email)
+	require.NoError(t, err)
+}
+
+// teamKeys returns the (league, team) pairs of links, in order.
+func teamKeys(links []Link) []teamKey {
+	keys := make([]teamKey, len(links))
+	for i, l := range links {
+		keys[i] = teamKey{l.LeagueID, l.TeamID}
+	}
+	return keys
+}

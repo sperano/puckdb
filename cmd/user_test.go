@@ -29,12 +29,14 @@ func TestPrintUserTeamLinks(t *testing.T) {
 	buf.Reset()
 	links := []yahoolink.Link{
 		{LeagueID: 29249, TeamID: 8, TeamName: "Les Peter Stastny", Source: yahoolink.SourceEmail, LinkedAt: time.Date(2026, 1, 2, 0, 0, 0, 0, time.UTC)},
+		{LeagueID: 3769, TeamID: 1, TeamName: "Vintage", GUID: "ABCDEF", Source: yahoolink.SourceManual, LinkedAt: time.Date(2026, 1, 3, 0, 0, 0, 0, time.UTC)},
 	}
 	require.NoError(t, printUserTeamLinks(&buf, links, "alice"))
 	lines := strings.Split(strings.TrimRight(buf.String(), "\n"), "\n")
-	require.Len(t, lines, 2)
-	assert.Equal(t, []string{"LEAGUE_ID", "TEAM_ID", "TEAM_NAME", "SOURCE", "LINKED_AT"}, strings.Fields(lines[0]))
-	assert.Regexp(t, `^29249\s+8\s+Les Peter Stastny\s+email\s+2026-01-02$`, lines[1])
+	require.Len(t, lines, 3)
+	assert.Equal(t, []string{"LEAGUE_ID", "TEAM_ID", "TEAM_NAME", "GUID", "SOURCE", "LINKED_AT"}, strings.Fields(lines[0]))
+	assert.Regexp(t, `^29249\s+8\s+Les Peter Stastny\s+-\s+email\s+2026-01-02$`, lines[1])
+	assert.Regexp(t, `^3769\s+1\s+Vintage\s+ABCDEF\s+manual\s+2026-01-03$`, lines[2])
 }
 
 func TestPrintInstanceTeamLinks(t *testing.T) {
@@ -45,10 +47,12 @@ func TestPrintInstanceTeamLinks(t *testing.T) {
 	buf.Reset()
 	links := []yahoolink.InstanceLink{
 		{Username: "alice", Link: yahoolink.Link{LeagueID: 29249, TeamID: 8, TeamName: "Les Peter Stastny", Source: yahoolink.SourceManual, LinkedAt: time.Date(2026, 1, 2, 0, 0, 0, 0, time.UTC)}},
+		{Username: "bob", Link: yahoolink.Link{LeagueID: 3769, TeamID: 1, TeamName: "Vintage", GUID: "ABCDEF", Source: yahoolink.SourceEmail, LinkedAt: time.Date(2026, 1, 3, 0, 0, 0, 0, time.UTC)}},
 	}
 	require.NoError(t, printInstanceTeamLinks(&buf, links))
 	lines := strings.Split(strings.TrimRight(buf.String(), "\n"), "\n")
-	require.Len(t, lines, 2)
-	assert.Equal(t, []string{"USERNAME", "LEAGUE_ID", "TEAM_ID", "TEAM_NAME", "SOURCE", "LINKED_AT"}, strings.Fields(lines[0]))
-	assert.Regexp(t, `^alice\s+29249\s+8\s+Les Peter Stastny\s+manual\s+2026-01-02$`, lines[1])
+	require.Len(t, lines, 3)
+	assert.Equal(t, []string{"USERNAME", "LEAGUE_ID", "TEAM_ID", "TEAM_NAME", "GUID", "SOURCE", "LINKED_AT"}, strings.Fields(lines[0]))
+	assert.Regexp(t, `^alice\s+29249\s+8\s+Les Peter Stastny\s+-\s+manual\s+2026-01-02$`, lines[1])
+	assert.Regexp(t, `^bob\s+3769\s+1\s+Vintage\s+ABCDEF\s+email\s+2026-01-03$`, lines[2])
 }

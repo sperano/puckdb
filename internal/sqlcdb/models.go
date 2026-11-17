@@ -780,6 +780,13 @@ type AppUserUsage struct {
 	ActiveSeconds            int32       `json:"active_seconds"`
 }
 
+type AppUserYahooManager struct {
+	UserID   pgtype.UUID        `json:"user_id"`
+	Guid     string             `json:"guid"`
+	Source   string             `json:"source"`
+	LinkedAt pgtype.Timestamptz `json:"linked_at"`
+}
+
 type AppUserYahooTeam struct {
 	UserID   pgtype.UUID        `json:"user_id"`
 	LeagueID int32              `json:"league_id"`
@@ -2415,6 +2422,13 @@ type YahooTeamManager struct {
 	FeloTier       string `json:"felo_tier"`
 	IsCurrentLogin bool   `json:"is_current_login"`
 	IsCommissioner bool   `json:"is_commissioner"`
+}
+
+type YahooTeamManagerGuid struct {
+	LeagueID  int32  `json:"league_id"`
+	TeamID    int32  `json:"team_id"`
+	ManagerID int32  `json:"manager_id"`
+	Guid      string `json:"guid"`
 }
 
 type YahooTeamRoster struct {

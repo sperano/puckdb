@@ -1,11 +1,25 @@
 // Package yahoolink links a Maurice user (internal/appuser) to the Yahoo
-// fantasy teams they manage, several per user. A link's source is either
-// SourceEmail (the login email matched a yahoo_team_managers.email,
-// case-insensitively, kept in sync at every authenticated request by
-// SyncEmailLinks) or SourceManual (an operator added it for a user whose
-// Yahoo email differs from their login email). league_id/team_id are the
-// legacy numeric Yahoo identifiers yahoo_teams and yahoo_team_managers
-// already use.
+// fantasy teams they manage, several per user, through two kinds of link:
+//
+//   - a guid link (app_user_yahoo_managers) names a Yahoo account, the
+//     manager guid: the user's teams are every team whose manager resolves
+//     to that guid (the yahoo_team_manager_guids view), in every season, so
+//     a new season's teams appear once imported, with no new link;
+//   - a team link (app_user_yahoo_teams) names one (league, team) pair, the
+//     fallback for a manager row that resolves to no guid, or a co-managed
+//     team an operator links by hand.
+//
+// Yahoo hides the guid ('--hidden--') of every current-season manager, so
+// such a row resolves to the one real guid older rows with the same email
+// carry, and to none for a manager with no earlier season (see
+// yahoo_team_manager_guids in its migration).
+//
+// A link's source is either SourceEmail (the login email matched a
+// yahoo_team_managers.email, case-insensitively, kept in sync at every
+// authenticated request by SyncEmailLinks) or SourceManual (an operator
+// added it for a user whose Yahoo email differs from their login email).
+// league_id/team_id are the legacy numeric Yahoo identifiers yahoo_teams and
+// yahoo_team_managers already use.
 package yahoolink
 
 import (
@@ -15,7 +29,7 @@ import (
 	"slices"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/sperano/puckdb/internal/sqlcdb"
 )
@@ -26,10 +40,6 @@ const (
 	SourceEmail = "email"
 	// SourceManual marks a link an operator added by hand.
 	SourceManual = "manual"
-
-	// foreignKeyViolation is the PostgreSQL SQLSTATE a Link call gets for a
-	// league/team pair with no yahoo_teams row.
-	foreignKeyViolation = "23503"
 )
 
 // ErrUnknownTeam is returned by Link for a (league, team) pair with no
@@ -44,20 +54,23 @@ var ErrUserNotFound = errors.New("no such user")
 var ErrAmbiguousUser = errors.New("username matches more than one user")
 
 // ErrEmailLinkStillMatches is returned by Unlink for a link, of either
-// source, whose pair the given login email still matches: removing it would
-// only be undone by SyncEmailLinks, as SourceEmail, on the user's next
+// source, the given login email still matches: removing it would only be
+// undone by SyncEmailLinks, as SourceEmail, on the user's next
 // authenticated request.
 var ErrEmailLinkStillMatches = errors.New("link still matches the login email")
 
-// Link is one Yahoo team a user manages. LeagueName and Season (the
-// league's yahoo_leagues.season, Yahoo's start year: 2026 for 2026-27) are
-// filled by ListUserTeams only.
+// Link is one Yahoo team a user manages. GUID is the Yahoo account of the
+// guid link the team comes through, empty for a team link; Source and
+// LinkedAt are that link's. LeagueName and Season (the league's
+// yahoo_leagues.season, Yahoo's start year: 2026 for 2026-27) are filled by
+// ListUserTeams only.
 type Link struct {
 	LeagueID   int32
 	TeamID     int32
 	TeamName   string
 	LeagueName string
 	Season     int32
+	GUID       string
 	Source     string
 	LinkedAt   time.Time
 }
@@ -76,19 +89,26 @@ type InstanceLink struct {
 	Link     Link
 }
 
-// PGStore reads and writes app_user_yahoo_teams.
+// DB is what a PGStore runs on: a pool, or a transaction (whose Begin opens
+// a savepoint).
+type DB interface {
+	sqlcdb.DBTX
+	Begin(ctx context.Context) (pgx.Tx, error)
+}
+
+// PGStore reads and writes app_user_yahoo_managers and app_user_yahoo_teams.
 type PGStore struct {
+	db      DB
 	queries *sqlcdb.Queries
 }
 
-// NewPGStore returns a PGStore over db, which may be a pool or a
-// transaction (sqlcdb.DBTX).
-func NewPGStore(db sqlcdb.DBTX) *PGStore {
-	return &PGStore{queries: sqlcdb.New(db)}
+// NewPGStore returns a PGStore over db.
+func NewPGStore(db DB) *PGStore {
+	return &PGStore{db: db, queries: sqlcdb.New(db)}
 }
 
-// ListUserTeams returns userID's linked teams with their league's name and
-// season, limited to leagueIDs when it is non-empty (the instance's Yahoo
+// ListUserTeams returns userID's teams, through either kind of link and
+// each once, with their league's name and season, limited to leagueIDs when it is non-empty (the instance's Yahoo
 // league allowlist; empty means every league), ordered by league then team.
 func (s *PGStore) ListUserTeams(ctx context.Context, userID pgtype.UUID, leagueIDs []int32) ([]Link, error) {
 	rows, err := s.queries.ListAppUserYahooTeams(ctx, sqlcdb.ListAppUserYahooTeamsParams{
@@ -102,14 +122,14 @@ func (s *PGStore) ListUserTeams(ctx context.Context, userID pgtype.UUID, leagueI
 		links[i] = Link{
 			LeagueID: r.LeagueID, TeamID: r.TeamID, TeamName: r.TeamName,
 			LeagueName: r.LeagueName, Season: r.Season,
-			Source: r.Source, LinkedAt: r.LinkedAt.Time,
+			GUID: r.Guid, Source: r.Source, LinkedAt: r.LinkedAt.Time,
 		}
 	}
 	return links, nil
 }
 
-// ListInstanceLinks returns every user's linked teams on instance, for the
-// admin list command.
+// ListInstanceLinks returns every user's teams on instance, each once as in
+// ListUserTeams, for the admin list command.
 func (s *PGStore) ListInstanceLinks(ctx context.Context, instance string) ([]InstanceLink, error) {
 	rows, err := s.queries.ListInstanceAppUserYahooTeams(ctx, instance)
 	if err != nil {
@@ -119,7 +139,10 @@ func (s *PGStore) ListInstanceLinks(ctx context.Context, instance string) ([]Ins
 	for i, r := range rows {
 		links[i] = InstanceLink{
 			Username: r.Username,
-			Link:     Link{LeagueID: r.LeagueID, TeamID: r.TeamID, TeamName: r.TeamName, Source: r.Source, LinkedAt: r.LinkedAt.Time},
+			Link: Link{
+				LeagueID: r.LeagueID, TeamID: r.TeamID, TeamName: r.TeamName,
+				GUID: r.Guid, Source: r.Source, LinkedAt: r.LinkedAt.Time,
+			},
 		}
 	}
 	return links, nil
@@ -142,67 +165,6 @@ func (s *PGStore) FindUser(ctx context.Context, instance, username string) (User
 	default:
 		return User{}, fmt.Errorf("%w: %q on instance %q", ErrAmbiguousUser, username, instance)
 	}
-}
-
-// Link adds or promotes a manual link between userID and the given Yahoo
-// team. A link already present for the pair, of either source, becomes
-// SourceManual: an operator linking it by hand always wins over a later
-// email resync. Returns ErrUnknownTeam when no yahoo_teams row matches.
-// The returned Link's TeamName, LeagueName and Season are always empty:
-// call ListUserTeams for a display row.
-func (s *PGStore) Link(ctx context.Context, userID pgtype.UUID, leagueID, teamID int32) (Link, error) {
-	row, err := s.queries.LinkAppUserYahooTeam(ctx, sqlcdb.LinkAppUserYahooTeamParams{
-		UserID: userID, LeagueID: leagueID, TeamID: teamID,
-	})
-	if err != nil {
-		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) && pgErr.Code == foreignKeyViolation {
-			return Link{}, fmt.Errorf("%w: league %d team %d", ErrUnknownTeam, leagueID, teamID)
-		}
-		return Link{}, fmt.Errorf("link team: %w", err)
-	}
-	return Link{LeagueID: row.LeagueID, TeamID: row.TeamID, Source: row.Source, LinkedAt: row.LinkedAt.Time}, nil
-}
-
-// Unlink removes userID's link to the given Yahoo team, of either source,
-// unless the login email (email) still matches that team's manager: a
-// manual link gets no exemption, since an operator's Link promotes a
-// matching email link to manual (and SyncEmailLinks would just recreate it,
-// as SourceEmail, on the user's next authenticated request either way). In
-// that case it returns ErrEmailLinkStillMatches instead of removing the
-// link: fix the yahoo_team_managers row's email instead. It reports whether
-// a link existed.
-func (s *PGStore) Unlink(ctx context.Context, userID pgtype.UUID, email string, leagueID, teamID int32) (bool, error) {
-	links, err := s.ListUserTeams(ctx, userID, nil)
-	if err != nil {
-		return false, err
-	}
-	var found bool
-	for _, l := range links {
-		if l.LeagueID == leagueID && l.TeamID == teamID {
-			found = true
-			break
-		}
-	}
-	if !found {
-		return false, nil
-	}
-	matches, err := s.queries.ListManagerLeagueTeamsByEmail(ctx, email)
-	if err != nil {
-		return false, fmt.Errorf("check email match: %w", err)
-	}
-	for _, m := range matches {
-		if m.LeagueID == leagueID && m.TeamID == teamID {
-			return false, fmt.Errorf("%w: league %d team %d", ErrEmailLinkStillMatches, leagueID, teamID)
-		}
-	}
-	n, err := s.queries.UnlinkAppUserYahooTeam(ctx, sqlcdb.UnlinkAppUserYahooTeamParams{
-		UserID: userID, LeagueID: leagueID, TeamID: teamID,
-	})
-	if err != nil {
-		return false, fmt.Errorf("unlink team: %w", err)
-	}
-	return n > 0, nil
 }
 
 // ParseLeagueIDs reads a comma-separated list of numeric Yahoo league IDs,
