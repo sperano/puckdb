@@ -101,6 +101,18 @@ func (u *Usage) Add(o *Usage) {
 	u.CacheReported = u.CacheReported || o.CacheReported
 }
 
+// Finish reasons of a response cut off at the request's MaxTokens: Anthropic's
+// stop_reason and the OpenAI-compatible finish_reason.
+const (
+	FinishReasonMaxTokens = "max_tokens"
+	FinishReasonLength    = "length"
+)
+
+// Truncated reports whether the response stopped at the request's MaxTokens.
+func (r *Response) Truncated() bool {
+	return r.FinishReason == FinishReasonMaxTokens || r.FinishReason == FinishReasonLength
+}
+
 // HasToolCalls returns true if the response contains tool calls.
 func (r *Response) HasToolCalls() bool {
 	return len(r.ToolCalls) > 0

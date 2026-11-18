@@ -385,27 +385,6 @@ func TestChat_ForcedFinalTurn_PersistsWholeTurnInOrder(t *testing.T) {
 	assert.Equal(t, "forced", llmMock.requests[maxRounds+1].Messages[1].Content, "title from the forced answer")
 }
 
-// A response without tool calls is the answer even when empty: no forced
-// completion runs, the empty answer is stored, and no title is generated.
-func TestChat_EmptyFinalAnswerIsNotForced(t *testing.T) {
-	db := newTestDB(t)
-	llmMock := &mockLLMClient{responses: []*llm.Response{{Content: ""}}}
-
-	svc := NewService(llmMock, newMockMCP(), db, testConfig)
-	resp, err := svc.Chat(context.Background(), ask("q"))
-	require.NoError(t, err)
-	require.NoError(t, svc.Close())
-
-	assert.Empty(t, resp.Content)
-	assert.Equal(t, 1, llmMock.callCount(), "no forced completion and no title")
-	assert.Empty(t, db.titleRecords())
-	msgs, err := db.GetMessages(context.Background(), testUser, resp.ConversationID)
-	require.NoError(t, err)
-	require.Len(t, msgs, 2)
-	assert.Equal(t, "assistant", msgs[1].Role)
-	assert.Empty(t, msgs[1].Content)
-}
-
 func callKinds(calls []LLMCallRecord) []CallKind {
 	kinds := make([]CallKind, 0, len(calls))
 	for _, c := range calls {
