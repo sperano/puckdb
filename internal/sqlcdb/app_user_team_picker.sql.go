@@ -171,19 +171,24 @@ func (q *Queries) ListYahooTeamChoices(ctx context.Context, arg ListYahooTeamCho
 }
 
 const lockAppUserForLinks = `-- name: LockAppUserForLinks :one
-SELECT email FROM app_users WHERE id = $1::uuid FOR NO KEY UPDATE
+SELECT email, member_yahoo_email FROM app_users WHERE id = $1::uuid FOR NO KEY UPDATE
 `
+
+type LockAppUserForLinksRow struct {
+	Email            pgtype.Text `json:"email"`
+	MemberYahooEmail pgtype.Text `json:"member_yahoo_email"`
+}
 
 // Takes the user row lock MarkAppUserTeamOfferSeen and UpsertAppUser take,
 // so an operator's link-team/unlink-team serializes with the user's
-// selections and logins, and returns the login email as of the lock (NULL:
-// none), which no login can change before the transaction ends. No row: no
-// such user.
-func (q *Queries) LockAppUserForLinks(ctx context.Context, userID pgtype.UUID) (pgtype.Text, error) {
+// selections and logins, and returns the login email and the member Yahoo
+// email as of the lock (NULL: none), which no login can change before the
+// transaction ends. No row: no such user.
+func (q *Queries) LockAppUserForLinks(ctx context.Context, userID pgtype.UUID) (LockAppUserForLinksRow, error) {
 	row := q.db.QueryRow(ctx, lockAppUserForLinks, userID)
-	var email pgtype.Text
-	err := row.Scan(&email)
-	return email, err
+	var i LockAppUserForLinksRow
+	err := row.Scan(&i.Email, &i.MemberYahooEmail)
+	return i, err
 }
 
 const markAppUserTeamOfferSeen = `-- name: MarkAppUserTeamOfferSeen :execrows

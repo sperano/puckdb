@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -138,6 +140,31 @@ func TestAppAuthFrom(t *testing.T) {
 		Provider:   appuser.ProviderCloudflare,
 		Cloudflare: appuser.CloudflareAccessConfig{TeamDomain: "team.cloudflareaccess.com", Audience: "aud-tag"},
 	}, appAuthFrom(v))
+}
+
+func TestMauriceMembersFrom(t *testing.T) {
+	t.Parallel()
+	members, err := mauriceMembersFrom(boundViper(t, nil, &config.AppSessionFlags))
+	require.NoError(t, err)
+	assert.Equal(t, 0, members.Len(), "no file by default")
+
+	dir := t.TempDir()
+	good := filepath.Join(dir, "members.yaml")
+	require.NoError(t, os.WriteFile(good, []byte("jean@example.com: {name: Jean, yahoo_email: jean@yahoo.ca}\n"), 0o600))
+	members, err = mauriceMembersFrom(boundViper(t, []string{"--maurice-members= " + good + " "}, &config.AppSessionFlags))
+	require.NoError(t, err)
+	member, ok := members.Lookup("jean@example.com")
+	require.True(t, ok)
+	assert.Equal(t, appuser.Member{Name: "Jean", YahooEmail: "jean@yahoo.ca"}, member)
+
+	bad := filepath.Join(dir, "bad.yaml")
+	require.NoError(t, os.WriteFile(bad, []byte("jean: {}\n"), 0o600))
+	_, err = mauriceMembersFrom(boundViper(t, []string{"--maurice-members=" + bad}, &config.AppSessionFlags))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "--maurice-members: members file "+bad)
+
+	_, err = mauriceMembersFrom(boundViper(t, []string{"--maurice-members=" + filepath.Join(dir, "missing.yaml")}, &config.AppSessionFlags))
+	require.ErrorIs(t, err, os.ErrNotExist, "a named file that is missing fails startup")
 }
 
 func TestYahooRateLimitFrom(t *testing.T) {

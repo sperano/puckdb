@@ -939,6 +939,12 @@ type MauriceDraftWatchStatus struct {
 	LastError *string                `json:"lastError,omitempty"`
 }
 
+// The caller's profile.
+type MauriceMe struct {
+	// The name to greet the caller by: the name of their login email's entry in the instance's members file (--maurice-members), else the first word of the login provider's name (Authentik's full name; Cloudflare Access gives none), else the username (the email on Cloudflare Access).
+	FirstName string `json:"firstName"`
+}
+
 type MauriceMessage struct {
 	ID        string    `json:"id"`
 	Role      string    `json:"role"`

@@ -331,6 +331,57 @@ func TestSyncEmailLinks_KeepsAManualGUIDLinkTheEmailMatches(t *testing.T) {
 	assert.Equal(t, SourceManual, links[0].Source)
 }
 
+// TestSyncEmailLinks_MatchesEveryEmail: the login email and the member Yahoo
+// email both link their teams, the second one's account included; a resync
+// without the second email drops its links and keeps the first's.
+func TestSyncEmailLinks_MatchesEveryEmail(t *testing.T) {
+	pool := pgtest.Open(t)
+	q := sqlcdb.New(pool)
+	ctx := context.Background()
+	store := NewPGStore(pool)
+	login := uniqueUsername("login") + "@gmail.com"
+	yahoo := uniqueUsername("yahoo") + "@yahoo.ca"
+	guid := newGUID()
+	loginLeague, loginTeam := seedLeagueTeam(t, pool, "Login Team")
+	seedManager(t, pool, loginLeague, loginTeam, 1, login)
+	yahooLeague, yahooTeam := seedLeagueTeam(t, pool, "Yahoo Team")
+	seedManagerGUID(t, pool, yahooLeague, yahooTeam, 1, guid, yahoo)
+	user := insertUser(t, pool, "member")
+
+	require.NoError(t, SyncEmailLinks(ctx, q, user, login, strings.ToUpper(yahoo)))
+	links, err := store.ListUserTeams(ctx, user, nil)
+	require.NoError(t, err)
+	assert.ElementsMatch(t, []teamKey{{loginLeague, loginTeam}, {yahooLeague, yahooTeam}}, teamKeys(links))
+	for _, l := range links {
+		assert.Equal(t, SourceEmail, l.Source)
+	}
+	assert.Equal(t, 1, countUserTeamLinks(t, pool, user), "the Yahoo email's team comes through its account")
+
+	require.NoError(t, SyncEmailLinks(ctx, q, user, login, ""))
+	links, err = store.ListUserTeams(ctx, user, nil)
+	require.NoError(t, err)
+	assert.Equal(t, []teamKey{{loginLeague, loginTeam}}, teamKeys(links))
+}
+
+// TestSyncEmailLinks_DeselectionBeatsTheMemberEmail: a team the user
+// deselected gets no link from the member Yahoo email, as from the login
+// email.
+func TestSyncEmailLinks_DeselectionBeatsTheMemberEmail(t *testing.T) {
+	pool := pgtest.Open(t)
+	q := sqlcdb.New(pool)
+	ctx := context.Background()
+	yahoo := uniqueUsername("deselected") + "@yahoo.ca"
+	league, team := seedLeagueTeam(t, pool, "Deselected Team")
+	seedManager(t, pool, league, team, 1, yahoo)
+	user := insertUser(t, pool, "deselects")
+	_, err := pool.Exec(ctx, `INSERT INTO app_user_yahoo_team_rejections (user_id, league_id, team_id) VALUES ($1, $2, $3)`,
+		user, league, team)
+	require.NoError(t, err)
+
+	require.NoError(t, SyncEmailLinks(ctx, q, user, uniqueUsername("login")+"@gmail.com", yahoo))
+	assert.Equal(t, 0, countUserTeamLinks(t, pool, user))
+}
+
 // countUserTeamLinks counts userID's app_user_yahoo_teams rows: team links
 // only, including those ListUserTeams hides behind a guid link.
 func countUserTeamLinks(t *testing.T, pool *pgxpool.Pool, userID pgtype.UUID) int {

@@ -742,6 +742,10 @@ type ComplexityRoot struct {
 		StoppedAt func(childComplexity int) int
 	}
 
+	MauriceMe struct {
+		FirstName func(childComplexity int) int
+	}
+
 	MauriceMessage struct {
 		Content   func(childComplexity int) int
 		CreatedAt func(childComplexity int) int
@@ -1199,6 +1203,7 @@ type ComplexityRoot struct {
 		MauriceConversations           func(childComplexity int, limit *int) int
 		MauriceDraftBoard              func(childComplexity int, input model.MauriceDraftBoardInput) int
 		MauriceDraftEvents             func(childComplexity int, league string, season *int, afterStateVersion int64, limit *int) int
+		MauriceMe                      func(childComplexity int) int
 		MauriceReportingCallInput      func(childComplexity int, conversation model.MauriceReportingConversationRef, callID string, limit *int, cursor *string) int
 		MauriceReportingConversation   func(childComplexity int, instance string, id string, includeDeleted *bool) int
 		MauriceReportingConversations  func(childComplexity int, filter model.MauriceReportingConversationFilter, limit *int, cursor *string) int
@@ -1543,6 +1548,7 @@ type QueryResolver interface {
 	RefreshDraftRankingsProgress(ctx context.Context) (*model.ProgressReport, error)
 	MauriceDraftBoard(ctx context.Context, input model.MauriceDraftBoardInput) (*model.MauriceDraftBoard, error)
 	MauriceDraftEvents(ctx context.Context, league string, season *int, afterStateVersion int64, limit *int) ([]*model.MauriceDraftSessionEvent, error)
+	MauriceMe(ctx context.Context) (*model.MauriceMe, error)
 	MauriceReportingInstances(ctx context.Context, limit *int, cursor *string) (*model.MauriceReportingInstancePage, error)
 	MauriceReportingUsers(ctx context.Context, instance string, limit *int, cursor *string) (*model.MauriceReportingUserPage, error)
 	MauriceReportingConversations(ctx context.Context, filter model.MauriceReportingConversationFilter, limit *int, cursor *string) (*model.MauriceReportingConversationPage, error)
@@ -4812,6 +4818,13 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.MauriceDraftWatchStatus.StoppedAt(childComplexity), true
 
+	case "MauriceMe.firstName":
+		if e.ComplexityRoot.MauriceMe.FirstName == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MauriceMe.FirstName(childComplexity), true
+
 	case "MauriceMessage.content":
 		if e.ComplexityRoot.MauriceMessage.Content == nil {
 			break
@@ -7094,6 +7107,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.MauriceDraftEvents(childComplexity, args["league"].(string), args["season"].(*int), args["afterStateVersion"].(int64), args["limit"].(*int)), true
+	case "Query.mauriceMe":
+		if e.ComplexityRoot.Query.MauriceMe == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.MauriceMe(childComplexity), true
 	case "Query.mauriceReportingCallInput":
 		if e.ComplexityRoot.Query.MauriceReportingCallInput == nil {
 			break
@@ -9639,6 +9658,19 @@ extend type Mutation {
   undoMauriceDraftPick(input: MauriceDraftSlotInput!): MauriceDraftSyncStatus!
   resolveMauriceDraftConflict(input: MauriceDraftResolveInput!): MauriceDraftSyncStatus!
   setMauriceDraftShortlist(input: MauriceDraftShortlistInput!): MauriceDraftSyncStatus!
+}
+`, BuiltIn: false},
+	{Name: "../maurice_me.graphqls", Input: `# The caller as Maurice knows them, for the client's greeting. Needs the
+# instance's login identity, like every Maurice field.
+
+"""The caller's profile."""
+type MauriceMe {
+	"""The name to greet the caller by: the name of their login email's entry in the instance's members file (--maurice-members), else the first word of the login provider's name (Authentik's full name; Cloudflare Access gives none), else the username (the email on Cloudflare Access)."""
+	firstName: String!
+}
+
+extend type Query {
+	mauriceMe: MauriceMe!
 }
 `, BuiltIn: false},
 	{Name: "../maurice_reporting.graphqls", Input: `# Maurice reporting — private, read-only admin browsing of every instance's
@@ -12288,6 +12320,14 @@ func (ec *executionContext) childFields_MauriceDraftWatchStatus(ctx context.Cont
 		return ec.fieldContext_MauriceDraftWatchStatus_lastError(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type MauriceDraftWatchStatus", field.Name)
+}
+
+func (ec *executionContext) childFields_MauriceMe(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "firstName":
+		return ec.fieldContext_MauriceMe_firstName(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type MauriceMe", field.Name)
 }
 
 func (ec *executionContext) childFields_MauriceMessage(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -27769,6 +27809,29 @@ func (ec *executionContext) fieldContext_MauriceDraftWatchStatus_lastError(_ con
 	return graphql.NewScalarFieldContext("MauriceDraftWatchStatus", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
+func (ec *executionContext) _MauriceMe_firstName(ctx context.Context, field graphql.CollectedField, obj *model.MauriceMe) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_MauriceMe_firstName(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.FirstName, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_MauriceMe_firstName(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("MauriceMe", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
 func (ec *executionContext) _MauriceMessage_id(ctx context.Context, field graphql.CollectedField, obj *model.MauriceMessage) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -37811,6 +37874,38 @@ func (ec *executionContext) fieldContext_Query_mauriceDraftEvents(ctx context.Co
 	if fc.Args, err = ec.field_Query_mauriceDraftEvents_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_mauriceMe(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_mauriceMe(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().MauriceMe(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.MauriceMe) graphql.Marshaler {
+			return ec.marshalNMauriceMe2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceMe(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_mauriceMe(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_MauriceMe(ctx, field)
+		},
 	}
 	return fc, nil
 }
@@ -48862,6 +48957,45 @@ func (ec *executionContext) _MauriceDraftWatchStatus(ctx context.Context, sel as
 	return out
 }
 
+var mauriceMeImplementors = []string{"MauriceMe"}
+
+func (ec *executionContext) _MauriceMe(ctx context.Context, sel ast.SelectionSet, obj *model.MauriceMe) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, mauriceMeImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("MauriceMe")
+		case "firstName":
+			out.Values[i] = ec._MauriceMe_firstName(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferred), math.MaxInt32)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
 var mauriceMessageImplementors = []string{"MauriceMessage"}
 
 func (ec *executionContext) _MauriceMessage(ctx context.Context, sel ast.SelectionSet, obj *model.MauriceMessage) graphql.Marshaler {
@@ -52791,6 +52925,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "mauriceMe":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_mauriceMe(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
 		case "mauriceReportingInstances":
 			field := field
 
@@ -56218,6 +56374,20 @@ func (ec *executionContext) marshalNMauriceDraftWatchStatus2ᚖgithubᚗcomᚋsp
 		return graphql.Null
 	}
 	return ec._MauriceDraftWatchStatus(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNMauriceMe2githubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceMe(ctx context.Context, sel ast.SelectionSet, v model.MauriceMe) graphql.Marshaler {
+	return ec._MauriceMe(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNMauriceMe2ᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceMe(ctx context.Context, sel ast.SelectionSet, v *model.MauriceMe) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._MauriceMe(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalNMauriceMessage2ᚕᚖgithubᚗcomᚋsperanoᚋpuckdbᚋinternalᚋgraphᚋmodelᚐMauriceMessageᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.MauriceMessage) graphql.Marshaler {

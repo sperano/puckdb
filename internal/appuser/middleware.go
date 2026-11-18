@@ -55,6 +55,7 @@ func resolveRequest(ctx context.Context, provider Provider, store Store, hasher 
 	}
 	user := res.User
 	user.Username = identity.Username
+	user.FirstName = identity.GreetingName()
 	return user, nil
 }
 

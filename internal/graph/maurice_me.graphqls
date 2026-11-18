@@ -1,0 +1,12 @@
+# The caller as Maurice knows them, for the client's greeting. Needs the
+# instance's login identity, like every Maurice field.
+
+"""The caller's profile."""
+type MauriceMe {
+	"""The name to greet the caller by: the name of their login email's entry in the instance's members file (--maurice-members), else the first word of the login provider's name (Authentik's full name; Cloudflare Access gives none), else the username (the email on Cloudflare Access)."""
+	firstName: String!
+}
+
+extend type Query {
+	mauriceMe: MauriceMe!
+}

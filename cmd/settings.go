@@ -126,6 +126,20 @@ func appAuthFrom(v *viper.Viper) appuser.AuthConfig {
 	}
 }
 
+// mauriceMembersFrom reads the members file --maurice-members names (no
+// entries when it names none).
+func mauriceMembersFrom(v *viper.Viper) (appuser.Members, error) {
+	path := strings.TrimSpace(v.GetString(config.FlagMauriceMembers))
+	if path == "" {
+		return appuser.Members{}, nil
+	}
+	members, err := appuser.LoadMembers(path)
+	if err != nil {
+		return appuser.Members{}, fmt.Errorf("--%s: %w", config.FlagMauriceMembers, err)
+	}
+	return members, nil
+}
+
 // mauriceYahooLeaguesFrom reads --maurice-yahoo-leagues, the Yahoo league
 // allowlist of Maurice's prompt and team picker (empty: every league).
 func mauriceYahooLeaguesFrom(v *viper.Viper) ([]int32, error) {

@@ -327,6 +327,36 @@ func TestPGStore_ResolveSyncsYahooTeamLinks(t *testing.T) {
 	assert.Equal(t, 0, countRows(t, pool, `SELECT count(*) FROM app_user_yahoo_teams WHERE user_id = $1`, res.User.ID))
 }
 
+// Resolve also links the teams of the member Yahoo email (the members file's)
+// and stores it for unlink-team; the link goes once the entry loses it.
+func TestPGStore_ResolveSyncsTheMemberYahooEmail(t *testing.T) {
+	store, pool := openStore(t)
+	ctx := context.Background()
+	sub := newSubject()
+	yahooEmail := fmt.Sprintf("member-yahoo-%s@yahoo.ca", uuid.NewString())
+	seedYahooTeamManager(t, pool, yahooEmail)
+
+	first := sessionRequest(sub, nil)
+	first.Identity.Email = fmt.Sprintf("member-login-%s@gmail.com", uuid.NewString())
+	first.Identity.MemberYahooEmail = yahooEmail
+	res, err := store.Resolve(ctx, first)
+	require.NoError(t, err)
+	assert.Equal(t, 1, countRows(t, pool,
+		`SELECT count(*) FROM app_user_yahoo_teams WHERE user_id = $1 AND source = 'email'`, res.User.ID))
+	var stored *string
+	require.NoError(t, pool.QueryRow(ctx, `SELECT member_yahoo_email FROM app_users WHERE id = $1`, res.User.ID).Scan(&stored))
+	require.NotNil(t, stored)
+	assert.Equal(t, yahooEmail, *stored)
+
+	dropped := sessionRequest(sub, first.FreshHash)
+	dropped.Identity.Email = first.Identity.Email
+	_, err = store.Resolve(ctx, dropped)
+	require.NoError(t, err)
+	assert.Equal(t, 0, countRows(t, pool, `SELECT count(*) FROM app_user_yahoo_teams WHERE user_id = $1`, res.User.ID))
+	require.NoError(t, pool.QueryRow(ctx, `SELECT member_yahoo_email FROM app_users WHERE id = $1`, res.User.ID).Scan(&stored))
+	assert.Nil(t, stored, "no member Yahoo email is stored as NULL")
+}
+
 func countRows(t *testing.T, pool *pgxpool.Pool, sql string, args ...any) int {
 	t.Helper()
 	var n int

@@ -26,17 +26,18 @@ func (u Unlinked) Removed() bool { return u.Team || len(u.GUIDs) > 0 || u.Reject
 // Unlink removes every link through which userID reaches the given Yahoo
 // team, of any source (email, manual or self): its team link, and its guid links to the team's
 // managers, which also removes those accounts' other teams. It refuses, with
-// ErrEmailLinkStillMatches and removing nothing, when the login email, read
-// under the user row lock, still matches a manager of that team or resolves to a guid one of
-// the team's managers resolves to, held or not: a manual link gets no
-// exemption, since an operator's Link promotes a matching email link to
-// manual (and SyncEmailLinks would just recreate it, as SourceEmail, on the
-// user's next authenticated request either way); fix the
-// yahoo_team_managers row's email instead. The checks and the deletes run
-// in one transaction, so a failure removes nothing. Unless the email still
-// matches, it also removes the user's deselection of the team
-// (Picker.SetTeams), which no link reaches any more; while the email
-// matches, the deselection stays, since removing it would let the resync
+// ErrEmailLinkStillMatches and removing nothing, when the login email or
+// the member Yahoo email (the members file's, as of the user's last login),
+// read under the user row lock, still matches a manager of that team or
+// resolves to a guid one of the team's managers resolves to, held or not: a
+// manual link gets no exemption, since an operator's Link promotes a
+// matching email link to manual (and SyncEmailLinks would just recreate it,
+// as SourceEmail, on the user's next authenticated request either way); fix
+// the yahoo_team_managers row's email, or the members file entry, instead.
+// The checks and the deletes run in one transaction, so a failure removes
+// nothing. Unless an email still matches, it also removes the user's
+// deselection of the team (Picker.SetTeams), which no link reaches any more;
+// while an email matches, the deselection stays, since removing it would let the resync
 // link the team again. It returns ErrUserNotFound for no such user, and
 // takes the user row lock first, so it serializes with Picker.SetTeams. A
 // zero Unlinked means the user had no link to the
@@ -57,7 +58,7 @@ func (s *PGStore) Unlink(ctx context.Context, userID pgtype.UUID, leagueID, team
 
 // unlink is Unlink's body, over the transaction's queries q.
 func unlink(ctx context.Context, q *sqlcdb.Queries, userID pgtype.UUID, leagueID, teamID int32) (Unlinked, error) {
-	email, err := lockUser(ctx, q, userID)
+	emails, err := lockUser(ctx, q, userID)
 	if err != nil {
 		return Unlinked{}, err
 	}
@@ -65,7 +66,7 @@ func unlink(ctx context.Context, q *sqlcdb.Queries, userID pgtype.UUID, leagueID
 	if err != nil {
 		return Unlinked{}, err
 	}
-	match, err := matchEmail(ctx, q, email)
+	match, err := matchEmails(ctx, q, emails)
 	if err != nil {
 		return Unlinked{}, err
 	}
