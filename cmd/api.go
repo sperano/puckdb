@@ -137,6 +137,7 @@ func cmdAPI() *cobra.Command {
 				TemporalClient: temporalClient,
 				RedisClient:    redisClient,
 				MauriceTeams:   yahoolink.NewPicker(pool, yahooLeagues, yahoolink.CurrentSeason),
+				TeamOffers:     yahoolink.NewPGStore(pool),
 				Queries:        queries,
 				DB:             pool,
 				Draft:          draftService,

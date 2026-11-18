@@ -46,7 +46,17 @@ type graphQLResponse struct {
 }
 
 type graphQLError struct {
-	Message string `json:"message"`
+	Message    string         `json:"message"`
+	Extensions map[string]any `json:"extensions,omitempty"`
+}
+
+// Error reports e the way every command reports a failed GraphQL request.
+func (e *graphQLError) Error() string { return "graphql error: " + e.Message }
+
+// Code returns e's extensions.code, "" when it has none.
+func (e *graphQLError) Code() string {
+	code, _ := e.Extensions["code"].(string)
+	return code
 }
 
 // GraphQLClient handles communication with the GraphQL API
@@ -179,8 +189,8 @@ func (c *GraphQLClient) execute(ctx context.Context, query string, variables map
 		// an older server, a bad argument type) with 422 and a GraphQL
 		// error body; surface its message like a 200 error. Other bodies
 		// (redirects, proxy pages) keep the status-based error.
-		if msg := graphQLErrorMessage(body); msg != "" {
-			return nil, fmt.Errorf("graphql error: %s", msg)
+		if gqlErr := firstGraphQLError(body); gqlErr != nil && gqlErr.Message != "" {
+			return nil, gqlErr
 		}
 		return nil, handleHTTPError(resp.StatusCode, resp.Header.Get("Location"), body)
 	}
@@ -195,20 +205,20 @@ func (c *GraphQLClient) execute(ctx context.Context, query string, variables map
 	}
 
 	if len(gqlResp.Errors) > 0 {
-		return &gqlResp, fmt.Errorf("graphql error: %s", gqlResp.Errors[0].Message)
+		return &gqlResp, &gqlResp.Errors[0]
 	}
 
 	return &gqlResp, nil
 }
 
-// graphQLErrorMessage returns the first error message of a GraphQL
-// response body, or "" when body is not one or carries no error.
-func graphQLErrorMessage(body []byte) string {
+// firstGraphQLError returns the first error of a GraphQL response body, or
+// nil when body is not one or carries no error.
+func firstGraphQLError(body []byte) *graphQLError {
 	var gqlResp graphQLResponse
 	if err := json.Unmarshal(body, &gqlResp); err != nil || len(gqlResp.Errors) == 0 {
-		return ""
+		return nil
 	}
-	return gqlResp.Errors[0].Message
+	return &gqlResp.Errors[0]
 }
 
 // WorkflowStatus combines result and progress from a workflow query

@@ -34,3 +34,14 @@ func (s *PGStore) ResetInstanceTeamOffers(ctx context.Context, instance string) 
 	}
 	return n, nil
 }
+
+// ResetUserTeamOffer is ResetTeamOffer for instance's user named username,
+// the admin reset behind the GraphQL resetTeamOffer mutation. It returns
+// ErrUserNotFound or ErrAmbiguousUser when username names no single user.
+func (s *PGStore) ResetUserTeamOffer(ctx context.Context, instance, username string) (bool, error) {
+	user, err := s.FindUser(ctx, instance, username)
+	if err != nil {
+		return false, err
+	}
+	return s.ResetTeamOffer(ctx, user.ID)
+}

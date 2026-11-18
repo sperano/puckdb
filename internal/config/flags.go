@@ -586,9 +586,9 @@ var AppSessionFlags = FlagGroup{
 	},
 }
 
-// UserTeamLinkFlags defines the flags of the `user` admin commands (link-team,
-// unlink-team, list-teams), which manage internal/yahoolink links directly
-// against PostgreSQL.
+// UserTeamLinkFlags defines the flags of the `user` admin commands: link-team,
+// unlink-team and list-teams, which manage internal/yahoolink links directly
+// against PostgreSQL, and reset-team-offer, which goes through the API.
 var UserTeamLinkFlags = FlagGroup{
 	Flags: []FlagDef{
 		{FlagInstance, "", "", "Name of the API instance whose users to manage (required)", false},
@@ -608,6 +608,15 @@ var AdminAuthFlags = FlagGroup{
 	Flags: []FlagDef{
 		{FlagAdminGroup, "", DefaultAdminGroup, "Authentik group granting access to admin GraphQL mutations and, with --maurice-reporting-enabled, the Maurice reporting queries", false},
 		{FlagAdminToken, "", "", "Shared secret token granting access to admin GraphQL mutations (empty disables the token path)", true},
+	},
+}
+
+// AdminTokenClientFlags defines the admin token of CLI commands calling the
+// API server's @admin GraphQL mutations; unlike AdminAuthFlags it has no
+// --admin-group, which only the server reads.
+var AdminTokenClientFlags = FlagGroup{
+	Flags: []FlagDef{
+		{FlagAdminToken, "", "", "Shared secret token sent as X-Admin-Token to the API server's admin GraphQL mutations (empty sends none)", true},
 	},
 }
 
@@ -1099,6 +1108,7 @@ var allFlagGroups = []*FlagGroup{
 	&TLSFlags,
 	&MauriceFlags,
 	&AdminAuthFlags,
+	&AdminTokenClientFlags,
 	&AppSessionFlags,
 	&APIBasicAuthFlags,
 	&NotifyEmailFlags,

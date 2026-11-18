@@ -1073,6 +1073,8 @@ type ComplexityRoot struct {
 		RefreshMauriceDraftBoard     func(childComplexity int, input model.MauriceDraftSessionRefInput) int
 		RefreshNews                  func(childComplexity int, input *model.RefreshNewsInput) int
 		ResetDraftOverride           func(childComplexity int, id string, reason string) int
+		ResetInstanceTeamOffers      func(childComplexity int, instance string) int
+		ResetTeamOffer               func(childComplexity int, instance string, username string) int
 		ResolveMauriceDraftConflict  func(childComplexity int, input model.MauriceDraftResolveInput) int
 		SetMauriceDraftShortlist     func(childComplexity int, input model.MauriceDraftShortlistInput) int
 		StartMauriceDraftWatch       func(childComplexity int, input model.MauriceDraftSessionRefInput) int
@@ -1476,6 +1478,8 @@ type MutationResolver interface {
 	SetMauriceDraftShortlist(ctx context.Context, input model.MauriceDraftShortlistInput) (*model.MauriceDraftSyncStatus, error)
 	MauriceSetTeams(ctx context.Context, teams []*model.TeamRef) (*model.MauriceTeamChoices, error)
 	MauriceDismissTeamOffer(ctx context.Context) (bool, error)
+	ResetTeamOffer(ctx context.Context, instance string, username string) (bool, error)
+	ResetInstanceTeamOffers(ctx context.Context, instance string) (int, error)
 	CreateSimPool(ctx context.Context, input model.CreateSimPoolInput) (*model.SimPool, error)
 	CancelSimPool(ctx context.Context, poolID int) (*model.SimPool, error)
 }
@@ -6337,6 +6341,28 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.ResetDraftOverride(childComplexity, args["id"].(string), args["reason"].(string)), true
+	case "Mutation.resetInstanceTeamOffers":
+		if e.ComplexityRoot.Mutation.ResetInstanceTeamOffers == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_resetInstanceTeamOffers_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.ResetInstanceTeamOffers(childComplexity, args["instance"].(string)), true
+	case "Mutation.resetTeamOffer":
+		if e.ComplexityRoot.Mutation.ResetTeamOffer == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_resetTeamOffer_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.ResetTeamOffer(childComplexity, args["instance"].(string), args["username"].(string)), true
 	case "Mutation.resolveMauriceDraftConflict":
 		if e.ComplexityRoot.Mutation.ResolveMauriceDraftConflict == nil {
 			break
@@ -10183,7 +10209,9 @@ extend type Query {
 }
 `, BuiltIn: false},
 	{Name: "../maurice_teams.graphqls", Input: `# Maurice team picker: the caller picks their own Yahoo teams, for a login
-# email that differs from their Yahoo manager email. Every field needs the
+# email that differs from their Yahoo manager email. Every field but the
+# @admin offer resets (resetTeamOffer, resetInstanceTeamOffers, which need
+# no login identity and take the instance and user as arguments) needs the
 # instance's login identity and is scoped to the caller. A pick is
 # self-declared and unverified: it only changes the caller's own Maurice
 # prompt, and several users may pick the same team (co-managers).
@@ -10218,7 +10246,7 @@ type MauriceTeamChoices {
 	season: Int
 	"""Ordered by league then team ID."""
 	teams: [MauriceTeamChoice!]!
-	"""Whether the caller already saved or dismissed the first-login offer; false again after ` + "`" + `puckdb user reset-team-offer` + "`" + ` clears it."""
+	"""Whether the caller already saved or dismissed the first-login offer; false again after resetTeamOffer or resetInstanceTeamOffers (` + "`" + `puckdb user reset-team-offer` + "`" + `) clears it."""
 	offered: Boolean!
 }
 
@@ -10237,6 +10265,10 @@ extend type Mutation {
 	mauriceSetTeams(teams: [TeamRef!]!): MauriceTeamChoices!
 	"""Marks the offer as seen, changing no team."""
 	mauriceDismissTeamOffer: Boolean!
+	"""Admin: clears the offer flag of instance's user named username (exact match), so the client opens the offer again at their next visit; links and deselections stay. Returns whether the user had seen the offer. A username matching no user of the instance fails with extensions.code USER_NOT_FOUND, one matching several with AMBIGUOUS_USER."""
+	resetTeamOffer(instance: String!, username: String!): Boolean! @admin
+	"""Admin: resetTeamOffer for every user of instance; returns how many had seen the offer."""
+	resetInstanceTeamOffers(instance: String!): Int! @admin
 }
 `, BuiltIn: false},
 	{Name: "../schema.graphqls", Input: `# GraphQL schema example
@@ -13821,6 +13853,42 @@ func (ec *executionContext) field_Mutation_resetDraftOverride_args(ctx context.C
 		return nil, err
 	}
 	args["reason"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_resetInstanceTeamOffers_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "instance",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["instance"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_resetTeamOffer_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "instance",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["instance"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "username",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["username"] = arg1
 	return args, nil
 }
 
@@ -34002,6 +34070,120 @@ func (ec *executionContext) fieldContext_Mutation_mauriceDismissTeamOffer(_ cont
 	return graphql.NewScalarFieldContext("Mutation", field, true, true, errors.New("field of type Boolean does not have child fields"))
 }
 
+func (ec *executionContext) _Mutation_resetTeamOffer(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_resetTeamOffer(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().ResetTeamOffer(ctx, fc.Args["instance"].(string), fc.Args["username"].(string))
+		},
+		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
+			directive0 := next
+
+			directive1 := func(ctx context.Context) (any, error) {
+				if ec.Directives.Admin == nil {
+					var zeroVal bool
+					return zeroVal, errors.New("directive admin is not implemented")
+				}
+				return ec.Directives.Admin(ctx, nil, directive0)
+			}
+
+			next = directive1
+			return next
+		},
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_resetTeamOffer(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_resetTeamOffer_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_resetInstanceTeamOffers(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_resetInstanceTeamOffers(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().ResetInstanceTeamOffers(ctx, fc.Args["instance"].(string))
+		},
+		func(ctx context.Context, next graphql.Resolver) graphql.Resolver {
+			directive0 := next
+
+			directive1 := func(ctx context.Context) (any, error) {
+				if ec.Directives.Admin == nil {
+					var zeroVal int
+					return zeroVal, errors.New("directive admin is not implemented")
+				}
+				return ec.Directives.Admin(ctx, nil, directive0)
+			}
+
+			next = directive1
+			return next
+		},
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_resetInstanceTeamOffers(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_resetInstanceTeamOffers_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Mutation_createSimPool(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -50896,6 +51078,20 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "mauriceDismissTeamOffer":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_mauriceDismissTeamOffer(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "resetTeamOffer":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_resetTeamOffer(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "resetInstanceTeamOffers":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_resetInstanceTeamOffers(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++

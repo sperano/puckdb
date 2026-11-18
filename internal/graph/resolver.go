@@ -66,8 +66,12 @@ type Resolver struct {
 	// MauriceTeams lets a Maurice user pick their own Yahoo teams; nil when
 	// there is no database (the team picker fields then fail).
 	MauriceTeams MauriceTeamPicker
-	Queries      *sqlcdb.Queries
-	DB           txBeginner
+	// TeamOffers resets users' team picker offer for the @admin
+	// resetTeamOffer mutations; nil when there is no database (they then
+	// fail).
+	TeamOffers TeamOfferResetter
+	Queries    *sqlcdb.Queries
+	DB         txBeginner
 	// Draft serves draft rankings; nil when there is no database.
 	Draft *draftrank.Service
 	// DraftBoard composes persisted live sessions, rankings and recovery controls.

@@ -88,3 +88,42 @@ func TestResetInstanceTeamOffers(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, int64(0), n, "nothing left to reset")
 }
+
+// TestResetUserTeamOffer: the named user of the instance is reset alone; a
+// name no user of the instance carries, or two users share, resets nobody.
+func TestResetUserTeamOffer(t *testing.T) {
+	pool := pgtest.Open(t)
+	store := NewPGStore(pool)
+	ctx := context.Background()
+
+	instance := uniqueUsername("instance")
+	league, _ := seedLeagueTeam(t, pool, "Team")
+	picker := newTestPicker(pool, testSeason, league)
+	alice := insertUserOnInstance(t, pool, instance, "alice")
+	bob := insertUserOnInstance(t, pool, instance, "bob")
+	twin1 := insertUserOnInstance(t, pool, instance, "twin")
+	twin2 := insertUserOnInstance(t, pool, instance, "twin")
+	elsewhere := insertUserOnInstance(t, pool, uniqueUsername("elsewhere"), "carol")
+	for _, u := range []pgtype.UUID{alice, bob, twin1, twin2, elsewhere} {
+		require.NoError(t, picker.DismissTeamOffer(ctx, userIDText(u)))
+	}
+
+	wasSeen, err := store.ResetUserTeamOffer(ctx, instance, "alice")
+	require.NoError(t, err)
+	assert.True(t, wasSeen)
+	wasSeen, err = store.ResetUserTeamOffer(ctx, instance, "alice")
+	require.NoError(t, err)
+	assert.False(t, wasSeen, "a pending offer was not seen")
+
+	_, err = store.ResetUserTeamOffer(ctx, instance, "carol")
+	require.ErrorIs(t, err, ErrUserNotFound, "another instance's user is not found")
+	assert.EqualError(t, err, `no such user: "carol" on instance "`+instance+`"`)
+	_, err = store.ResetUserTeamOffer(ctx, instance, "twin")
+	require.ErrorIs(t, err, ErrAmbiguousUser)
+
+	for _, u := range []pgtype.UUID{bob, twin1, twin2, elsewhere} {
+		choices, err := picker.TeamChoices(ctx, userIDText(u))
+		require.NoError(t, err)
+		assert.True(t, choices.Offered, "only the named user is reset")
+	}
+}
