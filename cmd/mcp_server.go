@@ -13,6 +13,7 @@ import (
 	"github.com/sperano/puckdb/internal/database"
 	"github.com/sperano/puckdb/internal/mcpserver"
 	"github.com/sperano/puckdb/internal/news"
+	"github.com/sperano/puckdb/internal/sqlcdb"
 
 	mcpserversdk "github.com/mark3labs/mcp-go/server"
 	"github.com/spf13/cobra"
@@ -116,6 +117,23 @@ func resolveMCPOptions() (mcpserver.Options, error) {
 	return opts, nil
 }
 
+// mcpLeagueLister is what mcpserver.CheckLeagueKeys reads the imported
+// leagues from; *sqlcdb.Queries satisfies it.
+type mcpLeagueLister interface {
+	GetAllYahooLeagues(ctx context.Context) ([]sqlcdb.YahooLeague, error)
+}
+
+// checkMCPLeagueKeys runs mcpserver.CheckLeagueKeys and names
+// --mcp-yahoo-leagues only when a configured key is missing: a failed lookup
+// (the database is down) is not the flag's fault.
+func checkMCPLeagueKeys(ctx context.Context, leagues mcpLeagueLister, opts mcpserver.Options) error {
+	err := mcpserver.CheckLeagueKeys(ctx, leagues, opts)
+	if errors.Is(err, mcpserver.ErrLeagueKeysNotImported) {
+		return fmt.Errorf("invalid --%s: %w", config.FlagMCPYahooLeagues, err)
+	}
+	return err
+}
+
 func runMCPServer(cmd *cobra.Command, transport mcpTransport, opts mcpserver.Options) error {
 	ctx := cmd.Context()
 
@@ -126,6 +144,9 @@ func runMCPServer(cmd *cobra.Command, transport mcpTransport, opts mcpserver.Opt
 	defer pool.Close()
 
 	queries := database.NewQueries(pool)
+	if err := checkMCPLeagueKeys(ctx, queries, opts); err != nil {
+		return err
+	}
 	opts.Draft = newDraftService(pool)
 	if opts.HasToolset(mcpserver.ToolsetNews) {
 		sources, err := news.LoadSources(viper.GetString(config.FlagNewsSourcesFile))

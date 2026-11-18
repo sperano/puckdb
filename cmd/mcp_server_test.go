@@ -1,11 +1,14 @@
 package cmd
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"testing"
 
 	"github.com/sperano/puckdb/internal/config"
 	"github.com/sperano/puckdb/internal/mcpserver"
+	"github.com/sperano/puckdb/internal/sqlcdb"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/require"
 )
@@ -141,4 +144,47 @@ func TestMCPServerYahooLeaguesWithoutYahooToolsetStarts(t *testing.T) {
 	got, err := resolveMCPOptionsFor(t)
 	require.NoError(t, err)
 	require.False(t, got.HasToolset(mcpserver.ToolsetYahoo))
+}
+
+const (
+	importedMCPLeagueKey = "465.l.1001"
+	staleMCPLeagueKey    = "500.l.1001"
+)
+
+// fakeMCPLeagueLister serves one imported league, or err.
+type fakeMCPLeagueLister struct{ err error }
+
+func (f fakeMCPLeagueLister) GetAllYahooLeagues(context.Context) ([]sqlcdb.YahooLeague, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+	return []sqlcdb.YahooLeague{{LeagueKey: importedMCPLeagueKey}}, nil
+}
+
+func yahooMCPOptions(keys ...string) mcpserver.Options {
+	return mcpserver.Options{Toolsets: []mcpserver.Toolset{mcpserver.ToolsetYahoo}, YahooLeagues: keys}
+}
+
+func TestCheckMCPLeagueKeysAcceptsImportedKey(t *testing.T) {
+	t.Parallel()
+	require.NoError(t, checkMCPLeagueKeys(t.Context(), fakeMCPLeagueLister{}, yahooMCPOptions(importedMCPLeagueKey)))
+}
+
+// TestCheckMCPLeagueKeysBlamesFlagForMissingKey: a key matching no imported
+// league is a configuration error, reported against the flag.
+func TestCheckMCPLeagueKeysBlamesFlagForMissingKey(t *testing.T) {
+	t.Parallel()
+	err := checkMCPLeagueKeys(t.Context(), fakeMCPLeagueLister{}, yahooMCPOptions(staleMCPLeagueKey))
+	require.ErrorIs(t, err, mcpserver.ErrLeagueKeysNotImported)
+	require.ErrorContains(t, err, "invalid --mcp-yahoo-leagues: configured yahoo league keys not imported: "+staleMCPLeagueKey)
+}
+
+// TestCheckMCPLeagueKeysDoesNotBlameFlagForLookupFailure: a database outage
+// must not point the operator at --mcp-yahoo-leagues.
+func TestCheckMCPLeagueKeysDoesNotBlameFlagForLookupFailure(t *testing.T) {
+	t.Parallel()
+	queryErr := errors.New("connection refused")
+	err := checkMCPLeagueKeys(t.Context(), fakeMCPLeagueLister{err: queryErr}, yahooMCPOptions(importedMCPLeagueKey))
+	require.ErrorIs(t, err, queryErr)
+	require.EqualError(t, err, "list yahoo leagues: connection refused")
 }
