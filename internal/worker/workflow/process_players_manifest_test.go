@@ -46,8 +46,8 @@ const (
 	chainFailingOrdinal = 2
 	chainPoolSize       = 1
 	chainRebuiltPool    = 3
-	chainLeaguePlayers  = 1
-	chainRebuiltLeague  = 2
+	chainNonPageEntries = 1
+	chainRebuiltNonPage = 2
 	chainManifestID     = "chain-run"
 	chainUnmatched      = 2
 )
@@ -116,10 +116,10 @@ type manifestChain struct {
 	events  []string
 	ensured []int
 	pools   []int
-	// ensuredLeague and poolsLeague are the league player counts beside
+	// ensuredNonPage and poolsNonPage are the non-page entry counts beside
 	// ensured and pools.
-	ensuredLeague []int
-	poolsLeague   []int
+	ensuredNonPage []int
+	poolsNonPage   []int
 	// finishErr fails FinishProcessPlayersManifest when set.
 	finishErr error
 	recorded  []workplayer.PlayerError
@@ -153,7 +153,7 @@ func (c *manifestChain) newEnv(t *testing.T) *testsuite.TestWorkflowEnvironment 
 	env.OnActivity(act.ParseYahooPlayerBatch, mock.Anything, mock.Anything).Return([]store.YahooPlayer{{YahooID: 1}}, nil)
 	env.OnActivity(act.SaveYahooPlayersToRedis, mock.Anything, mock.Anything).
 		Return(&workplayer.SaveYahooIDPoolResult{
-			TotalPlayers: 1, AvailablePlayers: 1, PoolSize: chainPoolSize, LeaguePlayers: chainLeaguePlayers,
+			TotalPlayers: 1, AvailablePlayers: 1, PoolSize: chainPoolSize, NonPageEntries: chainNonPageEntries,
 		}, nil)
 	env.OnActivity(act.EnsureYahooIDPool, mock.Anything, mock.Anything).Return(c.ensure)
 	env.OnActivity(act.ProcessPlayerManifestBatch, mock.Anything, mock.Anything).Return(c.batch)
@@ -184,11 +184,11 @@ func (c *manifestChain) ensure(_ context.Context, input workplayer.EnsureYahooID
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.ensured = append(c.ensured, input.PoolSize)
-	c.ensuredLeague = append(c.ensuredLeague, input.LeaguePlayers)
+	c.ensuredNonPage = append(c.ensuredNonPage, input.NonPageEntries)
 	if len(c.ensured) == 2 {
-		return workplayer.EnsureYahooIDPoolResult{Rebuilt: true, PoolSize: chainRebuiltPool, LeaguePlayers: chainRebuiltLeague}, nil
+		return workplayer.EnsureYahooIDPoolResult{Rebuilt: true, PoolSize: chainRebuiltPool, NonPageEntries: chainRebuiltNonPage}, nil
 	}
-	return workplayer.EnsureYahooIDPoolResult{FoundSize: input.PoolSize, PoolSize: input.PoolSize, LeaguePlayers: input.LeaguePlayers}, nil
+	return workplayer.EnsureYahooIDPoolResult{FoundSize: input.PoolSize, PoolSize: input.PoolSize, NonPageEntries: input.NonPageEntries}, nil
 }
 
 func (c *manifestChain) batch(_ context.Context, input workplayer.ManifestBatchInput) (workplayer.ManifestBatchResult, error) {
@@ -196,7 +196,7 @@ func (c *manifestChain) batch(_ context.Context, input workplayer.ManifestBatchI
 	defer c.mu.Unlock()
 	c.batches = append(c.batches, ordinalRange{From: input.From, To: input.To})
 	c.pools = append(c.pools, input.YahooPoolSize)
-	c.poolsLeague = append(c.poolsLeague, input.YahooLeaguePlayers)
+	c.poolsNonPage = append(c.poolsNonPage, input.YahooNonPageEntries)
 	result := workplayer.ManifestBatchResult{
 		ProcessPlayerBatchResult: workplayer.ProcessPlayerBatchResult{Origins: core.OriginCounts{core.OriginFileSystem: 1}},
 	}
@@ -244,8 +244,8 @@ func TestProcessPlayersManifestChain(t *testing.T) {
 	assert.ElementsMatch(t, []ordinalRange{{0, 1}, {1, 2}, {2, 3}, {3, 4}, {4, 5}}, chain.batches, "each ordinal once")
 	assert.ElementsMatch(t, []int{chainPoolSize, chainPoolSize, chainRebuiltPool, chainRebuiltPool, chainRebuiltPool},
 		chain.pools, "batches expect the pool size of their execution's check")
-	assert.ElementsMatch(t, []int{chainLeaguePlayers, chainLeaguePlayers, chainRebuiltLeague, chainRebuiltLeague, chainRebuiltLeague},
-		chain.poolsLeague, "batches get the league player count of their execution's check")
+	assert.ElementsMatch(t, []int{chainNonPageEntries, chainNonPageEntries, chainRebuiltNonPage, chainRebuiltNonPage, chainRebuiltNonPage},
+		chain.poolsNonPage, "batches get the non-page entry count of their execution's check")
 	assert.Equal(t, 1, state.Totals.Errors)
 	assert.Equal(t, 4, state.Totals.Imported)
 	assert.Equal(t, []string{"player 2: read error"}, state.ErrorSample)
@@ -261,8 +261,8 @@ func TestProcessPlayersManifestChain(t *testing.T) {
 
 	assert.Equal(t, []int{chainPoolSize, chainPoolSize, chainRebuiltPool, chainRebuiltPool}, chain.ensured,
 		"every continuation checks the pool, against the rebuilt size after a rebuild")
-	assert.Equal(t, []int{chainLeaguePlayers, chainLeaguePlayers, chainRebuiltLeague, chainRebuiltLeague}, chain.ensuredLeague,
-		"the league player count crosses ContinueAsNew and follows a rebuild")
+	assert.Equal(t, []int{chainNonPageEntries, chainNonPageEntries, chainRebuiltNonPage, chainRebuiltNonPage}, chain.ensuredNonPage,
+		"the non-page entry count crosses ContinueAsNew and follows a rebuild")
 	wantResize := fmt.Sprintf("save total=%d bars=%d unmatched=%d", 1+chainPlayers+chainUnmatched,
 		1+chainPlayers+chainUnmatched, chainUnmatched)
 	require.GreaterOrEqual(t, len(chain.events), 3)

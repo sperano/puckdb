@@ -62,16 +62,24 @@ func mergeLeaguePlayers(pages []store.YahooPlayer, rows []sqlcdb.ListYahooLeague
 }
 
 // withLeaguePlayers adds the yahoo_league_players players to pages (see
-// mergeLeaguePlayers) and returns how many it added. Phase 1's save and the
-// pool rebuild both go through it. The rows are read again at each rebuild
-// and may have changed since phase 1 (a newer pool import deletes the
-// players Yahoo no longer lists), so the count lets the rebuild check the
-// page entries alone (rebuildYahooIDPool).
+// mergeLeaguePlayers) and returns how many distinct Yahoo IDs the pages
+// hold. Phase 1's save and the pool rebuild both go through it. The rows are
+// read again at each rebuild and may have changed since phase 1 (a newer
+// pool import deletes the players Yahoo no longer lists), so the page count
+// lets the rebuild check the page entries alone (rebuildYahooIDPool).
 func (a *Activities) withLeaguePlayers(ctx context.Context, pages []store.YahooPlayer) ([]store.YahooPlayer, int, error) {
 	rows, err := a.LeaguePlayers.ListYahooLeaguePlayersForPool(ctx)
 	if err != nil {
 		return nil, 0, fmt.Errorf("list yahoo league players: %w", err)
 	}
-	merged := mergeLeaguePlayers(pages, rows)
-	return merged, len(merged) - len(pages), nil
+	return mergeLeaguePlayers(pages, rows), distinctYahooIDs(pages), nil
+}
+
+// distinctYahooIDs counts the distinct Yahoo IDs of players.
+func distinctYahooIDs(players []store.YahooPlayer) int {
+	seen := make(map[store.YahooPlayerID]struct{}, len(players))
+	for _, p := range players {
+		seen[p.YahooID] = struct{}{}
+	}
+	return len(seen)
 }

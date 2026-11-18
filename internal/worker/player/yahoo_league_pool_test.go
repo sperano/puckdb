@@ -101,9 +101,10 @@ func TestPoolWithoutPagesMatchesLeaguePlayers(t *testing.T) {
 		leagueRow(4, "Sebastian Aho", "NYI", "D"),
 	)
 
-	players, added, err := act.withLeaguePlayers(ctx, nil)
+	players, pages, err := act.withLeaguePlayers(ctx, nil)
 	require.NoError(t, err)
-	assert.Equal(t, 4, added)
+	assert.Len(t, players, 4)
+	assert.Zero(t, pages)
 	saved, err := saveYahooPlayersToRedisImpl(ctx, act.RedisClient, players)
 	require.NoError(t, err)
 	assert.Equal(t, 4, saved.PoolSize)
@@ -133,17 +134,18 @@ func TestWithLeaguePlayers_ListErrorFails(t *testing.T) {
 	require.ErrorContains(t, err, "db down")
 }
 
-func TestWithLeaguePlayers_CountsOnlyThePlayersWithoutAPage(t *testing.T) {
+func TestWithLeaguePlayers_CountsTheDistinctPages(t *testing.T) {
 	act := &Activities{LeaguePlayers: fakeLeaguePlayers{rows: []sqlcdb.ListYahooLeaguePlayersForPoolRow{
 		leagueRow(6743, "Connor McDavid", "EDM", "C"),
 		leagueRow(7000, "Mitch Marner", "TOR", "RW"),
 	}}}
 
-	players, added, err := act.withLeaguePlayers(context.Background(), []store.YahooPlayer{{YahooID: 6743}})
+	players, pages, err := act.withLeaguePlayers(context.Background(),
+		[]store.YahooPlayer{{YahooID: 6743}, {YahooID: 29}, {YahooID: 29}})
 
 	require.NoError(t, err)
-	assert.Len(t, players, 2)
-	assert.Equal(t, 1, added, "McDavid has a page")
+	assert.Len(t, players, 4, "McDavid has a page; the duplicate page stays for the hash to collapse")
+	assert.Equal(t, 2, pages, "the duplicate page counts once")
 }
 
 func TestSaveYahooPlayersToRedis_LeagueOnlyPool(t *testing.T) {
@@ -157,7 +159,7 @@ func TestSaveYahooPlayersToRedis_LeagueOnlyPool(t *testing.T) {
 	require.NoError(t, err)
 	var result SaveYahooIDPoolResult
 	require.NoError(t, future.Get(&result))
-	assert.Equal(t, SaveYahooIDPoolResult{TotalPlayers: 1, AvailablePlayers: 1, PoolSize: 1, LeaguePlayers: 1}, result)
+	assert.Equal(t, SaveYahooIDPoolResult{TotalPlayers: 1, AvailablePlayers: 1, PoolSize: 1, NonPageEntries: 1}, result)
 	pool, err := LoadYahooIDPool(context.Background(), act.RedisClient)
 	require.NoError(t, err)
 	require.Contains(t, pool, store.YahooPlayerID(7000))

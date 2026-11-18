@@ -40,10 +40,12 @@ type SaveYahooIDPoolResult struct {
 	// PoolSize is the pool hash size measured after the save (players with
 	// the same Yahoo ID count once); EnsureYahooIDPool checks against it.
 	PoolSize int
-	// LeaguePlayers is how many of the saved players came from
-	// yahoo_league_players without a page (0 for chains started before the
-	// pool included them).
-	LeaguePlayers int
+	// NonPageEntries is how many pool entries the save wrote from no page:
+	// the yahoo_league_players players without a page, plus any entry an
+	// earlier save left in the hash (the save never deletes). PoolSize minus
+	// NonPageEntries is the pages saved, which a rebuild must reach again.
+	// 0 for chains started before the pool included league players.
+	NonPageEntries int
 }
 
 // LoadYahooIDPool loads all Yahoo players from Redis.

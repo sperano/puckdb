@@ -142,12 +142,12 @@ func (s *EnsureYahooIDPoolSuite) TestRebuildAfterLeaguePlayersWereDeletedSucceed
 
 	// Phase 1 saved the 2 pages and 2 league players; a newer pool import
 	// has deleted one of them since.
-	future, err := s.env.ExecuteActivity(s.act.EnsureYahooIDPool, EnsureYahooIDPoolInput{PoolSize: 4, LeaguePlayers: 2})
+	future, err := s.env.ExecuteActivity(s.act.EnsureYahooIDPool, EnsureYahooIDPoolInput{PoolSize: 4, NonPageEntries: 2})
 
 	s.Require().NoError(err)
 	var result EnsureYahooIDPoolResult
 	s.Require().NoError(future.Get(&result))
-	s.Equal(EnsureYahooIDPoolResult{Rebuilt: true, PoolSize: 3, LeaguePlayers: 1, Available: 3}, result)
+	s.Equal(EnsureYahooIDPoolResult{Rebuilt: true, PoolSize: 3, NonPageEntries: 1, Available: 3}, result)
 }
 
 func (s *EnsureYahooIDPoolSuite) TestLostPagesFailTheRebuildEvenWhenLeaguePlayersGrew() {
@@ -164,17 +164,44 @@ func (s *EnsureYahooIDPoolSuite) TestLostPagesFailTheRebuildEvenWhenLeaguePlayer
 	s.Contains(err.Error(), "rebuilt yahoo id pool holds 2 of the 3 page entries phase 1 saved")
 }
 
-func (s *EnsureYahooIDPoolSuite) TestHealthyPoolKeepsTheLeaguePlayerCount() {
-	_, err := saveYahooPlayersToRedisImpl(context.Background(), s.act.RedisClient,
-		[]store.YahooPlayer{{YahooID: 97}, {YahooID: 7000}})
+func (s *EnsureYahooIDPoolSuite) TestRebuildIgnoresAStaleEntryAnEarlierSaveLeft() {
+	// An earlier chain saved league player 7001, which a newer pool import
+	// has deleted from yahoo_league_players since; the hash keeps it.
+	_, err := saveYahooPlayersToRedisImpl(context.Background(), s.act.RedisClient, []store.YahooPlayer{{YahooID: 7001}})
 	s.Require().NoError(err)
+	s.act.LeaguePlayers = fakeLeaguePlayers{rows: []sqlcdb.ListYahooLeaguePlayersForPoolRow{
+		leagueRow(7000, "Mitch Marner", "TOR", "RW"),
+	}}
+	s.env.RegisterActivity(s.act.SaveYahooPlayersToRedis)
+	future, err := s.env.ExecuteActivity(s.act.SaveYahooPlayersToRedis, []store.YahooPlayer{{YahooID: 97}, {YahooID: 29}})
+	s.Require().NoError(err)
+	var saved SaveYahooIDPoolResult
+	s.Require().NoError(future.Get(&saved))
+	s.Equal(SaveYahooIDPoolResult{TotalPlayers: 3, AvailablePlayers: 3, PoolSize: 4, NonPageEntries: 2}, saved,
+		"the stale entry is counted with the league player, not as a page")
 
-	future, err := s.env.ExecuteActivity(s.act.EnsureYahooIDPool, EnsureYahooIDPoolInput{PoolSize: 2, LeaguePlayers: 1})
+	s.mr.Del(YahooIDPoolKey)
+	s.mr.Del(YahooIDAvailableKey)
+	future, err = s.env.ExecuteActivity(s.act.EnsureYahooIDPool,
+		EnsureYahooIDPoolInput{PoolSize: saved.PoolSize, NonPageEntries: saved.NonPageEntries})
 
 	s.Require().NoError(err)
 	var result EnsureYahooIDPoolResult
 	s.Require().NoError(future.Get(&result))
-	s.Equal(EnsureYahooIDPoolResult{FoundSize: 2, PoolSize: 2, LeaguePlayers: 1}, result)
+	s.Equal(EnsureYahooIDPoolResult{Rebuilt: true, PoolSize: 3, NonPageEntries: 1, Available: 3}, result)
+}
+
+func (s *EnsureYahooIDPoolSuite) TestHealthyPoolKeepsTheNonPageEntryCount() {
+	_, err := saveYahooPlayersToRedisImpl(context.Background(), s.act.RedisClient,
+		[]store.YahooPlayer{{YahooID: 97}, {YahooID: 7000}})
+	s.Require().NoError(err)
+
+	future, err := s.env.ExecuteActivity(s.act.EnsureYahooIDPool, EnsureYahooIDPoolInput{PoolSize: 2, NonPageEntries: 1})
+
+	s.Require().NoError(err)
+	var result EnsureYahooIDPoolResult
+	s.Require().NoError(future.Get(&result))
+	s.Equal(EnsureYahooIDPoolResult{FoundSize: 2, PoolSize: 2, NonPageEntries: 1}, result)
 }
 
 func (s *EnsureYahooIDPoolSuite) TestRebuildIncludesLeaguePlayersAndKeepsThePageOnOverlap() {
@@ -185,12 +212,12 @@ func (s *EnsureYahooIDPoolSuite) TestRebuildIncludesLeaguePlayersAndKeepsThePage
 	s.store.matched = []store.YahooPlayerID{29}
 
 	// Phase 1 saved the 2 pages plus the league player without a page.
-	future, err := s.env.ExecuteActivity(s.act.EnsureYahooIDPool, EnsureYahooIDPoolInput{PoolSize: 3, LeaguePlayers: 1})
+	future, err := s.env.ExecuteActivity(s.act.EnsureYahooIDPool, EnsureYahooIDPoolInput{PoolSize: 3, NonPageEntries: 1})
 	s.Require().NoError(err)
 	var result EnsureYahooIDPoolResult
 	s.Require().NoError(future.Get(&result))
 
-	s.Equal(EnsureYahooIDPoolResult{FoundSize: 0, Rebuilt: true, PoolSize: 3, LeaguePlayers: 1, Available: 2}, result)
+	s.Equal(EnsureYahooIDPoolResult{FoundSize: 0, Rebuilt: true, PoolSize: 3, NonPageEntries: 1, Available: 2}, result)
 	pool, err := LoadYahooIDPool(context.Background(), s.act.RedisClient)
 	s.Require().NoError(err)
 	s.Equal(97, pool[97].JerseyNumber, "the page wins over the league row")

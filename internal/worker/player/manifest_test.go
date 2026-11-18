@@ -298,7 +298,7 @@ func (s *ManifestActivitySuite) TestBatch_RebuildsAfterLeaguePlayersWereDeleted(
 	// The chain saved 1 page and 2 league players; one league player was
 	// deleted since.
 	_, err := s.env.ExecuteActivity(s.act.ProcessPlayerManifestBatch,
-		ManifestBatchInput{Manifest: ref, From: 0, To: 1, YahooPoolSize: 3, YahooLeaguePlayers: 2})
+		ManifestBatchInput{Manifest: ref, From: 0, To: 1, YahooPoolSize: 3, YahooNonPageEntries: 2})
 	s.Require().NoError(err)
 
 	pool, err := LoadYahooIDPool(context.Background(), s.redis)

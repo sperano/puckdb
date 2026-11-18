@@ -207,7 +207,7 @@ func ensureYahooPool(ctx workflow.Context, state *processPlayersState) error {
 	var result workplayer.EnsureYahooIDPoolResult
 	if err := workflow.ExecuteActivity(ctx, playerAct.EnsureYahooIDPool,
 		workplayer.EnsureYahooIDPoolInput{
-			PoolSize: state.YahooPool.PoolSize, LeaguePlayers: state.YahooPool.LeaguePlayers,
+			PoolSize: state.YahooPool.PoolSize, NonPageEntries: state.YahooPool.NonPageEntries,
 		}).Get(ctx, &result); err != nil {
 		return fmt.Errorf("ensure yahoo id pool: %w", err)
 	}
@@ -218,7 +218,7 @@ func ensureYahooPool(ctx workflow.Context, state *processPlayersState) error {
 			"read_errors", result.ReadErrors, "parse_errors", result.ParseErrors)
 	}
 	state.YahooPool.PoolSize = result.PoolSize
-	state.YahooPool.LeaguePlayers = result.LeaguePlayers
+	state.YahooPool.NonPageEntries = result.NonPageEntries
 	return nil
 }
 
@@ -250,7 +250,7 @@ func runManifestWindow(ctx workflow.Context, tracker *shared.ReportTracker, stat
 		Start: func(_ workflow.Context, i int) workflow.Future {
 			return workflow.ExecuteActivity(ctx, playerAct.ProcessPlayerManifestBatch, workplayer.ManifestBatchInput{
 				Manifest: state.Manifest, From: batches[i].From, To: batches[i].To,
-				YahooPoolSize: state.YahooPool.PoolSize, YahooLeaguePlayers: state.YahooPool.LeaguePlayers,
+				YahooPoolSize: state.YahooPool.PoolSize, YahooNonPageEntries: state.YahooPool.NonPageEntries,
 			})
 		},
 		Handle: func(ctx workflow.Context, _ int, f workflow.Future) error {

@@ -53,14 +53,14 @@ func (a *Activities) CreateProcessPlayersManifest(ctx context.Context, input Cre
 
 // ManifestBatchInput is one batch of a ProcessPlayers chain: the manifest
 // ordinals [From, To), the Yahoo ID pool size the chain saved (an empty pool
-// is rebuilt when it is positive) and how many of its entries came from
-// yahoo_league_players (see EnsureYahooIDPoolInput).
+// is rebuilt when it is positive) and how many of its entries no page backs
+// (see EnsureYahooIDPoolInput).
 type ManifestBatchInput struct {
-	Manifest           ManifestRef
-	From               int
-	To                 int
-	YahooPoolSize      int
-	YahooLeaguePlayers int
+	Manifest            ManifestRef
+	From                int
+	To                  int
+	YahooPoolSize       int
+	YahooNonPageEntries int
 }
 
 // ManifestBatchResult is ProcessPlayerBatchResult (without Errors) plus the
@@ -80,7 +80,7 @@ func (a *Activities) ProcessPlayerManifestBatch(ctx context.Context, input Manif
 		return ManifestBatchResult{}, err
 	}
 	out, err := a.processPlayerBatch(ctx, players,
-		EnsureYahooIDPoolInput{PoolSize: input.YahooPoolSize, LeaguePlayers: input.YahooLeaguePlayers})
+		EnsureYahooIDPoolInput{PoolSize: input.YahooPoolSize, NonPageEntries: input.YahooNonPageEntries})
 	return ManifestBatchResult{ProcessPlayerBatchResult: out.result, PlayerErrors: out.errors}, err
 }
 
