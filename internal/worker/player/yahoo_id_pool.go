@@ -104,7 +104,7 @@ func parseYahooPlayerBatchImpl(ctx context.Context, storage store.Storage, gobCa
 func (a *Activities) SaveYahooPlayersToRedis(ctx context.Context, players []store.YahooPlayer) (*SaveYahooIDPoolResult, error) {
 	logger := activity.GetLogger(ctx)
 
-	players, err := a.withLeaguePlayers(ctx, players)
+	players, leaguePlayers, err := a.withLeaguePlayers(ctx, players)
 	if err != nil {
 		return nil, err
 	}
@@ -112,6 +112,7 @@ func (a *Activities) SaveYahooPlayersToRedis(ctx context.Context, players []stor
 	if err != nil {
 		return nil, err
 	}
+	result.LeaguePlayers = leaguePlayers
 
 	logger.Info("Saved Yahoo players to Redis",
 		"total", result.TotalPlayers,

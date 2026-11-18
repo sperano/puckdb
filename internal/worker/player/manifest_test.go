@@ -282,6 +282,30 @@ func (s *ManifestActivitySuite) TestBatch_RebuildsAPoolLostDuringTheExecution() 
 	s.Len(pool, 1, "the batch rebuilt the expired pool before matching")
 }
 
+func (s *ManifestActivitySuite) TestBatch_RebuildsAfterLeaguePlayersWereDeleted() {
+	player := store.BoxscorePlayer{ID: 1, FirstName: "Only", LastName: "Player", Position: "C"}
+	ref := s.putManifest("run-1", player)
+	s.writeMissingLanding(player)
+	require.NoError(s.T(), s.act.Storage.Write(context.Background(),
+		resource.YahooPlayer{PlayerID: 97}.Path(), []byte(sampleYahooPlayerHTML)))
+	s.act.LeaguePlayers = fakeLeaguePlayers{rows: []sqlcdb.ListYahooLeaguePlayersForPoolRow{
+		leagueRow(7000, "Mitch Marner", "TOR", "RW"),
+	}}
+	upserter := NewMockPlayerUpserter()
+	upserter.On("UpsertPlayer", mock.Anything, mock.Anything).Return(nil)
+	s.act.Queries = upserter
+
+	// The chain saved 1 page and 2 league players; one league player was
+	// deleted since.
+	_, err := s.env.ExecuteActivity(s.act.ProcessPlayerManifestBatch,
+		ManifestBatchInput{Manifest: ref, From: 0, To: 1, YahooPoolSize: 3, YahooLeaguePlayers: 2})
+	s.Require().NoError(err)
+
+	pool, err := LoadYahooIDPool(context.Background(), s.redis)
+	s.Require().NoError(err)
+	s.Len(pool, 2, "the page and the remaining league player")
+}
+
 func (s *ManifestActivitySuite) TestBatch_RebuildsAPartialPool() {
 	player := store.BoxscorePlayer{ID: 1, FirstName: "Only", LastName: "Player", Position: "C"}
 	ref := s.putManifest("run-1", player)
@@ -318,7 +342,7 @@ func (s *ManifestActivitySuite) TestBatch_LegacyBatchesDoNotRebuildThePool() {
 	require.NoError(s.T(), s.act.Storage.Write(context.Background(),
 		resource.YahooPlayer{PlayerID: 97}.Path(), []byte(sampleYahooPlayerHTML)))
 
-	pool, err := s.act.loadYahooIDPool(context.Background(), 0)
+	pool, err := s.act.loadYahooIDPool(context.Background(), EnsureYahooIDPoolInput{})
 	s.Require().NoError(err)
 	s.Empty(pool)
 }

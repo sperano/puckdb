@@ -39,7 +39,7 @@ type PlayerCareerUpserter interface {
 }
 
 // ActivityQueries is every pool-scoped query the player activities run, the single
-// dependency NewActivities spreads over Queries and CareerQueries.
+// dependency NewActivities spreads over Queries, CareerQueries and LeaguePlayers.
 type ActivityQueries interface {
 	PlayerUpserter
 	PlayerCareerUpserter
@@ -49,7 +49,7 @@ type ActivityQueries interface {
 var _ ActivityQueries = (*sqlcdb.Queries)(nil)
 
 // Activities groups player-related activities with their dependencies.
-// Queries and CareerQueries stay separate narrow seams for tests; the worker
+// Queries, CareerQueries and LeaguePlayers stay separate narrow seams for tests; the worker
 // builds the struct with NewActivities.
 type Activities struct {
 	Storage       store.Storage

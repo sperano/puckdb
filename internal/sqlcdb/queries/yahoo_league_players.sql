@@ -43,11 +43,12 @@ WHERE lp.league_key = $1
 ORDER BY lp.player_id;
 
 -- name: ListYahooLeaguePlayersForPool :many
--- One row per Yahoo player across every league and season, from the newest
--- season (then newest fetch) that lists it: seeds the Yahoo ID pool the
--- ProcessPlayers matcher reads when the scraped player pages are missing.
+-- One named row per Yahoo player across every league and season, from the
+-- newest season (then newest fetch) that lists it: merged into the Yahoo ID
+-- pool the ProcessPlayers matcher reads, next to the scraped player pages
+-- (a page wins on the same Yahoo ID).
 SELECT DISTINCT ON (player_id)
-    player_id, full_name, editorial_team_abbr, display_position, eligible_positions
+    player_id, full_name, editorial_team_abbr, display_position
 FROM yahoo_league_players
 WHERE full_name <> ''
 ORDER BY player_id, season DESC, fetched_at DESC;

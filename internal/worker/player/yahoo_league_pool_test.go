@@ -14,6 +14,7 @@ import (
 	"github.com/sperano/puckdb/internal/store"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.temporal.io/sdk/testsuite"
 )
 
 // fakeLeaguePlayers is a YahooLeaguePlayerLister returning fixed rows.
@@ -100,8 +101,9 @@ func TestPoolWithoutPagesMatchesLeaguePlayers(t *testing.T) {
 		leagueRow(4, "Sebastian Aho", "NYI", "D"),
 	)
 
-	players, err := act.withLeaguePlayers(ctx, nil)
+	players, added, err := act.withLeaguePlayers(ctx, nil)
 	require.NoError(t, err)
+	assert.Equal(t, 4, added)
 	saved, err := saveYahooPlayersToRedisImpl(ctx, act.RedisClient, players)
 	require.NoError(t, err)
 	assert.Equal(t, 4, saved.PoolSize)
@@ -126,7 +128,54 @@ func TestPoolWithoutPagesMatchesLeaguePlayers(t *testing.T) {
 func TestWithLeaguePlayers_ListErrorFails(t *testing.T) {
 	act := &Activities{LeaguePlayers: fakeLeaguePlayers{err: errors.New("db down")}}
 
-	_, err := act.withLeaguePlayers(context.Background(), nil)
+	_, _, err := act.withLeaguePlayers(context.Background(), nil)
 
 	require.ErrorContains(t, err, "db down")
+}
+
+func TestWithLeaguePlayers_CountsOnlyThePlayersWithoutAPage(t *testing.T) {
+	act := &Activities{LeaguePlayers: fakeLeaguePlayers{rows: []sqlcdb.ListYahooLeaguePlayersForPoolRow{
+		leagueRow(6743, "Connor McDavid", "EDM", "C"),
+		leagueRow(7000, "Mitch Marner", "TOR", "RW"),
+	}}}
+
+	players, added, err := act.withLeaguePlayers(context.Background(), []store.YahooPlayer{{YahooID: 6743}})
+
+	require.NoError(t, err)
+	assert.Len(t, players, 2)
+	assert.Equal(t, 1, added, "McDavid has a page")
+}
+
+func TestSaveYahooPlayersToRedis_LeagueOnlyPool(t *testing.T) {
+	var ts testsuite.WorkflowTestSuite
+	env := ts.NewTestActivityEnvironment()
+	act := newPoolActivities(t, store.NewMemStorage(), leagueRow(7000, "Mitch Marner", "TOR", "RW"))
+	env.RegisterActivity(act.SaveYahooPlayersToRedis)
+
+	future, err := env.ExecuteActivity(act.SaveYahooPlayersToRedis, []store.YahooPlayer{})
+
+	require.NoError(t, err)
+	var result SaveYahooIDPoolResult
+	require.NoError(t, future.Get(&result))
+	assert.Equal(t, SaveYahooIDPoolResult{TotalPlayers: 1, AvailablePlayers: 1, PoolSize: 1, LeaguePlayers: 1}, result)
+	pool, err := LoadYahooIDPool(context.Background(), act.RedisClient)
+	require.NoError(t, err)
+	require.Contains(t, pool, store.YahooPlayerID(7000))
+	assert.Equal(t, "Marner", pool[7000].LastName)
+}
+
+func TestSaveYahooPlayersToRedis_ListErrorSavesNothing(t *testing.T) {
+	var ts testsuite.WorkflowTestSuite
+	env := ts.NewTestActivityEnvironment()
+	mr := miniredis.RunT(t)
+	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	t.Cleanup(func() { _ = client.Close() })
+	act := &Activities{RedisClient: client, LeaguePlayers: fakeLeaguePlayers{err: errors.New("db down")}}
+	env.RegisterActivity(act.SaveYahooPlayersToRedis)
+
+	_, err := env.ExecuteActivity(act.SaveYahooPlayersToRedis, []store.YahooPlayer{{YahooID: 97, LastName: "McDavid"}})
+
+	require.ErrorContains(t, err, "list yahoo league players: db down")
+	assert.False(t, mr.Exists(YahooIDPoolKey), "no pool is saved without the league players")
+	assert.False(t, mr.Exists(YahooIDAvailableKey))
 }

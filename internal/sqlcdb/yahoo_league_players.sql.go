@@ -32,23 +32,23 @@ func (q *Queries) DeleteStaleYahooLeaguePlayers(ctx context.Context, arg DeleteS
 
 const listYahooLeaguePlayersForPool = `-- name: ListYahooLeaguePlayersForPool :many
 SELECT DISTINCT ON (player_id)
-    player_id, full_name, editorial_team_abbr, display_position, eligible_positions
+    player_id, full_name, editorial_team_abbr, display_position
 FROM yahoo_league_players
 WHERE full_name <> ''
 ORDER BY player_id, season DESC, fetched_at DESC
 `
 
 type ListYahooLeaguePlayersForPoolRow struct {
-	PlayerID          int32    `json:"player_id"`
-	FullName          string   `json:"full_name"`
-	EditorialTeamAbbr string   `json:"editorial_team_abbr"`
-	DisplayPosition   string   `json:"display_position"`
-	EligiblePositions []string `json:"eligible_positions"`
+	PlayerID          int32  `json:"player_id"`
+	FullName          string `json:"full_name"`
+	EditorialTeamAbbr string `json:"editorial_team_abbr"`
+	DisplayPosition   string `json:"display_position"`
 }
 
-// One row per Yahoo player across every league and season, from the newest
-// season (then newest fetch) that lists it: seeds the Yahoo ID pool the
-// ProcessPlayers matcher reads when the scraped player pages are missing.
+// One named row per Yahoo player across every league and season, from the
+// newest season (then newest fetch) that lists it: merged into the Yahoo ID
+// pool the ProcessPlayers matcher reads, next to the scraped player pages
+// (a page wins on the same Yahoo ID).
 func (q *Queries) ListYahooLeaguePlayersForPool(ctx context.Context) ([]ListYahooLeaguePlayersForPoolRow, error) {
 	rows, err := q.db.Query(ctx, listYahooLeaguePlayersForPool)
 	if err != nil {
@@ -63,7 +63,6 @@ func (q *Queries) ListYahooLeaguePlayersForPool(ctx context.Context) ([]ListYaho
 			&i.FullName,
 			&i.EditorialTeamAbbr,
 			&i.DisplayPosition,
-			&i.EligiblePositions,
 		); err != nil {
 			return nil, err
 		}

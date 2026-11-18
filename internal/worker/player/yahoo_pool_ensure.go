@@ -14,9 +14,13 @@ import (
 const yahooPoolRebuildChunk = 200
 
 // EnsureYahooIDPoolInput is the pool size phase 1 of a ProcessPlayers chain
-// measured after saving it (SaveYahooIDPoolResult.PoolSize).
+// measured after saving it (SaveYahooIDPoolResult.PoolSize), and how many of
+// its entries came from yahoo_league_players without a page
+// (SaveYahooIDPoolResult.LeaguePlayers), both as the last rebuild updated
+// them.
 type EnsureYahooIDPoolInput struct {
-	PoolSize int
+	PoolSize      int
+	LeaguePlayers int
 }
 
 // EnsureYahooIDPoolResult reports what EnsureYahooIDPool found and did.
@@ -25,6 +29,7 @@ type EnsureYahooIDPoolResult struct {
 	Rebuilt           bool // the pool was missing or incomplete and was rebuilt
 	AvailableRestored bool // the hash was complete but the available set was lost, and was restored (not set when it was only empty)
 	PoolSize          int  // pool hash size now; the next check compares against it
+	LeaguePlayers     int  // entries a rebuild added from yahoo_league_players (the input's count otherwise)
 	Available         int  // available set size after a rebuild or restore (0 otherwise)
 	ReadErrors        int  // Yahoo player files a rebuild could not read
 	ParseErrors       int  // Yahoo player files a rebuild could not parse
@@ -35,9 +40,9 @@ type EnsureYahooIDPoolResult struct {
 // flush drops them; a missing pool makes LoadYahooIDPool return an empty map
 // without an error, so phase 2 would stop matching silently. When the pool
 // hash still has the size phase 1 measured, both keys' TTL is refreshed.
-// Otherwise the pool is rebuilt from the stored Yahoo player files, and the
-// Yahoo IDs already matched in the database are removed from the available
-// set. During a run entries are only removed from the available set, never
+// Otherwise the pool is rebuilt from the stored Yahoo player files and the
+// yahoo_league_players rows, and the Yahoo IDs already matched in the
+// database are removed from the available set. During a run entries are only removed from the available set, never
 // from the hash, so the hash size is a complete check of the hash. The
 // available set is only checked for existence (see restoreYahooIDAvailable).
 // Concurrent rebuilds write the same values and converge. A rebuilt
@@ -51,10 +56,12 @@ func (a *Activities) EnsureYahooIDPool(ctx context.Context, input EnsureYahooIDP
 	if _, err := pipe.Exec(ctx); err != nil {
 		return EnsureYahooIDPoolResult{}, fmt.Errorf("measure yahoo id pool: %w", err)
 	}
-	result := EnsureYahooIDPoolResult{FoundSize: int(found.Val()), PoolSize: int(found.Val())}
+	result := EnsureYahooIDPoolResult{
+		FoundSize: int(found.Val()), PoolSize: int(found.Val()), LeaguePlayers: input.LeaguePlayers,
+	}
 	if result.FoundSize != input.PoolSize {
 		activity.GetLogger(ctx).Warn("Yahoo ID pool lost, rebuilding", "expected", input.PoolSize, "found", result.FoundSize)
-		return a.rebuildYahooIDPool(ctx, result, input.PoolSize)
+		return a.rebuildYahooIDPool(ctx, result, input)
 	}
 
 	if availableKeys.Val() == 0 {
@@ -127,21 +134,24 @@ func (a *Activities) restoreYahooIDAvailable(ctx context.Context) (int, error) {
 }
 
 // rebuildYahooIDPool writes the pool again from the stored Yahoo player
-// files and the yahoo_league_players rows (as phase 1 saved it), then removes the Yahoo IDs already matched in the database from the
-// available set. It never deletes the keys first: several batches may
-// rebuild at once, and a batch reading between a delete and the next write
-// would match against an empty pool. Writing the same entries over each
-// other converges. A rebuild that leaves the hash smaller than expectedSize
-// (the size phase 1 measured; files phase 1 read could not be read or
-// parsed this time) fails, so it is retried instead of matching against a
-// partial pool.
-func (a *Activities) rebuildYahooIDPool(ctx context.Context, result EnsureYahooIDPoolResult, expectedSize int) (EnsureYahooIDPoolResult, error) {
+// files and the current yahoo_league_players rows, then removes the Yahoo
+// IDs already matched in the database from the available set. It never
+// deletes the keys first: several batches may rebuild at once, and a batch
+// reading between a delete and the next write would match against an empty
+// pool. Writing the same entries over each other converges. A rebuild whose
+// page entries (the hash size minus the league players it added) fall short
+// of those phase 1 saved (expected.PoolSize minus expected.LeaguePlayers:
+// files phase 1 read could not be read or parsed this time) fails, so it is
+// retried instead of matching against a partial pool. The league players
+// are left out of that check: PostgreSQL, not Redis, holds them, and a
+// newer pool import may have deleted some since phase 1.
+func (a *Activities) rebuildYahooIDPool(ctx context.Context, result EnsureYahooIDPoolResult, expected EnsureYahooIDPoolInput) (EnsureYahooIDPoolResult, error) {
 	parsed, err := a.parseAllYahooPlayers(ctx)
 	if err != nil {
 		return result, err
 	}
 	result.ReadErrors, result.ParseErrors = parsed.ReadErrors, parsed.ParseErrors
-	players, err := a.withLeaguePlayers(ctx, parsed.Players)
+	players, leaguePlayers, err := a.withLeaguePlayers(ctx, parsed.Players)
 	if err != nil {
 		return result, err
 	}
@@ -149,9 +159,10 @@ func (a *Activities) rebuildYahooIDPool(ctx context.Context, result EnsureYahooI
 	if err != nil {
 		return result, err
 	}
-	if saved.PoolSize < expectedSize {
-		return result, fmt.Errorf("rebuilt yahoo id pool holds %d of the %d entries phase 1 saved (%d files unreadable, %d unparsable)",
-			saved.PoolSize, expectedSize, parsed.ReadErrors, parsed.ParseErrors)
+	pageEntries, expectedPageEntries := saved.PoolSize-leaguePlayers, expected.PoolSize-expected.LeaguePlayers
+	if pageEntries < expectedPageEntries {
+		return result, fmt.Errorf("rebuilt yahoo id pool holds %d of the %d page entries phase 1 saved (%d files unreadable, %d unparsable)",
+			pageEntries, expectedPageEntries, parsed.ReadErrors, parsed.ParseErrors)
 	}
 	if parsed.ReadErrors > 0 || parsed.ParseErrors > 0 {
 		activity.GetLogger(ctx).Warn("Some Yahoo player files failed during the pool rebuild",
@@ -171,6 +182,7 @@ func (a *Activities) rebuildYahooIDPool(ctx context.Context, result EnsureYahooI
 	}
 	result.Rebuilt = true
 	result.PoolSize = saved.PoolSize
+	result.LeaguePlayers = leaguePlayers
 	result.Available = int(available)
 	return result, nil
 }

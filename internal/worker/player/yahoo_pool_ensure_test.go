@@ -3,13 +3,13 @@ package player
 import (
 	"context"
 	"errors"
-	"github.com/sperano/puckdb/internal/sqlcdb"
 	"testing"
 	"time"
 
 	"github.com/alicebob/miniredis/v2"
 	"github.com/go-redis/redis/v8"
 	"github.com/sperano/puckdb/internal/resource"
+	"github.com/sperano/puckdb/internal/sqlcdb"
 	"github.com/sperano/puckdb/internal/store"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
@@ -132,7 +132,49 @@ func (s *EnsureYahooIDPoolSuite) TestRebuildShortOfTheSavedSizeFails() {
 	_, err := s.env.ExecuteActivity(s.act.EnsureYahooIDPool, EnsureYahooIDPoolInput{PoolSize: 3})
 
 	s.Require().Error(err)
-	s.Contains(err.Error(), "rebuilt yahoo id pool holds 2 of the 3 entries phase 1 saved")
+	s.Contains(err.Error(), "rebuilt yahoo id pool holds 2 of the 3 page entries phase 1 saved")
+}
+
+func (s *EnsureYahooIDPoolSuite) TestRebuildAfterLeaguePlayersWereDeletedSucceeds() {
+	s.act.LeaguePlayers = fakeLeaguePlayers{rows: []sqlcdb.ListYahooLeaguePlayersForPoolRow{
+		leagueRow(7000, "Mitch Marner", "TOR", "RW"),
+	}}
+
+	// Phase 1 saved the 2 pages and 2 league players; a newer pool import
+	// has deleted one of them since.
+	future, err := s.env.ExecuteActivity(s.act.EnsureYahooIDPool, EnsureYahooIDPoolInput{PoolSize: 4, LeaguePlayers: 2})
+
+	s.Require().NoError(err)
+	var result EnsureYahooIDPoolResult
+	s.Require().NoError(future.Get(&result))
+	s.Equal(EnsureYahooIDPoolResult{Rebuilt: true, PoolSize: 3, LeaguePlayers: 1, Available: 3}, result)
+}
+
+func (s *EnsureYahooIDPoolSuite) TestLostPagesFailTheRebuildEvenWhenLeaguePlayersGrew() {
+	s.act.LeaguePlayers = fakeLeaguePlayers{rows: []sqlcdb.ListYahooLeaguePlayersForPoolRow{
+		leagueRow(7000, "Mitch Marner", "TOR", "RW"),
+		leagueRow(7001, "Auston Matthews", "TOR", "C"),
+	}}
+
+	// Phase 1 saved 3 pages; one of the files is gone, two league players
+	// were added since.
+	_, err := s.env.ExecuteActivity(s.act.EnsureYahooIDPool, EnsureYahooIDPoolInput{PoolSize: 3})
+
+	s.Require().Error(err)
+	s.Contains(err.Error(), "rebuilt yahoo id pool holds 2 of the 3 page entries phase 1 saved")
+}
+
+func (s *EnsureYahooIDPoolSuite) TestHealthyPoolKeepsTheLeaguePlayerCount() {
+	_, err := saveYahooPlayersToRedisImpl(context.Background(), s.act.RedisClient,
+		[]store.YahooPlayer{{YahooID: 97}, {YahooID: 7000}})
+	s.Require().NoError(err)
+
+	future, err := s.env.ExecuteActivity(s.act.EnsureYahooIDPool, EnsureYahooIDPoolInput{PoolSize: 2, LeaguePlayers: 1})
+
+	s.Require().NoError(err)
+	var result EnsureYahooIDPoolResult
+	s.Require().NoError(future.Get(&result))
+	s.Equal(EnsureYahooIDPoolResult{FoundSize: 2, PoolSize: 2, LeaguePlayers: 1}, result)
 }
 
 func (s *EnsureYahooIDPoolSuite) TestRebuildIncludesLeaguePlayersAndKeepsThePageOnOverlap() {
@@ -142,10 +184,13 @@ func (s *EnsureYahooIDPoolSuite) TestRebuildIncludesLeaguePlayersAndKeepsThePage
 	}}
 	s.store.matched = []store.YahooPlayerID{29}
 
-	// Phase 1 would save the 2 pages plus the league player without a page.
-	result := s.ensure(3)
+	// Phase 1 saved the 2 pages plus the league player without a page.
+	future, err := s.env.ExecuteActivity(s.act.EnsureYahooIDPool, EnsureYahooIDPoolInput{PoolSize: 3, LeaguePlayers: 1})
+	s.Require().NoError(err)
+	var result EnsureYahooIDPoolResult
+	s.Require().NoError(future.Get(&result))
 
-	s.Equal(EnsureYahooIDPoolResult{FoundSize: 0, Rebuilt: true, PoolSize: 3, Available: 2}, result)
+	s.Equal(EnsureYahooIDPoolResult{FoundSize: 0, Rebuilt: true, PoolSize: 3, LeaguePlayers: 1, Available: 2}, result)
 	pool, err := LoadYahooIDPool(context.Background(), s.act.RedisClient)
 	s.Require().NoError(err)
 	s.Equal(97, pool[97].JerseyNumber, "the page wins over the league row")
