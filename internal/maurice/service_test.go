@@ -23,6 +23,12 @@ var testConfig = ServiceConfig{Provider: "anthropic", Model: "test-model"}
 
 // --- Tests ---
 
+func TestModel_AnswersTheConfiguredModel(t *testing.T) {
+	svc := NewService(&mockLLMClient{}, newMockMCP(), newTestDB(t), testConfig)
+	t.Cleanup(func() { require.NoError(t, svc.Close()) })
+	assert.Equal(t, ModelInfo{Provider: "anthropic", Model: "test-model"}, svc.Model())
+}
+
 func TestChat_SimpleQA(t *testing.T) {
 	llmMock := &mockLLMClient{
 		responses: []*llm.Response{

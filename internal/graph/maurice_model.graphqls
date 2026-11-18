@@ -1,0 +1,12 @@
+"""The LLM the Maurice service is configured with."""
+type MauriceModel {
+	"""e.g. anthropic"""
+	provider: String!
+	"""The configured model ID, e.g. claude-sonnet-5-5"""
+	model: String!
+}
+
+extend type Query {
+	# Needs the instance's login identity, like mauriceConversations.
+	mauriceModel: MauriceModel!
+}
