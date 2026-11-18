@@ -21,6 +21,15 @@ func TestSystemPrompt_NoTeamsNamesNone(t *testing.T) {
 	assert.Equal(t, "", userTeamsPhrase(nil, testCurrentSeason))
 }
 
+// TestSystemPrompt_FrenchUsesVous pins the language guideline: the model
+// answers in the user's language and, in French, always vouvoie, since it
+// otherwise copies a user's "tu".
+func TestSystemPrompt_FrenchUsesVous(t *testing.T) {
+	assert.Contains(t, SystemPrompt(nil),
+		"\n- Answer in the language of the user's message. In French, always address the user as \"vous\" "+
+			`(vouvoiement), never "tu", even when the user writes "tu".`)
+}
+
 func TestSystemPrompt_NamesTeamOfCurrentNHLSeason(t *testing.T) {
 	season := int32(nhl.Current().StartYear())
 	prompt := SystemPrompt([]UserTeam{
