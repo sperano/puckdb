@@ -14,10 +14,6 @@ const (
 	extractorKeySeparator = "/"
 	// reasoningKeyPrefix marks the reasoning effort part of an extractor key.
 	reasoningKeyPrefix = "reasoning-"
-	// finishReasonLength and stopReasonMaxTokens mark a reply cut by the
-	// token limit (OpenAI-compatible and Anthropic wording).
-	finishReasonLength  = "length"
-	stopReasonMaxTokens = "max_tokens"
 	// maxRawOutputRunes bounds the reply text kept for audit.
 	maxRawOutputRunes = 20_000
 )
@@ -111,7 +107,7 @@ func (x Extractor) Call(ctx context.Context, in Input) (Reply, error) {
 	switch {
 	case resp.HasToolCalls():
 		reply.Rejected = fmt.Errorf("%w: the reply requested %d tool calls; no tools are offered", ErrInvalidOutput, len(resp.ToolCalls))
-	case resp.FinishReason == finishReasonLength || resp.FinishReason == stopReasonMaxTokens:
+	case resp.Truncated():
 		reply.Rejected = fmt.Errorf("%w: the reply was cut at %d output tokens", ErrInvalidOutput, x.MaxOutputTokens)
 	}
 	return reply, nil
