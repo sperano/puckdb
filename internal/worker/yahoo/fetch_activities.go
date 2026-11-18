@@ -109,39 +109,6 @@ func classifyLeagueFetchError(season, leagueID int, err error) error {
 	return fmt.Errorf("fetch league %d/%d: %w", season, leagueID, err)
 }
 
-// FetchYahooPlayerBatch fetches a range of Yahoo player pages (from cache or network).
-// Processes players from startID to endID (inclusive).
-// Each player uses two targeted stat calls (Exists) to check cache status,
-// which is faster on JuiceFS than listing the full 34k-entry missing directory per batch.
-func (a *FetchActivities) FetchYahooPlayerBatch(ctx context.Context, startID, endID store.YahooPlayerID) (shared.FetchStats, error) {
-	var result shared.FetchStats
-	logger := activity.GetLogger(ctx)
-	logger.Debug("FetchYahooPlayerBatch started", "start_id", startID, "end_id", endID)
-
-	for playerID := startID; playerID <= endID; playerID++ {
-		select {
-		case <-ctx.Done():
-			return result, ctx.Err()
-		default:
-		}
-		activity.RecordHeartbeat(ctx, playerID)
-
-		status, err := fetchYahooPlayerImpl(ctx, a.Storage, a.PublicDownloader, playerID)
-		if err != nil {
-			return result, err
-		}
-		switch status {
-		case fetchStatusDownloaded:
-			result.Downloaded++
-		case fetchStatusMissing:
-			result.Missing++
-		case fetchStatusCached:
-			result.CacheHits++
-		}
-	}
-	return result, nil
-}
-
 // FetchTeams downloads Yahoo fantasy team pages for the given teams. The
 // season sync workflow calls it with one team at a time so each download
 // advances its progress; it still accepts a batch.

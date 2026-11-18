@@ -82,7 +82,7 @@ func (s *FetchYahooPlayerBatchSuite) TestAllCached() {
 
 	act := &FetchActivities{Storage: mem, PublicDownloader: downloader.Downloader()}
 	s.env.RegisterActivity(act.FetchYahooPlayerBatch)
-	val, err := s.env.ExecuteActivity(act.FetchYahooPlayerBatch, store.YahooPlayerID(100), store.YahooPlayerID(101))
+	val, err := s.env.ExecuteActivity(act.FetchYahooPlayerBatch, store.YahooPlayerID(100), store.YahooPlayerID(101), testMissingTTL)
 
 	require.NoError(s.T(), err)
 
@@ -106,7 +106,7 @@ func (s *FetchYahooPlayerBatchSuite) TestAllMissing() {
 
 	act := &FetchActivities{Storage: mem, PublicDownloader: downloader.Downloader()}
 	s.env.RegisterActivity(act.FetchYahooPlayerBatch)
-	val, err := s.env.ExecuteActivity(act.FetchYahooPlayerBatch, store.YahooPlayerID(200), store.YahooPlayerID(201))
+	val, err := s.env.ExecuteActivity(act.FetchYahooPlayerBatch, store.YahooPlayerID(200), store.YahooPlayerID(201), testMissingTTL)
 
 	require.NoError(s.T(), err)
 
@@ -129,7 +129,7 @@ func (s *FetchYahooPlayerBatchSuite) TestDownloadedAndCounted() {
 
 	act := &FetchActivities{Storage: mem, PublicDownloader: downloader.Downloader()}
 	s.env.RegisterActivity(act.FetchYahooPlayerBatch)
-	val, err := s.env.ExecuteActivity(act.FetchYahooPlayerBatch, playerID, playerID)
+	val, err := s.env.ExecuteActivity(act.FetchYahooPlayerBatch, playerID, playerID, testMissingTTL)
 
 	require.NoError(s.T(), err)
 
@@ -151,7 +151,7 @@ func (s *FetchYahooPlayerBatchSuite) TestDownloadError_ReturnsError() {
 
 	act := &FetchActivities{Storage: mem, PublicDownloader: downloader.Downloader()}
 	s.env.RegisterActivity(act.FetchYahooPlayerBatch)
-	_, err := s.env.ExecuteActivity(act.FetchYahooPlayerBatch, playerID, playerID)
+	_, err := s.env.ExecuteActivity(act.FetchYahooPlayerBatch, playerID, playerID, testMissingTTL)
 
 	require.Error(s.T(), err)
 	assert.Contains(s.T(), err.Error(), "download player")
@@ -164,7 +164,7 @@ func (s *FetchYahooPlayerBatchSuite) TestEmptyRange() {
 	// startID > endID → loop body never executes.
 	act := &FetchActivities{Storage: mem, PublicDownloader: downloader.Downloader()}
 	s.env.RegisterActivity(act.FetchYahooPlayerBatch)
-	val, err := s.env.ExecuteActivity(act.FetchYahooPlayerBatch, store.YahooPlayerID(500), store.YahooPlayerID(499))
+	val, err := s.env.ExecuteActivity(act.FetchYahooPlayerBatch, store.YahooPlayerID(500), store.YahooPlayerID(499), testMissingTTL)
 
 	require.NoError(s.T(), err)
 
