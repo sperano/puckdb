@@ -61,13 +61,25 @@ func LoadMembers(path string) (Members, error) {
 //	you@example.com:
 //
 // It refuses a key or yahoo_email that is not a bare email address, an
-// unknown field, and two keys naming the same email in different case. An
-// empty file has no entries.
+// unknown field, two keys naming the same email in different case, a root
+// that is not a mapping (null included) and a second YAML document. An
+// empty or comment-only file has no entries.
 func ParseMembers(data []byte) (Members, error) {
 	dec := yaml.NewDecoder(bytes.NewReader(data))
 	dec.KnownFields(true)
 	var entries map[string]*memberEntry
-	if err := dec.Decode(&entries); err != nil && !errors.Is(err, io.EOF) {
+	switch err := dec.Decode(&entries); {
+	case errors.Is(err, io.EOF):
+		return Members{byEmail: map[string]Member{}}, nil
+	case err != nil:
+		return Members{}, fmt.Errorf("parse: %w", err)
+	case entries == nil:
+		return Members{}, errors.New("parse: the file is not a mapping of login emails")
+	}
+	switch err := dec.Decode(new(yaml.Node)); {
+	case err == nil:
+		return Members{}, errors.New("parse: the file holds more than one YAML document")
+	case !errors.Is(err, io.EOF):
 		return Members{}, fmt.Errorf("parse: %w", err)
 	}
 	members := Members{byEmail: make(map[string]Member, len(entries))}

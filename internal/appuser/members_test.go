@@ -79,7 +79,27 @@ func TestParseMembers_Refuses(t *testing.T) {
 		},
 		"not a mapping": {
 			yaml: "- jean@example.com\n",
-			want: "parse:",
+			want: "cannot unmarshal !!seq into map",
+		},
+		"scalar root": {
+			yaml: "jean@example.com\n",
+			want: "cannot unmarshal !!str `jean@ex...` into map",
+		},
+		"null root": {
+			yaml: "~\n",
+			want: "parse: the file is not a mapping of login emails",
+		},
+		"empty document marker": {
+			yaml: "---\n",
+			want: "parse: the file is not a mapping of login emails",
+		},
+		"second document": {
+			yaml: "a@example.com: {}\n---\nb@example.com: {}\n",
+			want: "parse: the file holds more than one YAML document",
+		},
+		"malformed second document": {
+			yaml: "a@example.com: {}\n---\nb@example.com: [\n",
+			want: "parse: yaml: line 3: did not find expected node content",
 		},
 	}
 	for name, tc := range cases {
