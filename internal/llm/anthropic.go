@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/rs/zerolog/log"
 )
@@ -188,7 +189,14 @@ func (c *anthropicClient) translateRequest(req *Request) anthropicRequest {
 			continue
 		}
 		translated := translateMessage(m)
-		if applyToMessage && msgOrd == winMessage && len(translated.Content) > 0 {
+		if len(translated.Content) == 0 {
+			// An assistant message with neither text nor tool calls:
+			// Anthropic rejects a message without content, and leaving it
+			// out loses nothing.
+			msgOrd++
+			continue
+		}
+		if applyToMessage && msgOrd == winMessage {
 			// Mark the LAST content block of the winning message. Coalesce
 			// preserves block order within a same-role run, so this stays
 			// in place.
@@ -221,7 +229,7 @@ func translateMessage(m Message) anthropicMessage {
 	switch m.Role {
 	case "assistant":
 		var content []anthropicContent
-		if m.Content != "" {
+		if strings.TrimSpace(m.Content) != "" {
 			content = append(content, anthropicContent{
 				Type: "text",
 				Text: m.Content,

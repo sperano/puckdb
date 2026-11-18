@@ -256,6 +256,55 @@ func TestAnthropicTranslateRequest_AssistantWithTextAndToolCalls(t *testing.T) {
 	assert.Equal(t, "tool_use", assistantContent[1].Type)
 }
 
+// Anthropic rejects a message without content and a text block without
+// non-whitespace text: an assistant message with neither is left out (its
+// neighbours coalesce), and blank text beside tool calls is dropped.
+func TestAnthropicTranslateRequest_BlankAssistantText(t *testing.T) {
+	c := &anthropicClient{model: "claude-test"}
+	req := &Request{
+		Messages: []Message{
+			{Role: "user", Content: "q0"},
+			{Role: "assistant", Content: " \n"},
+			{Role: "user", Content: "q1"},
+			{
+				Role:      "assistant",
+				Content:   "\n\n",
+				ToolCalls: []ToolCall{{ID: "call_1", Type: "function", Function: ToolCallFunction{Name: "pg_count", Arguments: `{}`}}},
+			},
+		},
+	}
+
+	wire := c.translateRequest(req)
+	require.Len(t, wire.Messages, 2)
+	assert.Equal(t, anthropicMessage{Role: "user", Content: []anthropicContent{
+		{Type: "text", Text: "q0"}, {Type: "text", Text: "q1"},
+	}}, wire.Messages[0])
+	assert.Equal(t, "assistant", wire.Messages[1].Role)
+	require.Len(t, wire.Messages[1].Content, 1)
+	assert.Equal(t, "tool_use", wire.Messages[1].Content[0].Type)
+}
+
+// A message left out still counts in the Cacheable ordinals, so the marker
+// lands on the message the caller marked.
+func TestAnthropicTranslateRequest_CacheableAfterDroppedMessage(t *testing.T) {
+	c := &anthropicClient{model: "claude-test"}
+	req := &Request{
+		Messages: []Message{
+			{Role: "user", Content: "q0"},
+			{Role: "assistant"},
+			{Role: "user", Content: "q1", Cacheable: true},
+			{Role: "assistant", Content: "a1"},
+		},
+	}
+
+	wire := c.translateRequest(req)
+	require.Len(t, wire.Messages, 2)
+	require.Len(t, wire.Messages[0].Content, 2)
+	assert.Nil(t, wire.Messages[0].Content[0].CacheControl)
+	assert.NotNil(t, wire.Messages[0].Content[1].CacheControl, "marker on q1")
+	assert.Nil(t, wire.Messages[1].Content[0].CacheControl)
+}
+
 // --- Prompt caching ---
 
 func TestAnthropicTranslateRequest_CacheableSystemOnly(t *testing.T) {
