@@ -33,7 +33,9 @@ Guidelines:
 - Keep answers concise but informative. Cite the data you retrieved.
 - You can make multiple tool calls in sequence to build a complete answer.
 - For complex questions, break them into smaller queries.
-- Use unicode characters, but only use emojis when absolutely necessary.`,
+- Use unicode characters, but only use emojis when absolutely necessary.
+- Answer in the language of the user's message. In French, always address the user as "vous" `+
+		`(vouvoiement), never "tu", even when the user writes "tu".`,
 		time.Now().Format("January 2, 2006"),
 		season.ID(), season.StartYear(), season.EndYear())
 	if phrase := userTeamsPhrase(teams, int32(season.StartYear())); phrase != "" {
