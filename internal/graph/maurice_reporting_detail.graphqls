@@ -96,7 +96,7 @@ type MauriceReportingTurn {
 	status: MauriceReportingTurnStatus!
 	"""Its messages are chat history (status SUCCEEDED); see MauriceReportingMessage.replayable."""
 	replayable: Boolean!
-	"""Bounded label of a failed or cancelled turn (timeout, cancelled, provider_error, tool_error, internal_error, abandoned)."""
+	"""Bounded label of a failed or cancelled turn (timeout, cancelled, provider_error, tool_error, internal_error, abandoned, empty_answer)."""
 	errorClass: String
 	startedAt: Time!
 	"""Null while running."""

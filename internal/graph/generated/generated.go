@@ -9973,7 +9973,7 @@ type MauriceReportingTurn {
 	status: MauriceReportingTurnStatus!
 	"""Its messages are chat history (status SUCCEEDED); see MauriceReportingMessage.replayable."""
 	replayable: Boolean!
-	"""Bounded label of a failed or cancelled turn (timeout, cancelled, provider_error, tool_error, internal_error, abandoned)."""
+	"""Bounded label of a failed or cancelled turn (timeout, cancelled, provider_error, tool_error, internal_error, abandoned, empty_answer)."""
 	errorClass: String
 	startedAt: Time!
 	"""Null while running."""
@@ -10474,7 +10474,7 @@ type MauriceTurn {
 	"""The tools the turn called, in call order, duplicates kept. While RUNNING, each tool is added as its call starts, so the tool being run shows; a FAILED turn keeps the tools whose start was recorded (a failed write leaves that tool out); a SUCCEEDED turn lists those of its answer's messages."""
 	toolsUsed: [String!]!
 	warnings: [String!]!
-	"""Bounded failure class of a FAILED turn: timeout, cancelled, provider_error, tool_error, internal_error or abandoned."""
+	"""Bounded failure class of a FAILED turn: timeout, cancelled, provider_error, tool_error, internal_error, abandoned or empty_answer (the final response had no text, even after one retry asking for it)."""
 	error: String
 }
 

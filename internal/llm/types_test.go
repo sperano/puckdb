@@ -181,3 +181,19 @@ func TestUsageAddCacheReportedAndNil(t *testing.T) {
 	assert.True(t, sum.CacheReported, "a later part without cache accounting does not clear it")
 	assert.Equal(t, 3, sum.PromptTokens)
 }
+
+func TestResponseTruncated(t *testing.T) {
+	for _, tc := range []struct {
+		reason string
+		want   bool
+	}{
+		{FinishReasonMaxTokens, true},
+		{FinishReasonLength, true},
+		{"end_turn", false},
+		{"stop", false},
+		{"tool_use", false},
+		{"", false},
+	} {
+		assert.Equal(t, tc.want, (&Response{FinishReason: tc.reason}).Truncated(), tc.reason)
+	}
+}

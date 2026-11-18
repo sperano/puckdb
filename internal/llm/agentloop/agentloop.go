@@ -19,8 +19,8 @@ import (
 )
 
 // DefaultMaxToolRounds is the loop cap when Config.MaxToolRounds is zero or
-// negative. It matches maurice's historical default so a Maurice migration
-// is a no-op behaviorally.
+// negative. It was Maurice's default when the loop was extracted; Maurice
+// now always passes its own (maurice.DefaultMaxToolRounds).
 const DefaultMaxToolRounds = 10
 
 // ToolExecutor resolves a single tool call.

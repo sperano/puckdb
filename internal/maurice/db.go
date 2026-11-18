@@ -92,6 +92,9 @@ const (
 	ErrorClassTool      ErrorClass = "tool_error"
 	ErrorClassInternal  ErrorClass = "internal_error"
 	ErrorClassAbandoned ErrorClass = "abandoned"
+	// ErrorClassEmptyAnswer is a turn whose final response had no text, even
+	// after the retry asking for it (finalAnswer).
+	ErrorClassEmptyAnswer ErrorClass = "empty_answer"
 )
 
 // BeginTurnParams identifies a new turn.

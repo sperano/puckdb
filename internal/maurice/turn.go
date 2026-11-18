@@ -206,32 +206,6 @@ func toolsUsed(audit []agentloop.Audit) []string {
 	return names
 }
 
-// finalAnswer returns the turn's answer. A terminating response with no tool
-// calls IS the final answer, even when its content is empty. Only a genuine
-// max-rounds termination, where res.Final still requests tools, forces one
-// more completion (forcedFinalAnswer).
-func (s *service) finalAnswer(ctx context.Context, convID string, res *agentloop.Result, rec *turnRecorder) (string, error) {
-	if res.Final != nil && !res.Final.HasToolCalls() {
-		log.Debug().Str("conversation", convID).Str("content", truncateLog(res.Final.Content, maxLogMessageLen)).Msg("LLM final response (no tool calls)")
-		return res.Final.Content, nil
-	}
-	return s.forcedFinalAnswer(ctx, convID, res.Messages, rec)
-}
-
-// forcedFinalAnswer asks for a text answer without tools after the tool
-// rounds ran out. messages is the loop's whole request history, so the call
-// records the last round's tool calls and results as turn messages before the
-// answer, and is recorded as CallForcedFinal.
-func (s *service) forcedFinalAnswer(ctx context.Context, convID string, messages []llm.Message, rec *turnRecorder) (string, error) {
-	log.Warn().Str("conversation", convID).Int("max_rounds", s.maxToolRounds).Msg("tool rounds exhausted, forcing final response without tools")
-	rec.nextCallIsForcedFinal()
-	resp, err := rec.Complete(ctx, &llm.Request{Messages: messages, MaxTokens: s.maxTokens})
-	if err != nil {
-		return "", fmt.Errorf("LLM forced final completion: %w", err)
-	}
-	return resp.Content, nil
-}
-
 // finishTurn commits the turn detached from the turn's context, so a turn
 // cancelled by Close or its timeout still releases its conversation. If the commit fails it falls back
 // to a status-only failure so the conversation is not blocked until the turn

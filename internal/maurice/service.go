@@ -22,7 +22,7 @@ import (
 )
 
 const (
-	DefaultMaxToolRounds = 10
+	DefaultMaxToolRounds = 25
 	DefaultMaxHistory    = 50
 	DefaultMaxTokens     = 4096
 

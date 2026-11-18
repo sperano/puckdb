@@ -67,7 +67,27 @@ func (r *turnRecorder) nextCallIsForcedFinal() { r.nextKind = CallForcedFinal }
 func (r *turnRecorder) Complete(ctx context.Context, req *llm.Request) (*llm.Response, error) {
 	round := len(r.calls)
 	call := newCallRecord(r.nextKind, &round, r.provider, r.model)
-	r.captureRequest(&call, req)
+	r.captureRequest(&call, req.Messages, req.Tools)
+	return r.send(ctx, req, call)
+}
+
+// completeWithInstruction sends messages followed by a user message holding
+// instruction, without tools. The instruction is recorded as the call's
+// Instruction, after its inputs, not as a turn message.
+func (r *turnRecorder) completeWithInstruction(ctx context.Context, messages []llm.Message, instruction string, maxTokens int) (*llm.Response, error) {
+	round := len(r.calls)
+	call := newCallRecord(r.nextKind, &round, r.provider, r.model)
+	r.captureRequest(&call, messages, nil)
+	call.Instruction = &instruction
+	req := &llm.Request{
+		Messages:  append(append([]llm.Message(nil), messages...), llm.Message{Role: "user", Content: instruction}),
+		MaxTokens: maxTokens,
+	}
+	return r.send(ctx, req, call)
+}
+
+// send forwards req and records its outcome on call.
+func (r *turnRecorder) send(ctx context.Context, req *llm.Request, call LLMCallRecord) (*llm.Response, error) {
 	call.StartedAt = r.now()
 	resp, err := r.client.Complete(ctx, req)
 	call.CompletedAt = r.now()
@@ -86,9 +106,9 @@ func (r *turnRecorder) Complete(ctx context.Context, req *llm.Request) (*llm.Res
 // captureRequest stores the system prompt, the tool definitions and a
 // reference for every other request message, adding messages the turn
 // produced since the previous call.
-func (r *turnRecorder) captureRequest(call *LLMCallRecord, req *llm.Request) {
-	call.ToolDefinitions = req.Tools
-	for i, m := range req.Messages {
+func (r *turnRecorder) captureRequest(call *LLMCallRecord, messages []llm.Message, tools []llm.Tool) {
+	call.ToolDefinitions = tools
+	for i, m := range messages {
 		if i == 0 && m.Role == "system" {
 			prompt := m.Content
 			call.SystemPrompt = &prompt

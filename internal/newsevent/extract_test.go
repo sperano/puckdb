@@ -78,7 +78,7 @@ func TestExtractorCallRejectsToolCalls(t *testing.T) {
 }
 
 func TestExtractorCallRejectsTruncatedReply(t *testing.T) {
-	for _, finish := range []string{finishReasonLength, stopReasonMaxTokens} {
+	for _, finish := range []string{llm.FinishReasonLength, llm.FinishReasonMaxTokens} {
 		t.Run(finish, func(t *testing.T) {
 			client := &extractFakeClient{resp: &llm.Response{Content: "partial", FinishReason: finish}}
 			x := Extractor{Client: client, MaxOutputTokens: extractTestMaxTokens}

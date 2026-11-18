@@ -369,14 +369,18 @@ func contractFailedTurnStaysOutOfTranscript(t *testing.T, env contractEnv) {
 	user := env.newUser(t)
 	ok := chat(t, env.db, user, "", "q1", "a1")
 
-	for _, status := range []TurnStatus{TurnFailed, TurnCancelled} {
+	for _, end := range []struct {
+		status TurnStatus
+		class  ErrorClass
+	}{
+		{TurnFailed, ErrorClassProvider},
+		{TurnFailed, ErrorClassEmptyAnswer},
+		{TurnCancelled, ErrorClassCancelled},
+	} {
+		status, class := end.status, end.class
 		params := turnParams(user, ok.ConversationID, uuid.NewString(), "doomed")
 		start, err := env.db.BeginTurn(ctx, params)
 		require.NoError(t, err)
-		class := ErrorClassProvider
-		if status == TurnCancelled {
-			class = ErrorClassCancelled
-		}
 		ids, err := env.db.FinishTurn(ctx, TurnRecord{
 			TurnID: start.TurnID, ConversationID: start.ConversationID, Status: status, ErrorClass: class,
 			Messages: []TurnMessage{

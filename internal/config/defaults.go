@@ -276,7 +276,7 @@ const (
 	DefaultMauriceConfig        = "" // empty = ~/.puckdb/maurice.yaml
 	DefaultMauriceMaxTokens     = 4096
 	DefaultMauriceMaxHistory    = 50
-	DefaultMauriceMaxToolRounds = 10
+	DefaultMauriceMaxToolRounds = 25
 	// DefaultMauriceYahooLeagues is empty: Maurice names teams of every league.
 	DefaultMauriceYahooLeagues = ""
 )
