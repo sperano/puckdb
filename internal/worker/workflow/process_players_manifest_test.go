@@ -44,7 +44,7 @@ const (
 	chainBatchSize      = 1
 	chainConcurrency    = 2
 	chainFailingOrdinal = 2
-	chainPoolSize       = 1
+	chainPoolSize       = 4
 	chainRebuiltPool    = 3
 	chainNonPageEntries = 1
 	chainRebuiltNonPage = 2

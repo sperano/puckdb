@@ -132,7 +132,32 @@ func (s *EnsureYahooIDPoolSuite) TestRebuildShortOfTheSavedSizeFails() {
 	_, err := s.env.ExecuteActivity(s.act.EnsureYahooIDPool, EnsureYahooIDPoolInput{PoolSize: 3})
 
 	s.Require().Error(err)
+	s.Contains(err.Error(), "rebuilt yahoo id pool holds 2 of the 3 entries phase 1 saved")
+}
+
+func (s *EnsureYahooIDPoolSuite) TestRebuildShortOfTheSavedPagesFails() {
+	// Phase 1 saved 3 pages and a league player; one file is gone and the
+	// league player was deleted since.
+	_, err := s.env.ExecuteActivity(s.act.EnsureYahooIDPool, EnsureYahooIDPoolInput{PoolSize: 4, NonPageEntries: 1})
+
+	s.Require().Error(err)
 	s.Contains(err.Error(), "rebuilt yahoo id pool holds 2 of the 3 page entries phase 1 saved")
+}
+
+func (s *EnsureYahooIDPoolSuite) TestLegacyRebuildKeepsTheWholeHashCheckWithAStaleEntry() {
+	// A chain started before league players joined the pool saved pages 97
+	// and 29 over a hash holding stale entry 7001 (PoolSize 3, no non-page
+	// count); another chain's save has added 7000 since.
+	_, err := saveYahooPlayersToRedisImpl(context.Background(), s.act.RedisClient,
+		[]store.YahooPlayer{{YahooID: 97}, {YahooID: 29}, {YahooID: 7001}, {YahooID: 7000}})
+	s.Require().NoError(err)
+
+	future, err := s.env.ExecuteActivity(s.act.EnsureYahooIDPool, EnsureYahooIDPoolInput{PoolSize: 3})
+
+	s.Require().NoError(err)
+	var result EnsureYahooIDPoolResult
+	s.Require().NoError(future.Get(&result))
+	s.Equal(EnsureYahooIDPoolResult{FoundSize: 4, Rebuilt: true, PoolSize: 4, NonPageEntries: 2, Available: 4}, result)
 }
 
 func (s *EnsureYahooIDPoolSuite) TestRebuildAfterLeaguePlayersWereDeletedSucceeds() {
@@ -156,17 +181,18 @@ func (s *EnsureYahooIDPoolSuite) TestLostPagesFailTheRebuildEvenWhenLeaguePlayer
 		leagueRow(7001, "Auston Matthews", "TOR", "C"),
 	}}
 
-	// Phase 1 saved 3 pages; one of the files is gone, two league players
-	// were added since.
-	_, err := s.env.ExecuteActivity(s.act.EnsureYahooIDPool, EnsureYahooIDPoolInput{PoolSize: 3})
+	// Phase 1 saved 3 pages and league player 7000; one of the files is
+	// gone, league player 7001 was added since.
+	_, err := s.env.ExecuteActivity(s.act.EnsureYahooIDPool, EnsureYahooIDPoolInput{PoolSize: 4, NonPageEntries: 1})
 
 	s.Require().Error(err)
 	s.Contains(err.Error(), "rebuilt yahoo id pool holds 2 of the 3 page entries phase 1 saved")
 }
 
-func (s *EnsureYahooIDPoolSuite) TestRebuildIgnoresAStaleEntryAnEarlierSaveLeft() {
-	// An earlier chain saved league player 7001, which a newer pool import
-	// has deleted from yahoo_league_players since; the hash keeps it.
+// saveOverAStaleEntry runs phase 1's save of pages 97 and 29 and league
+// player 7000 over a hash holding 7001, a league player an earlier chain
+// saved that a newer pool import has deleted from yahoo_league_players.
+func (s *EnsureYahooIDPoolSuite) saveOverAStaleEntry() SaveYahooIDPoolResult {
 	_, err := saveYahooPlayersToRedisImpl(context.Background(), s.act.RedisClient, []store.YahooPlayer{{YahooID: 7001}})
 	s.Require().NoError(err)
 	s.act.LeaguePlayers = fakeLeaguePlayers{rows: []sqlcdb.ListYahooLeaguePlayersForPoolRow{
@@ -179,10 +205,31 @@ func (s *EnsureYahooIDPoolSuite) TestRebuildIgnoresAStaleEntryAnEarlierSaveLeft(
 	s.Require().NoError(future.Get(&saved))
 	s.Equal(SaveYahooIDPoolResult{TotalPlayers: 3, AvailablePlayers: 3, PoolSize: 4, NonPageEntries: 2}, saved,
 		"the stale entry is counted with the league player, not as a page")
+	return saved
+}
 
+func (s *EnsureYahooIDPoolSuite) TestRebuildIgnoresAStaleEntryAnEarlierSaveLeft() {
+	saved := s.saveOverAStaleEntry()
+	// The page entries are lost; the stale entry stays in the hash.
+	s.mr.HDel(YahooIDPoolKey, "97")
+	s.mr.HDel(YahooIDPoolKey, "29")
+	s.mr.Del(YahooIDAvailableKey)
+
+	future, err := s.env.ExecuteActivity(s.act.EnsureYahooIDPool,
+		EnsureYahooIDPoolInput{PoolSize: saved.PoolSize, NonPageEntries: saved.NonPageEntries})
+
+	s.Require().NoError(err)
+	var result EnsureYahooIDPoolResult
+	s.Require().NoError(future.Get(&result))
+	s.Equal(EnsureYahooIDPoolResult{FoundSize: 2, Rebuilt: true, PoolSize: 4, NonPageEntries: 2, Available: 3}, result)
+}
+
+func (s *EnsureYahooIDPoolSuite) TestRebuildAfterLosingAHashWithAStaleEntrySucceeds() {
+	saved := s.saveOverAStaleEntry()
 	s.mr.Del(YahooIDPoolKey)
 	s.mr.Del(YahooIDAvailableKey)
-	future, err = s.env.ExecuteActivity(s.act.EnsureYahooIDPool,
+
+	future, err := s.env.ExecuteActivity(s.act.EnsureYahooIDPool,
 		EnsureYahooIDPoolInput{PoolSize: saved.PoolSize, NonPageEntries: saved.NonPageEntries})
 
 	s.Require().NoError(err)

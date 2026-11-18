@@ -52,9 +52,9 @@ func (a *Activities) CreateProcessPlayersManifest(ctx context.Context, input Cre
 }
 
 // ManifestBatchInput is one batch of a ProcessPlayers chain: the manifest
-// ordinals [From, To), the Yahoo ID pool size the chain saved (an empty pool
-// is rebuilt when it is positive) and how many of its entries no page backs
-// (see EnsureYahooIDPoolInput).
+// ordinals [From, To), the Yahoo ID pool size the chain saved (a pool
+// holding fewer entries is rebuilt first) and how many of its entries no
+// page backs (see EnsureYahooIDPoolInput).
 type ManifestBatchInput struct {
 	Manifest            ManifestRef
 	From                int
