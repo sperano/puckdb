@@ -149,7 +149,9 @@ func ProcessPlayersWorkflow(ctx workflow.Context, input *ProcessPlayersInput) (*
 }
 
 // loadYahooPool is phase 1: parse every stored Yahoo player file and save the
-// Yahoo ID pool to Redis. ctx must carry activity options.
+// Yahoo ID pool to Redis, together with the yahoo_league_players players
+// without a page (SaveYahooPlayersToRedis adds them). ctx must carry
+// activity options.
 func loadYahooPool(ctx workflow.Context, tracker *shared.ReportTracker, batchSize, concurrency int) (*workplayer.SaveYahooIDPoolResult, error) {
 	logger := workflow.GetLogger(ctx)
 
