@@ -3,6 +3,7 @@ package workflow
 import (
 	"context"
 	"errors"
+	"math"
 	"testing"
 	"time"
 
@@ -45,6 +46,15 @@ func TestLoadFetchYahooPlayersConfig(t *testing.T) {
 		require.Equal(t, 33, got.ActivityBatchSize)
 		require.Equal(t, 444, got.PlayersPerExecution)
 		require.Equal(t, 7, got.MissingTTLDays)
+	})
+
+	t.Run("missing TTL capped below Duration overflow", func(t *testing.T) {
+		// Above ~106,751 days, days*24h wraps to a negative Duration and
+		// every marker would be ignored.
+		setViperInt(t, config.FlagYahooPlayerMissingTTLDays, math.MaxInt32)
+
+		got := loadFetchYahooPlayersConfig()
+		require.Equal(t, config.DefaultMaxYahooPlayerMissingTTLDays, got.MissingTTLDays)
 	})
 }
 
@@ -187,8 +197,12 @@ func TestFetchYahooPlayersWorkflow_PassesTTLAndCarriesTotals(t *testing.T) {
 			return shared.FetchStats{Downloaded: 1, CacheHits: 2, Missing: 3}, nil
 		})
 
+	// Totals from earlier executions: this execution must add to them.
 	env.ExecuteWorkflow(FetchYahooPlayersWorkflow, &FetchYahooPlayersInput{
-		StartPlayerID: 1,
+		StartPlayerID:   1,
+		TotalDownloaded: 100,
+		TotalMissing:    50,
+		TotalFound:      200,
 		Config: &FetchYahooPlayersConfig{
 			MaxPlayerID: 10, Concurrency: 1, ActivityBatchSize: 5, PlayersPerExecution: 5,
 			MissingTTLDays: ttlDays,
@@ -200,9 +214,37 @@ func TestFetchYahooPlayersWorkflow_PassesTTLAndCarriesTotals(t *testing.T) {
 	require.Equal(t, ttlDays*24*time.Hour, gotTTL)
 	var next FetchYahooPlayersInput
 	require.NoError(t, converter.GetDefaultDataConverter().FromPayloads(contErr.Input, &next))
-	require.Equal(t, 1, next.TotalDownloaded)
-	require.Equal(t, 3, next.TotalMissing)
-	require.Equal(t, 3, next.TotalFound)
+	require.Equal(t, 101, next.TotalDownloaded)
+	require.Equal(t, 53, next.TotalMissing)
+	require.Equal(t, 203, next.TotalFound)
+}
+
+// A config carried from before MissingTTLDays existed holds 0: the batches
+// still get the default TTL, so markers keep expiring.
+func TestFetchYahooPlayersWorkflow_CarriedZeroTTLUsesDefault(t *testing.T) {
+	var ts testsuite.WorkflowTestSuite
+	env := ts.NewTestWorkflowEnvironment()
+	env.RegisterWorkflow(FetchYahooPlayersWorkflow)
+	mockProgressSaves(env)
+
+	var yahooAct *yahoo.FetchActivities
+	var gotTTL time.Duration
+	env.OnActivity(yahooAct.FetchYahooPlayerBatch, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+		Return(func(_ context.Context, _, _ store.YahooPlayerID, ttl time.Duration) (shared.FetchStats, error) {
+			gotTTL = ttl
+			return shared.FetchStats{}, nil
+		})
+
+	env.ExecuteWorkflow(FetchYahooPlayersWorkflow, &FetchYahooPlayersInput{
+		StartPlayerID: 1,
+		Config: &FetchYahooPlayersConfig{
+			MaxPlayerID: 5, Concurrency: 1, ActivityBatchSize: 5, PlayersPerExecution: 5,
+		},
+	})
+
+	require.True(t, env.IsWorkflowCompleted())
+	require.NoError(t, env.GetWorkflowError())
+	require.Equal(t, config.DefaultYahooPlayerMissingTTLDays*24*time.Hour, gotTTL)
 }
 
 func TestLogFetchYahooPlayersTotals_WarnsWhenNothingDownloaded(t *testing.T) {

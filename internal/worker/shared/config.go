@@ -112,8 +112,9 @@ var (
 		Default: config.DefaultYahooPlayersPerExecution,
 	}
 	YahooPlayerMissingTTLDaysParam = ConfigIntParam{
-		Flag:    config.FlagYahooPlayerMissingTTLDays,
-		Default: config.DefaultYahooPlayerMissingTTLDays,
+		Flag:       config.FlagYahooPlayerMissingTTLDays,
+		Default:    config.DefaultYahooPlayerMissingTTLDays,
+		MaxDefault: config.DefaultMaxYahooPlayerMissingTTLDays,
 	}
 )
 

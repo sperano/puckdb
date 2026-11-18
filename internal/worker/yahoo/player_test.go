@@ -196,7 +196,9 @@ func TestFetchYahooPlayer_FreshMarkerIsTrusted(t *testing.T) {
 	downloader.AssertNotCalled(t, "Download")
 }
 
-func TestFetchYahooPlayer_ZeroTTLNeverExpires(t *testing.T) {
+// A non-positive TTL fails safe: the marker is ignored and the page refetched,
+// never trusted forever (the failure mode of the throttled 404 markers).
+func TestFetchYahooPlayer_ZeroTTLIgnoresMarker(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	mem := store.NewMemStorage()
@@ -204,11 +206,13 @@ func TestFetchYahooPlayer_ZeroTTLNeverExpires(t *testing.T) {
 	playerID := store.YahooPlayerID(12345)
 
 	missingRes := resource.MissingYahooPlayer{PlayerID: playerID}
-	mem.SetFileWithTime(missingRes.Path(), []byte("missing"), time.Now().Add(-10*testMissingTTL))
+	// A marker written a minute ago: fresh under any positive TTL.
+	mem.SetFileWithTime(missingRes.Path(), []byte("missing"), time.Now().Add(-time.Minute))
+	downloader.On("Download", mock.Anything, resource.YahooPlayer{PlayerID: playerID}.URL()).Return([]byte("<html>Player Page</html>"), nil)
 
 	status, err := fetchYahooPlayerImpl(ctx, mem, downloader.Downloader(), playerID, 0, time.Now())
 
 	require.NoError(t, err)
-	assert.Equal(t, fetchStatusMissing, status)
-	downloader.AssertNotCalled(t, "Download")
+	assert.Equal(t, fetchStatusDownloaded, status)
+	downloader.AssertExpectations(t)
 }

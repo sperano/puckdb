@@ -90,7 +90,11 @@ const (
 	// player id that does not exist today almost never starts existing within a
 	// month; a month keeps the steady-state sweep cheap while bounding how long
 	// a wrongly written marker (a throttled 404) can hide a real player.
-	DefaultYahooPlayerMissingTTLDays     = 30
+	DefaultYahooPlayerMissingTTLDays = 30
+	// DefaultMaxYahooPlayerMissingTTLDays caps the marker TTL (ten years)
+	// well below the ~106,751 days a time.Duration can hold, so a huge flag
+	// value cannot overflow into a negative TTL.
+	DefaultMaxYahooPlayerMissingTTLDays  = 3650
 	DefaultYahooPlayerPoolMaxAge         = 12 // hours
 	DefaultYahooPlayerPoolMaxAgeInSeason = 24 // hours
 	DefaultYahooPoolLeagueConcurrency    = 3

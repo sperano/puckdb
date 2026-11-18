@@ -31,7 +31,8 @@ const (
 
 // missingMarkerFresh reports whether playerID has a missing marker younger
 // than ttl at now. A marker at or past ttl is expired and ignored, so the page
-// is fetched again; a ttl <= 0 means markers never expire.
+// is fetched again. The workflow always passes a positive ttl; a ttl <= 0
+// would make every marker expired, never trusted forever.
 func missingMarkerFresh(ctx context.Context, storage store.Storage, missingRes resource.MissingYahooPlayer, ttl time.Duration, now time.Time) (bool, error) {
 	info, err := resource.Stat(ctx, storage, missingRes)
 	if errors.Is(err, os.ErrNotExist) {
@@ -39,9 +40,6 @@ func missingMarkerFresh(ctx context.Context, storage store.Storage, missingRes r
 	}
 	if err != nil {
 		return false, fmt.Errorf("stat missing marker for player %d: %w", missingRes.PlayerID, err)
-	}
-	if ttl <= 0 {
-		return true, nil
 	}
 	return now.Sub(info.ModTime()) < ttl, nil
 }
