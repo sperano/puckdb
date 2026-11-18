@@ -34,7 +34,7 @@ type MauriceTeamChoices {
 	season: Int
 	"""Ordered by league then team ID."""
 	teams: [MauriceTeamChoice!]!
-	"""Whether the caller already saved or dismissed the first-login offer; false again after `puckdb user reset-team-offer` clears it."""
+	"""Whether the caller already saved or dismissed the first-login offer; false again after resetTeamOffer or resetInstanceTeamOffers (`puckdb user reset-team-offer`) clears it."""
 	offered: Boolean!
 }
 
@@ -53,4 +53,8 @@ extend type Mutation {
 	mauriceSetTeams(teams: [TeamRef!]!): MauriceTeamChoices!
 	"""Marks the offer as seen, changing no team."""
 	mauriceDismissTeamOffer: Boolean!
+	"""Admin: clears the offer flag of instance's user named username (exact match), so the client opens the offer again at their next visit; links and deselections stay. Returns whether the user had seen the offer. A username matching no user of the instance fails with extensions.code USER_NOT_FOUND, one matching several with AMBIGUOUS_USER."""
+	resetTeamOffer(instance: String!, username: String!): Boolean! @admin
+	"""Admin: resetTeamOffer for every user of instance; returns how many had seen the offer."""
+	resetInstanceTeamOffers(instance: String!): Int! @admin
 }

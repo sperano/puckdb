@@ -21,6 +21,16 @@ func (r *mutationResolver) MauriceDismissTeamOffer(ctx context.Context) (bool, e
 	return r.Resolver.mauriceDismissTeamOffer(ctx)
 }
 
+// ResetTeamOffer is the resolver for the resetTeamOffer field.
+func (r *mutationResolver) ResetTeamOffer(ctx context.Context, instance string, username string) (bool, error) {
+	return r.Resolver.resetTeamOffer(ctx, instance, username)
+}
+
+// ResetInstanceTeamOffers is the resolver for the resetInstanceTeamOffers field.
+func (r *mutationResolver) ResetInstanceTeamOffers(ctx context.Context, instance string) (int, error) {
+	return r.Resolver.resetInstanceTeamOffers(ctx, instance)
+}
+
 // MauriceTeamChoices is the resolver for the mauriceTeamChoices field.
 func (r *queryResolver) MauriceTeamChoices(ctx context.Context) (*model.MauriceTeamChoices, error) {
 	return r.Resolver.mauriceTeamChoices(ctx)

@@ -586,9 +586,9 @@ var AppSessionFlags = FlagGroup{
 	},
 }
 
-// UserTeamLinkFlags defines the flags of the `user` admin commands (link-team,
-// unlink-team, list-teams), which manage internal/yahoolink links directly
-// against PostgreSQL.
+// UserTeamLinkFlags defines the flags of the `user` admin commands: link-team,
+// unlink-team and list-teams, which manage internal/yahoolink links directly
+// against PostgreSQL, and reset-team-offer, which goes through the API.
 var UserTeamLinkFlags = FlagGroup{
 	Flags: []FlagDef{
 		{FlagInstance, "", "", "Name of the API instance whose users to manage (required)", false},
