@@ -126,6 +126,9 @@ func runMCPServer(cmd *cobra.Command, transport mcpTransport, opts mcpserver.Opt
 	defer pool.Close()
 
 	queries := database.NewQueries(pool)
+	if err := mcpserver.CheckLeagueKeys(ctx, queries, opts); err != nil {
+		return fmt.Errorf("invalid --%s: %w", config.FlagMCPYahooLeagues, err)
+	}
 	opts.Draft = newDraftService(pool)
 	if opts.HasToolset(mcpserver.ToolsetNews) {
 		sources, err := news.LoadSources(viper.GetString(config.FlagNewsSourcesFile))

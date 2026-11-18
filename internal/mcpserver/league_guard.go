@@ -35,7 +35,9 @@ type leagueLookup interface {
 // leagueGuard decides which Yahoo leagues the server serves. With an empty
 // allowlist it serves every league; otherwise only the listed league keys.
 // It checks each call against the database rather than resolving keys once
-// at startup, so leagues imported later are judged by their own key.
+// at startup, so leagues imported later are judged by their own key. Each
+// listed key must still name an imported league when the server starts
+// (CheckLeagueKeys).
 type leagueGuard struct {
 	allowed map[string]bool
 	leagues leagueLookup

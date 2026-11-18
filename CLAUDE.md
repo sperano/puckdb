@@ -44,7 +44,7 @@ go tool gqlgen generate   # GraphQL (from puckdb root dir; gqlgen is pinned via 
 | `worker` | Temporal worker for download/import workflows, metrics at `/metrics` |
 | `sync` | Sync data into the database |
 | `metrics` | Expose cache, Redis, and database metrics as Prometheus metrics |
-| `mcp-server` | MCP server exposing curated read-only data tools; HTTP on `--mcp-port` (default 8790) or `--mcp-stdio`; `--mcp-toolsets` picks `nhl` (default), `yahoo`, `news` or a comma-separated combination (server name `puckdb-<toolsets>`); `--mcp-yahoo-leagues` limits the `yahoo` toolset to listed league keys (empty: every league) |
+| `mcp-server` | MCP server exposing curated read-only data tools; HTTP on `--mcp-port` (default 8790) or `--mcp-stdio`; `--mcp-toolsets` picks `nhl` (default), `yahoo`, `news` or a comma-separated combination (server name `puckdb-<toolsets>`); `--mcp-yahoo-leagues` limits the `yahoo` toolset to listed league keys (empty: every league); with the `yahoo` toolset, a listed key matching no `yahoo_leagues` row fails startup |
 | `db init` | Create tables, seed NHL data |
 | `db drop` | Drop all tables |
 | `db migrate` | Run database migrations directly |
