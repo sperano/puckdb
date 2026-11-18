@@ -10209,7 +10209,9 @@ extend type Query {
 }
 `, BuiltIn: false},
 	{Name: "../maurice_teams.graphqls", Input: `# Maurice team picker: the caller picks their own Yahoo teams, for a login
-# email that differs from their Yahoo manager email. Every field needs the
+# email that differs from their Yahoo manager email. Every field but the
+# @admin offer resets (resetTeamOffer, resetInstanceTeamOffers, which need
+# no login identity and take the instance and user as arguments) needs the
 # instance's login identity and is scoped to the caller. A pick is
 # self-declared and unverified: it only changes the caller's own Maurice
 # prompt, and several users may pick the same team (co-managers).
