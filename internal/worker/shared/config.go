@@ -111,6 +111,10 @@ var (
 		Flag:    config.FlagYahooPlayersPerExecution,
 		Default: config.DefaultYahooPlayersPerExecution,
 	}
+	YahooPlayerMissingTTLDaysParam = ConfigIntParam{
+		Flag:    config.FlagYahooPlayerMissingTTLDays,
+		Default: config.DefaultYahooPlayerMissingTTLDays,
+	}
 )
 
 // YahooPoolLeagueConcurrencyParam resolves how many leagues of one season

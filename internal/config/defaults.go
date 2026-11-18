@@ -74,10 +74,23 @@ const (
 
 // Yahoo player download defaults
 const (
-	DefaultMaxYahooPlayerID              = 35000
-	DefaultYahooPlayerBatchSize          = 50
-	DefaultYahooPlayerActivityBatchSize  = 100
-	DefaultYahooPlayersPerExecution      = 5000
+	DefaultMaxYahooPlayerID = 35000
+	// DefaultYahooPlayerBatchSize is the number of activity batches that run
+	// at once. Every batch downloads sequentially, and all downloads queue
+	// behind the process's Yahoo rate limiter (--yahoo-rate-limit), so a high
+	// value adds no throughput: it only queues dozens of long-running,
+	// heartbeating activities at once and makes a burst of requests likely
+	// when the limiter's burst allowance refills. Keep it polite.
+	DefaultYahooPlayerBatchSize         = 5
+	DefaultYahooPlayerActivityBatchSize = 100
+	DefaultYahooPlayersPerExecution     = 5000
+	// DefaultYahooPlayerMissingTTLDays is how long a "this player page
+	// returned 404" marker is trusted before the page is fetched again. Yahoo
+	// creates pages for new players (draft picks, call-ups) continuously, but a
+	// player id that does not exist today almost never starts existing within a
+	// month; a month keeps the steady-state sweep cheap while bounding how long
+	// a wrongly written marker (a throttled 404) can hide a real player.
+	DefaultYahooPlayerMissingTTLDays     = 30
 	DefaultYahooPlayerPoolMaxAge         = 12 // hours
 	DefaultYahooPlayerPoolMaxAgeInSeason = 24 // hours
 	DefaultYahooPoolLeagueConcurrency    = 3

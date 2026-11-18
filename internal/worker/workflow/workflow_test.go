@@ -465,7 +465,7 @@ func (s *FetchYahooPlayersWorkflowTestSuite) TestFetchYahooPlayersWorkflow_Succe
 	// The workflow should handle this gracefully
 	// Activity takes (batchStartID int, batchEndID int)
 	var yahooAct *yahoo.FetchActivities
-	s.env.OnActivity(yahooAct.FetchYahooPlayerBatch, mock.Anything, mock.AnythingOfType("int"), mock.AnythingOfType("int")).
+	s.env.OnActivity(yahooAct.FetchYahooPlayerBatch, mock.Anything, mock.AnythingOfType("int"), mock.AnythingOfType("int"), mock.Anything).
 		Maybe().
 		Return(shared.FetchStats{Downloaded: 5, CacheHits: 3, Missing: 2}, nil)
 
@@ -479,7 +479,7 @@ func (s *FetchYahooPlayersWorkflowTestSuite) TestFetchYahooPlayersWorkflow_Succe
 func (s *FetchYahooPlayersWorkflowTestSuite) TestFetchYahooPlayersWorkflow_ActivityError() {
 	// Activity takes (batchStartID int, batchEndID int)
 	var yahooAct *yahoo.FetchActivities
-	s.env.OnActivity(yahooAct.FetchYahooPlayerBatch, mock.Anything, mock.AnythingOfType("int"), mock.AnythingOfType("int")).
+	s.env.OnActivity(yahooAct.FetchYahooPlayerBatch, mock.Anything, mock.AnythingOfType("int"), mock.AnythingOfType("int"), mock.Anything).
 		Maybe().
 		Return(shared.FetchStats{}, errors.New("download failed"))
 

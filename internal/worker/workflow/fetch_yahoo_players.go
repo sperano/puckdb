@@ -4,8 +4,10 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/sperano/puckdb/internal/config"
 	"github.com/sperano/puckdb/internal/worker/shared"
 	"github.com/sperano/puckdb/internal/worker/yahoo"
+	"go.temporal.io/sdk/log"
 	"go.temporal.io/sdk/workflow"
 )
 
@@ -13,10 +15,12 @@ const WorkflowIDFetchYahooPlayers = "fetch-yahoo-players"
 
 // FetchYahooPlayersInput contains parameters for the workflow, supporting ContinueAsNew.
 type FetchYahooPlayersInput struct {
-	StartPlayerID  int       // First player ID to process in this execution (1-based)
-	TotalCompleted int       // Cumulative completed count from previous executions
-	TotalFound     int       // Cumulative found players (network downloads + cache hits, excludes 404s)
-	StartedAt      time.Time // Original workflow start time (for elapsed calculation)
+	StartPlayerID   int       // First player ID to process in this execution (1-based)
+	TotalCompleted  int       // Cumulative completed count from previous executions
+	TotalFound      int       // Cumulative found players (network downloads + cache hits, excludes 404s)
+	TotalDownloaded int       // Cumulative pages downloaded from Yahoo (excludes cache hits)
+	TotalMissing    int       // Cumulative ids without a page (fresh 404s + still-valid missing markers)
+	StartedAt       time.Time // Original workflow start time (for elapsed calculation)
 
 	// Config is snapshotted once, on the first execution of a logical run, and
 	// carried across every ContinueAsNew so every execution of that run uses
@@ -36,6 +40,9 @@ type FetchYahooPlayersConfig struct {
 	Concurrency         int `json:"concurrency"`
 	ActivityBatchSize   int `json:"activityBatchSize"`
 	PlayersPerExecution int `json:"playersPerExecution"`
+	// MissingTTLDays is passed to every FetchYahooPlayerBatch: it decides
+	// which ids are downloaded again, so it is frozen for the whole run.
+	MissingTTLDays int `json:"missingTTLDays"`
 }
 
 // loadFetchYahooPlayersConfig resolves FetchYahooPlayersConfig from viper with
@@ -47,6 +54,7 @@ func loadFetchYahooPlayersConfig() FetchYahooPlayersConfig {
 		Concurrency:         shared.ResolveConfigInt(nil, shared.YahooPlayerConcurrencyParam, nil),
 		ActivityBatchSize:   shared.ResolveConfigInt(nil, shared.YahooPlayerActivityBatchSizeParam, nil),
 		PlayersPerExecution: shared.ResolveConfigInt(nil, shared.YahooPlayersPerExecutionParam, nil),
+		MissingTTLDays:      shared.ResolveConfigInt(nil, shared.YahooPlayerMissingTTLDaysParam, nil),
 	}
 }
 
@@ -68,10 +76,12 @@ func resolveFetchYahooPlayersConfig(ctx workflow.Context, carried *FetchYahooPla
 // ContinueAsNew executions of one logical run. Distinct from
 // FetchYahooPlayersConfig, which is the snapshotted settings for the run.
 type fetchYahooPlayersState struct {
-	StartID        int
-	TotalCompleted int
-	TotalFound     int
-	StartedAt      time.Time
+	StartID         int
+	TotalCompleted  int
+	TotalFound      int
+	TotalDownloaded int
+	TotalMissing    int
+	StartedAt       time.Time
 }
 
 // parseFetchYahooPlayersState extracts the continuation state from input,
@@ -87,6 +97,8 @@ func parseFetchYahooPlayersState(ctx workflow.Context, input *FetchYahooPlayersI
 	}
 	state.TotalCompleted = input.TotalCompleted
 	state.TotalFound = input.TotalFound
+	state.TotalDownloaded = input.TotalDownloaded
+	state.TotalMissing = input.TotalMissing
 	if !input.StartedAt.IsZero() {
 		state.StartedAt = input.StartedAt
 	}
@@ -117,6 +129,8 @@ func FetchYahooPlayersWorkflow(ctx workflow.Context, input *FetchYahooPlayersInp
 	startID := state.StartID
 	totalCompleted := state.TotalCompleted
 	totalFound := state.TotalFound
+	totalDownloaded := state.TotalDownloaded
+	totalMissing := state.TotalMissing
 	startedAt := state.StartedAt
 
 	var carriedConfig *FetchYahooPlayersConfig
@@ -132,6 +146,13 @@ func FetchYahooPlayersWorkflow(ctx workflow.Context, input *FetchYahooPlayersInp
 	concurrency := cfg.Concurrency
 	activityBatchSize := cfg.ActivityBatchSize
 	playersPerExecution := cfg.PlayersPerExecution
+	// A config carried from before MissingTTLDays existed holds 0; fall back
+	// to the default so markers still expire.
+	missingTTLDays := cfg.MissingTTLDays
+	if missingTTLDays <= 0 {
+		missingTTLDays = config.DefaultYahooPlayerMissingTTLDays
+	}
+	missingTTL := time.Duration(missingTTLDays) * hoursPerDay * time.Hour
 
 	// Calculate this execution's range
 	endID := startID + playersPerExecution - 1
@@ -164,16 +185,16 @@ func FetchYahooPlayersWorkflow(ctx workflow.Context, input *FetchYahooPlayersInp
 	activityCtx := workflow.WithActivityOptions(ctx, shared.YahooDownloadActivityOptions())
 	startActivity := func(ctx workflow.Context, batchIndex int) workflow.Future {
 		first, end := batches.Bounds(batchIndex)
-		return workflow.ExecuteActivity(activityCtx, yahooAct.FetchYahooPlayerBatch, startID+first, startID+end-1)
+		return workflow.ExecuteActivity(activityCtx, yahooAct.FetchYahooPlayerBatch, startID+first, startID+end-1, missingTTL)
 	}
 
-	executionFound := 0
+	var executionStats shared.FetchStats
 	handler := func(ctx workflow.Context, index int, future workflow.Future) error {
 		var result shared.FetchStats
 		if err := future.Get(ctx, &result); err != nil {
 			return err
 		}
-		executionFound += result.Downloaded + result.CacheHits
+		executionStats.Add(result)
 		return nil
 	}
 
@@ -192,21 +213,47 @@ func FetchYahooPlayersWorkflow(ctx workflow.Context, input *FetchYahooPlayersInp
 	if endID < maxPlayerID {
 		return workflow.NewContinueAsNewError(ctx, FetchYahooPlayersWorkflow,
 			&FetchYahooPlayersInput{
-				StartPlayerID:  endID + 1,
-				TotalCompleted: totalCompleted + totalPlayers,
-				TotalFound:     totalFound + executionFound,
-				StartedAt:      startedAt,
-				Config:         cfg,
+				StartPlayerID:   endID + 1,
+				TotalCompleted:  totalCompleted + totalPlayers,
+				TotalFound:      totalFound + executionStats.Downloaded + executionStats.CacheHits,
+				TotalDownloaded: totalDownloaded + executionStats.Downloaded,
+				TotalMissing:    totalMissing + executionStats.Missing,
+				StartedAt:       startedAt,
+				Config:          cfg,
 			})
 	}
 
 	// Mark group complete with final count and total elapsed time
-	finalFound := totalFound + executionFound
+	finalFound := totalFound + executionStats.Downloaded + executionStats.CacheHits
+	finalDownloaded := totalDownloaded + executionStats.Downloaded
+	finalMissing := totalMissing + executionStats.Missing
 	finalCount := totalCompleted + totalPlayers
 	elapsed := shared.FormatDuration(workflow.Now(ctx).Sub(startedAt))
 	tracker.CompleteGroup(ctx, GroupFetchYahooPlayers,
 		fmt.Sprintf("Found %d/%d Yahoo! players in %s.", finalFound, finalCount, elapsed))
 
-	logger.Info("FetchYahooPlayersWorkflow completed", "max_player_id", maxPlayerID)
+	logFetchYahooPlayersTotals(logger, maxPlayerID, finalCount, finalFound, finalDownloaded, finalMissing)
 	return nil
+}
+
+// mostMissingPercent is the share of swept ids above which a run that
+// downloaded nothing is suspicious: a healthy first sweep downloads thousands
+// of pages, and a healthy later one finds them cached, not missing.
+const mostMissingPercent = 50
+
+// hoursPerDay converts the missing-marker TTL, configured in days.
+const hoursPerDay = 24
+
+// logFetchYahooPlayersTotals logs the run's final counts and warns when the
+// run downloaded no page while most ids were missing, the signature of stale
+// or wrongly written missing markers.
+func logFetchYahooPlayersTotals(logger log.Logger, maxPlayerID, swept, found, downloaded, missing int) {
+	logger.Info("FetchYahooPlayersWorkflow completed",
+		"max_player_id", maxPlayerID, "swept", swept,
+		"downloaded", downloaded, "cached", found-downloaded, "missing", missing)
+	if downloaded == 0 && swept > 0 && missing*100 > swept*mostMissingPercent {
+		logger.Warn("FetchYahooPlayersWorkflow downloaded no pages while most ids were missing; "+
+			"missing markers may be stale or wrong",
+			"swept", swept, "missing", missing, "found", found)
+	}
 }

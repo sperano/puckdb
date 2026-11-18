@@ -224,6 +224,7 @@ const (
 	FlagYahooPlayerBatchSize          = "yahoo-player-batch-size"
 	FlagYahooPlayerActivityBatchSize  = "yahoo-player-activity-batch-size"
 	FlagYahooPlayersPerExecution      = "yahoo-players-per-execution"
+	FlagYahooPlayerMissingTTLDays     = "yahoo-player-missing-ttl-days"
 	FlagYahooPlayerPoolMaxAge         = "yahoo-player-pool-max-age"
 	FlagYahooPlayerPoolMaxAgeInSeason = "yahoo-player-pool-max-age-in-season"
 	FlagYahooPoolLeagueConcurrency    = "yahoo-pool-league-concurrency"
@@ -493,9 +494,10 @@ var NotifyEmailFlags = FlagGroup{
 var YahooPlayerFlags = FlagGroup{
 	Flags: []FlagDef{
 		{FlagMaxYahooPlayerID, "", DefaultMaxYahooPlayerID, "Maximum Yahoo player ID to scan when importing players", false},
-		{FlagYahooPlayerBatchSize, "", DefaultYahooPlayerBatchSize, "Number of concurrent activities for downloading Yahoo players", false},
+		{FlagYahooPlayerBatchSize, "", DefaultYahooPlayerBatchSize, "Number of activity batches downloading Yahoo players at once (downloads share the Yahoo rate limit, so more adds no throughput)", false},
 		{FlagYahooPlayerActivityBatchSize, "", DefaultYahooPlayerActivityBatchSize, "Number of players to process per activity", false},
 		{FlagYahooPlayersPerExecution, "", DefaultYahooPlayersPerExecution, "Players to process per workflow execution before ContinueAsNew", false},
+		{FlagYahooPlayerMissingTTLDays, "", DefaultYahooPlayerMissingTTLDays, "Days a Yahoo player page's 404 marker is trusted before the page is fetched again", false},
 		{FlagYahooPlayerPoolMaxAge, "", DefaultYahooPlayerPoolMaxAge, "Hours before a league's Yahoo player pool is downloaded again before its regular season starts", false},
 		{FlagYahooPlayerPoolMaxAgeInSeason, "", DefaultYahooPlayerPoolMaxAgeInSeason, "Hours before a league's Yahoo player pool is downloaded again during its regular season", false},
 		{FlagYahooPoolLeagueConcurrency, "", DefaultYahooPoolLeagueConcurrency, "Number of leagues of one season whose Yahoo player pools are downloaded concurrently", false},
