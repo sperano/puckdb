@@ -200,13 +200,15 @@ func int64Ptr(v int) *int64 {
 }
 
 // mcpToolExecutor returns an agentloop.ToolExecutor that resolves each tool call
-// against the MCP client and records it. A tool-call error is formatted into
-// the returned result string with a nil error, so the failure is surfaced to
-// the model on the next round rather than aborting the turn.
-func (s *service) mcpToolExecutor(convID string, rec *turnRecorder, caller mcp.ToolCaller) agentloop.ToolExecutor {
+// against the MCP client and records it, listing it on the turn row as it
+// starts (recordToolStart). A tool-call error is formatted into the returned
+// result string with a nil error, so the failure is surfaced to the model on
+// the next round rather than aborting the turn.
+func (s *service) mcpToolExecutor(turnID, convID string, rec *turnRecorder, caller mcp.ToolCaller) agentloop.ToolExecutor {
 	return func(ctx context.Context, tc llm.ToolCall) (string, error) {
 		log.Debug().Str("conversation", convID).Str("tool", tc.Function.Name).Str("call_id", tc.ID).Msg("calling MCP tool")
 		log.Trace().Str("conversation", convID).Str("tool", tc.Function.Name).Str("arguments", tc.Function.Arguments).Msg("MCP tool arguments")
+		s.recordToolStart(ctx, turnID, tc.Function.Name)
 
 		started := s.now()
 		result, err := caller.CallTool(ctx, tc.Function.Name, json.RawMessage(tc.Function.Arguments))
@@ -221,6 +223,17 @@ func (s *service) mcpToolExecutor(convID string, rec *turnRecorder, caller mcp.T
 		log.Trace().Str("conversation", convID).Str("tool", tc.Function.Name).Str("result", truncateLog(result.Content, maxLogTraceLen)).Msg("MCP tool result content")
 		rec.recordTool(result.Content, toolStatus(tc.Function.Arguments, result.IsError), started, completed)
 		return result.Content, nil
+	}
+}
+
+// recordToolStart adds a starting tool call to its running turn's stored tool
+// names, so a poll reaching any replica lists it (GetTurn). The write only
+// feeds that progress display: a failure is logged and the call still runs.
+func (s *service) recordToolStart(ctx context.Context, turnID, name string) {
+	writeCtx, cancel := context.WithTimeout(ctx, toolNameWriteTimeout)
+	defer cancel()
+	if err := s.db.AppendTurnToolName(writeCtx, turnID, name); err != nil {
+		log.Warn().Err(err).Str("turn", turnID).Str("tool", name).Msg("record tool call start")
 	}
 }
 

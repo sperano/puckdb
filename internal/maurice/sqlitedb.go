@@ -33,6 +33,7 @@ CREATE TABLE IF NOT EXISTS turns (
 	completed_at TEXT,
 	error_class TEXT,
 	warnings TEXT NOT NULL DEFAULT '[]',
+	tool_names TEXT NOT NULL DEFAULT '[]',
 	UNIQUE (conversation_id, turn_number),
 	UNIQUE (user_id, idempotency_key)
 );
@@ -71,6 +72,7 @@ var sqliteUpgrades = []sqliteUpgrade{
 	{"messages", "turn_id", "TEXT REFERENCES turns(id) ON DELETE CASCADE"},
 	{"messages", "message_number", "INTEGER"},
 	{"turns", "warnings", "TEXT NOT NULL DEFAULT '[]'"},
+	{"turns", "tool_names", "TEXT NOT NULL DEFAULT '[]'"},
 }
 
 // sqliteTimeLayout is the fixed-width form every timestamp is stored in. It is

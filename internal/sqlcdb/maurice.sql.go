@@ -41,6 +41,27 @@ func (q *Queries) AbandonTurn(ctx context.Context, id pgtype.UUID) error {
 	return err
 }
 
+const appendTurnToolName = `-- name: AppendTurnToolName :execrows
+UPDATE maurice_turns
+SET tool_names = tool_names || jsonb_build_array($2::text)
+WHERE id = $1 AND status = 'running'
+`
+
+type AppendTurnToolNameParams struct {
+	ID       pgtype.UUID `json:"id"`
+	ToolName string      `json:"tool_name"`
+}
+
+// Records a tool call as it starts; a turn no longer running is left as it
+// is.
+func (q *Queries) AppendTurnToolName(ctx context.Context, arg AppendTurnToolNameParams) (int64, error) {
+	result, err := q.db.Exec(ctx, appendTurnToolName, arg.ID, arg.ToolName)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const completeTurn = `-- name: CompleteTurn :one
 UPDATE maurice_turns
 SET status = $2, error_class = $3, warnings = $4, completed_at = clock_timestamp()
@@ -193,7 +214,7 @@ func (q *Queries) GetConversation(ctx context.Context, arg GetConversationParams
 }
 
 const getOwnedTurn = `-- name: GetOwnedTurn :one
-SELECT t.id, t.conversation_id, t.status, t.error_class, t.warnings,
+SELECT t.id, t.conversation_id, t.status, t.error_class, t.warnings, t.tool_names,
        (t.status = 'running' AND t.started_at < clock_timestamp() - make_interval(secs => $3::double precision))::boolean AS stale
 FROM maurice_turns t
 JOIN maurice_conversations c ON c.id = t.conversation_id
@@ -212,6 +233,7 @@ type GetOwnedTurnRow struct {
 	Status         string      `json:"status"`
 	ErrorClass     pgtype.Text `json:"error_class"`
 	Warnings       []byte      `json:"warnings"`
+	ToolNames      []byte      `json:"tool_names"`
 	Stale          bool        `json:"stale"`
 }
 
@@ -226,6 +248,7 @@ func (q *Queries) GetOwnedTurn(ctx context.Context, arg GetOwnedTurnParams) (Get
 		&i.Status,
 		&i.ErrorClass,
 		&i.Warnings,
+		&i.ToolNames,
 		&i.Stale,
 	)
 	return i, err

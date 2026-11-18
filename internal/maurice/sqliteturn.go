@@ -156,13 +156,13 @@ func (s *sqliteDB) GetTurn(ctx context.Context, userID, turnID string, staleAfte
 	err := s.inTx(ctx, func(tx *sql.Tx) error {
 		var stored storedTurn
 		var errorClass sql.NullString
-		var startedAt, warnings string
+		var startedAt, warnings, toolNames string
 		err := tx.QueryRowContext(ctx,
-			`SELECT t.id, t.conversation_id, t.status, t.error_class, t.started_at, t.warnings
+			`SELECT t.id, t.conversation_id, t.status, t.error_class, t.started_at, t.warnings, t.tool_names
 			 FROM turns t JOIN conversations c ON c.id = t.conversation_id
 			 WHERE t.id = ? AND t.user_id = ? AND c.deleted_at IS NULL`,
 			turnID, userID,
-		).Scan(&stored.ID, &stored.ConversationID, &stored.Status, &errorClass, &startedAt, &warnings)
+		).Scan(&stored.ID, &stored.ConversationID, &stored.Status, &errorClass, &startedAt, &warnings, &toolNames)
 		if errors.Is(err, sql.ErrNoRows) {
 			return ErrTurnNotFound
 		}
@@ -177,6 +177,9 @@ func (s *sqliteDB) GetTurn(ctx context.Context, userID, turnID string, staleAfte
 			return fmt.Errorf("decode turn warnings: %w", err)
 		}
 		if turn.Status != TurnSucceeded {
+			if err := json.Unmarshal([]byte(toolNames), &turn.ToolsUsed); err != nil {
+				return fmt.Errorf("decode turn tool names: %w", err)
+			}
 			return nil
 		}
 		return loadSQLiteReplay(ctx, tx, turn.ID, &turn.TurnReplay)
@@ -185,6 +188,25 @@ func (s *sqliteDB) GetTurn(ctx context.Context, userID, turnID string, staleAfte
 		return nil, err
 	}
 	return turn, nil
+}
+
+// AppendTurnToolName records a tool call of a running turn as it starts.
+func (s *sqliteDB) AppendTurnToolName(ctx context.Context, turnID, name string) error {
+	res, err := s.db.ExecContext(ctx,
+		"UPDATE turns SET tool_names = json_insert(tool_names, '$[#]', ?) WHERE id = ? AND status = ?",
+		name, turnID, TurnRunning,
+	)
+	if err != nil {
+		return fmt.Errorf("append turn tool name: %w", err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("append turn tool name: %w", err)
+	}
+	if n == 0 {
+		return ErrTurnNotRunning
+	}
+	return nil
 }
 
 func loadSQLiteReplay(ctx context.Context, tx *sql.Tx, turnID string, replay *TurnReplay) error {

@@ -192,9 +192,10 @@ func NewService(llmClient llm.Client, mcpClient mcp.Client, db DB, cfg ServiceCo
 // Chat runs one turn: it opens the turn (or finds the earlier one with the
 // same idempotency key), runs the LLM tool loop detached from ctx
 // (launchTurn), and waits for the turn to commit its messages and usage
-// atomically. Nothing is written mid-turn, so a crash during the loop leaves
-// no partial transcript; a failed turn keeps its prompts and usage but never
-// becomes replayable history.
+// atomically. Mid-turn, only each starting tool's name is written to the turn
+// row (recordToolStart), so a crash during the loop leaves no partial
+// transcript; a failed turn keeps its prompts and usage but never becomes
+// replayable history.
 func (s *service) Chat(ctx context.Context, req ChatRequest) (*ChatResponse, error) {
 	start, release, err := s.beginTurn(ctx, req, false)
 	if err != nil {

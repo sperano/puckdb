@@ -101,7 +101,7 @@ WHERE t.user_id = $1 AND t.idempotency_key = $2;
 -- name: GetOwnedTurn :one
 -- A turn of a deleted conversation is hidden from its owner, like the
 -- conversation.
-SELECT t.id, t.conversation_id, t.status, t.error_class, t.warnings,
+SELECT t.id, t.conversation_id, t.status, t.error_class, t.warnings, t.tool_names,
        (t.status = 'running' AND t.started_at < clock_timestamp() - make_interval(secs => sqlc.arg(stale_seconds)::double precision))::boolean AS stale
 FROM maurice_turns t
 JOIN maurice_conversations c ON c.id = t.conversation_id
@@ -141,6 +141,13 @@ UPDATE maurice_turns
 SET status = $2, error_class = $3, warnings = $4, completed_at = clock_timestamp()
 WHERE id = $1 AND status = 'running'
 RETURNING conversation_id;
+
+-- name: AppendTurnToolName :execrows
+-- Records a tool call as it starts; a turn no longer running is left as it
+-- is.
+UPDATE maurice_turns
+SET tool_names = tool_names || jsonb_build_array(sqlc.arg(tool_name)::text)
+WHERE id = $1 AND status = 'running';
 
 -- name: GetTurnFinalMessage :one
 SELECT id, content

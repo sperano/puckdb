@@ -67,8 +67,11 @@ type testDB struct {
 	getConversationErr error
 	listErr            error
 	titleErr           error
-	finished           []TurnRecord
-	titles             []TitleRecord
+	appendToolErr      error
+	// lastTurnID is the turn the latest BeginTurn opened.
+	lastTurnID string
+	finished   []TurnRecord
+	titles     []TitleRecord
 	// committed and titled, when set (buffered), receive each turn record
 	// and title record once the store returned, so a test can wait for a
 	// detached turn or title generation without sleeping.
@@ -84,7 +87,26 @@ func (d *testDB) BeginTurn(ctx context.Context, params BeginTurnParams) (*TurnSt
 	if d.beginErr != nil {
 		return nil, d.beginErr
 	}
-	return d.DB.BeginTurn(ctx, params)
+	start, err := d.DB.BeginTurn(ctx, params)
+	if err == nil && start.Replay == nil {
+		d.mu.Lock()
+		d.lastTurnID = start.TurnID
+		d.mu.Unlock()
+	}
+	return start, err
+}
+
+func (d *testDB) AppendTurnToolName(ctx context.Context, turnID, name string) error {
+	if d.appendToolErr != nil {
+		return d.appendToolErr
+	}
+	return d.DB.AppendTurnToolName(ctx, turnID, name)
+}
+
+func (d *testDB) currentTurnID() string {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return d.lastTurnID
 }
 
 func (d *testDB) FinishTurn(ctx context.Context, record TurnRecord) ([]string, error) {
@@ -178,6 +200,8 @@ type mockMCPClient struct {
 	isError      map[string]bool
 	listTools    []mcpgo.Tool // returned by ListTools when err is nil
 	listToolsErr error
+	// onCall, when set, runs as CallTool starts, on the turn's goroutine.
+	onCall func(name string)
 }
 
 func newMockMCP() *mockMCPClient {
@@ -193,6 +217,9 @@ func (m *mockMCPClient) ListTools(ctx context.Context) ([]mcpgo.Tool, error) {
 }
 
 func (m *mockMCPClient) CallTool(ctx context.Context, name string, arguments json.RawMessage) (*mcp.ToolResult, error) {
+	if m.onCall != nil {
+		m.onCall(name)
+	}
 	if err, ok := m.callErrors[name]; ok {
 		return nil, err
 	}
