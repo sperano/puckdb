@@ -2929,7 +2929,7 @@ func (e MauriceReportingTurnStatus) MarshalJSON() ([]byte, error) {
 type MauriceTeamLinkSource string
 
 const (
-	// The login email matches one of the team's Yahoo managers.
+	// The login email, or the members file's Yahoo email for it, matches one of the team's Yahoo managers.
 	MauriceTeamLinkSourceEmail MauriceTeamLinkSource = "EMAIL"
 	// An operator linked it (puckdb user link-team).
 	MauriceTeamLinkSourceManual MauriceTeamLinkSource = "MANUAL"

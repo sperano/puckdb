@@ -10292,7 +10292,7 @@ extend type Query {
 
 """How the caller is linked to a team."""
 enum MauriceTeamLinkSource {
-	"""The login email matches one of the team's Yahoo managers."""
+	"""The login email, or the members file's Yahoo email for it, matches one of the team's Yahoo managers."""
 	EMAIL
 	"""An operator linked it (puckdb user link-team)."""
 	MANUAL
@@ -10335,7 +10335,7 @@ extend type Query {
 }
 
 extend type Mutation {
-	"""Makes teams the caller's selection among mauriceTeamChoices' teams (the others are deselected, and stay so even when the login email matches them; links outside the choices are untouched) and marks the offer as seen. Fails, changing nothing, for a team outside the choices."""
+	"""Makes teams the caller's selection among mauriceTeamChoices' teams (the others are deselected, and stay so even when the login email or the member Yahoo email matches them; links outside the choices are untouched) and marks the offer as seen. Fails, changing nothing, for a team outside the choices."""
 	mauriceSetTeams(teams: [TeamRef!]!): MauriceTeamChoices!
 	"""Marks the offer as seen, changing no team."""
 	mauriceDismissTeamOffer: Boolean!
