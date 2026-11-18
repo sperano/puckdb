@@ -762,6 +762,7 @@ type AppUser struct {
 	Instance         string             `json:"instance"`
 	Email            pgtype.Text        `json:"email"`
 	TeamOfferSeenAt  pgtype.Timestamptz `json:"team_offer_seen_at"`
+	MemberYahooEmail pgtype.Text        `json:"member_yahoo_email"`
 }
 
 type AppUserUsage struct {

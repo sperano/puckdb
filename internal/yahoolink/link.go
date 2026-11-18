@@ -14,14 +14,15 @@
 // carry, and to none for a manager with no earlier season (see
 // yahoo_team_manager_guids in its migration).
 //
-// A link's source is SourceEmail (the login email matched a
-// yahoo_team_managers.email, case-insensitively, kept in sync at every
-// authenticated request by SyncEmailLinks), SourceManual (an operator added
-// it for a user whose Yahoo email differs from their login email) or
-// SourceSelf (the user picked the team, Picker). A team the user deselected
-// in the Picker is hidden from their teams whatever link reaches it, until
-// they pick it again, or an operator links it, or unlinks it once the login
-// email no longer matches the team.
+// A link's source is SourceEmail (the login email, or the members file's
+// Yahoo email for it, matched a yahoo_team_managers.email,
+// case-insensitively, kept in sync at every authenticated request by
+// SyncEmailLinks), SourceManual (an operator added it for a user whose Yahoo
+// email differs from their login email) or SourceSelf (the user picked the
+// team, Picker). A team the user deselected in the Picker is hidden from
+// their teams whatever link reaches it, until they pick it again, or an
+// operator links it, or unlinks it once neither the login email nor the
+// member Yahoo email matches the team.
 // league_id/team_id are the legacy numeric Yahoo identifiers yahoo_teams and
 // yahoo_team_managers already use.
 package yahoolink
@@ -39,8 +40,9 @@ import (
 )
 
 const (
-	// SourceEmail marks a link made automatically because the login email
-	// matched a yahoo_team_managers.email.
+	// SourceEmail marks a link made automatically because the login email,
+	// or the members file's Yahoo email for it, matched a
+	// yahoo_team_managers.email.
 	SourceEmail = "email"
 	// SourceManual marks a link an operator added by hand.
 	SourceManual = "manual"
@@ -62,10 +64,11 @@ var ErrUserNotFound = errors.New("no such user")
 var ErrAmbiguousUser = errors.New("username matches more than one user")
 
 // ErrEmailLinkStillMatches is returned by Unlink for a link, of any source
-// (email, manual or self), the user's login email (read under the user-row
-// lock) still matches: removing it would only be undone by SyncEmailLinks,
-// as SourceEmail, on the user's next authenticated request.
-var ErrEmailLinkStillMatches = errors.New("link still matches the login email")
+// (email, manual or self), the user's login email or member Yahoo email
+// (read under the user-row lock) still matches: removing it would only be
+// undone by SyncEmailLinks, as SourceEmail, on the user's next authenticated
+// request.
+var ErrEmailLinkStillMatches = errors.New("link still matches the login email or member Yahoo email")
 
 // Link is one Yahoo team a user manages. GUID is the Yahoo account of the
 // guid link the team comes through, empty for a team link; Source and

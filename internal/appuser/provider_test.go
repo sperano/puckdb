@@ -155,7 +155,8 @@ func TestMiddleware_CloudflareIdentity(t *testing.T) {
 	req.Header.Set(HeaderCfAccessJWT, signToken(t, key, kidA, validClaims()))
 	_, users, errs := serveWith(t, p, store, req, 1)
 	require.NoError(t, errs[0])
-	assert.Equal(t, User{ID: "u1", SessionID: "s1", Username: testEmail}, users[0], "the user carries the identity's username")
+	assert.Equal(t, User{ID: "u1", SessionID: "s1", Username: testEmail, FirstName: testEmail}, users[0],
+		"the user carries the identity's username, and greets by it: Cloudflare gives no name")
 	require.Len(t, store.requests, 1)
 	assert.Equal(t, testEmail, store.requests[0].Identity.Email)
 

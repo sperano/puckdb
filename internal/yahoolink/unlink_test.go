@@ -61,6 +61,26 @@ func TestPGStore_UnlinkRefusesEmailSourcedLinkStillMatched(t *testing.T) {
 	require.Len(t, links, 1, "the refused unlink changed nothing")
 }
 
+// TestPGStore_UnlinkRefusesALinkTheMemberEmailStillMatches: the member Yahoo
+// email stored by the last login counts like the login email.
+func TestPGStore_UnlinkRefusesALinkTheMemberEmailStillMatches(t *testing.T) {
+	pool := pgtest.Open(t)
+	ctx := context.Background()
+	store := NewPGStore(pool)
+	yahoo := uniqueUsername("member") + "@yahoo.ca"
+	league, team := seedLeagueTeam(t, pool, "Member Linked")
+	seedManager(t, pool, league, team, 1, yahoo)
+	user := insertUser(t, pool, "member-linked")
+	setUserEmail(t, pool, user, uniqueUsername("login")+"@gmail.com")
+	_, err := pool.Exec(ctx, `UPDATE app_users SET member_yahoo_email = $2 WHERE id = $1`, user, yahoo)
+	require.NoError(t, err)
+	require.NoError(t, SyncEmailLinks(ctx, sqlcdb.New(pool), user, yahoo))
+
+	_, err = store.Unlink(ctx, user, league, team)
+	require.ErrorIs(t, err, ErrEmailLinkStillMatches)
+	assert.Equal(t, 1, countUserTeamLinks(t, pool, user), "the refused unlink changed nothing")
+}
+
 // TestPGStore_UnlinkRemovesEmailSourcedLinkOnceUnmatched: once the login
 // email no longer matches, the same email-sourced link unlinks normally.
 func TestPGStore_UnlinkRemovesEmailSourcedLinkOnceUnmatched(t *testing.T) {

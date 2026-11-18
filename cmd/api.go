@@ -262,6 +262,11 @@ func newAppSessions(pool *pgxpool.Pool) (appSessions, error) {
 	if err != nil {
 		return appSessions{}, fmt.Errorf("--%s: %w", config.FlagAuthProvider, err)
 	}
+	members, err := mauriceMembersFrom(viper.GetViper())
+	if err != nil {
+		return appSessions{}, err
+	}
+	provider = appuser.WithMembers(provider, members)
 	store, err := appuser.NewPGStore(pool, instance, appuser.SessionIdleTimeout)
 	if err != nil {
 		return appSessions{}, err
@@ -278,7 +283,7 @@ func newAppSessions(pool *pgxpool.Pool) (appSessions, error) {
 	if err != nil {
 		return appSessions{}, err
 	}
-	log.Info().Str("instance", instance).Str("provider", provider.Name()).Msg("login provider")
+	log.Info().Str("instance", instance).Str("provider", provider.Name()).Int("members", members.Len()).Msg("login provider")
 	return appSessions{
 		filter:  appuser.IgnoreForeignHeaders(provider),
 		resolve: appuser.Middleware(provider, store, hasher),

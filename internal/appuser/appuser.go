@@ -68,13 +68,29 @@ var (
 
 // Identity is the trusted identity of a request. Provider and Subject are
 // the stable key; Username, DisplayName and Email are mutable snapshots
-// (empty when the provider gives none).
+// (empty when the provider gives none). FirstName and MemberYahooEmail come
+// from the login email's members file entry (WithMembers), empty without
+// one; the entry's name also replaces DisplayName.
 type Identity struct {
-	Provider    string
-	Subject     string
-	Username    string
-	DisplayName string
-	Email       string
+	Provider         string
+	Subject          string
+	Username         string
+	DisplayName      string
+	Email            string
+	FirstName        string
+	MemberYahooEmail string
+}
+
+// GreetingName is the name to greet the user by: FirstName, else the first
+// word of DisplayName ("Éric Spérano" gives "Éric"), else Username.
+func (id Identity) GreetingName() string {
+	if id.FirstName != "" {
+		return id.FirstName
+	}
+	if words := strings.Fields(id.DisplayName); len(words) > 0 {
+		return words[0]
+	}
+	return id.Username
 }
 
 // IdentityFromHeaders reads the Authentik headers. ok is false when the
@@ -97,6 +113,8 @@ type User struct {
 	// Username is the request identity's username (the Authentik username,
 	// or the Cloudflare Access email).
 	Username string
+	// FirstName is the request identity's GreetingName.
+	FirstName string
 }
 
 // SessionRequest asks the store to resolve a user's session.

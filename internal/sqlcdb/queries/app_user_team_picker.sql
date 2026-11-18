@@ -33,10 +33,10 @@ WHERE id = sqlc.arg(user_id)::uuid;
 -- name: LockAppUserForLinks :one
 -- Takes the user row lock MarkAppUserTeamOfferSeen and UpsertAppUser take,
 -- so an operator's link-team/unlink-team serializes with the user's
--- selections and logins, and returns the login email as of the lock (NULL:
--- none), which no login can change before the transaction ends. No row: no
--- such user.
-SELECT email FROM app_users WHERE id = sqlc.arg(user_id)::uuid FOR NO KEY UPDATE;
+-- selections and logins, and returns the login email and the member Yahoo
+-- email as of the lock (NULL: none), which no login can change before the
+-- transaction ends. No row: no such user.
+SELECT email, member_yahoo_email FROM app_users WHERE id = sqlc.arg(user_id)::uuid FOR NO KEY UPDATE;
 
 -- name: GetAppUserTeamOfferSeen :one
 SELECT (team_offer_seen_at IS NOT NULL)::boolean AS seen FROM app_users WHERE id = sqlc.arg(user_id)::uuid;

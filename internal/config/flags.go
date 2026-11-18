@@ -387,6 +387,11 @@ const (
 	// Access application, the audience its tokens must carry. Required by
 	// the cloudflare provider.
 	FlagCloudflareAccessAUD = "cloudflare-access-aud"
+
+	// FlagMauriceMembers is the path of the instance's members file
+	// (appuser.Members): who each login email is (first name) and the Yahoo
+	// email whose teams are theirs. Empty: no file.
+	FlagMauriceMembers = "maurice-members"
 )
 
 // API client basic-auth flags. CLI commands that call the GraphQL API
@@ -583,6 +588,7 @@ var AppSessionFlags = FlagGroup{
 		{FlagAuthProvider, "", DefaultAuthProvider, "Login provider of this instance: authentik (forward-auth headers) or cloudflare (verified Cloudflare Access JWT)", false},
 		{FlagCloudflareAccessTeamDomain, "", "", "Cloudflare Zero Trust team domain (<team>.cloudflareaccess.com), required by the cloudflare login provider", false},
 		{FlagCloudflareAccessAUD, "", "", "AUD tag of this instance's Cloudflare Access application, required by the cloudflare login provider", false},
+		{FlagMauriceMembers, "", DefaultMauriceMembers, "Path of a YAML file mapping login emails to a first name and a Yahoo email whose teams are theirs; a malformed file fails startup (default: none)", false},
 	},
 }
 

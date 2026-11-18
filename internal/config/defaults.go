@@ -300,6 +300,9 @@ const (
 	// DefaultAuthProvider is the API's login provider: the Authentik
 	// forward-auth headers (appuser.ProviderAuthentik).
 	DefaultAuthProvider = "authentik"
+	// DefaultMauriceMembers is empty: no members file, identities are taken
+	// as the login provider gives them.
+	DefaultMauriceMembers = ""
 )
 
 // Draft helper report defaults

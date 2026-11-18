@@ -94,15 +94,16 @@ func (q *Queries) TouchSessionByHash(ctx context.Context, arg TouchSessionByHash
 }
 
 const upsertAppUser = `-- name: UpsertAppUser :one
-INSERT INTO app_users (instance, auth_provider, auth_subject, username, display_name, email)
-VALUES ($1, $2, $3, $4, $5, $6)
+INSERT INTO app_users (instance, auth_provider, auth_subject, username, display_name, email, member_yahoo_email)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
 ON CONFLICT (instance, auth_provider, auth_subject) DO UPDATE
 SET username = EXCLUDED.username,
     display_name = EXCLUDED.display_name,
     email = EXCLUDED.email,
+    member_yahoo_email = EXCLUDED.member_yahoo_email,
     profile_updated_at = CASE
-        WHEN (app_users.username, app_users.display_name, app_users.email)
-             IS DISTINCT FROM (EXCLUDED.username, EXCLUDED.display_name, EXCLUDED.email)
+        WHEN (app_users.username, app_users.display_name, app_users.email, app_users.member_yahoo_email)
+             IS DISTINCT FROM (EXCLUDED.username, EXCLUDED.display_name, EXCLUDED.email, EXCLUDED.member_yahoo_email)
         THEN now()
         ELSE app_users.profile_updated_at
     END
@@ -110,12 +111,13 @@ RETURNING id, disabled_at
 `
 
 type UpsertAppUserParams struct {
-	Instance     string      `json:"instance"`
-	AuthProvider string      `json:"auth_provider"`
-	AuthSubject  string      `json:"auth_subject"`
-	Username     string      `json:"username"`
-	DisplayName  pgtype.Text `json:"display_name"`
-	Email        pgtype.Text `json:"email"`
+	Instance         string      `json:"instance"`
+	AuthProvider     string      `json:"auth_provider"`
+	AuthSubject      string      `json:"auth_subject"`
+	Username         string      `json:"username"`
+	DisplayName      pgtype.Text `json:"display_name"`
+	Email            pgtype.Text `json:"email"`
+	MemberYahooEmail pgtype.Text `json:"member_yahoo_email"`
 }
 
 type UpsertAppUserRow struct {
@@ -123,8 +125,8 @@ type UpsertAppUserRow struct {
 	DisabledAt pgtype.Timestamptz `json:"disabled_at"`
 }
 
-// profile_updated_at moves only when the username, display name or email
-// changed.
+// profile_updated_at moves only when the username, display name, email or
+// member Yahoo email (the members file's, appuser.Members) changed.
 // The upsert always takes the row lock (DO UPDATE, never DO NOTHING), which
 // serializes session resolution per user for the rest of the transaction.
 // A user belongs to one instance: the same identity on another instance is
@@ -137,6 +139,7 @@ func (q *Queries) UpsertAppUser(ctx context.Context, arg UpsertAppUserParams) (U
 		arg.Username,
 		arg.DisplayName,
 		arg.Email,
+		arg.MemberYahooEmail,
 	)
 	var i UpsertAppUserRow
 	err := row.Scan(&i.ID, &i.DisabledAt)

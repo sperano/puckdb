@@ -60,12 +60,13 @@ func (s *PGStore) Resolve(ctx context.Context, req SessionRequest) (Resolution, 
 	q := sqlcdb.New(tx)
 
 	user, err := q.UpsertAppUser(ctx, sqlcdb.UpsertAppUserParams{
-		Instance:     s.instance,
-		AuthProvider: req.Identity.Provider,
-		AuthSubject:  req.Identity.Subject,
-		Username:     req.Identity.Username,
-		DisplayName:  optionalText(req.Identity.DisplayName),
-		Email:        optionalText(req.Identity.Email),
+		Instance:         s.instance,
+		AuthProvider:     req.Identity.Provider,
+		AuthSubject:      req.Identity.Subject,
+		Username:         req.Identity.Username,
+		DisplayName:      optionalText(req.Identity.DisplayName),
+		Email:            optionalText(req.Identity.Email),
+		MemberYahooEmail: optionalText(req.Identity.MemberYahooEmail),
 	})
 	if err != nil {
 		return Resolution{}, fmt.Errorf("upsert user: %w", err)
@@ -74,9 +75,9 @@ func (s *PGStore) Resolve(ctx context.Context, req SessionRequest) (Resolution, 
 		return Resolution{}, ErrUserDisabled
 	}
 	// Keeps the user's Yahoo team links in sync with their current login
-	// email in the same transaction as the upsert above, so the user row and
-	// its links commit together.
-	if err := yahoolink.SyncEmailLinks(ctx, q, user.ID, req.Identity.Email); err != nil {
+	// email and member Yahoo email in the same transaction as the upsert
+	// above, so the user row and its links commit together.
+	if err := yahoolink.SyncEmailLinks(ctx, q, user.ID, req.Identity.Email, req.Identity.MemberYahooEmail); err != nil {
 		return Resolution{}, fmt.Errorf("sync yahoo team links: %w", err)
 	}
 	session, created, err := s.resolveSession(ctx, q, user.ID, req)
