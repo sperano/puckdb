@@ -13,6 +13,8 @@ package maurice
 import (
 	"context"
 	"fmt"
+	"slices"
+	"strings"
 	"time"
 
 	"golang.org/x/sync/errgroup"
@@ -273,6 +275,7 @@ func (s *service) loadHistory(ctx context.Context, userID, convID, currentUserMe
 	if err != nil {
 		return nil, nil, err
 	}
+	msgs = slices.DeleteFunc(msgs, isBlankAssistant)
 
 	// Append the current user turn (not yet persisted) as the newest message
 	// so it participates in history capping exactly as a persisted message
@@ -308,6 +311,15 @@ func (s *service) loadHistory(ctx context.Context, userID, convID, currentUserMe
 		ids = append(ids, m.ID)
 	}
 	return messages, ids, nil
+}
+
+// isBlankAssistant reports whether m is an assistant message with neither
+// text nor tool calls. Turns before the empty-answer retry stored such a
+// reply; Anthropic rejects it in a request, so loadHistory leaves it out (the
+// two user messages around it are sent in a row, which every provider takes),
+// and it takes no place under the history cap.
+func isBlankAssistant(m *Message) bool {
+	return m.Role == "assistant" && strings.TrimSpace(m.Content) == "" && len(m.ToolCalls) == 0
 }
 
 // userTeams returns the Yahoo teams userID manages, or nil when the service

@@ -2,8 +2,12 @@ package maurice
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -609,4 +613,130 @@ func TestChat_ConcurrentChats_BoundedAndClosable(t *testing.T) {
 	convs, err := db.ListConversations(context.Background(), testUser, n*2)
 	require.NoError(t, err)
 	assert.Len(t, convs, n)
+}
+
+// --- loadHistory: blank assistant replies ---
+
+// Turns before the empty-answer retry stored a succeeded reply with no text.
+// loadHistory leaves it out, so the prompts around it are sent in a row and
+// the request references only the stored messages it carries.
+func TestLoadHistory_SkipsBlankAssistantReply(t *testing.T) {
+	for _, tc := range []struct{ name, blank string }{{"empty", ""}, {"whitespace", "\n \t\n"}} {
+		t.Run(tc.name, func(t *testing.T) {
+			db := newTestDB(t)
+			convID := seedConversation(t, db, TurnMessage{Role: "user", Content: "q0"}, TurnMessage{Role: "assistant", Content: tc.blank})
+			stored, err := db.GetMessages(context.Background(), testUser, convID)
+			require.NoError(t, err)
+
+			llmMock := &mockLLMClient{responses: []*llm.Response{{Content: "a1"}}}
+			svc := NewService(llmMock, newMockMCP(), db, testConfig)
+			_, err = svc.Chat(context.Background(), askIn(convID, "q1"))
+			require.NoError(t, err)
+
+			sent := llmMock.requests[0].Messages
+			require.Len(t, sent, 3)
+			assert.Equal(t, "system", sent[0].Role)
+			assert.Equal(t, llm.Message{Role: "user", Content: "q0"}, sent[1])
+			assert.Equal(t, llm.Message{Role: "user", Content: "q1"}, sent[2])
+			inputs := db.finishedTurns()[0].Calls[0].Inputs
+			assert.Equal(t, []MessageRef{{MessageID: stored[0].ID}, {TurnIndex: 0}}, inputs)
+		})
+	}
+}
+
+// An assistant message requesting tools without text is a valid tool round
+// and stays, with its tool result.
+func TestLoadHistory_KeepsToolCallsWithoutText(t *testing.T) {
+	db := newTestDB(t)
+	calls := []llm.ToolCall{{ID: "c1", Type: "function", Function: llm.ToolCallFunction{Name: "pg_read_query", Arguments: "{}"}}}
+	convID := seedConversation(t, db,
+		TurnMessage{Role: "user", Content: "q0"},
+		TurnMessage{Role: "assistant", ToolCalls: calls},
+		TurnMessage{Role: "tool", Content: "rows", ToolCallID: "c1"},
+		TurnMessage{Role: "assistant", Content: "a0"},
+	)
+
+	llmMock := &mockLLMClient{responses: []*llm.Response{{Content: "a1"}}}
+	svc := NewService(llmMock, newMockMCP(), db, testConfig)
+	_, err := svc.Chat(context.Background(), askIn(convID, "q1"))
+	require.NoError(t, err)
+
+	sent := llmMock.requests[0].Messages
+	require.Len(t, sent, 6)
+	assert.Equal(t, "assistant", sent[2].Role)
+	assert.Equal(t, calls, sent[2].ToolCalls)
+	assert.Equal(t, llm.Message{Role: "tool", Content: "rows", ToolCallID: "c1"}, sent[3])
+}
+
+// A blank reply takes no place under the history cap: the slot goes to the
+// next older message.
+func TestLoadHistory_BlankAssistantReplyTakesNoHistorySlot(t *testing.T) {
+	db := newTestDB(t)
+	const maxHistory = 3
+	convID := seedConversation(t, db,
+		TurnMessage{Role: "user", Content: "q0"},
+		TurnMessage{Role: "assistant", Content: "a0"},
+		TurnMessage{Role: "user", Content: "q1"},
+		TurnMessage{Role: "assistant"},
+	)
+
+	llmMock := &mockLLMClient{responses: []*llm.Response{{Content: "a2"}}}
+	cfg := testConfig
+	cfg.MaxHistory = maxHistory
+	svc := NewService(llmMock, newMockMCP(), db, cfg)
+	_, err := svc.Chat(context.Background(), askIn(convID, "q2"))
+	require.NoError(t, err)
+
+	sent := llmMock.requests[0].Messages
+	require.Len(t, sent, 1+maxHistory)
+	assert.Equal(t, []string{"a0", "q1", "q2"}, []string{sent[1].Content, sent[2].Content, sent[3].Content})
+}
+
+// anthropicRules answers like the Messages API: 400 for a message without
+// content, a text block without non-whitespace text, or two messages of one
+// role in a row; otherwise a text answer.
+func anthropicRules(t *testing.T) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			Messages []struct {
+				Role    string `json:"role"`
+				Content []struct {
+					Type string `json:"type"`
+					Text string `json:"text"`
+				} `json:"content"`
+			} `json:"messages"`
+		}
+		if !assert.NoError(t, json.NewDecoder(r.Body).Decode(&req)) {
+			return
+		}
+		for i, m := range req.Messages {
+			invalid := len(m.Content) == 0 || (i > 0 && req.Messages[i-1].Role == m.Role)
+			for _, b := range m.Content {
+				invalid = invalid || (b.Type == "text" && strings.TrimSpace(b.Text) == "")
+			}
+			if invalid {
+				http.Error(w, fmt.Sprintf(`{"error":{"message":"messages.%d: invalid"}}`, i), http.StatusBadRequest)
+				return
+			}
+		}
+		_, _ = w.Write([]byte(`{"id":"msg_1","model":"test-model","stop_reason":"end_turn","content":[{"type":"text","text":"a1"}]}`))
+	}
+}
+
+// Regression: a conversation holding a blank stored reply between two
+// prompts failed every later turn with provider_error, Anthropic refusing the
+// assistant message without content.
+func TestChat_AnthropicAcceptsHistoryWithBlankReply(t *testing.T) {
+	server := httptest.NewServer(anthropicRules(t))
+	t.Cleanup(server.Close)
+	db := newTestDB(t)
+	convID := seedConversation(t, db, TurnMessage{Role: "user", Content: "q0"}, TurnMessage{Role: "assistant"})
+
+	client := llm.NewAnthropicClient(server.URL, "test-key", "test-model")
+	svc := NewService(client, newMockMCP(), db, testConfig)
+	resp, err := svc.Chat(context.Background(), askIn(convID, "q1"))
+	require.NoError(t, svc.Close())
+
+	require.NoError(t, err)
+	assert.Equal(t, "a1", resp.Content)
 }
