@@ -347,6 +347,14 @@ func TestPGStore_ResolveSyncsTheMemberYahooEmail(t *testing.T) {
 	require.NoError(t, pool.QueryRow(ctx, `SELECT member_yahoo_email FROM app_users WHERE id = $1`, res.User.ID).Scan(&stored))
 	require.NotNil(t, stored)
 	assert.Equal(t, yahooEmail, *stored)
+	profileAt := profileUpdatedAt(t, pool, res.User.ID)
+
+	same := sessionRequest(sub, first.FreshHash)
+	same.Identity.Email = first.Identity.Email
+	same.Identity.MemberYahooEmail = yahooEmail
+	_, err = store.Resolve(ctx, same)
+	require.NoError(t, err)
+	assert.Equal(t, profileAt, profileUpdatedAt(t, pool, res.User.ID), "the same member Yahoo email is no profile change")
 
 	dropped := sessionRequest(sub, first.FreshHash)
 	dropped.Identity.Email = first.Identity.Email
@@ -355,6 +363,16 @@ func TestPGStore_ResolveSyncsTheMemberYahooEmail(t *testing.T) {
 	assert.Equal(t, 0, countRows(t, pool, `SELECT count(*) FROM app_user_yahoo_teams WHERE user_id = $1`, res.User.ID))
 	require.NoError(t, pool.QueryRow(ctx, `SELECT member_yahoo_email FROM app_users WHERE id = $1`, res.User.ID).Scan(&stored))
 	assert.Nil(t, stored, "no member Yahoo email is stored as NULL")
+	assert.True(t, profileUpdatedAt(t, pool, res.User.ID).After(profileAt), "a member Yahoo email change is a profile change")
+}
+
+// profileUpdatedAt reads userID's app_users.profile_updated_at.
+func profileUpdatedAt(t *testing.T, pool *pgxpool.Pool, userID string) time.Time {
+	t.Helper()
+	var at time.Time
+	require.NoError(t, pool.QueryRow(context.Background(),
+		`SELECT profile_updated_at FROM app_users WHERE id = $1`, userID).Scan(&at))
+	return at
 }
 
 func countRows(t *testing.T, pool *pgxpool.Pool, sql string, args ...any) int {

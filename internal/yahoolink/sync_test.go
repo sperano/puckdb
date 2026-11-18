@@ -374,11 +374,18 @@ func TestSyncEmailLinks_DeselectionBeatsTheMemberEmail(t *testing.T) {
 	league, team := seedLeagueTeam(t, pool, "Deselected Team")
 	seedManager(t, pool, league, team, 1, yahoo)
 	user := insertUser(t, pool, "deselects")
-	_, err := pool.Exec(ctx, `INSERT INTO app_user_yahoo_team_rejections (user_id, league_id, team_id) VALUES ($1, $2, $3)`,
+	login := uniqueUsername("login") + "@gmail.com"
+	require.NoError(t, SyncEmailLinks(ctx, q, user, login, yahoo))
+	require.Equal(t, 1, countUserTeamLinks(t, pool, user), "without the deselection, the member email links the team")
+
+	// Deselect the team as Picker.SetTeams does: drop its link, record the rejection.
+	_, err := pool.Exec(ctx, `DELETE FROM app_user_yahoo_teams WHERE user_id = $1 AND league_id = $2 AND team_id = $3`,
 		user, league, team)
 	require.NoError(t, err)
-
-	require.NoError(t, SyncEmailLinks(ctx, q, user, uniqueUsername("login")+"@gmail.com", yahoo))
+	_, err = pool.Exec(ctx, `INSERT INTO app_user_yahoo_team_rejections (user_id, league_id, team_id) VALUES ($1, $2, $3)`,
+		user, league, team)
+	require.NoError(t, err)
+	require.NoError(t, SyncEmailLinks(ctx, q, user, login, yahoo))
 	assert.Equal(t, 0, countUserTeamLinks(t, pool, user))
 }
 
