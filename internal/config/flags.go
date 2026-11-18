@@ -611,6 +611,15 @@ var AdminAuthFlags = FlagGroup{
 	},
 }
 
+// AdminTokenClientFlags defines the admin token of CLI commands calling the
+// API server's @admin GraphQL mutations; unlike AdminAuthFlags it has no
+// --admin-group, which only the server reads.
+var AdminTokenClientFlags = FlagGroup{
+	Flags: []FlagDef{
+		{FlagAdminToken, "", "", "Shared secret token sent as X-Admin-Token to the API server's admin GraphQL mutations (empty sends none)", true},
+	},
+}
+
 // MauriceReportingFlags defines the flags of the Maurice reporting fields
 // (api).
 var MauriceReportingFlags = FlagGroup{
@@ -1099,6 +1108,7 @@ var allFlagGroups = []*FlagGroup{
 	&TLSFlags,
 	&MauriceFlags,
 	&AdminAuthFlags,
+	&AdminTokenClientFlags,
 	&AppSessionFlags,
 	&APIBasicAuthFlags,
 	&NotifyEmailFlags,

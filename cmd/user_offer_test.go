@@ -273,3 +273,10 @@ func TestUserResetTeamOfferCommand_ValidatesBeforeCalling(t *testing.T) {
 	_, err = runResetTeamOfferCommand(t, "", "--instance", "puckdb", "alice")
 	assert.EqualError(t, err, "api-server-addr is required")
 }
+
+// --admin-group is read only by the API server, so the client command
+// refuses it instead of accepting a value that grants nothing.
+func TestUserResetTeamOfferCommand_RefusesAdminGroup(t *testing.T) {
+	_, err := runResetTeamOfferCommand(t, "http://127.0.0.1:1", "--instance", "puckdb", "--admin-group", "ops", "alice")
+	assert.EqualError(t, err, "unknown flag: --admin-group")
+}

@@ -15,7 +15,7 @@ import (
 // which resets through the API server's GraphQL admin mutations (the root's
 // --api-server-addr) and never opens the database itself.
 var userResetTeamOfferFlagGroups = []*config.FlagGroup{
-	&config.AdminAuthFlags,
+	&config.AdminTokenClientFlags,
 	&config.APIBasicAuthFlags,
 	&config.UserTeamLinkFlags,
 	&config.UserResetTeamOfferFlags,
