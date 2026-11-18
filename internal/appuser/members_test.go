@@ -45,7 +45,7 @@ func TestParseMembers(t *testing.T) {
 }
 
 func TestParseMembers_EmptyFileHasNoEntries(t *testing.T) {
-	for _, data := range []string{"", "\n", "# nobody yet\n"} {
+	for _, data := range []string{"", "\n", "# nobody yet\n", "{}\n"} {
 		members, err := ParseMembers([]byte(data))
 		require.NoError(t, err, "%q", data)
 		assert.Equal(t, 0, members.Len(), "%q", data)
