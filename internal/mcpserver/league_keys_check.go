@@ -21,11 +21,13 @@ var ErrLeagueKeysNotImported = errors.New("configured yahoo league keys not impo
 
 // CheckLeagueKeys fails when a configured league key matches no imported
 // league. Such a key serves no league: the guard still serves the other
-// keys, but the league it was meant for is refused ("unknown league_id N",
-// or `unknown league "<key>"` for the draft tools), and every league when
-// every key is stale. A typo or a stale game key (it changes every season)
-// must stop the server instead. The yahoo toolset alone uses the keys, so
-// nothing is checked without it.
+// keys, but the league-scoped tools refuse the league it was meant for
+// ("unknown league_id N", or `unknown league "<key>"` for the draft tools)
+// and the list tools (get_yahoo_leagues, get_draft_leagues) leave it out,
+// so with every key stale they refuse every league and list none. A typo
+// or a stale game key (it changes every season) must stop the server
+// instead. The yahoo toolset alone uses the keys, so nothing is checked
+// without it.
 func CheckLeagueKeys(ctx context.Context, leagues leagueLister, opts Options) error {
 	if len(opts.YahooLeagues) == 0 || !opts.HasToolset(ToolsetYahoo) {
 		return nil
