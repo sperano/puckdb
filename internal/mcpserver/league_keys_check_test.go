@@ -46,7 +46,7 @@ func TestCheckLeagueKeysRejectsMissingKeys(t *testing.T) {
 	t.Parallel()
 	const secondStale = "500.l.2002"
 	err := CheckLeagueKeys(t.Context(), newFakeLeagueLister(), yahooOptions(allowedLeagueKey, staleLeagueKey, secondStale))
-	require.Error(t, err)
+	require.ErrorIs(t, err, ErrLeagueKeysNotImported)
 	assert.Contains(t, err.Error(), staleLeagueKey+leagueKeyListSeparator+secondStale)
 	assert.NotContains(t, err.Error(), allowedLeagueKey)
 }
@@ -73,4 +73,5 @@ func TestCheckLeagueKeysPropagatesQueryError(t *testing.T) {
 	lister := &fakeLeagueLister{err: queryErr}
 	err := CheckLeagueKeys(t.Context(), lister, yahooOptions(allowedLeagueKey))
 	require.ErrorIs(t, err, queryErr)
+	assert.NotErrorIs(t, err, ErrLeagueKeysNotImported)
 }

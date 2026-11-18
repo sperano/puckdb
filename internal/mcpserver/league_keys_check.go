@@ -2,6 +2,7 @@ package mcpserver
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -12,6 +13,11 @@ import (
 type leagueLister interface {
 	GetAllYahooLeagues(ctx context.Context) ([]sqlcdb.YahooLeague, error)
 }
+
+// ErrLeagueKeysNotImported marks a CheckLeagueKeys failure caused by the
+// configuration (a key matching no imported league), as opposed to a failed
+// lookup, so the caller can blame the flag only for the former.
+var ErrLeagueKeysNotImported = errors.New("configured yahoo league keys not imported")
 
 // CheckLeagueKeys fails when a configured league key matches no imported
 // league. A key that matches nothing makes the guard serve no league, so
@@ -37,8 +43,8 @@ func CheckLeagueKeys(ctx context.Context, leagues leagueLister, opts Options) er
 		}
 	}
 	if len(missing) > 0 {
-		return fmt.Errorf("configured yahoo league keys not imported: %s (check the game key; it changes every season)",
-			strings.Join(missing, leagueKeyListSeparator))
+		return fmt.Errorf("%w: %s (check the game key; it changes every season)",
+			ErrLeagueKeysNotImported, strings.Join(missing, leagueKeyListSeparator))
 	}
 	return nil
 }
