@@ -25,16 +25,16 @@ func (f *fakeModel) Model() maurice.ModelInfo { return f.model }
 const mauriceModelQuery = `query MauriceModel { mauriceModel { provider model } }`
 
 func TestMauriceModel_AnswersTheConfiguredModel(t *testing.T) {
-	svc := &fakeModel{model: maurice.ModelInfo{Provider: "anthropic", Model: "claude-sonnet-5-5"}}
+	svc := &fakeModel{model: maurice.ModelInfo{Provider: "Anthropic", Model: "claude-sonnet-5-5"}}
 	server := newTeamPickerServer(t, &Resolver{MauriceService: svc})
 
 	resp := postGraphQL(t, server, http.Header{"X-Test-User": {"user-1"}}, mauriceModelQuery, nil)
 	require.Empty(t, resp.Errors)
-	assert.JSONEq(t, `{"mauriceModel": {"provider": "anthropic", "model": "claude-sonnet-5-5"}}`, string(resp.Data))
+	assert.JSONEq(t, `{"mauriceModel": {"provider": "Anthropic", "model": "claude-sonnet-5-5"}}`, string(resp.Data))
 }
 
 func TestMauriceModel_RequiresAUser(t *testing.T) {
-	svc := &fakeModel{model: maurice.ModelInfo{Provider: "anthropic", Model: "claude-sonnet-5-5"}}
+	svc := &fakeModel{model: maurice.ModelInfo{Provider: "Anthropic", Model: "claude-sonnet-5-5"}}
 	server := newTeamPickerServer(t, &Resolver{MauriceService: svc})
 
 	resp := postGraphQL(t, server, nil, mauriceModelQuery, nil)

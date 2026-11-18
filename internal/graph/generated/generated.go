@@ -9669,7 +9669,10 @@ extend type Mutation {
 `, BuiltIn: false},
 	{Name: "../maurice_model.graphqls", Input: `"""The LLM the Maurice service is configured with."""
 type MauriceModel {
-	"""e.g. anthropic"""
+	"""
+	The provider's display name, e.g. Anthropic: the value each Maurice LLM call
+	stores and the reporting fields' provider returns.
+	"""
 	provider: String!
 	"""The configured model ID, e.g. claude-sonnet-5-5"""
 	model: String!
