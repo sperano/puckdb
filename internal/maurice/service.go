@@ -48,6 +48,9 @@ type Service interface {
 	GetConversation(ctx context.Context, userID, id string) (*Conversation, []*Message, error)
 	ListConversations(ctx context.Context, userID string, limit int) ([]*Conversation, error)
 	DeleteConversation(ctx context.Context, userID, id string) error
+	// Model is the LLM the service was configured with (ServiceConfig's
+	// Provider and Model), not what a provider reports per call.
+	Model() ModelInfo
 	// Close cancels the running turns and any in-flight background title
 	// generation and waits for them to return; a cancelled turn commits as
 	// cancelled. It must be called once; Chat and StartChat fail with
@@ -123,6 +126,12 @@ type ServiceConfig struct {
 	MaxTokens     int
 	MaxToolRounds int
 	Teams         TeamLister
+}
+
+// ModelInfo names a configured LLM.
+type ModelInfo struct {
+	Provider string
+	Model    string
 }
 
 type service struct {
@@ -239,6 +248,10 @@ func (s *service) GetConversation(ctx context.Context, userID, id string) (*Conv
 	}
 
 	return conv, msgs, nil
+}
+
+func (s *service) Model() ModelInfo {
+	return ModelInfo{Provider: s.provider, Model: s.model}
 }
 
 func (s *service) ListConversations(ctx context.Context, userID string, limit int) ([]*Conversation, error) {

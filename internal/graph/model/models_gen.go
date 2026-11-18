@@ -947,6 +947,15 @@ type MauriceMessage struct {
 	CreatedAt time.Time `json:"createdAt"`
 }
 
+// The LLM the Maurice service is configured with.
+type MauriceModel struct {
+	// The provider's display name, e.g. Anthropic: the value each Maurice LLM call
+	// stores and the reporting fields' provider returns.
+	Provider string `json:"provider"`
+	// The configured model ID, e.g. claude-sonnet-5-5
+	Model string `json:"model"`
+}
+
 // The included conversations, turns and LLM calls.
 type MauriceReportingActivity struct {
 	Conversations int64 `json:"conversations"`
