@@ -29,7 +29,8 @@ const (
 
 // errYahooThrottled marks a batch aborted because Yahoo stopped serving a
 // page that is known to exist. It is retryable: Temporal backs the activity
-// off, and the 404s are never recorded.
+// off, and the 404s still buffered are never recorded (groups flushed after
+// an earlier successful canary stay written).
 var errYahooThrottled = fmt.Errorf("yahoo is not serving known player pages (canary %d returned 404): treating 404s as throttling", yahooCanaryPlayerID)
 
 // notFoundBuffer holds a batch's fresh 404s until a canary request has shown
