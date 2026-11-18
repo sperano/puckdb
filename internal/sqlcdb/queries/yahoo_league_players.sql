@@ -41,3 +41,13 @@ FROM yahoo_league_players lp
 LEFT JOIN players p ON p.yahoo_id = lp.player_id
 WHERE lp.league_key = $1
 ORDER BY lp.player_id;
+
+-- name: ListYahooLeaguePlayersForPool :many
+-- One row per Yahoo player across every league and season, from the newest
+-- season (then newest fetch) that lists it: seeds the Yahoo ID pool the
+-- ProcessPlayers matcher reads when the scraped player pages are missing.
+SELECT DISTINCT ON (player_id)
+    player_id, full_name, editorial_team_abbr, display_position, eligible_positions
+FROM yahoo_league_players
+WHERE full_name <> ''
+ORDER BY player_id, season DESC, fetched_at DESC;

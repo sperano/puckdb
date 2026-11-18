@@ -127,7 +127,7 @@ func (a *Activities) restoreYahooIDAvailable(ctx context.Context) (int, error) {
 }
 
 // rebuildYahooIDPool writes the pool again from the stored Yahoo player
-// files, then removes the Yahoo IDs already matched in the database from the
+// files and the yahoo_league_players rows (as phase 1 saved it), then removes the Yahoo IDs already matched in the database from the
 // available set. It never deletes the keys first: several batches may
 // rebuild at once, and a batch reading between a delete and the next write
 // would match against an empty pool. Writing the same entries over each
@@ -141,7 +141,11 @@ func (a *Activities) rebuildYahooIDPool(ctx context.Context, result EnsureYahooI
 		return result, err
 	}
 	result.ReadErrors, result.ParseErrors = parsed.ReadErrors, parsed.ParseErrors
-	saved, err := saveYahooPlayersToRedisImpl(ctx, a.RedisClient, parsed.Players)
+	players, err := a.withLeaguePlayers(ctx, parsed.Players)
+	if err != nil {
+		return result, err
+	}
+	saved, err := saveYahooPlayersToRedisImpl(ctx, a.RedisClient, players)
 	if err != nil {
 		return result, err
 	}

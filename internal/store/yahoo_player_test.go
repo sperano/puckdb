@@ -238,7 +238,7 @@ func TestParsePositions(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := parsePositions(tt.input)
+			result := ParsePositions(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
 	}

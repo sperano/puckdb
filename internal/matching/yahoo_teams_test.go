@@ -155,3 +155,26 @@ func TestYahooTeamName(t *testing.T) {
 		})
 	}
 }
+
+func TestYahooTeamNameForAbbrev(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct{ yahoo, want string }{
+		{"TOR", "Toronto"},
+		{"tor", "Toronto"},
+		{"TB", "Tampa Bay"},
+		{"LA", "Los Angeles"},
+		{"NJ", "New Jersey"},
+		{"MON", "Montreal"},
+		{"UTAH", "Utah"},
+		{"ARI", "Utah"},
+		{"", ""},
+		{"XXX", ""},
+	}
+	for _, tc := range tests {
+		t.Run(tc.yahoo, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tc.want, YahooTeamNameForAbbrev(tc.yahoo))
+		})
+	}
+}

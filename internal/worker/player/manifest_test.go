@@ -140,7 +140,7 @@ func (s *ManifestActivitySuite) SetupTest() {
 	s.redis = redis.NewClient(&redis.Options{Addr: miniredis.RunT(s.T()).Addr()})
 	s.T().Cleanup(func() { _ = s.redis.Close() })
 	s.store = newFakeManifestStore()
-	s.act = &Activities{Storage: store.NewMemStorage(), RedisClient: s.redis, Manifests: s.store, NHLClient: &MockNHLClient{}}
+	s.act = &Activities{Storage: store.NewMemStorage(), RedisClient: s.redis, Manifests: s.store, NHLClient: &MockNHLClient{}, LeaguePlayers: fakeLeaguePlayers{}}
 	s.env.RegisterActivity(s.act)
 }
 

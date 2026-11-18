@@ -104,3 +104,11 @@ func NHLAbbrevForYahooTeam(abbrev string) string {
 	}
 	return abbrev
 }
+
+// YahooTeamNameForAbbrev returns the Yahoo player-page team name ("Toronto")
+// of a Yahoo editorial team abbreviation as the Yahoo API reports it ("TOR",
+// "TB", "LA"), empty when the abbreviation is unknown. A relocated team
+// resolves to the franchise's current name, as NHLAbbrevForYahooTeam does.
+func YahooTeamNameForAbbrev(abbrev string) string {
+	return yahooTeamName(NHLAbbrevForYahooTeam(abbrev))
+}

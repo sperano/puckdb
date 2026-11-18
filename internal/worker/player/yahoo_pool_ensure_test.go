@@ -2,6 +2,8 @@ package player
 
 import (
 	"context"
+	"errors"
+	"github.com/sperano/puckdb/internal/sqlcdb"
 	"testing"
 	"time"
 
@@ -39,9 +41,10 @@ func (s *EnsureYahooIDPoolSuite) SetupTest() {
 	redisClient := redis.NewClient(&redis.Options{Addr: s.mr.Addr()})
 	s.T().Cleanup(func() { _ = redisClient.Close() })
 	s.act = &Activities{
-		Storage:     mem,
-		RedisClient: redisClient,
-		Manifests:   s.store,
+		Storage:       mem,
+		RedisClient:   redisClient,
+		Manifests:     s.store,
+		LeaguePlayers: fakeLeaguePlayers{},
 	}
 	s.env.RegisterActivity(s.act.EnsureYahooIDPool)
 }
@@ -130,4 +133,30 @@ func (s *EnsureYahooIDPoolSuite) TestRebuildShortOfTheSavedSizeFails() {
 
 	s.Require().Error(err)
 	s.Contains(err.Error(), "rebuilt yahoo id pool holds 2 of the 3 entries phase 1 saved")
+}
+
+func (s *EnsureYahooIDPoolSuite) TestRebuildIncludesLeaguePlayersAndKeepsThePageOnOverlap() {
+	s.act.LeaguePlayers = fakeLeaguePlayers{rows: []sqlcdb.ListYahooLeaguePlayersForPoolRow{
+		leagueRow(97, "Connor McDavid", "EDM", "C"),
+		leagueRow(7000, "Mitch Marner", "TOR", "RW"),
+	}}
+	s.store.matched = []store.YahooPlayerID{29}
+
+	// Phase 1 would save the 2 pages plus the league player without a page.
+	result := s.ensure(3)
+
+	s.Equal(EnsureYahooIDPoolResult{FoundSize: 0, Rebuilt: true, PoolSize: 3, Available: 2}, result)
+	pool, err := LoadYahooIDPool(context.Background(), s.act.RedisClient)
+	s.Require().NoError(err)
+	s.Equal(97, pool[97].JerseyNumber, "the page wins over the league row")
+	s.Equal("Toronto", pool[7000].Team)
+}
+
+func (s *EnsureYahooIDPoolSuite) TestRebuildFailsWhenTheLeaguePlayersCannotBeListed() {
+	s.act.LeaguePlayers = fakeLeaguePlayers{err: errors.New("db down")}
+
+	_, err := s.env.ExecuteActivity(s.act.EnsureYahooIDPool, EnsureYahooIDPoolInput{PoolSize: 2})
+
+	s.Require().Error(err)
+	s.Contains(err.Error(), "db down")
 }

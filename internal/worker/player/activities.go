@@ -43,6 +43,7 @@ type PlayerCareerUpserter interface {
 type ActivityQueries interface {
 	PlayerUpserter
 	PlayerCareerUpserter
+	YahooLeaguePlayerLister
 }
 
 var _ ActivityQueries = (*sqlcdb.Queries)(nil)
@@ -51,25 +52,28 @@ var _ ActivityQueries = (*sqlcdb.Queries)(nil)
 // Queries and CareerQueries stay separate narrow seams for tests; the worker
 // builds the struct with NewActivities.
 type Activities struct {
-	Storage                store.Storage
-	NHLClient              shared.NHLClient
-	RedisClient            *redis.Client
-	GobCache               *cache.GobCache
-	Queries                PlayerUpserter
-	CareerQueries          PlayerCareerUpserter
+	Storage       store.Storage
+	NHLClient     shared.NHLClient
+	RedisClient   *redis.Client
+	GobCache      *cache.GobCache
+	Queries       PlayerUpserter
+	CareerQueries PlayerCareerUpserter
+	// LeaguePlayers seeds the Yahoo ID pool with the Yahoo API's players.
+	LeaguePlayers          YahooLeaguePlayerLister
 	BoxscorePlayerCacheTTL time.Duration
 	// Manifests holds the durable player manifests and per-player errors of
 	// ProcessPlayers chains.
 	Manifests ProcessPlayersStore
 }
 
-// NewActivities returns a copy of deps with Queries and CareerQueries set to
-// queries, so the worker cannot leave one nil; values already set in deps
+// NewActivities returns a copy of deps with Queries, CareerQueries and LeaguePlayers
+// set to queries, so the worker cannot leave one nil; values already set in deps
 // are replaced. Manifests stays the caller's: it is a transactional store,
 // not a pool-scoped query.
 func NewActivities(queries ActivityQueries, deps Activities) *Activities {
 	deps.Queries = queries
 	deps.CareerQueries = queries
+	deps.LeaguePlayers = queries
 	return &deps
 }
 
