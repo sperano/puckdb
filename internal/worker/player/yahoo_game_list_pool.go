@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/go-redis/redis/v8"
 	"github.com/sperano/puckdb/internal/matching"
 	"github.com/sperano/puckdb/internal/resource"
 	"github.com/sperano/puckdb/internal/store"
@@ -44,7 +45,7 @@ func (a *Activities) BuildYahooIDPool(ctx context.Context) (*SaveYahooIDPoolResu
 	if err != nil {
 		return nil, err
 	}
-	result, err := a.saveGameListPool(ctx, listed)
+	result, err := a.saveGameListPool(ctx, listed, replaceYahooIDPoolInRedis)
 	if err != nil {
 		return nil, err
 	}
@@ -58,14 +59,21 @@ func (a *Activities) BuildYahooIDPool(ctx context.Context) (*SaveYahooIDPoolResu
 	return result, nil
 }
 
+// poolWriter writes the Yahoo ID pool to Redis: saveYahooPlayersToRedisImpl
+// adds to the pool, replaceYahooIDPoolInRedis replaces it.
+type poolWriter func(ctx context.Context, client *redis.Client, players []store.YahooPlayer) (*SaveYahooIDPoolResult, error)
+
 // saveGameListPool merges the league players into listed (a list wins on the
-// same Yahoo ID) and writes the pool.
-func (a *Activities) saveGameListPool(ctx context.Context, listed gameListPlayers) (*SaveYahooIDPoolResult, error) {
+// same Yahoo ID) and writes the pool with write: phase 1 replaces the pool an
+// earlier chain left (its matched IDs are out of the available set, and an ID
+// no current source names must not stay matchable), a rebuild adds to the
+// chain's own pool.
+func (a *Activities) saveGameListPool(ctx context.Context, listed gameListPlayers, write poolWriter) (*SaveYahooIDPoolResult, error) {
 	players, listEntries, err := a.withLeaguePlayers(ctx, listed.Players)
 	if err != nil {
 		return nil, err
 	}
-	result, err := saveYahooPlayersToRedisImpl(ctx, a.RedisClient, players)
+	result, err := write(ctx, a.RedisClient, players)
 	if err != nil {
 		return nil, err
 	}
@@ -89,7 +97,7 @@ func (a *Activities) rebuildYahooIDPoolFromGameLists(ctx context.Context, result
 	if missing := missingSeasons(expected.ListSeasons, listed.Seasons); len(missing) > 0 {
 		return result, fmt.Errorf("rebuild yahoo id pool: no committed game player list for seasons %v that phase 1 read", missing)
 	}
-	saved, err := a.saveGameListPool(ctx, listed)
+	saved, err := a.saveGameListPool(ctx, listed, saveYahooPlayersToRedisImpl)
 	if err != nil {
 		return result, err
 	}

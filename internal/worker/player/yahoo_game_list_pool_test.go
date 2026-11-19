@@ -3,6 +3,8 @@ package player
 import (
 	"context"
 	"fmt"
+	"maps"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -168,6 +170,32 @@ func (s *GameListPoolSuite) TestBuildWithoutGamesListHasOnlyLeaguePlayers() {
 	s.Empty(result.ListSeasons)
 	s.Equal(0, result.ListEntries)
 	s.Equal(1, result.PoolSize)
+}
+
+// An earlier chain's pool (left by its TTL, or a chain whose phase 3 found
+// nothing to verify and so ran no cleanup) is replaced, not added to.
+func (s *GameListPoolSuite) TestBuildReplacesAnEarlierPool() {
+	s.Require().NoError(saveYahooPlayersToRedisImplForTest(s.act.RedisClient, 5555))
+	s.Require().NoError(s.act.RedisClient.SAdd(context.Background(), YahooIDAvailableKey, "6666").Err())
+	s.twoSeasons()
+
+	result := s.build()
+
+	s.Equal(3, result.PoolSize)
+	s.ElementsMatch([]store.YahooPlayerID{3737, 1000, 9000}, slices.Collect(maps.Keys(s.pool())))
+	available, err := s.act.RedisClient.SMembers(context.Background(), YahooIDAvailableKey).Result()
+	s.Require().NoError(err)
+	s.ElementsMatch([]string{"3737", "1000", "9000"}, available)
+}
+
+func (s *GameListPoolSuite) TestBuildWithNoPlayersClearsAnEarlierPool() {
+	s.Require().NoError(saveYahooPlayersToRedisImplForTest(s.act.RedisClient, 5555))
+
+	result := s.build()
+
+	s.Equal(0, result.PoolSize)
+	s.False(s.mr.Exists(YahooIDPoolKey))
+	s.False(s.mr.Exists(YahooIDAvailableKey))
 }
 
 func (s *GameListPoolSuite) TestBuildSkipsAnUnparsableManifest() {

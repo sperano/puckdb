@@ -124,7 +124,8 @@ func (a *Activities) SaveYahooPlayersToRedis(ctx context.Context, players []stor
 }
 
 // saveYahooPlayersToRedisImpl writes players over the pool keys and measures
-// the pool hash size (PoolSize) in the same round trip as the write.
+// the pool hash size (PoolSize) in the same round trip as the write. Entries
+// an earlier save left stay.
 func saveYahooPlayersToRedisImpl(ctx context.Context, client *redis.Client, players []store.YahooPlayer) (*SaveYahooIDPoolResult, error) {
 	if len(players) == 0 {
 		size, err := client.HLen(ctx, YahooIDPoolKey).Result()
@@ -133,14 +134,32 @@ func saveYahooPlayersToRedisImpl(ctx context.Context, client *redis.Client, play
 		}
 		return &SaveYahooIDPoolResult{PoolSize: int(size)}, nil
 	}
+	return writeYahooIDPool(ctx, client, client.Pipeline(), players)
+}
 
+// replaceYahooIDPoolInRedis makes players the whole pool: it deletes the pool
+// keys and writes players in one MULTI/EXEC transaction, so no entry an
+// earlier pool left stays matchable and no reader sees the pool empty.
+func replaceYahooIDPoolInRedis(ctx context.Context, client *redis.Client, players []store.YahooPlayer) (*SaveYahooIDPoolResult, error) {
+	pipe := client.TxPipeline()
+	pipe.Del(ctx, YahooIDPoolKey, YahooIDAvailableKey)
+	if len(players) == 0 {
+		if _, err := pipe.Exec(ctx); err != nil {
+			return nil, fmt.Errorf("replace yahoo id pool in redis: %w", err)
+		}
+		return &SaveYahooIDPoolResult{}, nil
+	}
+	return writeYahooIDPool(ctx, client, pipe, players)
+}
+
+// writeYahooIDPool queues players' pool writes on pipe after what it already
+// holds, runs it and measures the pool hash size. players is non-empty.
+func writeYahooIDPool(ctx context.Context, client *redis.Client, pipe redis.Pipeliner, players []store.YahooPlayer) (*SaveYahooIDPoolResult, error) {
 	verifiedNonNHL, err := LoadVerifiedNonNHLIDs(ctx, client)
 	if err != nil {
 		log.Warn().Err(err).Msg("Failed to load verified non-NHL IDs, including all players")
 		verifiedNonNHL = make(map[store.YahooPlayerID]struct{})
 	}
-
-	pipe := client.Pipeline()
 
 	for _, player := range players {
 		var buf bytes.Buffer
