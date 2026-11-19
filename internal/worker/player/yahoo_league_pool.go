@@ -11,9 +11,9 @@ import (
 )
 
 // YahooLeaguePlayerLister lists the Yahoo players the authenticated Yahoo API
-// imported into yahoo_league_players, one row per Yahoo ID. The scraped
-// player pages cover only a fraction of the Yahoo IDs, so these rows seed the
-// Yahoo ID pool too.
+// imported into yahoo_league_players, one row per Yahoo ID. These rows seed
+// the Yahoo ID pool besides its main source (the game player lists, or the
+// scraped player pages of older chains), which may lack some of them.
 type YahooLeaguePlayerLister interface {
 	ListYahooLeaguePlayersForPool(ctx context.Context) ([]sqlcdb.ListYahooLeaguePlayersForPoolRow, error)
 }
@@ -39,10 +39,11 @@ func yahooPlayerFromLeagueRow(row sqlcdb.ListYahooLeaguePlayersForPoolRow) store
 	}
 }
 
-// mergeLeaguePlayers returns pages followed by the league players whose
-// Yahoo ID has no page: a page carries the jersey number and birth date, so
-// it wins on overlap. Pages keep their order; league players follow in row
-// order.
+// mergeLeaguePlayers returns pages (the pool's main source: game player
+// list entries or scraped pages) followed by the league players whose Yahoo
+// ID they lack: a list entry or page carries the jersey number (and a page
+// the birth date), so it wins on overlap. Pages keep their order; league
+// players follow in row order.
 func mergeLeaguePlayers(pages []store.YahooPlayer, rows []sqlcdb.ListYahooLeaguePlayersForPoolRow) []store.YahooPlayer {
 	seen := make(map[store.YahooPlayerID]struct{}, len(pages))
 	for _, p := range pages {
@@ -63,10 +64,11 @@ func mergeLeaguePlayers(pages []store.YahooPlayer, rows []sqlcdb.ListYahooLeague
 
 // withLeaguePlayers adds the yahoo_league_players players to pages (see
 // mergeLeaguePlayers) and returns how many distinct Yahoo IDs the pages
-// hold. Phase 1's save and the pool rebuild both go through it. The rows are
-// read again at each rebuild and may have changed since phase 1 (a newer
-// pool import deletes the players Yahoo no longer lists), so the page count
-// lets the rebuild check the page entries alone (rebuildYahooIDPool).
+// (the main source's entries) hold. Phase 1's save and the pool rebuild
+// both go through it. The rows are read again at each rebuild and may have
+// changed since phase 1 (a newer pool import deletes the players Yahoo no
+// longer lists), so the page count lets a page pool's rebuild check the page
+// entries alone (rebuildYahooIDPoolFromPages).
 func (a *Activities) withLeaguePlayers(ctx context.Context, pages []store.YahooPlayer) ([]store.YahooPlayer, int, error) {
 	rows, err := a.LeaguePlayers.ListYahooLeaguePlayersForPool(ctx)
 	if err != nil {

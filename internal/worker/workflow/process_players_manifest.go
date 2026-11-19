@@ -46,6 +46,8 @@ type processPlayersTotals struct {
 	Matched    int
 	Errors     int
 	Origins    core.OriginCounts
+	// MatchReasons sums the batches' ProcessPlayerBatchResult.MatchReasons.
+	MatchReasons map[string]int
 }
 
 // validate rejects a state run 1 could not have produced: a zero batch size
@@ -77,6 +79,12 @@ func (t *processPlayersTotals) add(result workplayer.ProcessPlayerBatchResult) {
 		t.Origins = core.OriginCounts{}
 	}
 	t.Origins.Add(result.Origins)
+	for reason, n := range result.MatchReasons {
+		if t.MatchReasons == nil {
+			t.MatchReasons = make(map[string]int)
+		}
+		t.MatchReasons[reason] += n
+	}
 }
 
 // countErrors counts errs and keeps them in the sample while it has room.
@@ -206,9 +214,7 @@ func ensureYahooPool(ctx workflow.Context, state *processPlayersState) error {
 	var playerAct *workplayer.Activities
 	var result workplayer.EnsureYahooIDPoolResult
 	if err := workflow.ExecuteActivity(ctx, playerAct.EnsureYahooIDPool,
-		workplayer.EnsureYahooIDPoolInput{
-			PoolSize: state.YahooPool.PoolSize, NonPageEntries: state.YahooPool.NonPageEntries,
-		}).Get(ctx, &result); err != nil {
+		state.yahooPoolCheck()).Get(ctx, &result); err != nil {
 		return fmt.Errorf("ensure yahoo id pool: %w", err)
 	}
 	if result.Rebuilt {
@@ -219,7 +225,17 @@ func ensureYahooPool(ctx workflow.Context, state *processPlayersState) error {
 	}
 	state.YahooPool.PoolSize = result.PoolSize
 	state.YahooPool.NonPageEntries = result.NonPageEntries
+	state.YahooPool.ListSeasons = result.ListSeasons
 	return nil
+}
+
+// yahooPoolCheck is what EnsureYahooIDPool and each batch check the pool
+// against.
+func (s *processPlayersState) yahooPoolCheck() workplayer.EnsureYahooIDPoolInput {
+	return workplayer.EnsureYahooIDPoolInput{
+		PoolSize: s.YahooPool.PoolSize, NonPageEntries: s.YahooPool.NonPageEntries,
+		Source: s.YahooPool.Source, ListSeasons: s.YahooPool.ListSeasons,
+	}
 }
 
 // runManifestWindow is one phase-2 execution: process the manifest ordinals
@@ -251,6 +267,7 @@ func runManifestWindow(ctx workflow.Context, tracker *shared.ReportTracker, stat
 			return workflow.ExecuteActivity(ctx, playerAct.ProcessPlayerManifestBatch, workplayer.ManifestBatchInput{
 				Manifest: state.Manifest, From: batches[i].From, To: batches[i].To,
 				YahooPoolSize: state.YahooPool.PoolSize, YahooNonPageEntries: state.YahooPool.NonPageEntries,
+				YahooPoolSource: state.YahooPool.Source, YahooListSeasons: state.YahooPool.ListSeasons,
 			})
 		},
 		Handle: func(ctx workflow.Context, _ int, f workflow.Future) error {
@@ -291,6 +308,7 @@ func completePhaseProcessPlayers(ctx workflow.Context, tracker *shared.ReportTra
 		"missing", totals.Missing,
 		"imported", totals.Imported,
 		"matched", totals.Matched,
+		"match_reasons", totals.MatchReasons,
 		"errors", totals.Errors)
 	state.Phase = phaseVerifyUnmatched
 }
@@ -339,6 +357,7 @@ func runManifestVerify(ctx workflow.Context, tracker *shared.ReportTracker, stat
 		"missing", result.Missing,
 		"imported", result.ImportedPlayers,
 		"matched_with_yahoo", result.MatchedWithYahoo,
+		"match_reasons", result.MatchReasons,
 		"truly_unmatched", len(result.TrulyUnmatched))
 
 	// Fail the chain when any player failed, so the sync halts visibly: a
@@ -376,6 +395,7 @@ func manifestResult(state *processPlayersState, unmatched *workplayer.UnmatchedR
 		TotalPlayers:          state.Manifest.Count,
 		ImportedPlayers:       totals.Imported,
 		MatchedWithYahoo:      totals.Matched,
+		MatchReasons:          totals.MatchReasons,
 		Downloaded:            totals.Downloaded,
 		CacheHits:             totals.Origins[core.OriginRedis] + totals.Origins[core.OriginFileSystem],
 		Missing:               totals.Missing,
