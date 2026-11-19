@@ -107,7 +107,8 @@ func (s *GameListPoolSuite) commitList(season, gameKey int, downloadID int64, pa
 	s.write(res.Path(), string(data))
 }
 
-// twoSeasons commits 2025 (Crosby #87 on PIT, a retired player) and 2026
+// twoSeasons commits 2025 (Crosby #87 on PIT, and Old Timer, a retired
+// player no later list names) and 2026
 // (Crosby #87 traded to TOR in the fixture, a second page with a rookie).
 func (s *GameListPoolSuite) twoSeasons() {
 	s.write(resource.YahooGames{}.Path(), gamesListXML(map[int]int{2025: testGameKey2025, 2026: testGameKey2026, 2024: 453}))

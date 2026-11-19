@@ -226,7 +226,13 @@ func (c *manifestChain) batch(_ context.Context, input workplayer.ManifestBatchI
 	} else {
 		result.Imported = 1
 		result.Matched = chainMatchedPerItem
-		result.MatchReasons = map[string]int{"name+jersey": chainMatchedPerItem, "ambiguous": 1}
+		// One imported landing has exactly one match reason; alternate it so
+		// the totals check summing per reason.
+		reason := "name+jersey"
+		if input.From%2 == 1 {
+			reason = "team-tiebreaker"
+		}
+		result.MatchReasons = map[string]int{reason: result.Imported}
 	}
 	return result, nil
 }
@@ -275,7 +281,7 @@ func TestProcessPlayersManifestChain(t *testing.T) {
 	assert.Equal(t, []workplayer.YahooIDPoolSource{gameLists, gameLists, gameLists, gameLists, gameLists}, chain.poolsSources)
 	assert.Equal(t, 1, state.Totals.Errors)
 	assert.Equal(t, 4, state.Totals.Imported)
-	assert.Equal(t, map[string]int{"name+jersey": 4 * chainMatchedPerItem, "ambiguous": 4}, state.Totals.MatchReasons,
+	assert.Equal(t, map[string]int{"name+jersey": 2, "team-tiebreaker": 2}, state.Totals.MatchReasons,
 		"match reasons are summed across batches and executions")
 	assert.Equal(t, []string{"player 2: read error"}, state.ErrorSample)
 	assert.Equal(t, []workplayer.PlayerError{{PlayerID: 2, Stage: workplayer.StageRead, Message: "player 2: read error"}},

@@ -186,10 +186,10 @@ func loadYahooPool(ctx workflow.Context, tracker *shared.ReportTracker, batchSiz
 		"available", saveResult.AvailablePlayers,
 		"skipped_non_nhl", saveResult.SkippedNonNHL)
 
-	tracker.IncrementBar(ctx, shared.BarRef{Group: GroupLoadYahoo})
 	tracker.CompleteGroup(ctx, GroupLoadYahoo,
-		fmt.Sprintf("Loaded %d Yahoo players from %d seasons' game player lists in %s.",
-			saveResult.TotalPlayers, len(saveResult.ListSeasons), tracker.GetElapsed(ctx, GroupLoadYahoo)))
+		fmt.Sprintf("Loaded %d Yahoo players (%d from %d seasons' game player lists) in %s.",
+			saveResult.TotalPlayers, saveResult.ListEntries, len(saveResult.ListSeasons),
+			tracker.GetElapsed(ctx, GroupLoadYahoo)))
 	return saveResult, nil
 }
 
