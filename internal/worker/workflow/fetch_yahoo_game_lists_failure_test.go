@@ -1,6 +1,8 @@
 package workflow
 
 import (
+	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -98,13 +100,21 @@ func TestFetchYahooPlayersWorkflow_SeasonConcurrencyLimit(t *testing.T) {
 	}
 }
 
+// gameListOutcomesResult is fetchYahooGamePlayerListSeasons' outcomes and
+// error text ("" for none): a workflow cannot return both a result and an
+// error.
+type gameListOutcomesResult struct {
+	Outcomes []gameListOutcome
+	Err      string
+}
+
 // gameListOutcomesWorkflow returns fetchYahooGamePlayerListSeasons'
-// outcomes, so a test can check what each season reports; concurrency 0
-// runs every season at once.
-func gameListOutcomesWorkflow(ctx workflow.Context, seasons []int, concurrency int) ([]gameListOutcome, error) {
+// outcomes and error, so a test can check what each season reports;
+// concurrency 0 runs every season at once.
+func gameListOutcomesWorkflow(ctx workflow.Context, seasons []int, concurrency int) (gameListOutcomesResult, error) {
 	tracker, err := shared.InitTracker(ctx, newFetchYahooPlayersProgressReport())
 	if err != nil {
-		return nil, err
+		return gameListOutcomesResult{}, err
 	}
 	for range seasons {
 		tracker.AddBar(GroupFetchYahooPlayers, shared.ProgressBar{Total: gameListPlanUnits})
@@ -112,8 +122,23 @@ func gameListOutcomesWorkflow(ctx workflow.Context, seasons []int, concurrency i
 	if concurrency == 0 {
 		concurrency = len(seasons)
 	}
-	outcomes, _ := fetchYahooGamePlayerListSeasons(ctx, tracker, seasons, concurrency)
-	return outcomes, nil
+	outcomes, err := fetchYahooGamePlayerListSeasons(ctx, tracker, seasons, concurrency)
+	result := gameListOutcomesResult{Outcomes: outcomes}
+	if err != nil {
+		result.Err = err.Error()
+	}
+	return result, nil
+}
+
+// runGameListOutcomes runs gameListOutcomesWorkflow to completion.
+func runGameListOutcomes(t *testing.T, env *testsuite.TestWorkflowEnvironment, seasons []int, concurrency int) gameListOutcomesResult {
+	t.Helper()
+	env.ExecuteWorkflow(gameListOutcomesWorkflow, seasons, concurrency)
+	require.True(t, env.IsWorkflowCompleted())
+	require.NoError(t, env.GetWorkflowError())
+	var result gameListOutcomesResult
+	require.NoError(t, env.GetWorkflowResult(&result))
+	return result
 }
 
 func TestFetchYahooGamePlayerListSeasons_FailedSeasonsReportFailed(t *testing.T) {
@@ -135,14 +160,19 @@ func TestFetchYahooGamePlayerListSeasons_FailedSeasonsReportFailed(t *testing.T)
 	env.RegisterWorkflow(gameListOutcomesWorkflow)
 	f.register(env)
 
-	env.ExecuteWorkflow(gameListOutcomesWorkflow, f.seasons, 0)
+	result := runGameListOutcomes(t, env, f.seasons, 0)
 
-	require.True(t, env.IsWorkflowCompleted())
-	require.NoError(t, env.GetWorkflowError())
-	var outcomes []gameListOutcome
-	require.NoError(t, env.GetWorkflowResult(&outcomes))
 	assert.Equal(t, []gameListOutcome{gameListFailed, gameListFailed, gameListFailed,
-		gameListKept, gameListUnavailable, gameListDownloaded}, outcomes)
+		gameListKept, gameListUnavailable, gameListDownloaded}, result.Outcomes)
+	lines := strings.Split(result.Err, "\n")
+	require.Len(t, lines, 3, "one error per failed season: %q", result.Err)
+	for i, want := range []struct {
+		season int
+		cause  error
+	}{{planFailSeason, errGameListPlan}, {pageFailSeason, errGameListPage}, {commitFailSeason, errGameListCommit}} {
+		assert.True(t, strings.HasPrefix(lines[i], fmt.Sprintf("fetch Yahoo game player list %d: ", want.season)), lines[i])
+		assert.Contains(t, lines[i], want.cause.Error())
+	}
 }
 
 // gameListCancelAfter is when the cancellation test cancels the run: after
@@ -199,12 +229,10 @@ func TestFetchYahooGamePlayerListSeasons_CancelledRunReportsUnstartedSeasonsNotR
 	f.register(env)
 	env.RegisterDelayedCallback(env.CancelWorkflow, gameListCancelAfter)
 
-	env.ExecuteWorkflow(gameListOutcomesWorkflow, f.seasons, 1)
+	result := runGameListOutcomes(t, env, f.seasons, 1)
 
-	require.True(t, env.IsWorkflowCompleted())
-	var outcomes []gameListOutcome
-	require.NoError(t, env.GetWorkflowResult(&outcomes))
-	assert.Equal(t, []gameListOutcome{gameListFailed, gameListNotRun}, outcomes,
+	assert.Equal(t, []gameListOutcome{gameListFailed, gameListNotRun}, result.Outcomes,
 		"the cancelled season failed, the one waiting for a slot never ran")
+	assert.Equal(t, "canceled\nfetch Yahoo game player list 2025: canceled", result.Err)
 	assert.NotContains(t, f.starts, gameListCurrentSeason, "the unstarted season requested no page")
 }
