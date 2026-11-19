@@ -304,3 +304,41 @@ func TestMatchYahooID_NoMatchHasEmptyImageURL(t *testing.T) {
 	require.False(t, result.Matched)
 	assert.Empty(t, result.ImageURL)
 }
+
+func TestBirthDatesNeeded(t *testing.T) {
+	t.Parallel()
+
+	pettersson := func(id store.YahooPlayerID, jersey int, birth time.Time) store.YahooPlayer {
+		return store.YahooPlayer{YahooID: id, FirstName: "Elias", LastName: "Pettersson", JerseyNumber: jersey, BirthDate: birth}
+	}
+	eliasBirth := date(1998, time.November, 12)
+	cases := []struct {
+		name    string
+		sweater int
+		birth   time.Time
+		pool    []store.YahooPlayer
+		want    []store.YahooPlayerID
+	}{
+		{name: "tied without dates", sweater: 40, birth: eliasBirth,
+			pool: []store.YahooPlayer{pettersson(7520, 0, time.Time{}), pettersson(8800, 0, time.Time{})},
+			want: []store.YahooPlayerID{7520, 8800}},
+		{name: "tied by jersey, only dateless ones", sweater: 40, birth: eliasBirth,
+			pool: []store.YahooPlayer{pettersson(8800, 40, time.Time{}), pettersson(7520, 40, eliasBirth), pettersson(9000, 25, time.Time{})},
+			want: []store.YahooPlayerID{8800}},
+		{name: "jersey decides", sweater: 40, birth: eliasBirth,
+			pool: []store.YahooPlayer{pettersson(7520, 40, time.Time{}), pettersson(8800, 25, time.Time{})}},
+		{name: "no NHL birth date", sweater: 40,
+			pool: []store.YahooPlayer{pettersson(7520, 0, time.Time{}), pettersson(8800, 0, time.Time{})}},
+		{name: "one name match", sweater: 40, birth: eliasBirth,
+			pool: []store.YahooPlayer{pettersson(7520, 0, time.Time{}), {YahooID: 1, FirstName: "Elias", LastName: "Lindholm"}}},
+		{name: "every tied candidate dated", birth: eliasBirth,
+			pool: []store.YahooPlayer{pettersson(7520, 40, eliasBirth), pettersson(8800, 25, date(2004, time.February, 16))}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			c := matchCase{first: "Elias", last: "Pettersson", sweater: tc.sweater, pool: tc.pool}
+			assert.Equal(t, tc.want, BirthDatesNeeded(c.landing(), tc.birth, c.poolMap()))
+		})
+	}
+}

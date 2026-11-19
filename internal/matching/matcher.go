@@ -287,6 +287,39 @@ func MatchYahooID(
 			landing.FirstName.Default, landing.LastName.Default, len(candidates))
 }
 
+// BirthDatesNeeded returns, sorted, the Yahoo IDs of the candidates
+// MatchYahooID would compare by birth date (step 3) that have none: the name
+// matches the jersey step left tied, when the NHL player's birth date is
+// known. The pool's game player lists carry no birth date, so a caller
+// fetches these players' dates, sets them on the pool entries and then calls
+// MatchYahooID. Nil when the birth date step would not run.
+func BirthDatesNeeded(
+	landing *nhl.PlayerLanding,
+	nhlBirthDate time.Time,
+	pool map[store.YahooPlayerID]*store.YahooPlayer,
+) []store.YahooPlayerID {
+	if nhlBirthDate.IsZero() {
+		return nil
+	}
+	candidates := candidatesByName(landing, pool)
+	kept := filterByJersey(candidates, landing.SweaterNumber)
+	if len(kept) == 1 {
+		return nil
+	}
+	candidates = narrow(candidates, kept)
+	if len(candidates) < 2 {
+		return nil
+	}
+	var ids []store.YahooPlayerID
+	for _, c := range candidates {
+		if c.player.BirthDate.IsZero() {
+			ids = append(ids, c.player.YahooID)
+		}
+	}
+	slices.Sort(ids)
+	return ids
+}
+
 // candidateMatch is a Yahoo player whose name matches the NHL player's.
 type candidateMatch struct {
 	player        *store.YahooPlayer

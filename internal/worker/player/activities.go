@@ -59,7 +59,11 @@ type Activities struct {
 	Queries       PlayerUpserter
 	CareerQueries PlayerCareerUpserter
 	// LeaguePlayers seeds the Yahoo ID pool with the Yahoo API's players.
-	LeaguePlayers          YahooLeaguePlayerLister
+	LeaguePlayers YahooLeaguePlayerLister
+	// YahooPlayerPages downloads public Yahoo Sports player pages, for the
+	// birth dates the game player lists lack (yahoo_birth_dates.go); it must
+	// apply the process's Yahoo rate limit. Nil: only stored pages are read.
+	YahooPlayerPages       shared.Downloader
 	BoxscorePlayerCacheTTL time.Duration
 	// Manifests holds the durable player manifests and per-player errors of
 	// ProcessPlayers chains.

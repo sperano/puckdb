@@ -42,7 +42,13 @@ type ProcessPlayerBatchResult struct {
 	// can be compared step by step. Players imported without a landing are
 	// not matched and not counted.
 	MatchReasons map[string]int
-	Errors       []string // Error messages for failed players (ProcessPlayerBatch only)
+	// BirthDatePagesDownloaded counts the Yahoo Sports player pages
+	// downloaded for a birth date tie-break (a stored page is read, not
+	// counted); BirthDatePagesFailed the tied candidates whose page could
+	// not be read, downloaded or parsed, matched without a birth date.
+	BirthDatePagesDownloaded int
+	BirthDatePagesFailed     int
+	Errors                   []string // Error messages for failed players (ProcessPlayerBatch only)
 }
 
 // Stages at which processing one player can fail, as recorded in
@@ -214,6 +220,7 @@ func (a *Activities) importPlayerLanding(
 		result.Origins.Record(origin)
 	}
 
+	a.addYahooBirthDates(ctx, landing, landingBirthDate(landing), yahooPool, result)
 	matchResult := matchLandingYahooID(landing, yahooPool)
 	if err := a.upsertLandingPlayer(ctx, p.ID, landing, matchResult); err != nil {
 		errMsg := fmt.Sprintf("player %d (%s %s): upsert error: %v",
@@ -281,11 +288,7 @@ func matchLandingYahooID(landing *nhl.PlayerLanding, yahooPool map[store.YahooPl
 	if landing.CurrentTeamAbbrev != nil {
 		teamAbbrev = *landing.CurrentTeamAbbrev
 	}
-	var nhlBirthDate time.Time
-	if landing.BirthDate != "" {
-		nhlBirthDate = shared.ParseDate(landing.BirthDate)
-	}
-	matchResult, err := matching.MatchYahooID(landing, teamAbbrev, nhlBirthDate, yahooPool)
+	matchResult, err := matching.MatchYahooID(landing, teamAbbrev, landingBirthDate(landing), yahooPool)
 	if err != nil {
 		log.Debug().
 			Err(err).
@@ -294,6 +297,14 @@ func matchLandingYahooID(landing *nhl.PlayerLanding, yahooPool map[store.YahooPl
 			Msg("Yahoo ID matching warning")
 	}
 	return matchResult
+}
+
+// landingBirthDate is landing's birth date, zero when it has none.
+func landingBirthDate(landing *nhl.PlayerLanding) time.Time {
+	if landing.BirthDate == "" {
+		return time.Time{}
+	}
+	return shared.ParseDate(landing.BirthDate)
 }
 
 // upsertPlayerCareerData upserts awards and season totals for a single player.

@@ -48,6 +48,10 @@ type processPlayersTotals struct {
 	Origins    core.OriginCounts
 	// MatchReasons sums the batches' ProcessPlayerBatchResult.MatchReasons.
 	MatchReasons map[string]int
+	// BirthDatePagesDownloaded and BirthDatePagesFailed sum the batches'
+	// counts of the same name.
+	BirthDatePagesDownloaded int
+	BirthDatePagesFailed     int
 }
 
 // validate rejects a state run 1 could not have produced: a zero batch size
@@ -79,6 +83,8 @@ func (t *processPlayersTotals) add(result workplayer.ProcessPlayerBatchResult) {
 		t.Origins = core.OriginCounts{}
 	}
 	t.Origins.Add(result.Origins)
+	t.BirthDatePagesDownloaded += result.BirthDatePagesDownloaded
+	t.BirthDatePagesFailed += result.BirthDatePagesFailed
 	for reason, n := range result.MatchReasons {
 		if t.MatchReasons == nil {
 			t.MatchReasons = make(map[string]int)
@@ -309,6 +315,8 @@ func completePhaseProcessPlayers(ctx workflow.Context, tracker *shared.ReportTra
 		"imported", totals.Imported,
 		"matched", totals.Matched,
 		"match_reasons", totals.MatchReasons,
+		"birth_date_pages_downloaded", totals.BirthDatePagesDownloaded,
+		"birth_date_pages_failed", totals.BirthDatePagesFailed,
 		"errors", totals.Errors)
 	state.Phase = phaseVerifyUnmatched
 }

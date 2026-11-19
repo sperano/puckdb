@@ -6,6 +6,7 @@ import (
 	"github.com/go-redis/redis/v8"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/sperano/puckdb/internal/cache"
+	"github.com/sperano/puckdb/internal/httpx"
 	"github.com/sperano/puckdb/internal/sqlcdb"
 	"github.com/sperano/puckdb/internal/store"
 	"github.com/sperano/puckdb/internal/worker/asset"
@@ -70,6 +71,10 @@ type taskActivityDeps struct {
 	gobCache        *cache.GobCache
 	redisClient     *redis.Client
 	yahooDownloader shared.Downloader
+	// yahooPlayerPages fetches public Yahoo Sports player pages (birth
+	// dates). It shares yahooDownloader's rate limiter: both count against
+	// Yahoo.
+	yahooPlayerPages shared.Downloader
 	// yahooGameKeys is the worker's one in-memory Yahoo game key cache,
 	// shared by the Yahoo and NHL fetch activities.
 	yahooGameKeys          *yahoo.GameKeys
@@ -95,6 +100,7 @@ func registerTasksActivities(w worker.Worker, pool *pgxpool.Pool, redisClient *r
 		gobCache:               gobCache,
 		redisClient:            redisClient,
 		yahooDownloader:        newYahooDownloader(redisClient, yahooLimiter),
+		yahooPlayerPages:       shared.RateLimited(yahooLimiter, httpx.DownloadPublic),
 		yahooGameKeys:          yahoo.NewGameKeys(nil),
 		boxscorePlayerCacheTTL: boxscorePlayerCacheTTLFrom(viper.GetViper()),
 	}
@@ -282,6 +288,7 @@ func registerPlayerActivities(w worker.Worker, d taskActivityDeps) {
 		NHLClient:              d.nhlClient,
 		RedisClient:            d.redisClient,
 		GobCache:               d.gobCache,
+		YahooPlayerPages:       d.yahooPlayerPages,
 		BoxscorePlayerCacheTTL: d.boxscorePlayerCacheTTL,
 		Manifests:              workplayer.NewPgProcessPlayersStore(d.pool),
 	})

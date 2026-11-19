@@ -236,6 +236,8 @@ func (c *manifestChain) batch(_ context.Context, input workplayer.ManifestBatchI
 			reason = "team-tiebreaker"
 		}
 		result.MatchReasons = map[string]int{reason: result.Imported}
+		result.BirthDatePagesDownloaded = 2
+		result.BirthDatePagesFailed = 1
 	}
 	return result, nil
 }
@@ -286,6 +288,8 @@ func TestProcessPlayersManifestChain(t *testing.T) {
 	assert.Equal(t, 4, state.Totals.Imported)
 	assert.Equal(t, map[string]int{"name+jersey": 2, "team-tiebreaker": 2}, state.Totals.MatchReasons,
 		"match reasons are summed across batches and executions")
+	assert.Equal(t, 8, state.Totals.BirthDatePagesDownloaded, "birth date page downloads are summed across batches and executions")
+	assert.Equal(t, 4, state.Totals.BirthDatePagesFailed, "birth date page failures are summed across batches and executions")
 	assert.Equal(t, []string{"player 2: read error"}, state.ErrorSample)
 	assert.Equal(t, []workplayer.PlayerError{{PlayerID: 2, Stage: workplayer.StageRead, Message: "player 2: read error"}},
 		chain.recorded, "errors of completed batches reach the error table")
