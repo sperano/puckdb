@@ -37,6 +37,9 @@ type gameListFakes struct {
 	pages   map[int][]int
 	// fullPages makes every page of every season full, for the page cap.
 	fullPages bool
+	// endPastPages answers the offset after a season's last page with End,
+	// as Yahoo's 400 does, instead of indexing past pages.
+	endPastPages bool
 	// pageErr fails the page at an offset of a season; commitErr a commit.
 	pageErr   map[int]map[int]error
 	commitErr map[int]error
@@ -82,7 +85,11 @@ func (f *gameListFakes) register(env *testsuite.TestWorkflowEnvironment) {
 			if f.fullPages {
 				return yahoo.FetchYahooGamePlayersPageResult{Players: resource.GamePlayersPageSize}, nil
 			}
-			return yahoo.FetchYahooGamePlayersPageResult{Players: f.pages[in.Season][in.Start/resource.GamePlayersPageSize]}, nil
+			page := in.Start / resource.GamePlayersPageSize
+			if f.endPastPages && page >= len(f.pages[in.Season]) {
+				return yahoo.FetchYahooGamePlayersPageResult{End: true}, nil
+			}
+			return yahoo.FetchYahooGamePlayersPageResult{Players: f.pages[in.Season][page]}, nil
 		})
 	env.OnActivity(act.CommitYahooGamePlayerList, mock.Anything, mock.Anything).Return(
 		func(_ context.Context, in yahoo.CommitYahooGamePlayerListInput) error {
@@ -177,6 +184,34 @@ func TestFetchYahooPlayersWorkflow_ShrinksBarToPagesDownloaded(t *testing.T) {
 	assert.Equal(t, 1+2+1, report.Groups[GroupFetchYahooPlayers].Bars[0].Total,
 		"the five estimated pages shrink to the two downloaded")
 	assert.Equal(t, 1+2+1, report.Total)
+}
+
+// A list whose size is a multiple of the page size ends with the offset
+// Yahoo rejects: committed without it, the bar shrunk to the pages stored.
+func TestFetchYahooPlayersWorkflow_EndPastFullLastPageCommits(t *testing.T) {
+	f := &gameListFakes{
+		seasons: []int{gameListCurrentSeason},
+		plans: map[int]yahoo.YahooGamePlayerListPlan{gameListCurrentSeason: {
+			Refresh: true, GameKey: gameListCurrentGameKey, PreviousPlayerCount: gameListPreviousPlayers,
+		}},
+		pages:        map[int][]int{gameListCurrentSeason: {resource.GamePlayersPageSize, resource.GamePlayersPageSize}},
+		endPastPages: true,
+	}
+
+	env, err := runGameListWorkflow(t, f, nil)
+
+	require.NoError(t, err)
+	require.Len(t, f.commits, 1)
+	commit := f.commits[0]
+	assert.Equal(t, []int{0, resource.GamePlayersPageSize}, commit.Starts, "the rejected offset is not named")
+	assert.Equal(t, 2*resource.GamePlayersPageSize, commit.Players)
+	assert.Equal(t, []int{0, resource.GamePlayersPageSize, 2 * resource.GamePlayersPageSize},
+		f.starts[gameListCurrentSeason])
+	assert.Empty(t, f.discards)
+	report := queryProgress(t, env)
+	bar := report.Groups[GroupFetchYahooPlayers].Bars[0]
+	assert.Equal(t, 1+2+1, bar.Total, "the five estimated pages shrink to the two stored")
+	assert.Equal(t, bar.Total, bar.Current)
 }
 
 func TestFetchYahooPlayersWorkflow_SeasonFailureLetsOthersCommit(t *testing.T) {

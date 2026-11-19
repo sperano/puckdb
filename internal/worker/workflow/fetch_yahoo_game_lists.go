@@ -206,8 +206,9 @@ func gameListPages(previousPlayers int) int {
 }
 
 // fetchGamePlayerListPages downloads the list's pages one at a time until a
-// short page, recording each in commit, so no page past the list's end is
-// requested. estimate is the number of page units already in the bar: a
+// short page, or an offset Yahoo reports past the list's end (a list whose
+// size is a multiple of the page size), recording each page in commit, so at
+// most one offset past the list's end is requested. estimate is the number of page units already in the bar: a
 // page beyond it grows the bar first, and the short page shrinks the bar to
 // the pages downloaded. Reaching yahoo.MaxGamePlayerListPages is an error.
 // It returns the offset of every page requested, a failed one included
@@ -229,6 +230,10 @@ func fetchGamePlayerListPages(ctx workflow.Context, commit *yahoo.CommitYahooGam
 		var result yahoo.FetchYahooGamePlayersPageResult
 		if err := workflow.ExecuteActivity(ctx, act.FetchYahooGamePlayersPage, input).Get(ctx, &result); err != nil {
 			return requested, err
+		}
+		if result.End {
+			bar.resize(ctx, page-estimate)
+			return requested, nil
 		}
 		bar.advance(ctx)
 		commit.Starts = append(commit.Starts, input.Start)

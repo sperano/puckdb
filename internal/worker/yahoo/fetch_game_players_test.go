@@ -3,6 +3,7 @@ package yahoo
 import (
 	"context"
 	"errors"
+	"net/http"
 	"testing"
 	"time"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/sperano/puckdb/internal/config"
 	"github.com/sperano/puckdb/internal/core"
 	"github.com/sperano/puckdb/internal/fixtures/yahoofixtures"
+	"github.com/sperano/puckdb/internal/httpx"
 	"github.com/sperano/puckdb/internal/resource"
 	"github.com/sperano/puckdb/internal/store"
 	"github.com/sperano/puckdb/internal/worker/shared"
@@ -376,5 +378,33 @@ func TestFetchYahooGamePlayersPage_DownloadErrorIsRetryable(t *testing.T) {
 	_, err := runGamePageActivity(t, a, currentGamePageInput(0))
 
 	assertRetryability(t, err, true, "")
+	assert.Contains(t, err.Error(), "fetch game players 2026 start 0")
+}
+
+// Yahoo answers 400 for an offset past the last page instead of an empty
+// page, so a list whose size is a multiple of the page size ends there.
+func TestFetchYahooGamePlayersPage_BadRequestPastFirstPageEndsList(t *testing.T) {
+	rejection := &httpx.HTTPError{StatusCode: http.StatusBadRequest, Status: "400 Bad Request"}
+	dl, calls := countingDownloader(nil, rejection)
+	mem := store.NewMemStorage()
+	a := &FetchActivities{Storage: mem, Download: dl, GobCache: cache.NewGobCache(nil)}
+
+	result, err := runGamePageActivity(t, a, currentGamePageInput(gameListSecondPage))
+
+	require.NoError(t, err)
+	assert.Equal(t, FetchYahooGamePlayersPageResult{End: true}, result)
+	assert.Equal(t, 1, *calls, "the rejected offset is not retried")
+	assert.False(t, mem.Exists(context.Background(), gamePage(gameListDownloadID, gameListSecondPage).Path()))
+}
+
+// A 400 on the first page is no end of list: a game always has players.
+func TestFetchYahooGamePlayersPage_BadRequestOnFirstPageIsAnError(t *testing.T) {
+	rejection := &httpx.HTTPError{StatusCode: http.StatusBadRequest, Status: "400 Bad Request"}
+	dl, _ := countingDownloader(nil, rejection)
+	a := &FetchActivities{Storage: store.NewMemStorage(), Download: dl, GobCache: cache.NewGobCache(nil)}
+
+	_, err := runGamePageActivity(t, a, currentGamePageInput(0))
+
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "fetch game players 2026 start 0")
 }
