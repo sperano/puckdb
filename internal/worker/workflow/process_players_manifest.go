@@ -48,6 +48,10 @@ type processPlayersTotals struct {
 	Origins    core.OriginCounts
 	// MatchReasons sums the batches' ProcessPlayerBatchResult.MatchReasons.
 	MatchReasons map[string]int
+	// BirthDatePagesDownloaded and BirthDatePagesFailed sum the batches'
+	// counts of the same name.
+	BirthDatePagesDownloaded int
+	BirthDatePagesFailed     int
 }
 
 // validate rejects a state run 1 could not have produced: a zero batch size
@@ -79,6 +83,8 @@ func (t *processPlayersTotals) add(result workplayer.ProcessPlayerBatchResult) {
 		t.Origins = core.OriginCounts{}
 	}
 	t.Origins.Add(result.Origins)
+	t.BirthDatePagesDownloaded += result.BirthDatePagesDownloaded
+	t.BirthDatePagesFailed += result.BirthDatePagesFailed
 	for reason, n := range result.MatchReasons {
 		if t.MatchReasons == nil {
 			t.MatchReasons = make(map[string]int)
@@ -309,6 +315,8 @@ func completePhaseProcessPlayers(ctx workflow.Context, tracker *shared.ReportTra
 		"imported", totals.Imported,
 		"matched", totals.Matched,
 		"match_reasons", totals.MatchReasons,
+		"birth_date_pages_downloaded", totals.BirthDatePagesDownloaded,
+		"birth_date_pages_failed", totals.BirthDatePagesFailed,
 		"errors", totals.Errors)
 	state.Phase = phaseVerifyUnmatched
 }
@@ -358,6 +366,8 @@ func runManifestVerify(ctx workflow.Context, tracker *shared.ReportTracker, stat
 		"imported", result.ImportedPlayers,
 		"matched_with_yahoo", result.MatchedWithYahoo,
 		"match_reasons", result.MatchReasons,
+		"birth_date_pages_downloaded", result.BirthDatePagesDownloaded,
+		"birth_date_pages_failed", result.BirthDatePagesFailed,
 		"truly_unmatched", len(result.TrulyUnmatched))
 
 	// Fail the chain when any player failed, so the sync halts visibly: a
@@ -392,17 +402,19 @@ func finishManifest(ctx workflow.Context, state *processPlayersState) {
 func manifestResult(state *processPlayersState, unmatched *workplayer.UnmatchedReport) *ProcessPlayersResult {
 	totals := state.Totals
 	return &ProcessPlayersResult{
-		TotalPlayers:          state.Manifest.Count,
-		ImportedPlayers:       totals.Imported,
-		MatchedWithYahoo:      totals.Matched,
-		MatchReasons:          totals.MatchReasons,
-		Downloaded:            totals.Downloaded,
-		CacheHits:             totals.Origins[core.OriginRedis] + totals.Origins[core.OriginFileSystem],
-		Missing:               totals.Missing,
-		TotalYahooPlayers:     state.YahooPool.TotalPlayers,
-		SkippedNonNHL:         state.YahooPool.SkippedNonNHL,
-		VerifiedNonNHLThisRun: unmatched.VerifiedNonNHLCount,
-		TrulyUnmatched:        unmatched.TrulyUnmatched,
-		Errors:                state.ErrorSample,
+		TotalPlayers:             state.Manifest.Count,
+		ImportedPlayers:          totals.Imported,
+		MatchedWithYahoo:         totals.Matched,
+		MatchReasons:             totals.MatchReasons,
+		Downloaded:               totals.Downloaded,
+		CacheHits:                totals.Origins[core.OriginRedis] + totals.Origins[core.OriginFileSystem],
+		Missing:                  totals.Missing,
+		BirthDatePagesDownloaded: totals.BirthDatePagesDownloaded,
+		BirthDatePagesFailed:     totals.BirthDatePagesFailed,
+		TotalYahooPlayers:        state.YahooPool.TotalPlayers,
+		SkippedNonNHL:            state.YahooPool.SkippedNonNHL,
+		VerifiedNonNHLThisRun:    unmatched.VerifiedNonNHLCount,
+		TrulyUnmatched:           unmatched.TrulyUnmatched,
+		Errors:                   state.ErrorSample,
 	}
 }

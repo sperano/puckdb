@@ -42,7 +42,15 @@ type ProcessPlayerBatchResult struct {
 	// can be compared step by step. Players imported without a landing are
 	// not matched and not counted.
 	MatchReasons map[string]int
-	Errors       []string // Error messages for failed players (ProcessPlayerBatch only)
+	// BirthDatePagesDownloaded counts the Yahoo Sports player pages
+	// downloaded for a birth date tie-break, including a downloaded page
+	// that then failed to parse or be stored (a stored page is read, not
+	// counted); BirthDatePagesFailed the pages that could not be read,
+	// downloaded, parsed or stored, each once per batch, whose tied
+	// candidates were matched without a birth date.
+	BirthDatePagesDownloaded int
+	BirthDatePagesFailed     int
+	Errors                   []string // Error messages for failed players (ProcessPlayerBatch only)
 }
 
 // Stages at which processing one player can fail, as recorded in
@@ -67,6 +75,9 @@ type PlayerError struct {
 type batchOutcome struct {
 	result ProcessPlayerBatchResult
 	errors []PlayerError
+	// unavailableBirthDates holds the Yahoo IDs whose birth date page failed
+	// in this batch, so later landings do not request it again.
+	unavailableBirthDates map[store.YahooPlayerID]struct{}
 }
 
 // fail records a per-player error; the batch goes on with the next player.
@@ -140,7 +151,11 @@ func (a *Activities) processPlayerBatch(ctx context.Context, players []store.Box
 			// File exists in storage — will be read via GobCache below
 		}
 
-		if yahooID, matched := a.importPlayerLanding(ctx, p, downloadStatus, pool, &out); matched {
+		yahooID, matched, err := a.importPlayerLanding(ctx, p, downloadStatus, pool, &out)
+		if err != nil {
+			return out, err
+		}
+		if matched {
 			matchedYahooIDs = append(matchedYahooIDs, yahooID)
 		}
 	}
@@ -195,25 +210,29 @@ func logProcessPlayerBatch(batchSize int, out batchOutcome) {
 // importPlayerLanding reads p's stored landing, matches it to a Yahoo ID from
 // yahooPool and upserts the player with its career data, recording the
 // outcome in out. It returns the matched Yahoo ID, if any, so the caller
-// can remove it from the pool once the batch is done.
+// can remove it from the pool once the batch is done, and an error only
+// when ctx is done while the Yahoo birth dates are fetched.
 func (a *Activities) importPlayerLanding(
 	ctx context.Context,
 	p store.BoxscorePlayer,
 	downloadStatus playerLandingStatus,
 	yahooPool map[store.YahooPlayerID]*store.YahooPlayer,
 	out *batchOutcome,
-) (store.YahooPlayerID, bool) {
+) (store.YahooPlayerID, bool, error) {
 	result := &out.result
 	landingRes := resource.PlayerLanding{PlayerID: nhl.PlayerID(p.ID)}
 	landing, origin, err := a.GobCache.ReadParsedCached(ctx, a.Storage, landingRes)
 	if err != nil {
 		out.fail(p.ID, StageRead, fmt.Sprintf("player %d: read error: %v", p.ID, err))
-		return 0, false
+		return 0, false, nil
 	}
 	if downloadStatus == playerLandingCached {
 		result.Origins.Record(origin)
 	}
 
+	if err := a.addYahooBirthDates(ctx, landing, landingBirthDate(landing), yahooPool, out); err != nil {
+		return 0, false, err
+	}
 	matchResult := matchLandingYahooID(landing, yahooPool)
 	if err := a.upsertLandingPlayer(ctx, p.ID, landing, matchResult); err != nil {
 		errMsg := fmt.Sprintf("player %d (%s %s): upsert error: %v",
@@ -223,7 +242,7 @@ func (a *Activities) importPlayerLanding(
 				p.ID, landing.FirstName.Default, landing.LastName.Default, matchResult.YahooID, err)
 		}
 		out.fail(p.ID, StageUpsert, errMsg)
-		return 0, false
+		return 0, false, nil
 	}
 
 	result.Imported++
@@ -239,7 +258,7 @@ func (a *Activities) importPlayerLanding(
 		result.AwardsImported += awards
 		result.TotalsImported += totals
 	}
-	return matchResult.YahooID, matchResult.Matched
+	return matchResult.YahooID, matchResult.Matched, nil
 }
 
 // countMatchReason counts one imported landing's matching outcome.
@@ -281,11 +300,7 @@ func matchLandingYahooID(landing *nhl.PlayerLanding, yahooPool map[store.YahooPl
 	if landing.CurrentTeamAbbrev != nil {
 		teamAbbrev = *landing.CurrentTeamAbbrev
 	}
-	var nhlBirthDate time.Time
-	if landing.BirthDate != "" {
-		nhlBirthDate = shared.ParseDate(landing.BirthDate)
-	}
-	matchResult, err := matching.MatchYahooID(landing, teamAbbrev, nhlBirthDate, yahooPool)
+	matchResult, err := matching.MatchYahooID(landing, teamAbbrev, landingBirthDate(landing), yahooPool)
 	if err != nil {
 		log.Debug().
 			Err(err).
@@ -294,6 +309,14 @@ func matchLandingYahooID(landing *nhl.PlayerLanding, yahooPool map[store.YahooPl
 			Msg("Yahoo ID matching warning")
 	}
 	return matchResult
+}
+
+// landingBirthDate is landing's birth date, zero when it has none.
+func landingBirthDate(landing *nhl.PlayerLanding) time.Time {
+	if landing.BirthDate == "" {
+		return time.Time{}
+	}
+	return shared.ParseDate(landing.BirthDate)
 }
 
 // upsertPlayerCareerData upserts awards and season totals for a single player.
