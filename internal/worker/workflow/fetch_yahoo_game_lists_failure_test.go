@@ -5,10 +5,13 @@ import (
 
 	"github.com/sperano/puckdb/internal/config"
 	"github.com/sperano/puckdb/internal/resource"
+	"github.com/sperano/puckdb/internal/worker/shared"
 	"github.com/sperano/puckdb/internal/worker/yahoo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.temporal.io/sdk/temporal"
+	"go.temporal.io/sdk/testsuite"
+	"go.temporal.io/sdk/workflow"
 )
 
 // gameListOtherDueSeason is a second season whose list is due.
@@ -91,4 +94,47 @@ func TestFetchYahooPlayersWorkflow_SeasonConcurrencyLimit(t *testing.T) {
 	for i, commit := range f.commits {
 		assert.Equal(t, seasons[i], commit.Season, "seasons run in order")
 	}
+}
+
+// gameListOutcomesWorkflow returns fetchYahooGamePlayerListSeasons'
+// outcomes, so a test can check what each season reports.
+func gameListOutcomesWorkflow(ctx workflow.Context, seasons []int) ([]gameListOutcome, error) {
+	tracker, err := shared.InitTracker(ctx, newFetchYahooPlayersProgressReport())
+	if err != nil {
+		return nil, err
+	}
+	for range seasons {
+		tracker.AddBar(GroupFetchYahooPlayers, shared.ProgressBar{Total: gameListPlanUnits})
+	}
+	outcomes, _ := fetchYahooGamePlayerListSeasons(ctx, tracker, seasons, len(seasons))
+	return outcomes, nil
+}
+
+func TestFetchYahooGamePlayerListSeasons_FailedSeasonsReportFailed(t *testing.T) {
+	const (
+		planFailSeason   = 2021
+		pageFailSeason   = 2022
+		commitFailSeason = 2023
+	)
+	f := threeSeasonFakes()
+	f.seasons = []int{planFailSeason, pageFailSeason, commitFailSeason, gameListKeptSeason, gameListUnavailableSeason, gameListCurrentSeason}
+	due := yahoo.YahooGamePlayerListPlan{Refresh: true, GameKey: gameListCurrentGameKey}
+	f.plans[pageFailSeason], f.plans[commitFailSeason] = due, due
+	f.pages[commitFailSeason] = []int{gameListShortPagePlayers}
+	f.planErr = map[int]error{planFailSeason: errGameListPlan}
+	f.pageErr = map[int]map[int]error{pageFailSeason: {0: errGameListPage}}
+	f.commitErr = map[int]error{commitFailSeason: errGameListCommit}
+	var ts testsuite.WorkflowTestSuite
+	env := ts.NewTestWorkflowEnvironment()
+	env.RegisterWorkflow(gameListOutcomesWorkflow)
+	f.register(env)
+
+	env.ExecuteWorkflow(gameListOutcomesWorkflow, f.seasons)
+
+	require.True(t, env.IsWorkflowCompleted())
+	require.NoError(t, env.GetWorkflowError())
+	var outcomes []gameListOutcome
+	require.NoError(t, env.GetWorkflowResult(&outcomes))
+	assert.Equal(t, []gameListOutcome{gameListFailed, gameListFailed, gameListFailed,
+		gameListKept, gameListUnavailable, gameListDownloaded}, outcomes)
 }

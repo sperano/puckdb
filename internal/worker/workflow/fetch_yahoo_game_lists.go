@@ -22,8 +22,12 @@ const (
 type gameListOutcome int
 
 const (
+	// gameListNotRun: the run was cancelled before the season started.
+	gameListNotRun gameListOutcome = iota
+	// gameListFailed: the plan, a page or the commit failed.
+	gameListFailed
 	// gameListKept: the committed list is current or final.
-	gameListKept gameListOutcome = iota
+	gameListKept
 	// gameListUnavailable: Yahoo lists no NHL game for the season.
 	gameListUnavailable
 	// gameListDownloaded: a new list was downloaded and committed.
@@ -75,7 +79,8 @@ func fetchYahooGamePlayerLists(ctx workflow.Context) error {
 	counts := countGameListOutcomes(outcomes)
 	logger.Info("FetchYahooPlayersWorkflow finished", "seasons", len(seasons),
 		"downloaded", counts[gameListDownloaded], "kept", counts[gameListKept],
-		"unavailable", counts[gameListUnavailable], "failed", err != nil)
+		"unavailable", counts[gameListUnavailable], "failed", counts[gameListFailed],
+		"not_run", counts[gameListNotRun])
 	if err != nil {
 		return err
 	}
@@ -95,9 +100,10 @@ func countGameListOutcomes(outcomes []gameListOutcome) map[gameListOutcome]int {
 }
 
 // fetchYahooGamePlayerListSeasons runs fetchYahooGamePlayerList for every
-// season, up to concurrency at a time. Every season runs whatever another
-// one's outcome; the returned error joins each failed season's error, in
-// season order.
+// season, up to concurrency at a time, and returns each season's outcome
+// (gameListFailed on an error, gameListNotRun when cancelled first). Every
+// season runs whatever another one's outcome; the returned error joins each
+// failed season's error, in season order.
 func fetchYahooGamePlayerListSeasons(ctx workflow.Context, tracker *shared.ReportTracker, seasons []int,
 	concurrency int) ([]gameListOutcome, error) {
 	outcomes := make([]gameListOutcome, len(seasons))
@@ -117,6 +123,7 @@ func fetchYahooGamePlayerListSeasons(ctx workflow.Context, tracker *shared.Repor
 			outcome, err := fetchYahooGamePlayerList(ctx, season, bar)
 			outcomes[i] = outcome
 			if err != nil {
+				outcomes[i] = gameListFailed
 				errs[i] = fmt.Errorf("fetch Yahoo game player list %d: %w", season, err)
 			}
 		})
@@ -137,7 +144,7 @@ func fetchYahooGamePlayerList(ctx workflow.Context, season int, bar gameListBar)
 	var plan yahoo.YahooGamePlayerListPlan
 	planInput := yahoo.PlanYahooGamePlayerListInput{Season: season}
 	if err := workflow.ExecuteActivity(yahooCtx, act.PlanYahooGamePlayerList, planInput).Get(ctx, &plan); err != nil {
-		return gameListKept, err
+		return gameListFailed, err
 	}
 	bar.advance(ctx)
 	if plan.Unavailable {
@@ -157,12 +164,12 @@ func fetchYahooGamePlayerList(ctx workflow.Context, season int, bar gameListBar)
 	requested, err := fetchGamePlayerListPages(yahooCtx, &commit, bar, pages)
 	if err != nil {
 		discardGamePlayerList(ctx, commit, requested)
-		return gameListKept, err
+		return gameListFailed, err
 	}
 	commitCtx := workflow.WithActivityOptions(ctx, shared.DefaultActivityOptions())
 	if err := workflow.ExecuteActivity(commitCtx, act.CommitYahooGamePlayerList, commit).Get(ctx, nil); err != nil {
 		discardGamePlayerList(ctx, commit, requested)
-		return gameListKept, err
+		return gameListFailed, err
 	}
 	bar.advance(ctx)
 	return gameListDownloaded, nil
