@@ -163,8 +163,42 @@ func (g GamePlayerList) Path() string {
 
 func (g GamePlayerList) Type() core.FileType { return core.YahooGamePlayers }
 
+// Parse rejects a manifest that Validate rejects, so a malformed one is
+// never taken for a committed list.
 func (g GamePlayerList) Parse(data []byte) (GamePlayerListManifest, error) {
-	return parseValue[GamePlayerListManifest](data, "parse game player list manifest %d", g.Season)
+	manifest, err := parseValue[GamePlayerListManifest](data, "parse game player list manifest %d", g.Season)
+	if err != nil {
+		return manifest, err
+	}
+	if err := manifest.Validate(); err != nil {
+		return GamePlayerListManifest{}, fmt.Errorf("parse game player list manifest %d: %w", g.Season, err)
+	}
+	return manifest, nil
+}
+
+// Validate checks that the manifest names one download of one game: a
+// download ID, a game key, a fetch time, a player count that is not negative
+// and page offsets that start at 0 and strictly increase, so no page is named
+// twice.
+func (m GamePlayerListManifest) Validate() error {
+	switch {
+	case m.DownloadID <= 0:
+		return fmt.Errorf("download ID %d is not a download ID", m.DownloadID)
+	case m.GameKey <= 0:
+		return fmt.Errorf("game key %d is not a game key", m.GameKey)
+	case m.FetchedAt.IsZero():
+		return fmt.Errorf("no fetch time")
+	case m.Players < 0:
+		return fmt.Errorf("player count %d is negative", m.Players)
+	case len(m.Starts) == 0 || m.Starts[0] != 0:
+		return fmt.Errorf("page offsets %v do not start at 0", m.Starts)
+	}
+	for i := 1; i < len(m.Starts); i++ {
+		if m.Starts[i] <= m.Starts[i-1] {
+			return fmt.Errorf("page offsets %v do not strictly increase", m.Starts)
+		}
+	}
+	return nil
 }
 
 func (g GamePlayerList) Format(manifest GamePlayerListManifest) ([]byte, error) {

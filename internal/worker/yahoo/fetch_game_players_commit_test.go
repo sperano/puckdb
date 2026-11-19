@@ -146,3 +146,16 @@ func TestCommitYahooGamePlayerList_UnparsableReplacedManifest(t *testing.T) {
 	assert.True(t, mem.Has(gamePage(gameListDownloadID, 0).Path()), "no manifest names the old page")
 	assert.False(t, mem.Has(gamePage(gameListNewDownloadID, gameListSecondPage).Path()), "discarded page")
 }
+
+// A manifest Validate rejects is never written: no retry can fix it.
+func TestCommitYahooGamePlayerList_InvalidManifestIsNonRetryable(t *testing.T) {
+	mem := store.NewMemStorage()
+	a := &FetchActivities{Storage: mem, GobCache: cache.NewGobCache(nil)}
+	storeGamePages(mem, gameListDownloadID, 0)
+
+	err := runCommitGameList(a, commitGameListInput(gameListDownloadID, []int{0, 0}, nil))
+
+	assertRetryability(t, err, false, invalidGamePlayerListErrorType)
+	assert.Contains(t, err.Error(), "commit game player list 2026: page offsets [0 0] do not strictly increase")
+	assert.False(t, mem.Has(resource.GamePlayerList{Season: yahoofixtures.CurrentGameSeason}.Path()))
+}

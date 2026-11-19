@@ -177,7 +177,8 @@ func TestPlanYahooGamePlayerList_MaxAgeFlag(t *testing.T) {
 	mem := store.NewMemStorage()
 	a := gameActivities(mem, nil)
 	writeGameListManifest(t, mem, yahoofixtures.CurrentGameSeason, resource.GamePlayerListManifest{
-		GameKey: yahoofixtures.CurrentGameKey, FetchedAt: gamePlayersTestNow.Add(-7 * time.Hour), Starts: []int{0},
+		DownloadID: gameListDownloadID, GameKey: yahoofixtures.CurrentGameKey,
+		FetchedAt: gamePlayersTestNow.Add(-7 * time.Hour), Starts: []int{0},
 	})
 
 	plan, err := a.planYahooGamePlayerList(context.Background(),

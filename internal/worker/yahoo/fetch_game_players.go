@@ -21,6 +21,10 @@ import (
 // no game key, which no retry can fix.
 const invalidGamePlayersPageErrorType = "InvalidYahooGamePlayersPage"
 
+// invalidGamePlayerListErrorType tags a commit whose manifest
+// GamePlayerListManifest.Validate rejects, which no retry can fix.
+const invalidGamePlayerListErrorType = "InvalidYahooGamePlayerList"
+
 // PlanYahooGamePlayerListInput names the season whose Yahoo game player list
 // may need a fresh download.
 type PlanYahooGamePlayerListInput struct {
@@ -186,6 +190,14 @@ func (a *FetchActivities) FetchYahooGamePlayersPage(ctx context.Context, input F
 // be read fails the commit before the write, so a retry still finds the
 // pages it names.
 func (a *FetchActivities) CommitYahooGamePlayerList(ctx context.Context, input CommitYahooGamePlayerListInput) error {
+	manifest := resource.GamePlayerListManifest{
+		DownloadID: input.DownloadID, GameKey: input.GameKey, FetchedAt: input.FetchedAt,
+		Starts: input.Starts, Players: input.Players,
+	}
+	if err := manifest.Validate(); err != nil {
+		return temporal.NewNonRetryableApplicationError(
+			fmt.Sprintf("commit game player list %d: %v", input.Season, err), invalidGamePlayerListErrorType, err)
+	}
 	for _, start := range input.Starts {
 		page := resource.GamePlayers{Season: input.Season, DownloadID: input.DownloadID, Start: start}
 		if !resource.Exists(ctx, a.Storage, page) {
@@ -196,10 +208,6 @@ func (a *FetchActivities) CommitYahooGamePlayerList(ctx context.Context, input C
 	previous, hadPrevious, err := a.readReplacedGamePlayerList(ctx, res)
 	if err != nil {
 		return err
-	}
-	manifest := resource.GamePlayerListManifest{
-		DownloadID: input.DownloadID, GameKey: input.GameKey, FetchedAt: input.FetchedAt,
-		Starts: input.Starts, Players: input.Players,
 	}
 	if err := resource.WriteParsed(ctx, a.Storage, res, manifest); err != nil {
 		return fmt.Errorf("write game player list manifest %d: %w", input.Season, err)

@@ -132,12 +132,16 @@ func TestGamePlayers_Parse(t *testing.T) {
 
 func TestGamePlayers_ParseWithoutGameKeyChecksSeasonOnly(t *testing.T) {
 	t.Parallel()
-	r := resource.GamePlayers{Season: yahoofixtures.CurrentGameSeason}
+	r := resource.GamePlayers{Season: yahoofixtures.PastGameSeason}
+	page := fmt.Sprintf("<fantasy_content>%s</fantasy_content>", gameEntryXML("nhl",
+		yahoofixtures.PastGameSeason, yahoofixtures.PastGameKey,
+		"<player><player_key>465.p.7001</player_key><player_id>7001</player_id></player>"))
 
-	content, err := r.Parse(yahoofixtures.Read(yahoofixtures.GamePlayersPage))
+	content, err := r.Parse([]byte(page))
 
 	require.NoError(t, err)
-	assert.Len(t, content.Game.Players.Slice, yahoofixtures.PlayersInGamePage)
+	assert.Equal(t, yahoofixtures.PastGameKey, content.Game.Key)
+	assert.Len(t, content.Game.Players.Slice, 1)
 }
 
 func TestGamePlayers_ParseRejects(t *testing.T) {
@@ -206,4 +210,65 @@ func TestGamePlayerListManifest_ParseError(t *testing.T) {
 	_, err := resource.GamePlayerList{Season: 2026}.Parse([]byte("not json"))
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "parse game player list manifest 2026")
+}
+
+func validGamePlayerListManifest() resource.GamePlayerListManifest {
+	return resource.GamePlayerListManifest{
+		DownloadID: gamePlayersDownloadID,
+		GameKey:    yahoofixtures.CurrentGameKey,
+		FetchedAt:  time.Date(2026, 11, 18, 12, 30, 0, 0, time.UTC),
+		Starts:     []int{0, resource.GamePlayersPageSize},
+		Players:    resource.GamePlayersPageSize + 1,
+	}
+}
+
+func TestGamePlayerListManifest_Validate(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name    string
+		edit    func(*resource.GamePlayerListManifest)
+		wantErr string
+	}{
+		{"valid", func(*resource.GamePlayerListManifest) {}, ""},
+		{"empty_list", func(m *resource.GamePlayerListManifest) { m.Starts, m.Players = []int{0}, 0 }, ""},
+		{"no_download_id", func(m *resource.GamePlayerListManifest) { m.DownloadID = 0 }, "download ID 0 is not a download ID"},
+		{"no_game_key", func(m *resource.GamePlayerListManifest) { m.GameKey = 0 }, "game key 0 is not a game key"},
+		{"no_fetch_time", func(m *resource.GamePlayerListManifest) { m.FetchedAt = time.Time{} }, "no fetch time"},
+		{"negative_players", func(m *resource.GamePlayerListManifest) { m.Players = -1 }, "player count -1 is negative"},
+		{"no_pages", func(m *resource.GamePlayerListManifest) { m.Starts = nil }, "page offsets [] do not start at 0"},
+		{"first_page_missing", func(m *resource.GamePlayerListManifest) { m.Starts = []int{25} },
+			"page offsets [25] do not start at 0"},
+		{"duplicate_page", func(m *resource.GamePlayerListManifest) { m.Starts = []int{0, 25, 25} },
+			"page offsets [0 25 25] do not strictly increase"},
+		{"unordered_pages", func(m *resource.GamePlayerListManifest) { m.Starts = []int{0, 50, 25} },
+			"page offsets [0 50 25] do not strictly increase"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			manifest := validGamePlayerListManifest()
+			tt.edit(&manifest)
+
+			err := manifest.Validate()
+
+			if tt.wantErr == "" {
+				require.NoError(t, err)
+				return
+			}
+			require.EqualError(t, err, tt.wantErr)
+		})
+	}
+}
+
+func TestGamePlayerListManifest_ParseRejectsInvalidManifest(t *testing.T) {
+	t.Parallel()
+	r := resource.GamePlayerList{Season: 2026}
+	manifest := validGamePlayerListManifest()
+	manifest.Starts = []int{0, 0}
+	data, err := r.Format(manifest)
+	require.NoError(t, err)
+
+	_, err = r.Parse(data)
+
+	require.EqualError(t, err, "parse game player list manifest 2026: page offsets [0 0] do not strictly increase")
 }

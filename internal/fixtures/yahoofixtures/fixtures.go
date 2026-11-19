@@ -37,7 +37,10 @@ const (
 	// teams with roto points and no outcome totals.
 	RotoStandings = "league-standings-roto.xml"
 	// NHLGames is the list of Yahoo's NHL games: 2024 (453) and 2025 (465),
-	// both over, and the current 2026 game (477).
+	// both over, and the current 2026 game (477). These are Yahoo's real
+	// season/key pairs; the older league fixtures (RotoGameKey,
+	// PointsGameKey) pair keys and seasons arbitrarily, so do not combine
+	// them with this list.
 	NHLGames = "games-nhl.xml"
 	// GamePlayersPage is the first page of the 2026 game's (477) player
 	// list: a short page, so the last one.

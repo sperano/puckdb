@@ -136,6 +136,7 @@ const (
 	gameListDownloadID      = int64(1763500000000)
 	gameListOtherDownloadID = int64(1763400000000)
 	gameListMissingStart    = 2 * resource.GamePlayersPageSize
+	gameListGameKey         = 477
 )
 
 func writeGameListFixture(t *testing.T, storage store.Storage) {
@@ -143,7 +144,10 @@ func writeGameListFixture(t *testing.T, storage store.Storage) {
 	ctx := context.Background()
 	starts := []int{0, resource.GamePlayersPageSize, gameListMissingStart}
 	require.NoError(t, resource.WriteParsed(ctx, storage, resource.GamePlayerList{Season: gameListSeason},
-		resource.GamePlayerListManifest{DownloadID: gameListDownloadID, Starts: starts}))
+		resource.GamePlayerListManifest{
+			DownloadID: gameListDownloadID, GameKey: gameListGameKey, FetchedAt: time.UnixMilli(gameListDownloadID),
+			Starts: starts,
+		}))
 	for _, page := range []resource.GamePlayers{
 		{Season: gameListSeason, DownloadID: gameListDownloadID, Start: 0},
 		{Season: gameListSeason, DownloadID: gameListDownloadID, Start: resource.GamePlayersPageSize},
@@ -193,6 +197,18 @@ func TestCountGamePlayerListFiles(t *testing.T) {
 		t.Parallel()
 		storage := store.NewMemStorage()
 		require.NoError(t, storage.Write(ctx, resource.GamePlayerList{Season: gameListSeason}.Path(), []byte("not json")))
+		expected, found, err := countGamePlayerListFiles(ctx, storage, gameListSeason)
+		var parseErr *resource.ParseError
+		require.ErrorAs(t, err, &parseErr)
+		require.Equal(t, 1, expected)
+		require.Zero(t, found)
+	})
+	t.Run("duplicate_pages_are_unreadable", func(t *testing.T) {
+		t.Parallel()
+		storage := store.NewMemStorage()
+		writeGameListFixture(t, storage)
+		data := []byte(`{"downloadId":1763500000000,"gameKey":477,"fetchedAt":"2025-11-18T21:06:40Z","starts":[0,0,0,0],"players":4}`)
+		require.NoError(t, storage.Write(ctx, resource.GamePlayerList{Season: gameListSeason}.Path(), data))
 		expected, found, err := countGamePlayerListFiles(ctx, storage, gameListSeason)
 		var parseErr *resource.ParseError
 		require.ErrorAs(t, err, &parseErr)
