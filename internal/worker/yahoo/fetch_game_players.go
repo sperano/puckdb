@@ -70,9 +70,18 @@ type CommitYahooGamePlayerListInput struct {
 	FetchedAt  time.Time `json:"fetchedAt"`
 	Starts     []int     `json:"starts"`
 	Players    int       `json:"players"`
-	// Discarded are this download's pages fetched concurrently past its last
-	// page. No manifest names them, so the commit deletes them.
+	// Discarded are pages of this download past its last page, which the
+	// commit deletes since no manifest names them. The game player list
+	// download requests its pages one at a time and never sets it.
 	Discarded []int `json:"discarded,omitempty"`
+}
+
+// DiscardYahooGamePlayerListInput names the pages a game player list
+// download requested before it failed.
+type DiscardYahooGamePlayerListInput struct {
+	Season     int   `json:"season"`
+	DownloadID int64 `json:"downloadId"`
+	Starts     []int `json:"starts"`
 }
 
 // MaxGamePlayerListPages caps a game player list download so a Yahoo
@@ -226,9 +235,9 @@ func (input FetchYahooGamePlayersPageInput) validate() error {
 // pages the season's game player list, once every page it names is stored
 // and parses as a page of the season's game key and the pages hold the
 // commit's player count, then removes the pages of the list it replaces and
-// the download's discarded pages. Pages of downloads that failed before their commit are
-// never named by a manifest and are left in place, and so are those of a
-// replaced manifest that no longer parses. A replaced manifest that cannot
+// the download's discarded pages. Pages of a download that failed before
+// its commit are left to DiscardYahooGamePlayerList, and those of a
+// replaced manifest that no longer parses stay in place. A replaced manifest that cannot
 // be read fails the commit before the write, so a retry still finds the
 // pages it names.
 func (a *FetchActivities) CommitYahooGamePlayerList(ctx context.Context, input CommitYahooGamePlayerListInput) error {
@@ -338,7 +347,30 @@ func (a *FetchActivities) deleteGamePlayerPages(ctx context.Context, season int,
 	for _, start := range starts {
 		page := resource.GamePlayers{Season: season, DownloadID: downloadID, Start: start}
 		if err := resource.Delete(ctx, a.Storage, page); err != nil {
-			activity.GetLogger(ctx).Warn("Could not delete replaced game player list page", "path", page.Path(), "error", err)
+			activity.GetLogger(ctx).Warn("Could not delete game player list page", "path", page.Path(), "error", err)
 		}
 	}
+}
+
+// DiscardYahooGamePlayerList deletes the pages of a download that failed
+// before its commit, so they do not stay on the cache disk. When the
+// season's committed manifest names that download (its commit wrote the
+// manifest but the workflow did not get the result), the pages are the
+// season's list and stay. A manifest that cannot be read for another reason
+// than being absent or unparseable fails the activity, which is retried.
+func (a *FetchActivities) DiscardYahooGamePlayerList(ctx context.Context, input DiscardYahooGamePlayerListInput) error {
+	defer metrics.TrackActivityDuration("DiscardYahooGamePlayerList")()
+	res := resource.GamePlayerList{Season: input.Season}
+	manifest, err := resource.ReadParsed(ctx, a.Storage, res)
+	var parseErr *resource.ParseError
+	switch {
+	case err == nil && manifest.DownloadID == input.DownloadID:
+		activity.GetLogger(ctx).Info("Failed game player list download was committed, its pages stay",
+			"season", input.Season, "download_id", input.DownloadID)
+		return nil
+	case err != nil && !errors.Is(err, os.ErrNotExist) && !errors.As(err, &parseErr):
+		return fmt.Errorf("read game player list manifest %d: %w", input.Season, err)
+	}
+	a.deleteGamePlayerPages(ctx, input.Season, input.DownloadID, input.Starts)
+	return nil
 }

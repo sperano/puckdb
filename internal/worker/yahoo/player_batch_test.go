@@ -19,7 +19,7 @@ const legacyScanMissingTTL = 30 * 24 * time.Hour
 func TestFetchYahooPlayerBatch_RetiredScanDownloadsNothing(t *testing.T) {
 	mem := store.NewMemStorage()
 	dl, calls := countingDownloader(nil, assert.AnError)
-	act := &FetchActivities{Storage: mem, PublicDownloader: dl}
+	act := &FetchActivities{Storage: mem, Download: dl}
 	var suite testsuite.WorkflowTestSuite
 	env := suite.NewTestActivityEnvironment()
 	env.RegisterActivity(act.FetchYahooPlayerBatch)

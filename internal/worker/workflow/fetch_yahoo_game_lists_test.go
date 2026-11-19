@@ -37,10 +37,24 @@ type gameListFakes struct {
 	pages   map[int][]int
 	// fullPages makes every page of every season full, for the page cap.
 	fullPages bool
+	// pageErr fails the page at an offset of a season; commitErr a commit.
+	pageErr   map[int]map[int]error
+	commitErr map[int]error
 
-	mu      sync.Mutex
-	commits []yahoo.CommitYahooGamePlayerListInput
-	starts  map[int][]int
+	mu       sync.Mutex
+	commits  []yahoo.CommitYahooGamePlayerListInput
+	discards []yahoo.DiscardYahooGamePlayerListInput
+	starts   map[int][]int
+	// inFlight counts the seasons between their plan and their commit (or
+	// failed page); maxInFlight is the most there ever were.
+	inFlight, maxInFlight int
+}
+
+func (f *gameListFakes) enter() {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.inFlight++
+	f.maxInFlight = max(f.maxInFlight, f.inFlight)
 }
 
 func (f *gameListFakes) register(env *testsuite.TestWorkflowEnvironment) {
@@ -48,6 +62,9 @@ func (f *gameListFakes) register(env *testsuite.TestWorkflowEnvironment) {
 	env.OnActivity(act.ListYahooNHLGameSeasons, mock.Anything).Return(f.seasons, nil)
 	env.OnActivity(act.PlanYahooGamePlayerList, mock.Anything, mock.Anything).Return(
 		func(_ context.Context, in yahoo.PlanYahooGamePlayerListInput) (yahoo.YahooGamePlayerListPlan, error) {
+			if f.plans[in.Season].Refresh && f.planErr[in.Season] == nil {
+				f.enter()
+			}
 			return f.plans[in.Season], f.planErr[in.Season]
 		})
 	env.OnActivity(act.FetchYahooGamePlayersPage, mock.Anything, mock.Anything).Return(
@@ -58,6 +75,10 @@ func (f *gameListFakes) register(env *testsuite.TestWorkflowEnvironment) {
 				f.starts = map[int][]int{}
 			}
 			f.starts[in.Season] = append(f.starts[in.Season], in.Start)
+			if err := f.pageErr[in.Season][in.Start]; err != nil {
+				f.inFlight--
+				return yahoo.FetchYahooGamePlayersPageResult{}, err
+			}
 			if f.fullPages {
 				return yahoo.FetchYahooGamePlayersPageResult{Players: resource.GamePlayersPageSize}, nil
 			}
@@ -67,7 +88,18 @@ func (f *gameListFakes) register(env *testsuite.TestWorkflowEnvironment) {
 		func(_ context.Context, in yahoo.CommitYahooGamePlayerListInput) error {
 			f.mu.Lock()
 			defer f.mu.Unlock()
+			f.inFlight--
+			if err := f.commitErr[in.Season]; err != nil {
+				return err
+			}
 			f.commits = append(f.commits, in)
+			return nil
+		}).Maybe()
+	env.OnActivity(act.DiscardYahooGamePlayerList, mock.Anything, mock.Anything).Return(
+		func(_ context.Context, in yahoo.DiscardYahooGamePlayerListInput) error {
+			f.mu.Lock()
+			defer f.mu.Unlock()
+			f.discards = append(f.discards, in)
 			return nil
 		}).Maybe()
 }
@@ -115,6 +147,7 @@ func TestFetchYahooPlayersWorkflow_DownloadsDueGameListsOnly(t *testing.T) {
 	assert.Empty(t, commit.Discarded)
 	assert.Equal(t, commit.Starts, f.starts[gameListCurrentSeason], "no page past the short one is requested")
 	assert.NotContains(t, f.starts, gameListKeptSeason)
+	assert.Empty(t, f.discards, "a committed download discards nothing")
 
 	report := queryProgress(t, env)
 	group := report.Groups[GroupFetchYahooPlayers]
@@ -178,6 +211,8 @@ func TestFetchYahooPlayersWorkflow_EndlessListStopsAtPageCap(t *testing.T) {
 	require.ErrorContains(t, err, "list has more than 200 pages")
 	assert.Len(t, f.starts[gameListCurrentSeason], yahoo.MaxGamePlayerListPages)
 	assert.Empty(t, f.commits)
+	require.Len(t, f.discards, 1, "the capped download's pages are discarded")
+	assert.Equal(t, f.starts[gameListCurrentSeason], f.discards[0].Starts)
 }
 
 func TestFetchYahooPlayersWorkflow_ListErrorFails(t *testing.T) {

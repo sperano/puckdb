@@ -16,7 +16,9 @@ import (
 // (IDs 1 to 5, three per execution, batches of two, two at once), recorded
 // on a Temporal dev server with the code before the game player lists
 // (commit 7561f57), FetchYahooPlayerBatch faked. The first snapshots its
-// config, the second runs on the config it carried.
+// config, the second runs on the config it carried and, being the last,
+// completes: it pins that fetchYahooPlayersScanFinalChange keeps such a
+// recorded completion.
 var fetchYahooPlayersScanHistories = []string{
 	"testdata/fetch_yahoo_players_scan_1.json",
 	"testdata/fetch_yahoo_players_scan_2.json",

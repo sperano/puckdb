@@ -154,15 +154,36 @@ func fetchYahooGamePlayerList(ctx workflow.Context, season int, bar gameListBar)
 	}
 	pages := gameListPages(plan.PreviousPlayerCount)
 	bar.resize(ctx, pages+gameListCommitUnits)
-	if err := fetchGamePlayerListPages(yahooCtx, &commit, bar, pages); err != nil {
+	requested, err := fetchGamePlayerListPages(yahooCtx, &commit, bar, pages)
+	if err != nil {
+		discardGamePlayerList(ctx, commit, requested)
 		return gameListKept, err
 	}
 	commitCtx := workflow.WithActivityOptions(ctx, shared.DefaultActivityOptions())
 	if err := workflow.ExecuteActivity(commitCtx, act.CommitYahooGamePlayerList, commit).Get(ctx, nil); err != nil {
+		discardGamePlayerList(ctx, commit, requested)
 		return gameListKept, err
 	}
 	bar.advance(ctx)
 	return gameListDownloaded, nil
+}
+
+// discardGamePlayerList deletes the pages a failed download requested, on a
+// context the workflow's cancellation does not reach, so a failed or
+// cancelled download leaves no page behind. A failed discard is logged: the
+// download's own error is the one the season reports.
+func discardGamePlayerList(ctx workflow.Context, commit yahoo.CommitYahooGamePlayerListInput, requested []int) {
+	if len(requested) == 0 {
+		return
+	}
+	var act *yahoo.FetchActivities
+	discardCtx, _ := workflow.NewDisconnectedContext(ctx)
+	discardCtx = workflow.WithActivityOptions(discardCtx, shared.DefaultActivityOptions())
+	input := yahoo.DiscardYahooGamePlayerListInput{Season: commit.Season, DownloadID: commit.DownloadID, Starts: requested}
+	if err := workflow.ExecuteActivity(discardCtx, act.DiscardYahooGamePlayerList, input).Get(discardCtx, nil); err != nil {
+		workflow.GetLogger(ctx).Warn("Could not discard failed Yahoo game player list download",
+			"season", commit.Season, "download_id", commit.DownloadID, "error", err)
+	}
 }
 
 // gameListPages estimates a list's pages from the previous list's player
@@ -177,9 +198,12 @@ func gameListPages(previousPlayers int) int {
 // requested. estimate is the number of page units already in the bar: a
 // page beyond it grows the bar first, and the short page shrinks the bar to
 // the pages downloaded. Reaching yahoo.MaxGamePlayerListPages is an error.
+// It returns the offset of every page requested, a failed one included
+// (its activity may have stored it before failing).
 func fetchGamePlayerListPages(ctx workflow.Context, commit *yahoo.CommitYahooGamePlayerListInput,
-	bar gameListBar, estimate int) error {
+	bar gameListBar, estimate int) ([]int, error) {
 	var act *yahoo.FetchActivities
+	var requested []int
 	for page := 0; page < yahoo.MaxGamePlayerListPages; page++ {
 		if page >= estimate {
 			bar.resize(ctx, 1)
@@ -189,19 +213,20 @@ func fetchGamePlayerListPages(ctx workflow.Context, commit *yahoo.CommitYahooGam
 			Season: commit.Season, GameKey: commit.GameKey, DownloadID: commit.DownloadID,
 			Start: page * resource.GamePlayersPageSize,
 		}
+		requested = append(requested, input.Start)
 		var result yahoo.FetchYahooGamePlayersPageResult
 		if err := workflow.ExecuteActivity(ctx, act.FetchYahooGamePlayersPage, input).Get(ctx, &result); err != nil {
-			return err
+			return requested, err
 		}
 		bar.advance(ctx)
 		commit.Starts = append(commit.Starts, input.Start)
 		commit.Players += result.Players
 		if result.Players < resource.GamePlayersPageSize {
 			bar.resize(ctx, page+1-estimate)
-			return nil
+			return requested, nil
 		}
 	}
-	return fmt.Errorf("list has more than %d pages", yahoo.MaxGamePlayerListPages)
+	return requested, fmt.Errorf("list has more than %d pages", yahoo.MaxGamePlayerListPages)
 }
 
 // gameListBar is one season's bar.

@@ -19,8 +19,8 @@ type FetchYahooPlayersScanConfig struct {
 	Concurrency         int `json:"concurrency"`
 	ActivityBatchSize   int `json:"activityBatchSize"`
 	PlayersPerExecution int `json:"playersPerExecution"`
-	// MissingTTLDays is passed to every FetchYahooPlayerBatch: it decides
-	// which ids are downloaded again, so it is frozen for the whole run.
+	// MissingTTLDays is still passed to every FetchYahooPlayerBatch, as the
+	// recorded histories hold it; the retired batch ignores it.
 	MissingTTLDays int `json:"missingTTLDays"`
 }
 
@@ -110,8 +110,9 @@ func newFetchYahooPlayersScanProgressReport(total, completed int) *shared.Progre
 // before the game player lists ran it: Yahoo player pages from ID 1 to the
 // snapshotted MaxPlayerID, with ContinueAsNew every PlayersPerExecution IDs.
 // Kept unchanged for those executions to replay; their FetchYahooPlayerBatch
-// now downloads nothing, and their ContinueAsNew starts an execution of the
-// game player list download.
+// now downloads nothing, and their ContinueAsNew (from the last execution
+// too, unless it completed before continueFinalScanIntoGameLists) starts an
+// execution of the game player list download.
 func fetchYahooPlayersScan(ctx workflow.Context, input *FetchYahooPlayersInput) error {
 	logger := workflow.GetLogger(ctx)
 
@@ -223,7 +224,25 @@ func fetchYahooPlayersScan(ctx workflow.Context, input *FetchYahooPlayersInput) 
 		fmt.Sprintf("Found %d/%d Yahoo! players in %s.", finalFound, finalCount, elapsed))
 
 	logFetchYahooPlayersTotals(logger, maxPlayerID, finalCount, finalFound, finalDownloaded, finalMissing)
-	return nil
+	return continueFinalScanIntoGameLists(ctx)
+}
+
+// fetchYahooPlayersScanFinalChange versions the end of the scan's last
+// execution: one recorded before it completed the run, so its replay
+// completes; a later one continues as new into the game player list
+// download, which an execution still scanning would otherwise skip.
+const (
+	fetchYahooPlayersScanFinalChange  = "fetch-yahoo-players-scan-final-game-lists"
+	fetchYahooPlayersScanFinalVersion = 1
+)
+
+func continueFinalScanIntoGameLists(ctx workflow.Context) error {
+	version := workflow.GetVersion(ctx, fetchYahooPlayersScanFinalChange, workflow.DefaultVersion,
+		fetchYahooPlayersScanFinalVersion)
+	if version == workflow.DefaultVersion {
+		return nil
+	}
+	return workflow.NewContinueAsNewError(ctx, FetchYahooPlayersWorkflow, (*FetchYahooPlayersInput)(nil))
 }
 
 // mostMissingPercent is the share of swept ids above which a run that
