@@ -41,3 +41,7 @@ types:
     ttl: 60m
   GameKey:
     ttl: 60m
+  YahooGames:
+    ttl: 60m
+  YahooGamePlayers:
+    ttl: 60m

@@ -2,10 +2,12 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
 	"github.com/sperano/puckdb/internal/config"
+	"github.com/sperano/puckdb/internal/core"
 	"github.com/sperano/puckdb/internal/resource"
 	"github.com/sperano/puckdb/internal/store"
 	"github.com/stretchr/testify/require"
@@ -125,6 +127,123 @@ func TestDailyTeamResourceBuilders(t *testing.T) {
 	require.Equal(t,
 		resource.TeamSummary{LeagueID: dailyLeagueA, TeamID: dailyTeamA1, Date: day},
 		teamSummaryResource(dailyLeagueA, dailyTeamA1, day))
+}
+
+// Fixture for the game player list counter: a committed list of three pages,
+// one of them missing, and a page of another download that is never counted.
+const (
+	gameListSeason          = 2026
+	gameListDownloadID      = int64(1763500000000)
+	gameListOtherDownloadID = int64(1763400000000)
+	gameListMissingStart    = 2 * resource.GamePlayersPageSize
+	gameListGameKey         = 477
+)
+
+func writeGameListFixture(t *testing.T, storage store.Storage) {
+	t.Helper()
+	ctx := context.Background()
+	starts := []int{0, resource.GamePlayersPageSize, gameListMissingStart}
+	require.NoError(t, resource.WriteParsed(ctx, storage, resource.GamePlayerList{Season: gameListSeason},
+		resource.GamePlayerListManifest{
+			DownloadID: gameListDownloadID, GameKey: gameListGameKey, FetchedAt: time.UnixMilli(gameListDownloadID),
+			Starts: starts,
+		}))
+	for _, page := range []resource.GamePlayers{
+		{Season: gameListSeason, DownloadID: gameListDownloadID, Start: 0},
+		{Season: gameListSeason, DownloadID: gameListDownloadID, Start: resource.GamePlayersPageSize},
+		{Season: gameListSeason, DownloadID: gameListOtherDownloadID, Start: gameListMissingStart},
+	} {
+		require.NoError(t, storage.Write(ctx, page.Path(), []byte("x")))
+	}
+}
+
+// errGameListStorage is the storage failure failingGameListStorage returns.
+var errGameListStorage = errors.New("storage unavailable")
+
+// failingGameListStorage fails every read with errGameListStorage.
+type failingGameListStorage struct {
+	*store.MemStorage
+}
+
+func (failingGameListStorage) Read(context.Context, string) ([]byte, error) {
+	return nil, errGameListStorage
+}
+
+// TestCountGamePlayerListFiles checks that a committed list expects its
+// manifest and every page it names, counting only that download's pages, and
+// that a missing or unreadable manifest is one missing file, the unreadable
+// one also reported as an error.
+func TestCountGamePlayerListFiles(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	t.Run("committed_list", func(t *testing.T) {
+		t.Parallel()
+		storage := store.NewMemStorage()
+		writeGameListFixture(t, storage)
+		expected, found, err := countGamePlayerListFiles(ctx, storage, gameListSeason)
+		require.NoError(t, err)
+		require.Equal(t, 4, expected)
+		require.Equal(t, 3, found)
+	})
+	t.Run("no_manifest", func(t *testing.T) {
+		t.Parallel()
+		expected, found, err := countGamePlayerListFiles(ctx, store.NewMemStorage(), gameListSeason)
+		require.NoError(t, err)
+		require.Equal(t, 1, expected)
+		require.Zero(t, found)
+	})
+	t.Run("unreadable_manifest", func(t *testing.T) {
+		t.Parallel()
+		storage := store.NewMemStorage()
+		require.NoError(t, storage.Write(ctx, resource.GamePlayerList{Season: gameListSeason}.Path(), []byte("not json")))
+		expected, found, err := countGamePlayerListFiles(ctx, storage, gameListSeason)
+		var parseErr *resource.ParseError
+		require.ErrorAs(t, err, &parseErr)
+		require.Equal(t, 1, expected)
+		require.Zero(t, found)
+	})
+	t.Run("duplicate_pages_are_unreadable", func(t *testing.T) {
+		t.Parallel()
+		storage := store.NewMemStorage()
+		writeGameListFixture(t, storage)
+		data := []byte(`{"downloadId":1763500000000,"gameKey":477,"fetchedAt":"2025-11-18T21:06:40Z","starts":[0,0,0,0],"players":4}`)
+		require.NoError(t, storage.Write(ctx, resource.GamePlayerList{Season: gameListSeason}.Path(), data))
+		expected, found, err := countGamePlayerListFiles(ctx, storage, gameListSeason)
+		var parseErr *resource.ParseError
+		require.ErrorAs(t, err, &parseErr)
+		require.Equal(t, 1, expected)
+		require.Zero(t, found)
+	})
+	t.Run("manifest_read_error", func(t *testing.T) {
+		t.Parallel()
+		storage := failingGameListStorage{MemStorage: store.NewMemStorage()}
+		expected, found, err := countGamePlayerListFiles(ctx, storage, gameListSeason)
+		require.ErrorIs(t, err, errGameListStorage)
+		require.Contains(t, err.Error(), "read game player list manifest 2026")
+		require.Equal(t, 1, expected)
+		require.Zero(t, found)
+	})
+}
+
+// TestCheckYahooSeasonCache_ReportsGamePlayerList checks that the season's
+// game player list is one of the Yahoo cache completeness entries.
+func TestCheckYahooSeasonCache_ReportsGamePlayerList(t *testing.T) {
+	t.Parallel()
+	storage := store.NewMemStorage()
+	writeGameListFixture(t, storage)
+	season := simpleSeason{startYear: gameListSeason, start: dailyDay(1), end: dailyDay(1)}
+
+	var got []cacheMetrics
+	for _, m := range checkYahooSeasonCache(context.Background(), storage, season, config.Season{}) {
+		if m.fileType == core.YahooGamePlayers {
+			got = append(got, m)
+		}
+	}
+
+	require.Equal(t, []cacheMetrics{
+		{seasonYear: gameListSeason, fileType: core.YahooGamePlayers, expected: 4, found: 3},
+	}, got)
 }
 
 // scanFixtureFirstYear is the start year of the first season scanSeasons tests

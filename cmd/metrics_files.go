@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/sperano/puckdb/internal/core"
+	"github.com/sperano/puckdb/internal/resource"
 )
 
 // fileTypeStats holds count and size for a file type. Populated by
@@ -43,6 +44,8 @@ func classifyFileType(dataPath, filePath, filename string) core.FileType {
 		return core.YahooPlayer
 	case "game-keys":
 		return core.GameKey
+	case resource.YahooGamesDir:
+		return core.YahooGames
 	case "nhl":
 		if ft := classifyNHLFile(parts, filename); ft != core.Unknown {
 			return ft
@@ -118,6 +121,7 @@ func classifyNHLFile(parts []string, filename string) core.FileType {
 //	seasons/{Y}/club-schedule/club-schedule-{teamAbbrev}.json
 //	seasons/{Y}/player-gamelogs/player-{playerID}-{gameType}.json
 //	seasons/{Y}/yahoo/{leagueID}/{league,teams,rosters,summaries,transactions,draft,matchups,players,standings}/...
+//	seasons/{Y}/yahoo-game/players/{manifest.json,{downloadID}/players-{start}.xml}
 func classifySeasonFile(parts []string, filename string) core.FileType {
 	if len(parts) < 3 {
 		return core.Unknown
@@ -144,6 +148,8 @@ func classifySeasonFile(parts []string, filename string) core.FileType {
 		}
 	case "yahoo":
 		return classifyYahooSeasonFile(parts, filename)
+	case resource.YahooGameDir:
+		return classifyYahooGameFile(parts, filename)
 	}
 	return core.Unknown
 }
@@ -217,6 +223,25 @@ func classifyYahooSeasonFile(parts []string, filename string) core.FileType {
 		if strings.HasPrefix(filename, "standings-") {
 			return core.YahooLeagueStandings
 		}
+	}
+	return core.Unknown
+}
+
+// classifyYahooGameFile classifies files under seasons/{Y}/yahoo-game/: the
+// game player list's manifest and the pages of its downloads, which share
+// one file type (resource.GamePlayerList and resource.GamePlayers).
+func classifyYahooGameFile(parts []string, filename string) core.FileType {
+	const (
+		manifestDepth = 5 // seasons/{Y}/yahoo-game/players/manifest.json
+		pageDepth     = 6 // seasons/{Y}/yahoo-game/players/{downloadID}/players-{start}.xml
+	)
+	if len(parts) < manifestDepth || parts[3] != "players" {
+		return core.Unknown
+	}
+	switch {
+	case len(parts) == manifestDepth && filename == "manifest.json",
+		len(parts) == pageDepth && strings.HasPrefix(filename, "players-"):
+		return core.YahooGamePlayers
 	}
 	return core.Unknown
 }

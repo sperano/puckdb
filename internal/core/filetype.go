@@ -67,6 +67,8 @@ const (
 	YahooManagerImage
 	YahooLeaguePlayers
 	YahooLeagueStandings
+	YahooGames
+	YahooGamePlayers
 )
 
 // fileTypeEntry binds a FileType constant to its display name. The display
@@ -141,6 +143,8 @@ var fileTypes = []fileTypeEntry{
 	{YahooManagerImage, "YahooManagerImage"},
 	{YahooLeaguePlayers, "YahooLeaguePlayers"},
 	{YahooLeagueStandings, "YahooLeagueStandings"},
+	{YahooGames, "YahooGames"},
+	{YahooGamePlayers, "YahooGamePlayers"},
 }
 
 // AllFileTypes lists every declared FileType in iota declaration order,
@@ -152,7 +156,7 @@ var AllFileTypes []FileType
 
 // nameByType and typeByName are O(1) lookup caches built from fileTypes
 // at init. They keep String() and ParseFileType() off the hot-path linear
-// scan that a 56-entry table would otherwise impose on every metric label.
+// scan of the table that would otherwise run on every metric label.
 var (
 	nameByType map[FileType]string
 	typeByName map[string]FileType

@@ -343,6 +343,48 @@ func TestClassifyFileType(t *testing.T) {
 			filename: "manifest.json",
 			want:     core.Unknown,
 		},
+		{
+			name:     "yahoo games list",
+			dataPath: "/data",
+			filePath: "/data/yahoo-games/games-nhl.xml",
+			filename: "games-nhl.xml",
+			want:     core.YahooGames,
+		},
+		{
+			name:     "yahoo game player list page",
+			dataPath: "/data",
+			filePath: "/data/seasons/2026/yahoo-game/players/1763500000000/players-0025.xml",
+			filename: "players-0025.xml",
+			want:     core.YahooGamePlayers,
+		},
+		{
+			name:     "yahoo game player list manifest",
+			dataPath: "/data",
+			filePath: "/data/seasons/2026/yahoo-game/players/manifest.json",
+			filename: "manifest.json",
+			want:     core.YahooGamePlayers,
+		},
+		{
+			name:     "yahoo game player list manifest inside a download is not counted",
+			dataPath: "/data",
+			filePath: "/data/seasons/2026/yahoo-game/players/1763500000000/manifest.json",
+			filename: "manifest.json",
+			want:     core.Unknown,
+		},
+		{
+			name:     "yahoo game player page outside a download is not counted",
+			dataPath: "/data",
+			filePath: "/data/seasons/2026/yahoo-game/players/players-0025.xml",
+			filename: "players-0025.xml",
+			want:     core.Unknown,
+		},
+		{
+			name:     "yahoo game file outside the player list is not counted",
+			dataPath: "/data",
+			filePath: "/data/seasons/2026/yahoo-game/other/1763500000000/players-0025.xml",
+			filename: "players-0025.xml",
+			want:     core.Unknown,
+		},
 	}
 
 	for _, tt := range tests {

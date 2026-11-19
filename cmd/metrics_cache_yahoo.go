@@ -2,8 +2,12 @@ package cmd
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"os"
 	"time"
 
+	"github.com/rs/zerolog/log"
 	"github.com/sperano/puckdb/internal/config"
 	"github.com/sperano/puckdb/internal/core"
 	"github.com/sperano/puckdb/internal/resource"
@@ -11,8 +15,8 @@ import (
 )
 
 // checkYahooSeasonCache checks Yahoo fantasy files (leagues, teams, rosters,
-// summaries). Iterates core.AllFileTypes and emits one entry per FileType this
-// checker recognizes, in declaration order.
+// summaries, the season's game player list). Iterates core.AllFileTypes and
+// emits one entry per FileType this checker recognizes, in declaration order.
 func checkYahooSeasonCache(ctx context.Context, storage store.Storage, nhlSeason simpleSeason, yahooCfg config.Season) []cacheMetrics {
 	seasonYear := nhlSeason.startYear
 	daysInSeason := core.CountDays(nhlSeason.start, nhlSeason.end)
@@ -32,7 +36,12 @@ func checkYahooSeasonCache(ctx context.Context, storage store.Storage, nhlSeason
 	expectedSummaries := totalTeams * daysInSeason
 	summaryCount := countDailyTeamFiles(ctx, storage, nhlSeason, yahooCfg, now, teamSummaryResource)
 
-	cacheData := make([]cacheMetrics, 0, 4)
+	gameListExpected, gameListFound, err := countGamePlayerListFiles(ctx, storage, seasonYear)
+	if err != nil {
+		log.Warn().Err(err).Int("season", seasonYear).Msg("Game player list manifest unreadable; counted as missing")
+	}
+
+	cacheData := make([]cacheMetrics, 0, 5)
 	for _, ft := range core.AllFileTypes {
 		var expected, found int
 		switch ft {
@@ -44,6 +53,8 @@ func checkYahooSeasonCache(ctx context.Context, storage store.Storage, nhlSeason
 			expected, found = expectedRosters, rosterCount
 		case core.TeamSummary:
 			expected, found = expectedSummaries, summaryCount
+		case core.YahooGamePlayers:
+			expected, found = gameListExpected, gameListFound
 		default:
 			continue
 		}
@@ -77,6 +88,30 @@ func countTeamFiles(ctx context.Context, storage store.Storage, seasonYear int, 
 		}
 	}
 	return count
+}
+
+// countGamePlayerListFiles counts the season's committed game player list:
+// its manifest and each page the manifest names. Without a readable manifest
+// only the manifest is expected, since nothing else says how many pages the
+// list has. A manifest that exists but cannot be read or parsed is counted
+// the same way and also returned as err, so the caller can tell it from a
+// list never downloaded.
+func countGamePlayerListFiles(ctx context.Context, storage store.Storage, seasonYear int) (expected, found int, err error) {
+	manifest, err := resource.ReadParsed(ctx, storage, resource.GamePlayerList{Season: seasonYear})
+	if errors.Is(err, os.ErrNotExist) {
+		return 1, 0, nil
+	}
+	if err != nil {
+		return 1, 0, fmt.Errorf("read game player list manifest %d: %w", seasonYear, err)
+	}
+	found = 1
+	for _, start := range manifest.Starts {
+		page := resource.GamePlayers{Season: seasonYear, DownloadID: manifest.DownloadID, Start: start}
+		if resource.Exists(ctx, storage, page) {
+			found++
+		}
+	}
+	return 1 + len(manifest.Starts), found, nil
 }
 
 // dailyTeamResource builds the cached file of one Yahoo team on one day.

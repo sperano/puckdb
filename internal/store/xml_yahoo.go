@@ -64,6 +64,9 @@ type FantasyGame struct {
 	IsRegistrationOver int      `xml:"is_registration_over"`
 	IsGameOver         int      `xml:"is_game_over"`
 	IsOffSeason        int      `xml:"is_offseason"`
+	// Players is filled by the game's player collection (every player Yahoo
+	// lists for the season, one page at a time).
+	Players Players `xml:"players"`
 }
 
 // ============================================================================
