@@ -20,6 +20,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"go.temporal.io/sdk/testsuite"
 )
 
 var (
@@ -118,7 +119,7 @@ func matchElias(t *testing.T, a *Activities, pool map[store.YahooPlayerID]*store
 	t.Helper()
 	var out batchOutcome
 	landing := eliasLanding()
-	a.addYahooBirthDates(context.Background(), landing, landingBirthDate(landing), pool, &out)
+	require.NoError(t, a.addYahooBirthDates(context.Background(), landing, landingBirthDate(landing), pool, &out))
 	return matchLandingYahooID(landing, pool), out.result
 }
 
@@ -272,7 +273,7 @@ func TestAddYahooBirthDates_DoesNotRetryAFailedPageInTheSameBatch(t *testing.T) 
 
 	for range 2 {
 		landing := eliasLanding()
-		a.addYahooBirthDates(context.Background(), landing, landingBirthDate(landing), pool, &out)
+		require.NoError(t, a.addYahooBirthDates(context.Background(), landing, landingBirthDate(landing), pool, &out))
 	}
 
 	assert.Equal(t, []string{pageURL(eliasForwardID), pageURL(eliasDefenceID)}, server.requested)
@@ -309,6 +310,62 @@ func TestAddYahooBirthDates_ValkeyWriteFailureKeepsTheDownloadedPage(t *testing.
 	stored, err := mem.Read(context.Background(), pagePath(eliasForwardID))
 	require.NoError(t, err)
 	assert.Equal(t, yahooPlayerPageHTML(eliasForwardBirth), stored)
+}
+
+// cancellingServer cancels the activity context while it serves the first
+// request, the way Temporal cancels an activity mid-download.
+type cancellingServer struct {
+	cancel    context.CancelFunc
+	requested []string
+}
+
+func (s *cancellingServer) download(ctx context.Context, url string) ([]byte, error) {
+	s.requested = append(s.requested, url)
+	s.cancel()
+	return nil, ctx.Err()
+}
+
+// A cancelled activity stops the batch with the cancellation instead of
+// counting a failed page and matching and upserting without the dates.
+func TestProcessPlayerBatch_CancellationDuringBirthDateFetchStopsTheBatch(t *testing.T) {
+	t.Parallel()
+	mem := store.NewMemStorage()
+	landing := eliasLanding()
+	landingJSON, err := json.Marshal(landing)
+	require.NoError(t, err)
+	require.NoError(t, mem.Write(context.Background(), resource.PlayerLanding{PlayerID: landing.PlayerID}.Path(), landingJSON))
+
+	redisClient, mockRedis := redismock.NewClientMock()
+	entries := map[string]string{}
+	for id, p := range eliasPool() {
+		entries[id.String()] = string(encodeYahooPlayer(t, p))
+	}
+	mockRedis.ExpectHGetAll(YahooIDPoolKey).SetVal(entries)
+
+	upserter := NewMockPlayerUpserter()
+	server := &cancellingServer{}
+	a := newTestProcessActivities(mem, &MockNHLClient{}, redisClient, nil, upserter, nil)
+	a.YahooPlayerPages = server.download
+	var result ProcessPlayerBatchResult
+	var batchErr error
+	// The activity derives the cancellable context itself: the test
+	// environment does not pass on a cancellation made while it runs.
+	run := func(ctx context.Context) error {
+		ctx, server.cancel = context.WithCancel(ctx)
+		defer server.cancel()
+		result, batchErr = a.ProcessPlayerBatch(ctx, []store.BoxscorePlayer{{ID: landing.PlayerID.Int64()}})
+		return batchErr
+	}
+	var ts testsuite.WorkflowTestSuite
+	env := ts.NewTestActivityEnvironment()
+	env.RegisterActivity(run)
+	_, _ = env.ExecuteActivity(run)
+
+	require.ErrorIs(t, batchErr, context.Canceled)
+	assert.Len(t, server.requested, 1, "no page is requested after the cancellation")
+	assert.Zero(t, result.BirthDatePagesFailed)
+	assert.Zero(t, result.Imported)
+	upserter.AssertNotCalled(t, "UpsertPlayer", mock.Anything, mock.Anything)
 }
 
 func TestYahooBirthDate_NoDownloaderFailsForAMissingPage(t *testing.T) {

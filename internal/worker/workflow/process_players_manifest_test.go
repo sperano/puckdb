@@ -428,3 +428,12 @@ func TestManifestResultCarriesMatchReasons(t *testing.T) {
 	assert.Equal(t, 3, result.MatchedWithYahoo)
 	assert.Equal(t, reasons, result.MatchReasons)
 }
+
+func TestManifestResultCarriesBirthDatePageCounts(t *testing.T) {
+	state := &processPlayersState{Totals: processPlayersTotals{BirthDatePagesDownloaded: 4, BirthDatePagesFailed: 1}}
+
+	result := manifestResult(state, &workplayer.UnmatchedReport{})
+
+	assert.Equal(t, 4, result.BirthDatePagesDownloaded)
+	assert.Equal(t, 1, result.BirthDatePagesFailed)
+}

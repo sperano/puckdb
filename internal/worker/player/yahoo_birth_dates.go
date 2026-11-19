@@ -29,13 +29,15 @@ var errNoYahooPlayerPages = errors.New("no Yahoo player page downloader")
 // date, as it did before birth dates were fetched. The batch remembers it
 // (out.unavailableBirthDates), so a later landing tied on the same Yahoo ID
 // does not request it again; the next batch or run tries the page again.
+// It returns ctx's error once ctx is done, so a cancelled activity stops
+// instead of matching and upserting without the dates.
 func (a *Activities) addYahooBirthDates(
 	ctx context.Context,
 	landing *nhl.PlayerLanding,
 	nhlBirthDate time.Time,
 	pool map[store.YahooPlayerID]*store.YahooPlayer,
 	out *batchOutcome,
-) {
+) error {
 	result := &out.result
 	for _, id := range matching.BirthDatesNeeded(landing, nhlBirthDate, pool) {
 		if _, failed := out.unavailableBirthDates[id]; failed {
@@ -44,6 +46,9 @@ func (a *Activities) addYahooBirthDates(
 		birth, downloaded, err := a.yahooBirthDate(ctx, id)
 		if downloaded {
 			result.BirthDatePagesDownloaded++
+		}
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return fmt.Errorf("birth date of Yahoo player %d: %w", id, ctxErr)
 		}
 		if err != nil {
 			result.BirthDatePagesFailed++
@@ -59,6 +64,7 @@ func (a *Activities) addYahooBirthDates(
 		}
 		pool[id].BirthDate = birth
 	}
+	return nil
 }
 
 // yahooBirthDate returns the birth date on id's Yahoo Sports page (zero when

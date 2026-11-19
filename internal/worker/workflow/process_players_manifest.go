@@ -366,6 +366,8 @@ func runManifestVerify(ctx workflow.Context, tracker *shared.ReportTracker, stat
 		"imported", result.ImportedPlayers,
 		"matched_with_yahoo", result.MatchedWithYahoo,
 		"match_reasons", result.MatchReasons,
+		"birth_date_pages_downloaded", result.BirthDatePagesDownloaded,
+		"birth_date_pages_failed", result.BirthDatePagesFailed,
 		"truly_unmatched", len(result.TrulyUnmatched))
 
 	// Fail the chain when any player failed, so the sync halts visibly: a
@@ -400,17 +402,19 @@ func finishManifest(ctx workflow.Context, state *processPlayersState) {
 func manifestResult(state *processPlayersState, unmatched *workplayer.UnmatchedReport) *ProcessPlayersResult {
 	totals := state.Totals
 	return &ProcessPlayersResult{
-		TotalPlayers:          state.Manifest.Count,
-		ImportedPlayers:       totals.Imported,
-		MatchedWithYahoo:      totals.Matched,
-		MatchReasons:          totals.MatchReasons,
-		Downloaded:            totals.Downloaded,
-		CacheHits:             totals.Origins[core.OriginRedis] + totals.Origins[core.OriginFileSystem],
-		Missing:               totals.Missing,
-		TotalYahooPlayers:     state.YahooPool.TotalPlayers,
-		SkippedNonNHL:         state.YahooPool.SkippedNonNHL,
-		VerifiedNonNHLThisRun: unmatched.VerifiedNonNHLCount,
-		TrulyUnmatched:        unmatched.TrulyUnmatched,
-		Errors:                state.ErrorSample,
+		TotalPlayers:             state.Manifest.Count,
+		ImportedPlayers:          totals.Imported,
+		MatchedWithYahoo:         totals.Matched,
+		MatchReasons:             totals.MatchReasons,
+		Downloaded:               totals.Downloaded,
+		CacheHits:                totals.Origins[core.OriginRedis] + totals.Origins[core.OriginFileSystem],
+		Missing:                  totals.Missing,
+		BirthDatePagesDownloaded: totals.BirthDatePagesDownloaded,
+		BirthDatePagesFailed:     totals.BirthDatePagesFailed,
+		TotalYahooPlayers:        state.YahooPool.TotalPlayers,
+		SkippedNonNHL:            state.YahooPool.SkippedNonNHL,
+		VerifiedNonNHLThisRun:    unmatched.VerifiedNonNHLCount,
+		TrulyUnmatched:           unmatched.TrulyUnmatched,
+		Errors:                   state.ErrorSample,
 	}
 }
