@@ -193,6 +193,8 @@ func TestGamePlayerListManifest_FormatParseRoundTrip(t *testing.T) {
 
 	data, err := r.Format(manifest)
 	require.NoError(t, err)
+	assert.JSONEq(t, `{"downloadId":1758369600000,"gameKey":477,"fetchedAt":"2026-11-18T12:30:00Z",`+
+		`"starts":[0,25,50],"players":57}`, string(data), "the stored keys are an on-disk format")
 	got, err := r.Parse(data)
 
 	require.NoError(t, err)

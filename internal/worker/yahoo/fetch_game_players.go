@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/sperano/puckdb/internal/config"
+	"github.com/sperano/puckdb/internal/core"
 	"github.com/sperano/puckdb/internal/metrics"
 	"github.com/sperano/puckdb/internal/resource"
 	"github.com/sperano/puckdb/internal/store"
@@ -68,9 +69,10 @@ type CommitYahooGamePlayerListInput struct {
 }
 
 // PlanYahooGamePlayerList decides whether the season's game player list is
-// due for a download: a committed list of a season that is over is final;
-// the current season's list is downloaded again once it is older than
-// --yahoo-game-player-list-max-age.
+// due for a download: a committed list of a season that is over is final,
+// unless the manifest names another game key, which is always downloaded
+// again; the current season's list is downloaded again once it is older
+// than --yahoo-game-player-list-max-age.
 func (a *FetchActivities) PlanYahooGamePlayerList(ctx context.Context, input PlanYahooGamePlayerListInput) (YahooGamePlayerListPlan, error) {
 	return a.planYahooGamePlayerList(ctx, input, time.Now())
 }
@@ -133,15 +135,16 @@ func nhlGameOver(game store.FantasyGame, now time.Time) bool {
 
 // nhlGame returns the season's game from Yahoo's NHL games list, read
 // through the cache. A cached list without the season predates its game, so
-// the list is downloaded again once before the season is reported missing.
+// the list is downloaded again once before the season is reported missing; a
+// list Fetch has just downloaded is current already.
 func (a *FetchActivities) nhlGame(ctx context.Context, season int) (store.FantasyGame, bool, error) {
 	fetcher := a.fetcher()
-	content, _, err := fetcher.Fetch(ctx, resource.YahooGames{})
+	content, origin, err := fetcher.Fetch(ctx, resource.YahooGames{})
 	if err != nil {
 		return store.FantasyGame{}, false, fmt.Errorf("fetch Yahoo NHL games: %w", err)
 	}
-	if game, ok := resource.FindNHLGame(content, season); ok {
-		return game, true, nil
+	if game, ok := resource.FindNHLGame(content, season); ok || origin == core.OriginRemoteYahooAPI {
+		return game, ok, nil
 	}
 	content, err = fetcher.Refresh(ctx, resource.YahooGames{})
 	if err != nil {
@@ -178,7 +181,10 @@ func (a *FetchActivities) FetchYahooGamePlayersPage(ctx context.Context, input F
 // pages the season's game player list, once every page it names is stored,
 // then removes the pages of the list it replaces and the download's
 // discarded pages. Pages of downloads that failed before their commit are
-// never named by a manifest and are left in place.
+// never named by a manifest and are left in place, and so are those of a
+// replaced manifest that no longer parses. A replaced manifest that cannot
+// be read fails the commit before the write, so a retry still finds the
+// pages it names.
 func (a *FetchActivities) CommitYahooGamePlayerList(ctx context.Context, input CommitYahooGamePlayerListInput) error {
 	for _, start := range input.Starts {
 		page := resource.GamePlayers{Season: input.Season, DownloadID: input.DownloadID, Start: start}
@@ -187,7 +193,10 @@ func (a *FetchActivities) CommitYahooGamePlayerList(ctx context.Context, input C
 		}
 	}
 	res := resource.GamePlayerList{Season: input.Season}
-	previous, prevErr := resource.ReadParsed(ctx, a.Storage, res)
+	previous, hadPrevious, err := a.readReplacedGamePlayerList(ctx, res)
+	if err != nil {
+		return err
+	}
 	manifest := resource.GamePlayerListManifest{
 		DownloadID: input.DownloadID, GameKey: input.GameKey, FetchedAt: input.FetchedAt,
 		Starts: input.Starts, Players: input.Players,
@@ -197,11 +206,31 @@ func (a *FetchActivities) CommitYahooGamePlayerList(ctx context.Context, input C
 	}
 	activity.GetLogger(ctx).Info("Game player list downloaded",
 		"season", input.Season, "game_key", input.GameKey, "players", input.Players, "pages", len(input.Starts))
-	if prevErr == nil && previous.DownloadID != input.DownloadID {
+	if hadPrevious && previous.DownloadID != input.DownloadID {
 		a.deleteGamePlayerPages(ctx, input.Season, previous.DownloadID, previous.Starts)
 	}
 	a.deleteGamePlayerPages(ctx, input.Season, input.DownloadID, input.Discarded)
 	return nil
+}
+
+// readReplacedGamePlayerList returns the committed manifest a commit
+// replaces. An absent manifest names no pages; one that no longer parses
+// cannot say which, so it is logged and its pages are left in place.
+func (a *FetchActivities) readReplacedGamePlayerList(ctx context.Context, res resource.GamePlayerList) (resource.GamePlayerListManifest, bool, error) {
+	previous, err := resource.ReadParsed(ctx, a.Storage, res)
+	var parseErr *resource.ParseError
+	switch {
+	case err == nil:
+		return previous, true, nil
+	case errors.Is(err, os.ErrNotExist):
+		return resource.GamePlayerListManifest{}, false, nil
+	case errors.As(err, &parseErr):
+		activity.GetLogger(ctx).Warn("Replaced game player list manifest is unreadable, its pages stay",
+			"path", res.Path(), "error", err)
+		return resource.GamePlayerListManifest{}, false, nil
+	default:
+		return resource.GamePlayerListManifest{}, false, fmt.Errorf("read replaced game player list manifest %d: %w", res.Season, err)
+	}
 }
 
 // deleteGamePlayerPages removes pages of one download that no manifest names

@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -152,9 +153,22 @@ func writeGameListFixture(t *testing.T, storage store.Storage) {
 	}
 }
 
+// errGameListStorage is the storage failure failingGameListStorage returns.
+var errGameListStorage = errors.New("storage unavailable")
+
+// failingGameListStorage fails every read with errGameListStorage.
+type failingGameListStorage struct {
+	*store.MemStorage
+}
+
+func (failingGameListStorage) Read(context.Context, string) ([]byte, error) {
+	return nil, errGameListStorage
+}
+
 // TestCountGamePlayerListFiles checks that a committed list expects its
 // manifest and every page it names, counting only that download's pages, and
-// that a missing or unreadable manifest is one missing file.
+// that a missing or unreadable manifest is one missing file, the unreadable
+// one also reported as an error.
 func TestCountGamePlayerListFiles(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -163,13 +177,15 @@ func TestCountGamePlayerListFiles(t *testing.T) {
 		t.Parallel()
 		storage := store.NewMemStorage()
 		writeGameListFixture(t, storage)
-		expected, found := countGamePlayerListFiles(ctx, storage, gameListSeason)
+		expected, found, err := countGamePlayerListFiles(ctx, storage, gameListSeason)
+		require.NoError(t, err)
 		require.Equal(t, 4, expected)
 		require.Equal(t, 3, found)
 	})
 	t.Run("no_manifest", func(t *testing.T) {
 		t.Parallel()
-		expected, found := countGamePlayerListFiles(ctx, store.NewMemStorage(), gameListSeason)
+		expected, found, err := countGamePlayerListFiles(ctx, store.NewMemStorage(), gameListSeason)
+		require.NoError(t, err)
 		require.Equal(t, 1, expected)
 		require.Zero(t, found)
 	})
@@ -177,7 +193,18 @@ func TestCountGamePlayerListFiles(t *testing.T) {
 		t.Parallel()
 		storage := store.NewMemStorage()
 		require.NoError(t, storage.Write(ctx, resource.GamePlayerList{Season: gameListSeason}.Path(), []byte("not json")))
-		expected, found := countGamePlayerListFiles(ctx, storage, gameListSeason)
+		expected, found, err := countGamePlayerListFiles(ctx, storage, gameListSeason)
+		var parseErr *resource.ParseError
+		require.ErrorAs(t, err, &parseErr)
+		require.Equal(t, 1, expected)
+		require.Zero(t, found)
+	})
+	t.Run("manifest_read_error", func(t *testing.T) {
+		t.Parallel()
+		storage := failingGameListStorage{MemStorage: store.NewMemStorage()}
+		expected, found, err := countGamePlayerListFiles(ctx, storage, gameListSeason)
+		require.ErrorIs(t, err, errGameListStorage)
+		require.Contains(t, err.Error(), "read game player list manifest 2026")
 		require.Equal(t, 1, expected)
 		require.Zero(t, found)
 	})

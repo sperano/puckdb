@@ -107,3 +107,42 @@ func TestCommitYahooGamePlayerList_MissingPageKeepsCommittedList(t *testing.T) {
 	assert.Equal(t, gameListDownloadID, readGameListManifest(t, mem).DownloadID)
 	assert.True(t, mem.Has(gamePage(gameListDownloadID, 0).Path()), "the committed list keeps its pages")
 }
+
+// A replaced manifest that cannot be read fails the commit before it
+// writes, so the pages that manifest names are not orphaned.
+func TestCommitYahooGamePlayerList_ReplacedManifestReadErrorKeepsList(t *testing.T) {
+	mem := store.NewMemStorage()
+	storeGamePages(mem, gameListDownloadID, 0)
+	require.NoError(t, runCommitGameList(&FetchActivities{Storage: mem, GobCache: cache.NewGobCache(nil)},
+		commitGameListInput(gameListDownloadID, []int{0}, nil)))
+	storeGamePages(mem, gameListNewDownloadID, 0)
+	a := &FetchActivities{
+		Storage:  failingManifestStorage{MemStorage: mem, season: yahoofixtures.CurrentGameSeason},
+		GobCache: cache.NewGobCache(nil),
+	}
+
+	err := runCommitGameList(a, commitGameListInput(gameListNewDownloadID, []int{0}, nil))
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "read replaced game player list manifest 2026")
+	assert.Contains(t, err.Error(), errManifestStorage.Error())
+	assert.Equal(t, gameListDownloadID, readGameListManifest(t, mem).DownloadID)
+	assert.True(t, mem.Has(gamePage(gameListDownloadID, 0).Path()), "the committed list keeps its pages")
+}
+
+// A replaced manifest that no longer parses names no pages: the commit
+// writes the new manifest and deletes nothing but its discarded pages.
+func TestCommitYahooGamePlayerList_UnparsableReplacedManifest(t *testing.T) {
+	mem := store.NewMemStorage()
+	a := &FetchActivities{Storage: mem, GobCache: cache.NewGobCache(nil)}
+	storeGamePages(mem, gameListDownloadID, 0)
+	mem.SetFile(resource.GamePlayerList{Season: yahoofixtures.CurrentGameSeason}.Path(), []byte("not json"))
+	storeGamePages(mem, gameListNewDownloadID, 0, gameListSecondPage)
+
+	require.NoError(t, runCommitGameList(a,
+		commitGameListInput(gameListNewDownloadID, []int{0}, []int{gameListSecondPage})))
+
+	assert.Equal(t, gameListNewDownloadID, readGameListManifest(t, mem).DownloadID)
+	assert.True(t, mem.Has(gamePage(gameListDownloadID, 0).Path()), "no manifest names the old page")
+	assert.False(t, mem.Has(gamePage(gameListNewDownloadID, gameListSecondPage).Path()), "discarded page")
+}

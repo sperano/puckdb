@@ -36,8 +36,29 @@ const (
 	expectedListMaxAgeHour = 24
 )
 
+// gameOverBeforeNextSeason falls in the 2025 season by the NHL calendar
+// (resource.DeduceSeason), after Yahoo marked its game over.
+var gameOverBeforeNextSeason = time.Date(2026, time.June, 20, 0, 0, 0, 0, time.UTC)
+
+// errManifestStorage is the storage failure failingManifestStorage returns.
+var errManifestStorage = errors.New("storage unavailable")
+
+// failingManifestStorage fails every read of the season's game player list
+// manifest with errManifestStorage.
+type failingManifestStorage struct {
+	*store.MemStorage
+	season int
+}
+
+func (s failingManifestStorage) Read(ctx context.Context, path string) ([]byte, error) {
+	if path == (resource.GamePlayerList{Season: s.season}).Path() {
+		return nil, errManifestStorage
+	}
+	return s.MemStorage.Read(ctx, path)
+}
+
 // gameActivities returns activities over mem whose games list is cached on
-// disk, with a downloader that fails the test's expectations when called.
+// disk, downloading through dl (nil for a test that downloads nothing).
 func gameActivities(mem *store.MemStorage, dl shared.Downloader) *FetchActivities {
 	mem.SetFile(resource.YahooGames{}.Path(), yahoofixtures.Read(yahoofixtures.NHLGames))
 	return &FetchActivities{Storage: mem, Download: dl, GobCache: cache.NewGobCache(nil)}
@@ -92,6 +113,18 @@ func TestPlanYahooGamePlayerList_UnreadableManifest_Refreshes(t *testing.T) {
 	}, plan)
 }
 
+func TestPlanYahooGamePlayerList_ManifestReadError(t *testing.T) {
+	mem := store.NewMemStorage()
+	a := gameActivities(mem, nil)
+	a.Storage = failingManifestStorage{MemStorage: mem, season: yahoofixtures.CurrentGameSeason}
+
+	_, err := a.planYahooGamePlayerList(context.Background(),
+		PlanYahooGamePlayerListInput{Season: yahoofixtures.CurrentGameSeason}, gamePlayersTestNow)
+
+	require.ErrorIs(t, err, errManifestStorage)
+	assert.Contains(t, err.Error(), "read game player list manifest 2026")
+}
+
 func TestPlanYahooGamePlayerList_CommittedList(t *testing.T) {
 	assert.Equal(t, expectedListMaxAgeHour, config.DefaultYahooGamePlayerListMaxAge)
 	tests := []struct {
@@ -110,6 +143,8 @@ func TestPlanYahooGamePlayerList_CommittedList(t *testing.T) {
 			yahoofixtures.CurrentGameKey, gamePlayersTestNow, gameListStaleAge, true, "list older than 24h0m0s"},
 		{"game_over_is_final", yahoofixtures.PastGameSeason, yahoofixtures.PastGameKey,
 			yahoofixtures.PastGameKey, gamePlayersTestNow, gameListFinalListAge, false, "season 2025 is over, its list is final"},
+		{"yahoo_game_over_is_final_before_next_season", yahoofixtures.PastGameSeason, yahoofixtures.PastGameKey,
+			yahoofixtures.PastGameKey, gameOverBeforeNextSeason, gameListFinalListAge, false, "season 2025 is over, its list is final"},
 		{"later_season_started_is_final", yahoofixtures.CurrentGameSeason, yahoofixtures.CurrentGameKey,
 			yahoofixtures.CurrentGameKey, time.Date(2027, time.September, 1, 0, 0, 0, 0, time.UTC), gameListFinalListAge,
 			false, "season 2026 is over, its list is final"},
@@ -183,6 +218,20 @@ func TestPlanYahooGamePlayerList_SeasonWithoutGame_Unavailable(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, YahooGamePlayerListPlan{Unavailable: true, Reason: "Yahoo lists no NHL game for season 2027"}, plan)
 	assert.Equal(t, 1, *calls, "the games list is downloaded once before the season is reported missing")
+}
+
+// A games list Fetch has just downloaded is not downloaded again for a
+// season it does not list.
+func TestPlanYahooGamePlayerList_DownloadedGamesListWithoutSeason_DownloadsOnce(t *testing.T) {
+	const futureSeason = yahoofixtures.CurrentGameSeason + 1
+	dl, calls := countingDownloader(yahoofixtures.Read(yahoofixtures.NHLGames), nil)
+	a := &FetchActivities{Storage: store.NewMemStorage(), Download: dl, GobCache: cache.NewGobCache(nil)}
+
+	plan, err := runPlanGameActivity(t, a, futureSeason)
+
+	require.NoError(t, err)
+	assert.Equal(t, YahooGamePlayerListPlan{Unavailable: true, Reason: "Yahoo lists no NHL game for season 2027"}, plan)
+	assert.Equal(t, 1, *calls)
 }
 
 func TestPlanYahooGamePlayerList_GamesListDownloadError(t *testing.T) {
