@@ -329,6 +329,36 @@ func TestYahooPlayerFromGameList(t *testing.T) {
 			ok:     true,
 		},
 		{
+			name:   "first name only, single-token full name: the structured part is kept",
+			player: store.Player{ID: 13, Name: store.PlayerName{First: "Pierre-Luc", Full: "Dubois"}},
+			want:   store.YahooPlayer{YahooID: 13, FirstName: "Pierre-Luc"},
+			ok:     true,
+		},
+		{
+			name:   "last name only, multi-token full name ending with it: the rest is the first name",
+			player: store.Player{ID: 14, Name: store.PlayerName{Last: "Dubois", Full: "Pierre Luc Dubois"}},
+			want:   store.YahooPlayer{YahooID: 14, FirstName: "Pierre Luc", LastName: "Dubois"},
+			ok:     true,
+		},
+		{
+			name:   "first name only, multi-token full name starting with it: the rest is the last name",
+			player: store.Player{ID: 15, Name: store.PlayerName{First: "Charles Alexis", Full: "Charles Alexis Legault"}},
+			want:   store.YahooPlayer{YahooID: 15, FirstName: "Charles Alexis", LastName: "Legault"},
+			ok:     true,
+		},
+		{
+			name:   "last name only, full name not ending with it: only the missing part comes from the split",
+			player: store.Player{ID: 16, Name: store.PlayerName{Last: "Dubois", Full: "Pierre Luc Dubois-Roy"}},
+			want:   store.YahooPlayer{YahooID: 16, FirstName: "Pierre", LastName: "Dubois"},
+			ok:     true,
+		},
+		{
+			name:   "first name only, full name not starting with it: only the missing part comes from the split",
+			player: store.Player{ID: 17, Name: store.PlayerName{First: "PL", Full: "Pierre-Luc Dubois"}},
+			want:   store.YahooPlayer{YahooID: 17, FirstName: "PL", LastName: "Dubois"},
+			ok:     true,
+		},
+		{
 			name:   "single-token full name only",
 			player: store.Player{ID: 12, Name: store.PlayerName{Full: "Dubois"}},
 			want:   store.YahooPlayer{YahooID: 12, FirstName: "Dubois"},

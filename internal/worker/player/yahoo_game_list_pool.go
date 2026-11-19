@@ -220,18 +220,10 @@ func (a *Activities) readGamePlayerListPages(ctx context.Context, season int, ma
 // name, positions (display position, as for league players), uniform number,
 // headshot and the Yahoo page-style team name filterByTeam compares
 // (matching.YahooTeamNameForAbbrev; empty for an unknown abbreviation). The
-// list carries no birth date. A structured name missing a part is replaced
-// by the full name when that splits into both parts, else kept; with no
-// structured part at all, the full name's split is used as it is. An entry
+// list carries no birth date. The name comes from gameListName. An entry
 // without a name is left out, as a league player with a blank name is.
 func yahooPlayerFromGameList(p store.Player) (store.YahooPlayer, bool) {
-	first, last := strings.TrimSpace(p.Name.First), strings.TrimSpace(p.Name.Last)
-	if first == "" || last == "" {
-		f, l := store.ParseCombinedName(p.Name.Full)
-		if (f != "" && l != "") || (first == "" && last == "") {
-			first, last = f, l
-		}
-	}
+	first, last := gameListName(p.Name)
 	if first == "" && last == "" {
 		return store.YahooPlayer{}, false
 	}
@@ -248,4 +240,35 @@ func yahooPlayerFromGameList(p store.Player) (store.YahooPlayer, bool) {
 		Team:         matching.YahooTeamNameForAbbrev(p.EditorialTeamAbbr),
 		ImageURL:     image,
 	}, true
+}
+
+// gameListName returns an entry's first and last names. A structured part
+// that is set is always kept; a missing one is taken from the full name:
+// what is left of it around the kept part when the full name starts (first
+// name kept) or ends (last name kept) with that part, else the other part of
+// its split on the first space when that splits into two. With no structured
+// part at all, the full name's split is used as it is.
+func gameListName(n store.PlayerName) (first, last string) {
+	first, last = strings.TrimSpace(n.First), strings.TrimSpace(n.Last)
+	full := strings.TrimSpace(n.Full)
+	f, l := store.ParseCombinedName(full)
+	switch {
+	case first == "" && last == "":
+		return f, l
+	case first == "":
+		if rest, ok := strings.CutSuffix(full, " "+last); ok {
+			return strings.TrimSpace(rest), last
+		}
+		if l != "" {
+			return f, last
+		}
+	case last == "":
+		if rest, ok := strings.CutPrefix(full, first+" "); ok {
+			return first, strings.TrimSpace(rest)
+		}
+		if l != "" {
+			return first, l
+		}
+	}
+	return first, last
 }
