@@ -69,7 +69,7 @@ func ParseYahooPlayerHTML(yahooID YahooPlayerID, html []byte) (*YahooPlayer, err
 
 	// Parse positions (e.g., "C" or "C, F, RW")
 	positionsStr := strings.TrimSpace(titleMatch[2])
-	player.Positions = parsePositions(positionsStr)
+	player.Positions = ParsePositions(positionsStr)
 
 	// Parse optional team
 	if len(titleMatch) > 3 && titleMatch[3] != "" {
@@ -101,9 +101,9 @@ func ParseYahooPlayerHTML(yahooID YahooPlayerID, html []byte) (*YahooPlayer, err
 	return player, nil
 }
 
-// parsePositions parses a comma-separated position string into a slice of nhl.Position.
+// ParsePositions parses a comma-separated position string into a slice of nhl.Position.
 // Skips invalid positions (like "F" for generic forward).
-func parsePositions(s string) []nhl.Position {
+func ParsePositions(s string) []nhl.Position {
 	var positions []nhl.Position
 	seen := make(map[nhl.Position]bool)
 

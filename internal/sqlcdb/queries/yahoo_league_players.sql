@@ -41,3 +41,15 @@ FROM yahoo_league_players lp
 LEFT JOIN players p ON p.yahoo_id = lp.player_id
 WHERE lp.league_key = $1
 ORDER BY lp.player_id;
+
+-- name: ListYahooLeaguePlayersForPool :many
+-- One named row per Yahoo player across every league and season, from the
+-- newest season (then newest fetch) that lists it: merged into the Yahoo ID
+-- pool the ProcessPlayers matcher reads, next to the scraped player pages
+-- (a page wins on the same Yahoo ID). A blank name (empty or whitespace
+-- only) counts as no name.
+SELECT DISTINCT ON (player_id)
+    player_id, full_name, editorial_team_abbr, display_position
+FROM yahoo_league_players
+WHERE full_name ~ '[^[:space:]]'
+ORDER BY player_id, season DESC, fetched_at DESC;

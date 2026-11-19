@@ -30,6 +30,51 @@ func (q *Queries) DeleteStaleYahooLeaguePlayers(ctx context.Context, arg DeleteS
 	return result.RowsAffected(), nil
 }
 
+const listYahooLeaguePlayersForPool = `-- name: ListYahooLeaguePlayersForPool :many
+SELECT DISTINCT ON (player_id)
+    player_id, full_name, editorial_team_abbr, display_position
+FROM yahoo_league_players
+WHERE full_name ~ '[^[:space:]]'
+ORDER BY player_id, season DESC, fetched_at DESC
+`
+
+type ListYahooLeaguePlayersForPoolRow struct {
+	PlayerID          int32  `json:"player_id"`
+	FullName          string `json:"full_name"`
+	EditorialTeamAbbr string `json:"editorial_team_abbr"`
+	DisplayPosition   string `json:"display_position"`
+}
+
+// One named row per Yahoo player across every league and season, from the
+// newest season (then newest fetch) that lists it: merged into the Yahoo ID
+// pool the ProcessPlayers matcher reads, next to the scraped player pages
+// (a page wins on the same Yahoo ID). A blank name (empty or whitespace
+// only) counts as no name.
+func (q *Queries) ListYahooLeaguePlayersForPool(ctx context.Context) ([]ListYahooLeaguePlayersForPoolRow, error) {
+	rows, err := q.db.Query(ctx, listYahooLeaguePlayersForPool)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListYahooLeaguePlayersForPoolRow{}
+	for rows.Next() {
+		var i ListYahooLeaguePlayersForPoolRow
+		if err := rows.Scan(
+			&i.PlayerID,
+			&i.FullName,
+			&i.EditorialTeamAbbr,
+			&i.DisplayPosition,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listYahooLeaguePlayersWithNHL = `-- name: ListYahooLeaguePlayersWithNHL :many
 SELECT lp.league_key, lp.season, lp.league_id, lp.game_key, lp.player_id, lp.player_key, lp.full_name, lp.editorial_team_abbr, lp.display_position, lp.primary_position, lp.position_type, lp.eligible_positions, lp.status, lp.status_full, lp.injury_note, lp.on_disabled_list, lp.fetched_at, lp.imported_at, p.id AS nhl_player_id
 FROM yahoo_league_players lp

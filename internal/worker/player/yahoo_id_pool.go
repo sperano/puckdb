@@ -98,15 +98,22 @@ func parseYahooPlayerBatchImpl(ctx context.Context, storage store.Storage, gobCa
 }
 
 // SaveYahooPlayersToRedis saves parsed Yahoo players to Redis.
-// This is the final step of Phase 1.
-// Returns the result including how many players were skipped (verified non-NHL).
+// This is the final step of Phase 1. The players of yahoo_league_players are
+// added to the parsed pages' players first (a page wins on the same Yahoo ID).
+// Returns the result including how many players were skipped (verified
+// non-NHL) and how many pool entries no page backs (NonPageEntries).
 func (a *Activities) SaveYahooPlayersToRedis(ctx context.Context, players []store.YahooPlayer) (*SaveYahooIDPoolResult, error) {
 	logger := activity.GetLogger(ctx)
 
+	players, pageEntries, err := a.withLeaguePlayers(ctx, players)
+	if err != nil {
+		return nil, err
+	}
 	result, err := saveYahooPlayersToRedisImpl(ctx, a.RedisClient, players)
 	if err != nil {
 		return nil, err
 	}
+	result.NonPageEntries = result.PoolSize - pageEntries
 
 	logger.Info("Saved Yahoo players to Redis",
 		"total", result.TotalPlayers,

@@ -617,7 +617,7 @@ func (s *YahooActivitySuite) TestSaveYahooPlayersToRedis_Success() {
 	mockRedis.ExpectExpire(YahooIDAvailableKey, ImportPlayersTTL).SetVal(true)
 	mockRedis.ExpectHLen(YahooIDPoolKey).SetVal(1)
 
-	act := &Activities{RedisClient: redisClient}
+	act := &Activities{RedisClient: redisClient, LeaguePlayers: fakeLeaguePlayers{}}
 	s.env.RegisterActivity(act.SaveYahooPlayersToRedis)
 
 	future, err := s.env.ExecuteActivity(act.SaveYahooPlayersToRedis, players)
@@ -636,7 +636,7 @@ func (s *YahooActivitySuite) TestSaveYahooPlayersToRedis_Empty() {
 	redisClient, mockRedis := redismock.NewClientMock()
 	mockRedis.ExpectHLen(YahooIDPoolKey).SetVal(0)
 
-	act := &Activities{RedisClient: redisClient}
+	act := &Activities{RedisClient: redisClient, LeaguePlayers: fakeLeaguePlayers{}}
 	s.env.RegisterActivity(act.SaveYahooPlayersToRedis)
 
 	future, err := s.env.ExecuteActivity(act.SaveYahooPlayersToRedis, []store.YahooPlayer{})

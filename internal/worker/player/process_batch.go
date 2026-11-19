@@ -85,7 +85,7 @@ func errorMessages(errs []PlayerError) []string {
 // ProcessPlayersWorkflow chains started before the player manifest still
 // call it; new chains call ProcessPlayerManifestBatch.
 func (a *Activities) ProcessPlayerBatch(ctx context.Context, players []store.BoxscorePlayer) (ProcessPlayerBatchResult, error) {
-	out, err := a.processPlayerBatch(ctx, players, 0)
+	out, err := a.processPlayerBatch(ctx, players, EnsureYahooIDPoolInput{})
 	out.result.Errors = errorMessages(out.errors)
 	return out.result, err
 }
@@ -93,11 +93,11 @@ func (a *Activities) ProcessPlayerBatch(ctx context.Context, players []store.Box
 // processPlayerBatch is the per-player body shared by ProcessPlayerBatch and
 // ProcessPlayerManifestBatch. Every step upserts, so a retried or
 // overlapping attempt converges on the same rows. When the Yahoo ID pool
-// holds fewer than yahooPoolSize entries, Redis lost it (TTL expiry or a
-// flush; the hash never shrinks during a run) or another batch is rebuilding
-// it: it is rebuilt before matching rather than matching against a partial
-// pool. yahooPoolSize 0 (legacy chains) skips the check.
-func (a *Activities) processPlayerBatch(ctx context.Context, players []store.BoxscorePlayer, yahooPoolSize int) (batchOutcome, error) {
+// holds fewer than yahooPool.PoolSize entries, Redis lost it (TTL expiry or
+// a flush; the hash never shrinks during a run) or another batch is
+// rebuilding it: it is rebuilt before matching rather than matching against
+// a partial pool. A zero PoolSize (legacy chains) skips the check.
+func (a *Activities) processPlayerBatch(ctx context.Context, players []store.BoxscorePlayer, yahooPool EnsureYahooIDPoolInput) (batchOutcome, error) {
 	out := batchOutcome{result: ProcessPlayerBatchResult{Origins: core.OriginCounts{}}}
 	result := &out.result
 
@@ -105,7 +105,7 @@ func (a *Activities) processPlayerBatch(ctx context.Context, players []store.Box
 		return out, nil
 	}
 
-	yahooPool, err := a.loadYahooIDPool(ctx, yahooPoolSize)
+	pool, err := a.loadYahooIDPool(ctx, yahooPool)
 	if err != nil {
 		return out, err
 	}
@@ -134,7 +134,7 @@ func (a *Activities) processPlayerBatch(ctx context.Context, players []store.Box
 			// File exists in storage — will be read via GobCache below
 		}
 
-		if yahooID, matched := a.importPlayerLanding(ctx, p, downloadStatus, yahooPool, &out); matched {
+		if yahooID, matched := a.importPlayerLanding(ctx, p, downloadStatus, pool, &out); matched {
 			matchedYahooIDs = append(matchedYahooIDs, yahooID)
 		}
 	}
@@ -150,20 +150,20 @@ func (a *Activities) processPlayerBatch(ctx context.Context, players []store.Box
 }
 
 // loadYahooIDPool loads the Yahoo ID pool, rebuilding it first when it holds
-// fewer than the expectedSize entries the chain saved.
-func (a *Activities) loadYahooIDPool(ctx context.Context, expectedSize int) (map[store.YahooPlayerID]*store.YahooPlayer, error) {
+// fewer than the expected.PoolSize entries the chain saved.
+func (a *Activities) loadYahooIDPool(ctx context.Context, expected EnsureYahooIDPoolInput) (map[store.YahooPlayerID]*store.YahooPlayer, error) {
 	yahooPool, err := LoadYahooIDPool(ctx, a.RedisClient)
 	if err != nil {
 		return nil, fmt.Errorf("load yahoo pool: %w", err)
 	}
-	if len(yahooPool) >= expectedSize {
+	if len(yahooPool) >= expected.PoolSize {
 		return yahooPool, nil
 	}
-	rebuilt, err := a.rebuildYahooIDPool(ctx, EnsureYahooIDPoolResult{}, expectedSize)
+	rebuilt, err := a.rebuildYahooIDPool(ctx, EnsureYahooIDPoolResult{}, expected)
 	if err != nil {
 		return nil, fmt.Errorf("rebuild lost yahoo pool: %w", err)
 	}
-	log.Warn().Int("expected", expectedSize).Int("found", len(yahooPool)).Int("rebuilt", rebuilt.PoolSize).
+	log.Warn().Int("expected", expected.PoolSize).Int("found", len(yahooPool)).Int("rebuilt", rebuilt.PoolSize).
 		Msg("Yahoo ID pool lost during the batch, rebuilt")
 	yahooPool, err = LoadYahooIDPool(ctx, a.RedisClient)
 	if err != nil {
