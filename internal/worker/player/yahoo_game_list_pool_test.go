@@ -360,6 +360,18 @@ func TestYahooPlayerFromGameList(t *testing.T) {
 			ok:     true,
 		},
 		{
+			name:   "first name only, full name's first token extends it: cut at a word boundary",
+			player: store.Player{ID: 18, Name: store.PlayerName{First: "Pierre", Full: "Pierre-Luc Dubois"}},
+			want:   store.YahooPlayer{YahooID: 18, FirstName: "Pierre", LastName: "Dubois"},
+			ok:     true,
+		},
+		{
+			name:   "last name only, single hyphenated token ending with it: cut at a word boundary",
+			player: store.Player{ID: 19, Name: store.PlayerName{Last: "Dubois", Full: "Pierre-Dubois"}},
+			want:   store.YahooPlayer{YahooID: 19, LastName: "Dubois"},
+			ok:     true,
+		},
+		{
 			name:   "single-token full name only",
 			player: store.Player{ID: 12, Name: store.PlayerName{Full: "Dubois"}},
 			want:   store.YahooPlayer{YahooID: 12, FirstName: "Dubois"},
