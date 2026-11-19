@@ -99,8 +99,9 @@ func (c *GenericClient) Download(ctx context.Context, url string) ([]byte, error
 			Str("url", url).
 			Int("status_code", resp.StatusCode).
 			Str("status", resp.Status).
-			Str("body", string(body)).
+			Int("body_bytes", len(body)).
 			Msg("Download failed")
+		log.Trace().Str("url", url).Str("body", string(body)).Msg("Download failed body")
 		return nil, &HTTPError{
 			StatusCode: resp.StatusCode,
 			Status:     resp.Status,
