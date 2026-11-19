@@ -305,6 +305,18 @@ func TestYahooPlayerFromGameList(t *testing.T) {
 			ok:     true,
 		},
 		{
+			name:   "last name only, no full name: the structured part is kept",
+			player: store.Player{ID: 8, Name: store.PlayerName{Last: "Dubois"}},
+			want:   store.YahooPlayer{YahooID: 8, LastName: "Dubois"},
+			ok:     true,
+		},
+		{
+			name:   "first name only, full name: the full name wins",
+			player: store.Player{ID: 9, Name: store.PlayerName{First: "Pierre-Luc", Full: "Pierre-Luc Dubois"}},
+			want:   store.YahooPlayer{YahooID: 9, FirstName: "Pierre-Luc", LastName: "Dubois"},
+			ok:     true,
+		},
+		{
 			name:   "no name",
 			player: store.Player{ID: 7, Name: store.PlayerName{Full: "  "}},
 			ok:     false,

@@ -220,12 +220,15 @@ func (a *Activities) readGamePlayerListPages(ctx context.Context, season int, ma
 // name, positions (display position, as for league players), uniform number,
 // headshot and the Yahoo page-style team name filterByTeam compares
 // (matching.YahooTeamNameForAbbrev; empty for an unknown abbreviation). The
-// list carries no birth date. An entry without a name is left out, as a
-// league player with a blank name is.
+// list carries no birth date. A structured name missing a part is replaced
+// by the full name when that has one, else kept. An entry without a name is
+// left out, as a league player with a blank name is.
 func yahooPlayerFromGameList(p store.Player) (store.YahooPlayer, bool) {
 	first, last := strings.TrimSpace(p.Name.First), strings.TrimSpace(p.Name.Last)
 	if first == "" || last == "" {
-		first, last = store.ParseCombinedName(strings.TrimSpace(p.Name.Full))
+		if f, l := store.ParseCombinedName(p.Name.Full); f != "" || l != "" {
+			first, last = f, l
+		}
 	}
 	if first == "" && last == "" {
 		return store.YahooPlayer{}, false

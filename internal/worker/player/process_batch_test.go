@@ -6,7 +6,6 @@ import (
 	"encoding/gob"
 	"encoding/json"
 	"errors"
-	"github.com/sperano/puckdb/internal/matching"
 	"testing"
 
 	"github.com/go-redis/redis/v8"
@@ -14,6 +13,7 @@ import (
 	"github.com/sperano/nhl-api-go/nhl"
 	"github.com/sperano/puckdb/internal/cache"
 	"github.com/sperano/puckdb/internal/core"
+	"github.com/sperano/puckdb/internal/matching"
 	"github.com/sperano/puckdb/internal/resource"
 	"github.com/sperano/puckdb/internal/sqlcdb"
 	"github.com/sperano/puckdb/internal/store"

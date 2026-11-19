@@ -80,7 +80,7 @@
    "taskId":  "1048680",
    "workflowTaskStartedEventAttributes":  {
     "scheduledEventId":  "2",
-    "identity":  "20186@vikunja-puckdb-claude-opus-1609-retry1-zs58j@",
+    "identity":  "20186@replay-worker@",
     "requestId":  "0f1e6374-91b2-432e-bd1e-1587353e9a17",
     "historySizeBytes":  "1526",
     "workerVersion":  {
@@ -96,7 +96,7 @@
    "workflowTaskCompletedEventAttributes":  {
     "scheduledEventId":  "2",
     "startedEventId":  "3",
-    "identity":  "20186@vikunja-puckdb-claude-opus-1609-retry1-zs58j@",
+    "identity":  "20186@replay-worker@",
     "workerVersion":  {
      "buildId":  "9557fe148f61e34b8f96e56f819e8c88"
     },
@@ -178,7 +178,7 @@
    "taskId":  "1048691",
    "activityTaskStartedEventAttributes":  {
     "scheduledEventId":  "6",
-    "identity":  "20186@vikunja-puckdb-claude-opus-1609-retry1-zs58j@",
+    "identity":  "20186@replay-worker@",
     "requestId":  "dd7d571a-1f03-4497-9c5b-d0a30f01d95a",
     "attempt":  1,
     "workerVersion":  {
@@ -204,7 +204,7 @@
     },
     "scheduledEventId":  "6",
     "startedEventId":  "7",
-    "identity":  "20186@vikunja-puckdb-claude-opus-1609-retry1-zs58j@"
+    "identity":  "20186@replay-worker@"
    }
   },
   {
@@ -214,7 +214,7 @@
    "taskId":  "1048693",
    "workflowTaskScheduledEventAttributes":  {
     "taskQueue":  {
-     "name":  "vikunja-puckdb-claude-opus-1609-retry1-zs58j:6c3b2ae8-ad27-4251-a45a-c709f4833207",
+     "name":  "replay-worker:6c3b2ae8-ad27-4251-a45a-c709f4833207",
      "kind":  "TASK_QUEUE_KIND_STICKY",
      "normalName":  "process-players-page-pool-1795083546553767428"
     },
@@ -229,7 +229,7 @@
    "taskId":  "1048697",
    "workflowTaskStartedEventAttributes":  {
     "scheduledEventId":  "9",
-    "identity":  "20186@vikunja-puckdb-claude-opus-1609-retry1-zs58j@",
+    "identity":  "20186@replay-worker@",
     "requestId":  "1811f6a5-fdf4-4825-a04d-4c3d365d9bf9",
     "historySizeBytes":  "2820",
     "workerVersion":  {
@@ -245,7 +245,7 @@
    "workflowTaskCompletedEventAttributes":  {
     "scheduledEventId":  "9",
     "startedEventId":  "10",
-    "identity":  "20186@vikunja-puckdb-claude-opus-1609-retry1-zs58j@",
+    "identity":  "20186@replay-worker@",
     "workerVersion":  {
      "buildId":  "9557fe148f61e34b8f96e56f819e8c88"
     },
@@ -338,7 +338,7 @@
    "taskId":  "1048708",
    "activityTaskStartedEventAttributes":  {
     "scheduledEventId":  "13",
-    "identity":  "20186@vikunja-puckdb-claude-opus-1609-retry1-zs58j@",
+    "identity":  "20186@replay-worker@",
     "requestId":  "9aaf6c96-fd5b-4ed2-bf61-2f8fd3852528",
     "attempt":  1,
     "workerVersion":  {
@@ -364,7 +364,7 @@
     },
     "scheduledEventId":  "13",
     "startedEventId":  "14",
-    "identity":  "20186@vikunja-puckdb-claude-opus-1609-retry1-zs58j@"
+    "identity":  "20186@replay-worker@"
    }
   },
   {
@@ -374,7 +374,7 @@
    "taskId":  "1048710",
    "workflowTaskScheduledEventAttributes":  {
     "taskQueue":  {
-     "name":  "vikunja-puckdb-claude-opus-1609-retry1-zs58j:6c3b2ae8-ad27-4251-a45a-c709f4833207",
+     "name":  "replay-worker:6c3b2ae8-ad27-4251-a45a-c709f4833207",
      "kind":  "TASK_QUEUE_KIND_STICKY",
      "normalName":  "process-players-page-pool-1795083546553767428"
     },
@@ -389,7 +389,7 @@
    "taskId":  "1048714",
    "activityTaskStartedEventAttributes":  {
     "scheduledEventId":  "12",
-    "identity":  "20186@vikunja-puckdb-claude-opus-1609-retry1-zs58j@",
+    "identity":  "20186@replay-worker@",
     "requestId":  "f5806147-15aa-4be4-a57c-704479bcc306",
     "attempt":  1,
     "workerVersion":  {
@@ -415,7 +415,7 @@
     },
     "scheduledEventId":  "12",
     "startedEventId":  "17",
-    "identity":  "20186@vikunja-puckdb-claude-opus-1609-retry1-zs58j@"
+    "identity":  "20186@replay-worker@"
    }
   },
   {
@@ -425,7 +425,7 @@
    "taskId":  "1048717",
    "workflowTaskStartedEventAttributes":  {
     "scheduledEventId":  "16",
-    "identity":  "20186@vikunja-puckdb-claude-opus-1609-retry1-zs58j@",
+    "identity":  "20186@replay-worker@",
     "requestId":  "834c51ac-0510-4b6f-bbd1-606b6012b4e3",
     "historySizeBytes":  "4750",
     "workerVersion":  {
@@ -441,7 +441,7 @@
    "workflowTaskCompletedEventAttributes":  {
     "scheduledEventId":  "16",
     "startedEventId":  "19",
-    "identity":  "20186@vikunja-puckdb-claude-opus-1609-retry1-zs58j@",
+    "identity":  "20186@replay-worker@",
     "workerVersion":  {
      "buildId":  "9557fe148f61e34b8f96e56f819e8c88"
     },
