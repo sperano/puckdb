@@ -15,7 +15,6 @@ import (
 	worknhl "github.com/sperano/puckdb/internal/worker/nhl"
 	workplayer "github.com/sperano/puckdb/internal/worker/player"
 	"github.com/sperano/puckdb/internal/worker/shared"
-	"github.com/sperano/puckdb/internal/worker/yahoo"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
@@ -436,57 +435,6 @@ func (s *ImportSeasonsWorkflowTestSuite) TestImportSeasonsWorkflow_WithConcurren
 
 	s.True(s.env.IsWorkflowCompleted())
 	s.NoError(s.env.GetWorkflowError())
-}
-
-// --- FetchYahooPlayersWorkflow tests ---
-
-type FetchYahooPlayersWorkflowTestSuite struct {
-	suite.Suite
-	testsuite.WorkflowTestSuite
-	env *testsuite.TestWorkflowEnvironment
-}
-
-func (s *FetchYahooPlayersWorkflowTestSuite) SetupTest() {
-	s.env = s.NewTestWorkflowEnvironment()
-	s.env.RegisterWorkflow(FetchYahooPlayersWorkflow)
-}
-
-func (s *FetchYahooPlayersWorkflowTestSuite) AfterTest(suiteName, testName string) {
-	s.env.AssertExpectations(s.T())
-}
-
-func TestFetchYahooPlayersWorkflowTestSuite(t *testing.T) {
-	suite.Run(t, new(FetchYahooPlayersWorkflowTestSuite))
-}
-
-// Test FetchYahooPlayersWorkflow success (completes without ContinueAsNew when range is small)
-func (s *FetchYahooPlayersWorkflowTestSuite) TestFetchYahooPlayersWorkflow_Success() {
-	// With nil input, uses defaults from viper (which will be 0/empty in tests)
-	// The workflow should handle this gracefully
-	// Activity takes (batchStartID int, batchEndID int)
-	var yahooAct *yahoo.FetchActivities
-	s.env.OnActivity(yahooAct.FetchYahooPlayerBatch, mock.Anything, mock.AnythingOfType("int"), mock.AnythingOfType("int"), mock.Anything).
-		Maybe().
-		Return(shared.FetchStats{Downloaded: 5, CacheHits: 3, Missing: 2}, nil)
-
-	s.env.ExecuteWorkflow(FetchYahooPlayersWorkflow, (*FetchYahooPlayersInput)(nil))
-
-	s.True(s.env.IsWorkflowCompleted())
-	// May complete or ContinueAsNew - both are valid
-}
-
-// Test FetchYahooPlayersWorkflow handles activity error
-func (s *FetchYahooPlayersWorkflowTestSuite) TestFetchYahooPlayersWorkflow_ActivityError() {
-	// Activity takes (batchStartID int, batchEndID int)
-	var yahooAct *yahoo.FetchActivities
-	s.env.OnActivity(yahooAct.FetchYahooPlayerBatch, mock.Anything, mock.AnythingOfType("int"), mock.AnythingOfType("int"), mock.Anything).
-		Maybe().
-		Return(shared.FetchStats{}, errors.New("download failed"))
-
-	s.env.ExecuteWorkflow(FetchYahooPlayersWorkflow, (*FetchYahooPlayersInput)(nil))
-
-	s.True(s.env.IsWorkflowCompleted())
-	// With 0 max player ID (default), workflow may complete without calling activity
 }
 
 // --- ProcessPlayersWorkflow tests ---

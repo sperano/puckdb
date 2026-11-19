@@ -29,10 +29,9 @@ const (
 
 // FetchActivities holds dependencies for Yahoo league and team fetching.
 type FetchActivities struct {
-	Storage          store.Storage
-	Download         shared.Downloader
-	GobCache         *cache.GobCache
-	PublicDownloader shared.Downloader
+	Storage  store.Storage
+	Download shared.Downloader
+	GobCache *cache.GobCache
 	// GameKeys keeps the game keys loaded so far; nil fetches the key on
 	// every call.
 	GameKeys *GameKeys

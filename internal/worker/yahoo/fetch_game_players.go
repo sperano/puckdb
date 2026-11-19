@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"slices"
 	"time"
 
 	"github.com/sperano/puckdb/internal/config"
@@ -69,9 +70,41 @@ type CommitYahooGamePlayerListInput struct {
 	FetchedAt  time.Time `json:"fetchedAt"`
 	Starts     []int     `json:"starts"`
 	Players    int       `json:"players"`
-	// Discarded are this download's pages fetched concurrently past its last
-	// page. No manifest names them, so the commit deletes them.
+	// Discarded are pages of this download past its last page, which the
+	// commit deletes since no manifest names them. The game player list
+	// download requests its pages one at a time and never sets it.
 	Discarded []int `json:"discarded,omitempty"`
+}
+
+// DiscardYahooGamePlayerListInput names the pages a game player list
+// download requested before it failed.
+type DiscardYahooGamePlayerListInput struct {
+	Season     int   `json:"season"`
+	DownloadID int64 `json:"downloadId"`
+	Starts     []int `json:"starts"`
+}
+
+// MaxGamePlayerListPages caps a game player list download so a Yahoo
+// response that never ends cannot loop forever: 200 pages of 25 is 5,000
+// players, about three times the largest season list Yahoo serves (1,613).
+const MaxGamePlayerListPages = 200
+
+// ListYahooNHLGameSeasons downloads Yahoo's NHL games list again and returns
+// the season of every game in it, oldest first. The download keeps the list
+// the plans read through the cache current: a new season's game and the
+// is_game_over flag of the last one.
+func (a *FetchActivities) ListYahooNHLGameSeasons(ctx context.Context) ([]int, error) {
+	defer metrics.TrackActivityDuration("ListYahooNHLGameSeasons")()
+	content, err := a.fetcher().Refresh(ctx, resource.YahooGames{})
+	if err != nil {
+		return nil, fmt.Errorf("refresh Yahoo NHL games: %w", err)
+	}
+	seasons := make([]int, 0, len(content.Games))
+	for _, game := range content.Games {
+		seasons = append(seasons, game.Season)
+	}
+	slices.Sort(seasons)
+	return seasons, nil
 }
 
 // PlanYahooGamePlayerList decides whether the season's game player list is
@@ -202,9 +235,9 @@ func (input FetchYahooGamePlayersPageInput) validate() error {
 // pages the season's game player list, once every page it names is stored
 // and parses as a page of the season's game key and the pages hold the
 // commit's player count, then removes the pages of the list it replaces and
-// the download's discarded pages. Pages of downloads that failed before their commit are
-// never named by a manifest and are left in place, and so are those of a
-// replaced manifest that no longer parses. A replaced manifest that cannot
+// the download's discarded pages. Pages of a download that failed before
+// its commit are left to DiscardYahooGamePlayerList, and those of a
+// replaced manifest that no longer parses stay in place. A replaced manifest that cannot
 // be read fails the commit before the write, so a retry still finds the
 // pages it names.
 func (a *FetchActivities) CommitYahooGamePlayerList(ctx context.Context, input CommitYahooGamePlayerListInput) error {
@@ -314,7 +347,30 @@ func (a *FetchActivities) deleteGamePlayerPages(ctx context.Context, season int,
 	for _, start := range starts {
 		page := resource.GamePlayers{Season: season, DownloadID: downloadID, Start: start}
 		if err := resource.Delete(ctx, a.Storage, page); err != nil {
-			activity.GetLogger(ctx).Warn("Could not delete replaced game player list page", "path", page.Path(), "error", err)
+			activity.GetLogger(ctx).Warn("Could not delete game player list page", "path", page.Path(), "error", err)
 		}
 	}
+}
+
+// DiscardYahooGamePlayerList deletes the pages of a download that failed
+// before its commit, so they do not stay on the cache disk. When the
+// season's committed manifest names that download (its commit wrote the
+// manifest but the workflow did not get the result), the pages are the
+// season's list and stay. A manifest that cannot be read for another reason
+// than being absent or unparseable fails the activity, which is retried.
+func (a *FetchActivities) DiscardYahooGamePlayerList(ctx context.Context, input DiscardYahooGamePlayerListInput) error {
+	defer metrics.TrackActivityDuration("DiscardYahooGamePlayerList")()
+	res := resource.GamePlayerList{Season: input.Season}
+	manifest, err := resource.ReadParsed(ctx, a.Storage, res)
+	var parseErr *resource.ParseError
+	switch {
+	case err == nil && manifest.DownloadID == input.DownloadID:
+		activity.GetLogger(ctx).Info("Failed game player list download was committed, its pages stay",
+			"season", input.Season, "download_id", input.DownloadID)
+		return nil
+	case err != nil && !errors.Is(err, os.ErrNotExist) && !errors.As(err, &parseErr):
+		return fmt.Errorf("read game player list manifest %d: %w", input.Season, err)
+	}
+	a.deleteGamePlayerPages(ctx, input.Season, input.DownloadID, input.Starts)
+	return nil
 }

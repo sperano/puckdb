@@ -91,32 +91,12 @@ var PlayerLandingPlayersPerExecParam = ConfigIntParam{
 	Default: config.DefaultPlayerLandingPlayersPerExec,
 }
 
-// Yahoo player fetch params. FetchYahooPlayersWorkflow freezes these for a
-// whole multi-execution run, so each must resolve to a positive value: a
-// carried zero could not be corrected by a worker restart.
-var (
-	MaxYahooPlayerIDParam = ConfigIntParam{
-		Flag:    config.FlagMaxYahooPlayerID,
-		Default: config.DefaultMaxYahooPlayerID,
-	}
-	YahooPlayerConcurrencyParam = ConfigIntParam{
-		Flag:    config.FlagYahooPlayerBatchSize,
-		Default: config.DefaultYahooPlayerBatchSize,
-	}
-	YahooPlayerActivityBatchSizeParam = ConfigIntParam{
-		Flag:    config.FlagYahooPlayerActivityBatchSize,
-		Default: config.DefaultYahooPlayerActivityBatchSize,
-	}
-	YahooPlayersPerExecutionParam = ConfigIntParam{
-		Flag:    config.FlagYahooPlayersPerExecution,
-		Default: config.DefaultYahooPlayersPerExecution,
-	}
-	YahooPlayerMissingTTLDaysParam = ConfigIntParam{
-		Flag:       config.FlagYahooPlayerMissingTTLDays,
-		Default:    config.DefaultYahooPlayerMissingTTLDays,
-		MaxDefault: config.DefaultMaxYahooPlayerMissingTTLDays,
-	}
-)
+// YahooGamePlayerListConcurrencyParam resolves how many seasons'
+// game player lists FetchYahooPlayersWorkflow downloads at the same time.
+var YahooGamePlayerListConcurrencyParam = ConfigIntParam{
+	Flag:    config.FlagYahooGamePlayerListConcurrency,
+	Default: config.DefaultYahooGamePlayerListConcurrency,
+}
 
 // YahooPoolLeagueConcurrencyParam resolves how many leagues of one season
 // FetchYahooSeasonWorkflow downloads player pools for at the same time.

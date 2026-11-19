@@ -6,7 +6,6 @@ import (
 	"github.com/go-redis/redis/v8"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/sperano/puckdb/internal/cache"
-	"github.com/sperano/puckdb/internal/httpx"
 	"github.com/sperano/puckdb/internal/sqlcdb"
 	"github.com/sperano/puckdb/internal/store"
 	"github.com/sperano/puckdb/internal/worker/asset"
@@ -71,9 +70,6 @@ type taskActivityDeps struct {
 	gobCache        *cache.GobCache
 	redisClient     *redis.Client
 	yahooDownloader shared.Downloader
-	// yahooPublicDownloader fetches public Yahoo Sports player pages. It
-	// shares yahooDownloader's rate limiter: both count against Yahoo.
-	yahooPublicDownloader shared.Downloader
 	// yahooGameKeys is the worker's one in-memory Yahoo game key cache,
 	// shared by the Yahoo and NHL fetch activities.
 	yahooGameKeys          *yahoo.GameKeys
@@ -99,7 +95,6 @@ func registerTasksActivities(w worker.Worker, pool *pgxpool.Pool, redisClient *r
 		gobCache:               gobCache,
 		redisClient:            redisClient,
 		yahooDownloader:        newYahooDownloader(redisClient, yahooLimiter),
-		yahooPublicDownloader:  shared.RateLimited(yahooLimiter, httpx.DownloadPublic),
 		yahooGameKeys:          yahoo.NewGameKeys(nil),
 		boxscorePlayerCacheTTL: boxscorePlayerCacheTTLFrom(viper.GetViper()),
 	}
@@ -145,11 +140,10 @@ func registerSimulationActivities(w worker.Worker, pool *pgxpool.Pool, queries *
 // registerYahooFetchActivities registers the Yahoo Fantasy API download activities.
 func registerYahooFetchActivities(w worker.Worker, d taskActivityDeps) {
 	fetchYahooActivities := &yahoo.FetchActivities{
-		Storage:          d.storage,
-		Download:         d.yahooDownloader,
-		GobCache:         d.gobCache,
-		PublicDownloader: d.yahooPublicDownloader,
-		GameKeys:         d.yahooGameKeys,
+		Storage:  d.storage,
+		Download: d.yahooDownloader,
+		GobCache: d.gobCache,
+		GameKeys: d.yahooGameKeys,
 	}
 	w.RegisterActivity(fetchYahooActivities.FetchLeague)
 	w.RegisterActivity(fetchYahooActivities.FetchTeams)
@@ -161,6 +155,11 @@ func registerYahooFetchActivities(w worker.Worker, d taskActivityDeps) {
 	w.RegisterActivity(fetchYahooActivities.PlanYahooLeaguePlayerPool)
 	w.RegisterActivity(fetchYahooActivities.FetchYahooLeaguePlayersPage)
 	w.RegisterActivity(fetchYahooActivities.CommitYahooLeaguePlayerPool)
+	w.RegisterActivity(fetchYahooActivities.ListYahooNHLGameSeasons)
+	w.RegisterActivity(fetchYahooActivities.PlanYahooGamePlayerList)
+	w.RegisterActivity(fetchYahooActivities.FetchYahooGamePlayersPage)
+	w.RegisterActivity(fetchYahooActivities.CommitYahooGamePlayerList)
+	w.RegisterActivity(fetchYahooActivities.DiscardYahooGamePlayerList)
 }
 
 // registerYahooImportActivities registers the Yahoo cached-file-to-Postgres

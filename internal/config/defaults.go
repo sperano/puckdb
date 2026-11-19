@@ -74,31 +74,15 @@ const (
 
 // Yahoo player download defaults
 const (
-	DefaultMaxYahooPlayerID = 35000
-	// DefaultYahooPlayerBatchSize is the number of activity batches that run
-	// at once. Every batch downloads sequentially, and all downloads queue
-	// behind the process's Yahoo rate limiter (--yahoo-rate-limit), so a high
-	// value adds no throughput: it only queues dozens of long-running,
-	// heartbeating activities at once and makes a burst of requests likely
-	// when the limiter's burst allowance refills. Keep it polite.
-	DefaultYahooPlayerBatchSize         = 5
-	DefaultYahooPlayerActivityBatchSize = 100
-	DefaultYahooPlayersPerExecution     = 5000
-	// DefaultYahooPlayerMissingTTLDays is how long a "this player page
-	// returned 404" marker is trusted before the page is fetched again. Yahoo
-	// creates pages for new players (draft picks, call-ups) continuously, but a
-	// player id that does not exist today almost never starts existing within a
-	// month; a month keeps the steady-state sweep cheap while bounding how long
-	// a wrongly written marker (a throttled 404) can hide a real player.
-	DefaultYahooPlayerMissingTTLDays = 30
-	// DefaultMaxYahooPlayerMissingTTLDays caps the marker TTL (ten years)
-	// well below the ~106,751 days a time.Duration can hold, so a huge flag
-	// value cannot overflow into a negative TTL.
-	DefaultMaxYahooPlayerMissingTTLDays  = 3650
 	DefaultYahooPlayerPoolMaxAge         = 12 // hours
 	DefaultYahooPlayerPoolMaxAgeInSeason = 24 // hours
 	DefaultYahooGamePlayerListMaxAge     = 24 // hours
 	DefaultYahooPoolLeagueConcurrency    = 3
+	// DefaultYahooGamePlayerListConcurrency is how many seasons' game player
+	// lists download at once. Each season walks its pages one at a time, so
+	// no page is fetched past a list's end; the seasons' pages spread over
+	// the worker replicas, each with its own Yahoo rate limiter.
+	DefaultYahooGamePlayerListConcurrency = 4
 )
 
 // Yahoo request rate limit defaults. The limit is per process: 16 worker
