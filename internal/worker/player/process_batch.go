@@ -43,9 +43,11 @@ type ProcessPlayerBatchResult struct {
 	// not matched and not counted.
 	MatchReasons map[string]int
 	// BirthDatePagesDownloaded counts the Yahoo Sports player pages
-	// downloaded for a birth date tie-break (a stored page is read, not
-	// counted); BirthDatePagesFailed the tied candidates whose page could
-	// not be read, downloaded or parsed, matched without a birth date.
+	// downloaded for a birth date tie-break, including a downloaded page
+	// that then failed to parse or be stored (a stored page is read, not
+	// counted); BirthDatePagesFailed the pages that could not be read,
+	// downloaded, parsed or stored, each once per batch, whose tied
+	// candidates were matched without a birth date.
 	BirthDatePagesDownloaded int
 	BirthDatePagesFailed     int
 	Errors                   []string // Error messages for failed players (ProcessPlayerBatch only)
@@ -73,6 +75,9 @@ type PlayerError struct {
 type batchOutcome struct {
 	result ProcessPlayerBatchResult
 	errors []PlayerError
+	// unavailableBirthDates holds the Yahoo IDs whose birth date page failed
+	// in this batch, so later landings do not request it again.
+	unavailableBirthDates map[store.YahooPlayerID]struct{}
 }
 
 // fail records a per-player error; the batch goes on with the next player.
@@ -220,7 +225,7 @@ func (a *Activities) importPlayerLanding(
 		result.Origins.Record(origin)
 	}
 
-	a.addYahooBirthDates(ctx, landing, landingBirthDate(landing), yahooPool, result)
+	a.addYahooBirthDates(ctx, landing, landingBirthDate(landing), yahooPool, out)
 	matchResult := matchLandingYahooID(landing, yahooPool)
 	if err := a.upsertLandingPlayer(ctx, p.ID, landing, matchResult); err != nil {
 		errMsg := fmt.Sprintf("player %d (%s %s): upsert error: %v",

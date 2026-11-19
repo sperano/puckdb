@@ -116,10 +116,10 @@ func (s faultyStorage) Write(ctx context.Context, path string, data []byte) erro
 // matchElias adds the birth dates eliasLanding needs to pool and matches it.
 func matchElias(t *testing.T, a *Activities, pool map[store.YahooPlayerID]*store.YahooPlayer) (matching.YahooIDMatchResult, ProcessPlayerBatchResult) {
 	t.Helper()
-	var result ProcessPlayerBatchResult
+	var out batchOutcome
 	landing := eliasLanding()
-	a.addYahooBirthDates(context.Background(), landing, landingBirthDate(landing), pool, &result)
-	return matchLandingYahooID(landing, pool), result
+	a.addYahooBirthDates(context.Background(), landing, landingBirthDate(landing), pool, &out)
+	return matchLandingYahooID(landing, pool), out.result
 }
 
 func TestAddYahooBirthDates_DownloadsAndStoresTiedCandidatesPages(t *testing.T) {
@@ -212,6 +212,9 @@ func TestAddYahooBirthDates_FailuresLeaveTheMatchWithoutBirthDates(t *testing.T)
 		storage       func() store.Storage
 		downloader    func() *pageServer
 		wantRequested int
+		// wantDownloaded counts the bodies the downloader returned, even
+		// those that then failed to parse or be stored.
+		wantDownloaded int
 	}{
 		{name: "download error",
 			storage:       func() store.Storage { return store.NewMemStorage() },
@@ -222,7 +225,7 @@ func TestAddYahooBirthDates_FailuresLeaveTheMatchWithoutBirthDates(t *testing.T)
 			downloader: func() *pageServer {
 				return &pageServer{pages: map[store.YahooPlayerID][]byte{eliasForwardID: unparseablePage, eliasDefenceID: unparseablePage}}
 			},
-			wantRequested: 2},
+			wantRequested: 2, wantDownloaded: 2},
 		{name: "storage read error",
 			storage: func() store.Storage {
 				return faultyStorage{Storage: store.NewMemStorage(), readErr: errors.New("juicefs down")}
@@ -238,7 +241,7 @@ func TestAddYahooBirthDates_FailuresLeaveTheMatchWithoutBirthDates(t *testing.T)
 					eliasDefenceID: yahooPlayerPageHTML(eliasDefenceBirth),
 				}}
 			},
-			wantRequested: 2},
+			wantRequested: 2, wantDownloaded: 2},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -251,11 +254,61 @@ func TestAddYahooBirthDates_FailuresLeaveTheMatchWithoutBirthDates(t *testing.T)
 
 			assert.Equal(t, matching.YahooIDMatchResult{Reason: matching.MatchReasonAmbiguous}, match)
 			assert.Len(t, server.requested, tc.wantRequested)
-			assert.Equal(t, ProcessPlayerBatchResult{BirthDatePagesFailed: 2}, result)
+			assert.Equal(t, ProcessPlayerBatchResult{BirthDatePagesDownloaded: tc.wantDownloaded, BirthDatePagesFailed: 2}, result)
 			assert.True(t, pool[eliasForwardID].BirthDate.IsZero())
 			assert.True(t, pool[eliasDefenceID].BirthDate.IsZero())
 		})
 	}
+}
+
+// A page that failed is not requested again for a later landing of the same
+// batch tied on the same Yahoo ID, and counts as failed once.
+func TestAddYahooBirthDates_DoesNotRetryAFailedPageInTheSameBatch(t *testing.T) {
+	t.Parallel()
+	server := &pageServer{pages: map[store.YahooPlayerID][]byte{eliasDefenceID: yahooPlayerPageHTML(eliasDefenceBirth)}}
+	a := &Activities{Storage: store.NewMemStorage(), YahooPlayerPages: server.download}
+	pool := eliasPool()
+	var out batchOutcome
+
+	for range 2 {
+		landing := eliasLanding()
+		a.addYahooBirthDates(context.Background(), landing, landingBirthDate(landing), pool, &out)
+	}
+
+	assert.Equal(t, []string{pageURL(eliasForwardID), pageURL(eliasDefenceID)}, server.requested)
+	assert.Equal(t, ProcessPlayerBatchResult{BirthDatePagesDownloaded: 1, BirthDatePagesFailed: 1}, out.result)
+	assert.True(t, pool[eliasForwardID].BirthDate.IsZero())
+	assert.Equal(t, eliasDefenceBirth, pool[eliasDefenceID].BirthDate)
+}
+
+// Storage is the source of truth: a Valkey SET failure after a download is
+// logged, and the page still counts as downloaded and gives its birth date.
+func TestAddYahooBirthDates_ValkeyWriteFailureKeepsTheDownloadedPage(t *testing.T) {
+	t.Parallel()
+	mem := store.NewMemStorage()
+	server := &pageServer{pages: map[store.YahooPlayerID][]byte{
+		eliasForwardID: yahooPlayerPageHTML(eliasForwardBirth),
+		eliasDefenceID: yahooPlayerPageHTML(eliasDefenceBirth),
+	}}
+	redisClient, valkey := redismock.NewClientMock()
+	forwardKey := core.RedisKey(resource.YahooPlayer{PlayerID: eliasForwardID})
+	defenceKey := core.RedisKey(resource.YahooPlayer{PlayerID: eliasDefenceID})
+	valkey.ExpectGet(forwardKey).SetErr(redis.Nil)
+	valkey.CustomMatch(anyArgs).ExpectSet(forwardKey, "page", cache.GobCacheTTL).SetErr(errors.New("valkey down"))
+	valkey.ExpectGet(defenceKey).SetErr(redis.Nil)
+	valkey.CustomMatch(anyArgs).ExpectSet(defenceKey, "page", cache.GobCacheTTL).SetVal("OK")
+	a := &Activities{Storage: mem, GobCache: cache.NewGobCache(redisClient), YahooPlayerPages: server.download}
+	pool := eliasPool()
+
+	match, result := matchElias(t, a, pool)
+
+	require.NoError(t, valkey.ExpectationsWereMet())
+	assert.Equal(t, matching.YahooIDMatchResult{YahooID: eliasForwardID, Matched: true, Reason: matching.MatchReasonNameBirthdate}, match)
+	assert.Equal(t, ProcessPlayerBatchResult{BirthDatePagesDownloaded: 2}, result)
+	assert.Equal(t, eliasForwardBirth, pool[eliasForwardID].BirthDate)
+	stored, err := mem.Read(context.Background(), pagePath(eliasForwardID))
+	require.NoError(t, err)
+	assert.Equal(t, yahooPlayerPageHTML(eliasForwardBirth), stored)
 }
 
 func TestYahooBirthDate_NoDownloaderFailsForAMissingPage(t *testing.T) {

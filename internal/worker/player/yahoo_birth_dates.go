@@ -26,22 +26,31 @@ var errNoYahooPlayerPages = errors.New("no Yahoo player page downloader")
 // Yahoo Sports page is read, from storage or Valkey when stored, downloaded
 // otherwise, and its birth date set on the batch's pool entry. A page that
 // cannot be had is logged and counted; the match then runs without that
-// date, as it did before birth dates were fetched, and the next run tries
-// the page again.
+// date, as it did before birth dates were fetched. The batch remembers it
+// (out.unavailableBirthDates), so a later landing tied on the same Yahoo ID
+// does not request it again; the next batch or run tries the page again.
 func (a *Activities) addYahooBirthDates(
 	ctx context.Context,
 	landing *nhl.PlayerLanding,
 	nhlBirthDate time.Time,
 	pool map[store.YahooPlayerID]*store.YahooPlayer,
-	result *ProcessPlayerBatchResult,
+	out *batchOutcome,
 ) {
+	result := &out.result
 	for _, id := range matching.BirthDatesNeeded(landing, nhlBirthDate, pool) {
+		if _, failed := out.unavailableBirthDates[id]; failed {
+			continue
+		}
 		birth, downloaded, err := a.yahooBirthDate(ctx, id)
 		if downloaded {
 			result.BirthDatePagesDownloaded++
 		}
 		if err != nil {
 			result.BirthDatePagesFailed++
+			if out.unavailableBirthDates == nil {
+				out.unavailableBirthDates = map[store.YahooPlayerID]struct{}{}
+			}
+			out.unavailableBirthDates[id] = struct{}{}
 			log.Warn().Err(err).
 				Int64("nhl_id", landing.PlayerID.Int64()).
 				Int("yahoo_id", int(id)).
@@ -53,7 +62,9 @@ func (a *Activities) addYahooBirthDates(
 }
 
 // yahooBirthDate returns the birth date on id's Yahoo Sports page (zero when
-// the page shows none) and whether the page was downloaded. A stored page is
+// the page shows none) and whether the page was downloaded, i.e. whether the
+// downloader returned a body, even one that then fails to parse or to be
+// stored. A stored page is
 // read through the gob cache and never downloaded again (a birth date does
 // not change), unless it no longer parses; a downloaded page is stored and
 // cached only once it parses.
@@ -73,10 +84,10 @@ func (a *Activities) yahooBirthDate(ctx context.Context, id store.YahooPlayerID)
 		metrics.IncDownload(page.Type(), metrics.ResultError)
 		return time.Time{}, false, fmt.Errorf("read %s: %w", page.Path(), err)
 	}
-	player, err := a.downloadYahooPlayerPage(ctx, page)
+	player, downloaded, err := a.downloadYahooPlayerPage(ctx, page)
 	if err != nil {
 		metrics.IncDownload(page.Type(), metrics.ResultError)
-		return time.Time{}, false, err
+		return time.Time{}, downloaded, err
 	}
 	metrics.IncDownload(page.Type(), metrics.ResultMiss)
 	return player.BirthDate, true, nil
@@ -84,24 +95,25 @@ func (a *Activities) yahooBirthDate(ctx context.Context, id store.YahooPlayerID)
 
 // downloadYahooPlayerPage downloads page, and stores and caches it once it
 // parses, so a bad response never becomes a stored page. Storage is the
-// source of truth: a Valkey write failure is logged, not returned.
-func (a *Activities) downloadYahooPlayerPage(ctx context.Context, page resource.YahooPlayer) (*store.YahooPlayer, error) {
+// source of truth: a Valkey write failure is logged, not returned. The bool
+// reports whether the downloader returned a body.
+func (a *Activities) downloadYahooPlayerPage(ctx context.Context, page resource.YahooPlayer) (*store.YahooPlayer, bool, error) {
 	if a.YahooPlayerPages == nil {
-		return nil, fmt.Errorf("download %s: %w", page.URL(), errNoYahooPlayerPages)
+		return nil, false, fmt.Errorf("download %s: %w", page.URL(), errNoYahooPlayerPages)
 	}
 	raw, err := a.YahooPlayerPages(ctx, page.URL())
 	if err != nil {
-		return nil, fmt.Errorf("download %s: %w", page.URL(), err)
+		return nil, false, fmt.Errorf("download %s: %w", page.URL(), err)
 	}
 	player, err := store.ParseYahooPlayerHTML(page.PlayerID, raw)
 	if err != nil {
-		return nil, fmt.Errorf("parse %s: %w", page.URL(), err)
+		return nil, true, fmt.Errorf("parse %s: %w", page.URL(), err)
 	}
 	if err := resource.Write(ctx, a.Storage, page, raw); err != nil {
-		return nil, fmt.Errorf("save %s: %w", page.Path(), err)
+		return nil, true, fmt.Errorf("save %s: %w", page.Path(), err)
 	}
 	if err := a.GobCache.SetParsed(ctx, page, raw); err != nil && !errors.Is(err, cache.ErrNilCache) {
 		log.Warn().Err(err).Str("path", page.Path()).Msg("gob cache write failed after Yahoo player page download; continuing")
 	}
-	return player, nil
+	return player, true, nil
 }
