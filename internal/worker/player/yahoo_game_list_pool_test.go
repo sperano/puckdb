@@ -207,7 +207,8 @@ func (s *GameListPoolSuite) ensure(input EnsureYahooIDPoolInput) (EnsureYahooIDP
 		return EnsureYahooIDPoolResult{}, err
 	}
 	var result EnsureYahooIDPoolResult
-	return result, future.Get(&result)
+	err = future.Get(&result)
+	return result, err
 }
 
 func (s *GameListPoolSuite) TestLostListPoolIsRebuiltFromTheLists() {

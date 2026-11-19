@@ -192,9 +192,10 @@ func (a *Activities) readCommittedGamePlayerList(ctx context.Context, season int
 // readGamePlayerListPages reads every page the manifest names, through the
 // Valkey cache (a page path names its download, so a cached page never goes
 // stale), heartbeating after each page. A page that cannot be read or
-// parsed fails: its commit already read it.
+// parsed fails: its commit already read it. The manifest's player count is
+// not a capacity hint: the stored file is not trusted to bound memory.
 func (a *Activities) readGamePlayerListPages(ctx context.Context, season int, manifest resource.GamePlayerListManifest) ([]store.YahooPlayer, error) {
-	players := make([]store.YahooPlayer, 0, manifest.Players)
+	var players []store.YahooPlayer
 	for _, start := range manifest.Starts {
 		if err := ctx.Err(); err != nil {
 			return nil, err
