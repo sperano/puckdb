@@ -14,10 +14,23 @@ import (
 	"go.temporal.io/sdk/testsuite"
 )
 
+// failingPathStorage fails every read of one path with errManifestStorage.
+type failingPathStorage struct {
+	*store.MemStorage
+	path string
+}
+
+func (s failingPathStorage) Read(ctx context.Context, path string) ([]byte, error) {
+	if path == s.path {
+		return nil, errManifestStorage
+	}
+	return s.MemStorage.Read(ctx, path)
+}
+
 func commitGameListInput(downloadID int64, starts, discarded []int) CommitYahooGamePlayerListInput {
 	return CommitYahooGamePlayerListInput{
 		Season: yahoofixtures.CurrentGameSeason, GameKey: yahoofixtures.CurrentGameKey, DownloadID: downloadID,
-		FetchedAt: time.UnixMilli(downloadID).UTC(), Starts: starts, Players: yahoofixtures.PlayersInGamePage,
+		FetchedAt: time.UnixMilli(downloadID).UTC(), Starts: starts, Players: len(starts) * yahoofixtures.PlayersInGamePage,
 		Discarded: discarded,
 	}
 }
@@ -54,7 +67,7 @@ func TestCommitYahooGamePlayerList_WritesManifest(t *testing.T) {
 	assert.Equal(t, resource.GamePlayerListManifest{
 		DownloadID: gameListDownloadID, GameKey: yahoofixtures.CurrentGameKey,
 		FetchedAt: time.UnixMilli(gameListDownloadID).UTC(), Starts: []int{0, gameListSecondPage},
-		Players: yahoofixtures.PlayersInGamePage,
+		Players: 2 * yahoofixtures.PlayersInGamePage,
 	}, readGameListManifest(t, mem))
 }
 
@@ -157,5 +170,85 @@ func TestCommitYahooGamePlayerList_InvalidManifestIsNonRetryable(t *testing.T) {
 
 	assertRetryability(t, err, false, invalidGamePlayerListErrorType)
 	assert.Contains(t, err.Error(), "commit game player list 2026: page offsets [0 0] do not strictly increase")
+	assert.False(t, mem.Has(resource.GamePlayerList{Season: yahoofixtures.CurrentGameSeason}.Path()))
+}
+
+// A discarded offset the list also names is refused before anything is
+// written, so the cleanup cannot delete a page of the new list.
+func TestCommitYahooGamePlayerList_DiscardedNamedPageIsNonRetryable(t *testing.T) {
+	mem := store.NewMemStorage()
+	a := &FetchActivities{Storage: mem, GobCache: cache.NewGobCache(nil)}
+	storeGamePages(mem, gameListDownloadID, 0, gameListSecondPage)
+
+	err := runCommitGameList(a,
+		commitGameListInput(gameListDownloadID, []int{0, gameListSecondPage}, []int{gameListSecondPage}))
+
+	assertRetryability(t, err, false, invalidGamePlayerListErrorType)
+	assert.Contains(t, err.Error(), "commit game player list 2026: discarded page offset 25 is named by the list")
+	assert.False(t, mem.Has(resource.GamePlayerList{Season: yahoofixtures.CurrentGameSeason}.Path()))
+	assert.True(t, mem.Has(gamePage(gameListDownloadID, gameListSecondPage).Path()))
+}
+
+// A named page of another game key is refused: the manifest would claim a
+// list of the commit's game.
+func TestCommitYahooGamePlayerList_PageOfOtherGameKeyIsNonRetryable(t *testing.T) {
+	mem := store.NewMemStorage()
+	a := &FetchActivities{Storage: mem, GobCache: cache.NewGobCache(nil)}
+	storeGamePages(mem, gameListDownloadID, 0)
+	input := commitGameListInput(gameListDownloadID, []int{0}, nil)
+	input.GameKey = yahoofixtures.PastGameKey
+
+	err := runCommitGameList(a, input)
+
+	assertRetryability(t, err, false, invalidGamePlayerListErrorType)
+	assert.Contains(t, err.Error(), "response game key 477 does not match requested game key 465")
+	assert.False(t, mem.Has(resource.GamePlayerList{Season: yahoofixtures.CurrentGameSeason}.Path()))
+}
+
+// A named page of another season is refused.
+func TestCommitYahooGamePlayerList_PageOfOtherSeasonIsNonRetryable(t *testing.T) {
+	mem := store.NewMemStorage()
+	a := &FetchActivities{Storage: mem, GobCache: cache.NewGobCache(nil)}
+	page := resource.GamePlayers{Season: yahoofixtures.PastGameSeason, DownloadID: gameListDownloadID}
+	mem.SetFile(page.Path(), yahoofixtures.Read(yahoofixtures.GamePlayersPage))
+	input := commitGameListInput(gameListDownloadID, []int{0}, nil)
+	input.Season = yahoofixtures.PastGameSeason
+
+	err := runCommitGameList(a, input)
+
+	assertRetryability(t, err, false, invalidGamePlayerListErrorType)
+	assert.Contains(t, err.Error(), "response season 2026 does not match requested season 2025")
+	assert.False(t, mem.Has(resource.GamePlayerList{Season: yahoofixtures.PastGameSeason}.Path()))
+}
+
+// Pages holding another player count than the commit's are refused.
+func TestCommitYahooGamePlayerList_PlayerCountMismatchIsNonRetryable(t *testing.T) {
+	mem := store.NewMemStorage()
+	a := &FetchActivities{Storage: mem, GobCache: cache.NewGobCache(nil)}
+	storeGamePages(mem, gameListDownloadID, 0)
+	input := commitGameListInput(gameListDownloadID, []int{0}, nil)
+	input.Players++
+
+	err := runCommitGameList(a, input)
+
+	assertRetryability(t, err, false, invalidGamePlayerListErrorType)
+	assert.Contains(t, err.Error(), "commit game player list 2026: pages hold 3 players, not 4")
+	assert.False(t, mem.Has(resource.GamePlayerList{Season: yahoofixtures.CurrentGameSeason}.Path()))
+}
+
+// A page storage cannot read may still be written: the commit retries.
+func TestCommitYahooGamePlayerList_PageReadErrorIsRetryable(t *testing.T) {
+	mem := store.NewMemStorage()
+	storeGamePages(mem, gameListDownloadID, 0)
+	a := &FetchActivities{
+		Storage:  failingPathStorage{MemStorage: mem, path: gamePage(gameListDownloadID, 0).Path()},
+		GobCache: cache.NewGobCache(nil),
+	}
+
+	err := runCommitGameList(a, commitGameListInput(gameListDownloadID, []int{0}, nil))
+
+	assertRetryability(t, err, true, "")
+	assert.Contains(t, err.Error(), errManifestStorage.Error())
+	assert.Contains(t, err.Error(), "commit game player list 2026: read page seasons/2026/yahoo-game/players/1763500000000/players-0000.xml")
 	assert.False(t, mem.Has(resource.GamePlayerList{Season: yahoofixtures.CurrentGameSeason}.Path()))
 }

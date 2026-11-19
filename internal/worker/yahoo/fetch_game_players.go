@@ -17,12 +17,14 @@ import (
 	"go.temporal.io/sdk/temporal"
 )
 
-// invalidGamePlayersPageErrorType tags a game players page request that names
-// no game key, which no retry can fix.
+// invalidGamePlayersPageErrorType tags a game players page request whose
+// season, game key, download ID or offset is out of range, which no retry
+// can fix.
 const invalidGamePlayersPageErrorType = "InvalidYahooGamePlayersPage"
 
-// invalidGamePlayerListErrorType tags a commit whose manifest
-// GamePlayerListManifest.Validate rejects, which no retry can fix.
+// invalidGamePlayerListErrorType tags a commit that no retry can fix: its
+// manifest GamePlayerListManifest.Validate rejects, a discarded page it would
+// also name, or stored pages of another game or player count.
 const invalidGamePlayerListErrorType = "InvalidYahooGamePlayerList"
 
 // PlanYahooGamePlayerListInput names the season whose Yahoo game player list
@@ -162,10 +164,10 @@ func (a *FetchActivities) nhlGame(ctx context.Context, season int) (store.Fantas
 // list, even when a copy is cached, under the download's own directory.
 func (a *FetchActivities) FetchYahooGamePlayersPage(ctx context.Context, input FetchYahooGamePlayersPageInput) (FetchYahooGamePlayersPageResult, error) {
 	defer metrics.TrackActivityDuration("FetchYahooGamePlayersPage")()
-	if input.GameKey <= 0 {
+	if err := input.validate(); err != nil {
 		return FetchYahooGamePlayersPageResult{}, temporal.NewNonRetryableApplicationError(
-			fmt.Sprintf("game players %d start %d: no game key", input.Season, input.Start),
-			invalidGamePlayersPageErrorType, nil)
+			fmt.Sprintf("game players %d start %d: %v", input.Season, input.Start, err),
+			invalidGamePlayersPageErrorType, err)
 	}
 	res := resource.GamePlayers{
 		Season: input.Season, DownloadID: input.DownloadID, Start: input.Start, GameKey: input.GameKey,
@@ -181,10 +183,26 @@ func (a *FetchActivities) FetchYahooGamePlayersPage(ctx context.Context, input F
 	return FetchYahooGamePlayersPageResult{Players: players}, nil
 }
 
+// validate rejects a page that could be stored where no manifest can name it.
+func (input FetchYahooGamePlayersPageInput) validate() error {
+	switch {
+	case input.Season <= 0:
+		return fmt.Errorf("season %d is not a season", input.Season)
+	case input.GameKey <= 0:
+		return fmt.Errorf("game key %d is not a game key", input.GameKey)
+	case input.DownloadID <= 0:
+		return fmt.Errorf("download ID %d is not a download ID", input.DownloadID)
+	case input.Start < 0:
+		return fmt.Errorf("offset %d is negative", input.Start)
+	}
+	return nil
+}
+
 // CommitYahooGamePlayerList writes the manifest that makes the downloaded
-// pages the season's game player list, once every page it names is stored,
-// then removes the pages of the list it replaces and the download's
-// discarded pages. Pages of downloads that failed before their commit are
+// pages the season's game player list, once every page it names is stored
+// and parses as a page of the season's game key and the pages hold the
+// commit's player count, then removes the pages of the list it replaces and
+// the download's discarded pages. Pages of downloads that failed before their commit are
 // never named by a manifest and are left in place, and so are those of a
 // replaced manifest that no longer parses. A replaced manifest that cannot
 // be read fails the commit before the write, so a retry still finds the
@@ -194,15 +212,11 @@ func (a *FetchActivities) CommitYahooGamePlayerList(ctx context.Context, input C
 		DownloadID: input.DownloadID, GameKey: input.GameKey, FetchedAt: input.FetchedAt,
 		Starts: input.Starts, Players: input.Players,
 	}
-	if err := manifest.Validate(); err != nil {
-		return temporal.NewNonRetryableApplicationError(
-			fmt.Sprintf("commit game player list %d: %v", input.Season, err), invalidGamePlayerListErrorType, err)
+	if err := validateGamePlayerListCommit(manifest, input.Discarded); err != nil {
+		return invalidGamePlayerListError(input.Season, err)
 	}
-	for _, start := range input.Starts {
-		page := resource.GamePlayers{Season: input.Season, DownloadID: input.DownloadID, Start: start}
-		if !resource.Exists(ctx, a.Storage, page) {
-			return fmt.Errorf("commit game player list %d: page %s is missing", input.Season, page.Path())
-		}
+	if err := a.checkGamePlayerPages(ctx, input); err != nil {
+		return err
 	}
 	res := resource.GamePlayerList{Season: input.Season}
 	previous, hadPrevious, err := a.readReplacedGamePlayerList(ctx, res)
@@ -218,6 +232,58 @@ func (a *FetchActivities) CommitYahooGamePlayerList(ctx context.Context, input C
 		a.deleteGamePlayerPages(ctx, input.Season, previous.DownloadID, previous.Starts)
 	}
 	a.deleteGamePlayerPages(ctx, input.Season, input.DownloadID, input.Discarded)
+	return nil
+}
+
+// validateGamePlayerListCommit rejects a manifest Validate rejects and a
+// discarded page the manifest names, which the commit would delete.
+func validateGamePlayerListCommit(manifest resource.GamePlayerListManifest, discarded []int) error {
+	if err := manifest.Validate(); err != nil {
+		return err
+	}
+	named := make(map[int]bool, len(manifest.Starts))
+	for _, start := range manifest.Starts {
+		named[start] = true
+	}
+	for _, start := range discarded {
+		if named[start] {
+			return fmt.Errorf("discarded page offset %d is named by the list", start)
+		}
+	}
+	return nil
+}
+
+func invalidGamePlayerListError(season int, err error) error {
+	return temporal.NewNonRetryableApplicationError(
+		fmt.Sprintf("commit game player list %d: %v", season, err), invalidGamePlayerListErrorType, err)
+}
+
+// checkGamePlayerPages reads every page the commit names: a missing page or
+// a storage error is retryable (the page may still be written), a page of
+// another season or game key, or pages holding another player count than
+// the commit's, is not.
+func (a *FetchActivities) checkGamePlayerPages(ctx context.Context, input CommitYahooGamePlayerListInput) error {
+	players := 0
+	for _, start := range input.Starts {
+		page := resource.GamePlayers{
+			Season: input.Season, DownloadID: input.DownloadID, Start: start, GameKey: input.GameKey,
+		}
+		content, err := resource.ReadParsed(ctx, a.Storage, page)
+		var parseErr *resource.ParseError
+		switch {
+		case errors.Is(err, os.ErrNotExist):
+			return fmt.Errorf("commit game player list %d: page %s is missing", input.Season, page.Path())
+		case errors.As(err, &parseErr):
+			return invalidGamePlayerListError(input.Season, fmt.Errorf("page %s: %w", page.Path(), err))
+		case err != nil:
+			return fmt.Errorf("commit game player list %d: read page %s: %w", input.Season, page.Path(), err)
+		}
+		players += len(content.Game.Players.Slice)
+	}
+	if players != input.Players {
+		return invalidGamePlayerListError(input.Season,
+			fmt.Errorf("pages hold %d players, not %d", players, input.Players))
+	}
 	return nil
 }
 

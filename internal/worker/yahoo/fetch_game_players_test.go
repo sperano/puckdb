@@ -318,16 +318,41 @@ func TestFetchYahooGamePlayersPage_DownloadsStoresAndCaches(t *testing.T) {
 	assert.Equal(t, gamePlayersPageTTL, server.TTL(core.RedisKey(page)), "the parsed page is cached with its type's TTL")
 }
 
-func TestFetchYahooGamePlayersPage_NoGameKeyIsNonRetryable(t *testing.T) {
-	dl, calls := countingDownloader(nil, errors.New("must not download"))
-	a := &FetchActivities{Storage: store.NewMemStorage(), Download: dl, GobCache: cache.NewGobCache(nil)}
-	input := currentGamePageInput(0)
-	input.GameKey = 0
+// A page whose season, game key, download ID or offset is out of range is
+// refused before any download, so it is never stored where no manifest can
+// name it.
+func TestFetchYahooGamePlayersPage_InvalidInputIsNonRetryable(t *testing.T) {
+	tests := []struct {
+		name    string
+		mutate  func(*FetchYahooGamePlayersPageInput)
+		message string
+	}{
+		{"no season", func(in *FetchYahooGamePlayersPageInput) { in.Season = 0 },
+			"game players 0 start 0: season 0 is not a season"},
+		{"no game key", func(in *FetchYahooGamePlayersPageInput) { in.GameKey = 0 },
+			"game players 2026 start 0: game key 0 is not a game key"},
+		{"no download ID", func(in *FetchYahooGamePlayersPageInput) { in.DownloadID = 0 },
+			"game players 2026 start 0: download ID 0 is not a download ID"},
+		{"negative download ID", func(in *FetchYahooGamePlayersPageInput) { in.DownloadID = -1 },
+			"game players 2026 start 0: download ID -1 is not a download ID"},
+		{"negative offset", func(in *FetchYahooGamePlayersPageInput) { in.Start = -1 },
+			"game players 2026 start -1: offset -1 is negative"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dl, calls := countingDownloader(nil, errors.New("must not download"))
+			mem := store.NewMemStorage()
+			a := &FetchActivities{Storage: mem, Download: dl, GobCache: cache.NewGobCache(nil)}
+			input := currentGamePageInput(0)
+			tt.mutate(&input)
 
-	_, err := runGamePageActivity(t, a, input)
+			_, err := runGamePageActivity(t, a, input)
 
-	assertRetryability(t, err, false, invalidGamePlayersPageErrorType)
-	assert.Zero(t, *calls)
+			assertRetryability(t, err, false, invalidGamePlayersPageErrorType)
+			assert.Contains(t, err.Error(), tt.message)
+			assert.Zero(t, *calls)
+		})
+	}
 }
 
 func TestFetchYahooGamePlayersPage_OtherGameIsNeverStored(t *testing.T) {
