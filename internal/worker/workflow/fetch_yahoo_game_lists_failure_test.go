@@ -99,8 +99,9 @@ func TestFetchYahooPlayersWorkflow_SeasonConcurrencyLimit(t *testing.T) {
 }
 
 // gameListOutcomesWorkflow returns fetchYahooGamePlayerListSeasons'
-// outcomes, so a test can check what each season reports.
-func gameListOutcomesWorkflow(ctx workflow.Context, seasons []int) ([]gameListOutcome, error) {
+// outcomes, so a test can check what each season reports; concurrency 0
+// runs every season at once.
+func gameListOutcomesWorkflow(ctx workflow.Context, seasons []int, concurrency int) ([]gameListOutcome, error) {
 	tracker, err := shared.InitTracker(ctx, newFetchYahooPlayersProgressReport())
 	if err != nil {
 		return nil, err
@@ -108,7 +109,10 @@ func gameListOutcomesWorkflow(ctx workflow.Context, seasons []int) ([]gameListOu
 	for range seasons {
 		tracker.AddBar(GroupFetchYahooPlayers, shared.ProgressBar{Total: gameListPlanUnits})
 	}
-	outcomes, _ := fetchYahooGamePlayerListSeasons(ctx, tracker, seasons, len(seasons))
+	if concurrency == 0 {
+		concurrency = len(seasons)
+	}
+	outcomes, _ := fetchYahooGamePlayerListSeasons(ctx, tracker, seasons, concurrency)
 	return outcomes, nil
 }
 
@@ -131,7 +135,7 @@ func TestFetchYahooGamePlayerListSeasons_FailedSeasonsReportFailed(t *testing.T)
 	env.RegisterWorkflow(gameListOutcomesWorkflow)
 	f.register(env)
 
-	env.ExecuteWorkflow(gameListOutcomesWorkflow, f.seasons)
+	env.ExecuteWorkflow(gameListOutcomesWorkflow, f.seasons, 0)
 
 	require.True(t, env.IsWorkflowCompleted())
 	require.NoError(t, env.GetWorkflowError())
@@ -149,6 +153,18 @@ const (
 	gameListBlockedPage = time.Hour
 )
 
+// blockSecondPages makes every season's second page take
+// gameListBlockedPage, so a cancellation at gameListCancelAfter finds it in
+// flight.
+func blockSecondPages(env *testsuite.TestWorkflowEnvironment) {
+	var act *yahoo.FetchActivities
+	secondPage := mock.MatchedBy(func(in yahoo.FetchYahooGamePlayersPageInput) bool {
+		return in.Start == resource.GamePlayersPageSize
+	})
+	env.OnActivity(act.FetchYahooGamePlayersPage, mock.Anything, secondPage).After(gameListBlockedPage).
+		Return(yahoo.FetchYahooGamePlayersPageResult{Players: gameListShortPagePlayers}, nil)
+}
+
 func TestFetchYahooPlayersWorkflow_CancelledDownloadIsDiscarded(t *testing.T) {
 	f := &gameListFakes{
 		seasons: []int{gameListCurrentSeason},
@@ -158,12 +174,7 @@ func TestFetchYahooPlayersWorkflow_CancelledDownloadIsDiscarded(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
 	env.RegisterWorkflow(FetchYahooPlayersWorkflow)
-	var act *yahoo.FetchActivities
-	secondPage := mock.MatchedBy(func(in yahoo.FetchYahooGamePlayersPageInput) bool {
-		return in.Start == resource.GamePlayersPageSize
-	})
-	env.OnActivity(act.FetchYahooGamePlayersPage, mock.Anything, secondPage).After(gameListBlockedPage).
-		Return(yahoo.FetchYahooGamePlayersPageResult{Players: gameListShortPagePlayers}, nil)
+	blockSecondPages(env)
 	f.register(env)
 	env.RegisterDelayedCallback(env.CancelWorkflow, gameListCancelAfter)
 
@@ -177,4 +188,23 @@ func TestFetchYahooPlayersWorkflow_CancelledDownloadIsDiscarded(t *testing.T) {
 	assert.Equal(t, gameListCurrentSeason, f.discards[0].Season)
 	assert.Equal(t, []int{0, resource.GamePlayersPageSize}, f.discards[0].Starts,
 		"the in-flight page is discarded with the stored one")
+}
+
+func TestFetchYahooGamePlayerListSeasons_CancelledRunReportsUnstartedSeasonsNotRun(t *testing.T) {
+	f := twoDueSeasonFakes()
+	var ts testsuite.WorkflowTestSuite
+	env := ts.NewTestWorkflowEnvironment()
+	env.RegisterWorkflow(gameListOutcomesWorkflow)
+	blockSecondPages(env)
+	f.register(env)
+	env.RegisterDelayedCallback(env.CancelWorkflow, gameListCancelAfter)
+
+	env.ExecuteWorkflow(gameListOutcomesWorkflow, f.seasons, 1)
+
+	require.True(t, env.IsWorkflowCompleted())
+	var outcomes []gameListOutcome
+	require.NoError(t, env.GetWorkflowResult(&outcomes))
+	assert.Equal(t, []gameListOutcome{gameListFailed, gameListNotRun}, outcomes,
+		"the cancelled season failed, the one waiting for a slot never ran")
+	assert.NotContains(t, f.starts, gameListCurrentSeason, "the unstarted season requested no page")
 }

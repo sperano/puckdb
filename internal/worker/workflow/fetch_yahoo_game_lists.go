@@ -135,7 +135,10 @@ func fetchYahooGamePlayerListSeasons(ctx workflow.Context, tracker *shared.Repor
 // fetchYahooGamePlayerList plans the season's list and, when it is due,
 // downloads its pages and commits the manifest that makes them the season's
 // list. The download ID, taken from the workflow clock, keeps each
-// download's pages apart.
+// download's pages apart. The page and commit activities wait for their
+// cancellation to end, so a cancelled run discards only after the in-flight
+// one has stopped: a page stored, or a manifest committed, after the discard
+// read the manifest would otherwise outlive it.
 func fetchYahooGamePlayerList(ctx workflow.Context, season int, bar gameListBar) (gameListOutcome, error) {
 	var act *yahoo.FetchActivities
 	logger := workflow.GetLogger(ctx)
@@ -161,12 +164,12 @@ func fetchYahooGamePlayerList(ctx workflow.Context, season int, bar gameListBar)
 	}
 	pages := gameListPages(plan.PreviousPlayerCount)
 	bar.resize(ctx, pages+gameListCommitUnits)
-	requested, err := fetchGamePlayerListPages(yahooCtx, &commit, bar, pages)
+	requested, err := fetchGamePlayerListPages(workflow.WithWaitForCancellation(yahooCtx, true), &commit, bar, pages)
 	if err != nil {
 		discardGamePlayerList(ctx, commit, requested)
 		return gameListFailed, err
 	}
-	commitCtx := workflow.WithActivityOptions(ctx, shared.DefaultActivityOptions())
+	commitCtx := workflow.WithWaitForCancellation(workflow.WithActivityOptions(ctx, shared.DefaultActivityOptions()), true)
 	if err := workflow.ExecuteActivity(commitCtx, act.CommitYahooGamePlayerList, commit).Get(ctx, nil); err != nil {
 		discardGamePlayerList(ctx, commit, requested)
 		return gameListFailed, err
