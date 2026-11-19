@@ -278,22 +278,6 @@ func TestNewFetchPlayerLandingsProgressReport(t *testing.T) {
 	assert.Equal(t, "Players", r.Groups[0].Bars[0].Label)
 }
 
-func TestNewFetchYahooPlayersProgressReport(t *testing.T) {
-	t.Parallel()
-
-	const total = 80000
-	const completed = 12345
-	r := NewFetchYahooPlayersProgressReport(total, completed)
-
-	require.NotNil(t, r)
-	assert.Equal(t, total, r.Total)
-	assert.Equal(t, completed, r.Completed)
-	require.Len(t, r.Groups, 1)
-	require.Len(t, r.Groups[0].Bars, 1)
-	assert.Equal(t, total, r.Groups[0].Bars[0].Total)
-	assert.Equal(t, completed, r.Groups[0].Bars[0].Current)
-}
-
 func TestNewFetchEdgeProgressReport(t *testing.T) {
 	t.Parallel()
 

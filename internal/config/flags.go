@@ -220,15 +220,11 @@ const (
 
 // Yahoo player download flags
 const (
-	FlagMaxYahooPlayerID              = "max-yahoo-player-id"
-	FlagYahooPlayerBatchSize          = "yahoo-player-batch-size"
-	FlagYahooPlayerActivityBatchSize  = "yahoo-player-activity-batch-size"
-	FlagYahooPlayersPerExecution      = "yahoo-players-per-execution"
-	FlagYahooPlayerMissingTTLDays     = "yahoo-player-missing-ttl-days"
-	FlagYahooPlayerPoolMaxAge         = "yahoo-player-pool-max-age"
-	FlagYahooPlayerPoolMaxAgeInSeason = "yahoo-player-pool-max-age-in-season"
-	FlagYahooGamePlayerListMaxAge     = "yahoo-game-player-list-max-age"
-	FlagYahooPoolLeagueConcurrency    = "yahoo-pool-league-concurrency"
+	FlagYahooPlayerPoolMaxAge          = "yahoo-player-pool-max-age"
+	FlagYahooPlayerPoolMaxAgeInSeason  = "yahoo-player-pool-max-age-in-season"
+	FlagYahooGamePlayerListMaxAge      = "yahoo-game-player-list-max-age"
+	FlagYahooGamePlayerListConcurrency = "yahoo-game-player-list-concurrency"
+	FlagYahooPoolLeagueConcurrency     = "yahoo-pool-league-concurrency"
 )
 
 // Yahoo request rate limiting flags (one token bucket per process)
@@ -451,7 +447,7 @@ var TemporalRetryFlags = FlagGroup{
 		{FlagTemporalRetryMaxAttempts, "", DefaultTemporalRetryMaxAttempts, "Maximum number of activity retry attempts (0 for unlimited)", false},
 		{FlagWorkflowExecutionTimeout, "", DefaultWorkflowExecutionTimeout, "Workflow execution timeout in minutes", false},
 		{FlagActivityStartToCloseTimeout, "", DefaultActivityStartToCloseTimeout, "Activity start-to-close timeout in minutes", false},
-		{FlagFetchDayActivityTimeout, "", DefaultFetchDayActivityTimeout, "Timeout in minutes of activities that make rate-limited Yahoo downloads (FetchDay, FetchYahooPlayerBatch, the Yahoo season fetch)", false},
+		{FlagFetchDayActivityTimeout, "", DefaultFetchDayActivityTimeout, "Timeout in minutes of activities that make rate-limited Yahoo downloads (FetchDay, the Yahoo game player list pages, the Yahoo season fetch)", false},
 		{FlagActivityHeartbeatTimeout, "", DefaultActivityHeartbeatTimeout, "Activity heartbeat timeout in seconds", false},
 	},
 }
@@ -494,14 +490,10 @@ var NotifyEmailFlags = FlagGroup{
 // YahooPlayerFlags defines Yahoo player download flags.
 var YahooPlayerFlags = FlagGroup{
 	Flags: []FlagDef{
-		{FlagMaxYahooPlayerID, "", DefaultMaxYahooPlayerID, "Maximum Yahoo player ID to scan when importing players", false},
-		{FlagYahooPlayerBatchSize, "", DefaultYahooPlayerBatchSize, "Number of activity batches downloading Yahoo players at once (downloads share the Yahoo rate limit, so more adds no throughput)", false},
-		{FlagYahooPlayerActivityBatchSize, "", DefaultYahooPlayerActivityBatchSize, "Number of players to process per activity", false},
-		{FlagYahooPlayersPerExecution, "", DefaultYahooPlayersPerExecution, "Players to process per workflow execution before ContinueAsNew", false},
-		{FlagYahooPlayerMissingTTLDays, "", DefaultYahooPlayerMissingTTLDays, "Days a Yahoo player page's 404 marker is trusted before the page is fetched again", false},
 		{FlagYahooPlayerPoolMaxAge, "", DefaultYahooPlayerPoolMaxAge, "Hours before a league's Yahoo player pool is downloaded again before its regular season starts", false},
 		{FlagYahooPlayerPoolMaxAgeInSeason, "", DefaultYahooPlayerPoolMaxAgeInSeason, "Hours before a league's Yahoo player pool is downloaded again during its regular season", false},
 		{FlagYahooGamePlayerListMaxAge, "", DefaultYahooGamePlayerListMaxAge, "Hours before the player list of a Yahoo NHL game that is not over is downloaded again (a finished season's list is final)", false},
+		{FlagYahooGamePlayerListConcurrency, "", DefaultYahooGamePlayerListConcurrency, "Number of seasons whose Yahoo game player lists FetchYahooPlayersWorkflow downloads at once (each walks its pages one at a time)", false},
 		{FlagYahooPoolLeagueConcurrency, "", DefaultYahooPoolLeagueConcurrency, "Number of leagues of one season whose Yahoo player pools are downloaded concurrently", false},
 	},
 }

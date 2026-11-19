@@ -1,21 +1,13 @@
 package yahoo
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"net/http"
 	"testing"
 
 	"github.com/sperano/puckdb/internal/httpx"
-	"github.com/sperano/puckdb/internal/resource"
-	"github.com/sperano/puckdb/internal/store"
-	"github.com/sperano/puckdb/internal/worker/shared"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
-	"github.com/stretchr/testify/require"
-	"github.com/stretchr/testify/suite"
-	"go.temporal.io/sdk/testsuite"
 )
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -51,128 +43,6 @@ const (
   </league>
 </fantasy_content>`
 )
-
-// ────────────────────────────────────────────────────────────────────────────
-// FetchYahooPlayerBatch tests
-// ────────────────────────────────────────────────────────────────────────────
-
-type FetchYahooPlayerBatchSuite struct {
-	suite.Suite
-	testsuite.WorkflowTestSuite
-	env *testsuite.TestActivityEnvironment
-}
-
-func (s *FetchYahooPlayerBatchSuite) SetupTest() {
-	s.env = s.NewTestActivityEnvironment()
-}
-
-func TestFetchYahooPlayerBatchSuite(t *testing.T) {
-	suite.Run(t, new(FetchYahooPlayerBatchSuite))
-}
-
-func (s *FetchYahooPlayerBatchSuite) TestAllCached() {
-	mem := store.NewMemStorage()
-	downloader := &MockHTTPDownloader{}
-
-	// Pre-cache two player files.
-	for _, id := range []store.YahooPlayerID{100, 101} {
-		res := resource.YahooPlayer{PlayerID: id}
-		require.NoError(s.T(), mem.Write(context.Background(), res.Path(), []byte("<html>player</html>")))
-	}
-
-	act := &FetchActivities{Storage: mem, PublicDownloader: downloader.Downloader()}
-	s.env.RegisterActivity(act.FetchYahooPlayerBatch)
-	val, err := s.env.ExecuteActivity(act.FetchYahooPlayerBatch, store.YahooPlayerID(100), store.YahooPlayerID(101), testMissingTTL)
-
-	require.NoError(s.T(), err)
-
-	var stats shared.FetchStats
-	require.NoError(s.T(), val.Get(&stats))
-	assert.Equal(s.T(), 2, stats.CacheHits)
-	assert.Equal(s.T(), 0, stats.Downloaded)
-	assert.Equal(s.T(), 0, stats.Missing)
-	downloader.AssertNotCalled(s.T(), "Download")
-}
-
-func (s *FetchYahooPlayerBatchSuite) TestAllMissing() {
-	mem := store.NewMemStorage()
-	downloader := &MockHTTPDownloader{}
-
-	// Pre-mark two players as missing.
-	for _, id := range []store.YahooPlayerID{200, 201} {
-		res := resource.MissingYahooPlayer{PlayerID: id}
-		require.NoError(s.T(), mem.Write(context.Background(), res.Path(), []byte("missing")))
-	}
-
-	act := &FetchActivities{Storage: mem, PublicDownloader: downloader.Downloader()}
-	s.env.RegisterActivity(act.FetchYahooPlayerBatch)
-	val, err := s.env.ExecuteActivity(act.FetchYahooPlayerBatch, store.YahooPlayerID(200), store.YahooPlayerID(201), testMissingTTL)
-
-	require.NoError(s.T(), err)
-
-	var stats shared.FetchStats
-	require.NoError(s.T(), val.Get(&stats))
-	assert.Equal(s.T(), 2, stats.Missing)
-	assert.Equal(s.T(), 0, stats.CacheHits)
-	assert.Equal(s.T(), 0, stats.Downloaded)
-	downloader.AssertNotCalled(s.T(), "Download")
-}
-
-func (s *FetchYahooPlayerBatchSuite) TestDownloadedAndCounted() {
-	mem := store.NewMemStorage()
-	downloader := &MockHTTPDownloader{}
-
-	playerID := store.YahooPlayerID(300)
-	res := resource.YahooPlayer{PlayerID: playerID}
-	content := []byte("<html>player page</html>")
-	downloader.On("Download", mock.Anything, res.URL()).Return(content, nil)
-
-	act := &FetchActivities{Storage: mem, PublicDownloader: downloader.Downloader()}
-	s.env.RegisterActivity(act.FetchYahooPlayerBatch)
-	val, err := s.env.ExecuteActivity(act.FetchYahooPlayerBatch, playerID, playerID, testMissingTTL)
-
-	require.NoError(s.T(), err)
-
-	var stats shared.FetchStats
-	require.NoError(s.T(), val.Get(&stats))
-	assert.Equal(s.T(), 1, stats.Downloaded)
-	assert.Equal(s.T(), 0, stats.CacheHits)
-	assert.Equal(s.T(), 0, stats.Missing)
-	downloader.AssertExpectations(s.T())
-}
-
-func (s *FetchYahooPlayerBatchSuite) TestDownloadError_ReturnsError() {
-	mem := store.NewMemStorage()
-	downloader := &MockHTTPDownloader{}
-
-	playerID := store.YahooPlayerID(400)
-	res := resource.YahooPlayer{PlayerID: playerID}
-	downloader.On("Download", mock.Anything, res.URL()).Return(nil, errors.New("connection refused"))
-
-	act := &FetchActivities{Storage: mem, PublicDownloader: downloader.Downloader()}
-	s.env.RegisterActivity(act.FetchYahooPlayerBatch)
-	_, err := s.env.ExecuteActivity(act.FetchYahooPlayerBatch, playerID, playerID, testMissingTTL)
-
-	require.Error(s.T(), err)
-	assert.Contains(s.T(), err.Error(), "download player")
-}
-
-func (s *FetchYahooPlayerBatchSuite) TestEmptyRange() {
-	mem := store.NewMemStorage()
-	downloader := &MockHTTPDownloader{}
-
-	// startID > endID → loop body never executes.
-	act := &FetchActivities{Storage: mem, PublicDownloader: downloader.Downloader()}
-	s.env.RegisterActivity(act.FetchYahooPlayerBatch)
-	val, err := s.env.ExecuteActivity(act.FetchYahooPlayerBatch, store.YahooPlayerID(500), store.YahooPlayerID(499), testMissingTTL)
-
-	require.NoError(s.T(), err)
-
-	var stats shared.FetchStats
-	require.NoError(s.T(), val.Get(&stats))
-	assert.Equal(s.T(), 0, stats.Downloaded+stats.CacheHits+stats.Missing)
-	downloader.AssertNotCalled(s.T(), "Download")
-}
 
 func TestIsEndOfMatchupWeeks(t *testing.T) {
 	t.Parallel()

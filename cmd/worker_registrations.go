@@ -161,6 +161,10 @@ func registerYahooFetchActivities(w worker.Worker, d taskActivityDeps) {
 	w.RegisterActivity(fetchYahooActivities.PlanYahooLeaguePlayerPool)
 	w.RegisterActivity(fetchYahooActivities.FetchYahooLeaguePlayersPage)
 	w.RegisterActivity(fetchYahooActivities.CommitYahooLeaguePlayerPool)
+	w.RegisterActivity(fetchYahooActivities.ListYahooNHLGameSeasons)
+	w.RegisterActivity(fetchYahooActivities.PlanYahooGamePlayerList)
+	w.RegisterActivity(fetchYahooActivities.FetchYahooGamePlayersPage)
+	w.RegisterActivity(fetchYahooActivities.CommitYahooGamePlayerList)
 }
 
 // registerYahooImportActivities registers the Yahoo cached-file-to-Postgres

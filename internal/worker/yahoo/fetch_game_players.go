@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"slices"
 	"time"
 
 	"github.com/sperano/puckdb/internal/config"
@@ -72,6 +73,29 @@ type CommitYahooGamePlayerListInput struct {
 	// Discarded are this download's pages fetched concurrently past its last
 	// page. No manifest names them, so the commit deletes them.
 	Discarded []int `json:"discarded,omitempty"`
+}
+
+// MaxGamePlayerListPages caps a game player list download so a Yahoo
+// response that never ends cannot loop forever: 200 pages of 25 is 5,000
+// players, about three times the largest season list Yahoo serves (1,613).
+const MaxGamePlayerListPages = 200
+
+// ListYahooNHLGameSeasons downloads Yahoo's NHL games list again and returns
+// the season of every game in it, oldest first. The download keeps the list
+// the plans read through the cache current: a new season's game and the
+// is_game_over flag of the last one.
+func (a *FetchActivities) ListYahooNHLGameSeasons(ctx context.Context) ([]int, error) {
+	defer metrics.TrackActivityDuration("ListYahooNHLGameSeasons")()
+	content, err := a.fetcher().Refresh(ctx, resource.YahooGames{})
+	if err != nil {
+		return nil, fmt.Errorf("refresh Yahoo NHL games: %w", err)
+	}
+	seasons := make([]int, 0, len(content.Games))
+	for _, game := range content.Games {
+		seasons = append(seasons, game.Season)
+	}
+	slices.Sort(seasons)
+	return seasons, nil
 }
 
 // PlanYahooGamePlayerList decides whether the season's game player list is
