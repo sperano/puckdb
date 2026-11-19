@@ -5,6 +5,7 @@ import (
 
 	"github.com/sperano/puckdb/internal/cache"
 	"github.com/sperano/puckdb/internal/fixtures/yahoofixtures"
+	"github.com/sperano/puckdb/internal/resource"
 	"github.com/sperano/puckdb/internal/store"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -76,4 +77,19 @@ func TestDiscardYahooGamePlayerList_ManifestReadErrorKeepsPages(t *testing.T) {
 
 	require.ErrorContains(t, err, "read game player list manifest 2026: "+errManifestStorage.Error())
 	assert.True(t, mem.Has(gamePage(gameListNewDownloadID, 0).Path()))
+}
+
+// A manifest that does not parse names no download, so the pages go.
+func TestDiscardYahooGamePlayerList_UnparseableManifestRemovesPages(t *testing.T) {
+	mem := store.NewMemStorage()
+	a := &FetchActivities{Storage: mem, GobCache: cache.NewGobCache(nil)}
+	manifestPath := resource.GamePlayerList{Season: yahoofixtures.CurrentGameSeason}.Path()
+	mem.SetFile(manifestPath, []byte("not json"))
+	storeGamePages(mem, gameListNewDownloadID, 0, gameListSecondPage)
+
+	require.NoError(t, runDiscardGameList(a, gameListNewDownloadID, 0, gameListSecondPage))
+
+	assert.False(t, mem.Has(gamePage(gameListNewDownloadID, 0).Path()))
+	assert.False(t, mem.Has(gamePage(gameListNewDownloadID, gameListSecondPage).Path()))
+	assert.True(t, mem.Has(manifestPath), "the unparseable manifest is left alone")
 }

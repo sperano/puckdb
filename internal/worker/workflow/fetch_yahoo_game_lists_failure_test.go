@@ -2,12 +2,14 @@ package workflow
 
 import (
 	"testing"
+	"time"
 
 	"github.com/sperano/puckdb/internal/config"
 	"github.com/sperano/puckdb/internal/resource"
 	"github.com/sperano/puckdb/internal/worker/shared"
 	"github.com/sperano/puckdb/internal/worker/yahoo"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/testsuite"
@@ -137,4 +139,42 @@ func TestFetchYahooGamePlayerListSeasons_FailedSeasonsReportFailed(t *testing.T)
 	require.NoError(t, env.GetWorkflowResult(&outcomes))
 	assert.Equal(t, []gameListOutcome{gameListFailed, gameListFailed, gameListFailed,
 		gameListKept, gameListUnavailable, gameListDownloaded}, outcomes)
+}
+
+// gameListCancelAfter is when the cancellation test cancels the run: after
+// the first page, while the second (blocked for gameListBlockedPage) is in
+// flight.
+const (
+	gameListCancelAfter = time.Minute
+	gameListBlockedPage = time.Hour
+)
+
+func TestFetchYahooPlayersWorkflow_CancelledDownloadIsDiscarded(t *testing.T) {
+	f := &gameListFakes{
+		seasons: []int{gameListCurrentSeason},
+		plans:   map[int]yahoo.YahooGamePlayerListPlan{gameListCurrentSeason: {Refresh: true, GameKey: gameListCurrentGameKey}},
+		pages:   map[int][]int{gameListCurrentSeason: {resource.GamePlayersPageSize, gameListShortPagePlayers}},
+	}
+	var ts testsuite.WorkflowTestSuite
+	env := ts.NewTestWorkflowEnvironment()
+	env.RegisterWorkflow(FetchYahooPlayersWorkflow)
+	var act *yahoo.FetchActivities
+	secondPage := mock.MatchedBy(func(in yahoo.FetchYahooGamePlayersPageInput) bool {
+		return in.Start == resource.GamePlayersPageSize
+	})
+	env.OnActivity(act.FetchYahooGamePlayersPage, mock.Anything, secondPage).After(gameListBlockedPage).
+		Return(yahoo.FetchYahooGamePlayersPageResult{Players: gameListShortPagePlayers}, nil)
+	f.register(env)
+	env.RegisterDelayedCallback(env.CancelWorkflow, gameListCancelAfter)
+
+	env.ExecuteWorkflow(FetchYahooPlayersWorkflow, nil)
+
+	require.True(t, env.IsWorkflowCompleted())
+	var canceled *temporal.CanceledError
+	require.ErrorAs(t, env.GetWorkflowError(), &canceled)
+	assert.Empty(t, f.commits)
+	require.Len(t, f.discards, 1, "the discard runs after the cancellation")
+	assert.Equal(t, gameListCurrentSeason, f.discards[0].Season)
+	assert.Equal(t, []int{0, resource.GamePlayersPageSize}, f.discards[0].Starts,
+		"the in-flight page is discarded with the stored one")
 }

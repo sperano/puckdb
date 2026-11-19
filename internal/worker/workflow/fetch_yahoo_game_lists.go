@@ -176,9 +176,11 @@ func fetchYahooGamePlayerList(ctx workflow.Context, season int, bar gameListBar)
 }
 
 // discardGamePlayerList deletes the pages a failed download requested, on a
-// context the workflow's cancellation does not reach, so a failed or
-// cancelled download leaves no page behind. A failed discard is logged: the
-// download's own error is the one the season reports.
+// context the workflow's cancellation does not reach, so a cancelled
+// download is discarded too. The activity keeps them when the season's
+// committed manifest names that download (a commit whose result was lost).
+// A failed discard is logged: the download's own error is the one the
+// season reports.
 func discardGamePlayerList(ctx workflow.Context, commit yahoo.CommitYahooGamePlayerListInput, requested []int) {
 	if len(requested) == 0 {
 		return
