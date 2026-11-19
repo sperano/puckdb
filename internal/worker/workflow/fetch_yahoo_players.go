@@ -38,8 +38,8 @@ type FetchYahooPlayersInput struct {
 	Config *FetchYahooPlayersScanConfig
 }
 
-// FetchYahooPlayersWorkflow downloads the player list of every NHL game
-// Yahoo lists, one per season (see fetchYahooGamePlayerLists). Executions
+// FetchYahooPlayersWorkflow downloads the game player list of each NHL
+// season whose list is due (see fetchYahooGamePlayerLists). Executions
 // recorded before the lists replay the player ID scan they ran.
 func FetchYahooPlayersWorkflow(ctx workflow.Context, input *FetchYahooPlayersInput) error {
 	version := workflow.GetVersion(ctx, fetchYahooPlayersGameListsChange, workflow.DefaultVersion,
