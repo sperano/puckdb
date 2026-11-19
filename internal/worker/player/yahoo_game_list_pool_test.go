@@ -317,6 +317,24 @@ func TestYahooPlayerFromGameList(t *testing.T) {
 			ok:     true,
 		},
 		{
+			name:   "first name only, no full name: the structured part is kept",
+			player: store.Player{ID: 10, Name: store.PlayerName{First: "Pierre-Luc"}},
+			want:   store.YahooPlayer{YahooID: 10, FirstName: "Pierre-Luc"},
+			ok:     true,
+		},
+		{
+			name:   "last name only, single-token full name: the structured part is kept",
+			player: store.Player{ID: 11, Name: store.PlayerName{Last: "Dubois", Full: "Dubois"}},
+			want:   store.YahooPlayer{YahooID: 11, LastName: "Dubois"},
+			ok:     true,
+		},
+		{
+			name:   "single-token full name only",
+			player: store.Player{ID: 12, Name: store.PlayerName{Full: "Dubois"}},
+			want:   store.YahooPlayer{YahooID: 12, FirstName: "Dubois"},
+			ok:     true,
+		},
+		{
 			name:   "no name",
 			player: store.Player{ID: 7, Name: store.PlayerName{Full: "  "}},
 			ok:     false,
