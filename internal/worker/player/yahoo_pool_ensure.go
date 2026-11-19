@@ -14,24 +14,29 @@ import (
 const yahooPoolRebuildChunk = 200
 
 // EnsureYahooIDPoolInput is the pool size phase 1 of a ProcessPlayers chain
-// measured after saving it (SaveYahooIDPoolResult.PoolSize), and how many of
-// its entries no page backs (SaveYahooIDPoolResult.NonPageEntries), both as
-// the last rebuild updated them.
+// measured after saving it (SaveYahooIDPoolResult.PoolSize), what it built
+// the pool from (Source), and what a rebuild must reach again: for a page
+// pool how many of its entries no page backs (NonPageEntries), for a game
+// list pool the seasons whose list it read (ListSeasons), all as the last
+// rebuild updated them.
 type EnsureYahooIDPoolInput struct {
 	PoolSize       int
 	NonPageEntries int
+	Source         YahooIDPoolSource
+	ListSeasons    []int
 }
 
 // EnsureYahooIDPoolResult reports what EnsureYahooIDPool found and did.
 type EnsureYahooIDPoolResult struct {
-	FoundSize         int  // pool hash size before any rebuild
-	Rebuilt           bool // the pool was missing or incomplete and was rebuilt
-	AvailableRestored bool // the hash was complete but the available set was lost, and was restored (not set when it was only empty)
-	PoolSize          int  // pool hash size now; the next check compares against it
-	NonPageEntries    int  // entries of a rebuilt pool that no page backs (the input's count otherwise)
-	Available         int  // available set size after a rebuild or restore (0 otherwise)
-	ReadErrors        int  // Yahoo player files a rebuild could not read
-	ParseErrors       int  // Yahoo player files a rebuild could not parse
+	FoundSize         int   // pool hash size before any rebuild
+	Rebuilt           bool  // the pool was missing or incomplete and was rebuilt
+	AvailableRestored bool  // the hash was complete but the available set was lost, and was restored (not set when it was only empty)
+	PoolSize          int   // pool hash size now; the next check compares against it
+	NonPageEntries    int   // entries of a rebuilt page pool that no page backs (the input's count otherwise)
+	ListSeasons       []int // seasons a rebuilt game list pool read (the input's seasons otherwise)
+	Available         int   // available set size after a rebuild or restore (0 otherwise)
+	ReadErrors        int   // Yahoo player files a rebuild could not read
+	ParseErrors       int   // Yahoo player files a rebuild could not parse
 }
 
 // EnsureYahooIDPool keeps the Yahoo ID pool of a ProcessPlayers chain alive
@@ -39,8 +44,9 @@ type EnsureYahooIDPoolResult struct {
 // flush drops them; a missing pool makes LoadYahooIDPool return an empty map
 // without an error, so phase 2 would stop matching silently. When the pool
 // hash still has the size phase 1 measured, both keys' TTL is refreshed.
-// Otherwise the pool is rebuilt from the stored Yahoo player files and the
-// yahoo_league_players rows, and the Yahoo IDs already matched in the
+// Otherwise the pool is rebuilt from the source phase 1 read (the committed
+// game player lists, or the stored Yahoo player files of older chains) and
+// the yahoo_league_players rows, and the Yahoo IDs already matched in the
 // database are removed from the available set. During a run entries are
 // only removed from the available set, never from the hash, so the hash size
 // is a complete check of the hash. The available set is only checked for
@@ -57,7 +63,8 @@ func (a *Activities) EnsureYahooIDPool(ctx context.Context, input EnsureYahooIDP
 		return EnsureYahooIDPoolResult{}, fmt.Errorf("measure yahoo id pool: %w", err)
 	}
 	result := EnsureYahooIDPoolResult{
-		FoundSize: int(found.Val()), PoolSize: int(found.Val()), NonPageEntries: input.NonPageEntries,
+		FoundSize: int(found.Val()), PoolSize: int(found.Val()),
+		NonPageEntries: input.NonPageEntries, ListSeasons: input.ListSeasons,
 	}
 	if result.FoundSize != input.PoolSize {
 		activity.GetLogger(ctx).Warn("Yahoo ID pool lost, rebuilding", "expected", input.PoolSize, "found", result.FoundSize)
@@ -133,8 +140,22 @@ func (a *Activities) restoreYahooIDAvailable(ctx context.Context) (int, error) {
 	return len(available), nil
 }
 
-// rebuildYahooIDPool writes the pool again from the stored Yahoo player
-// files and the current yahoo_league_players rows, then removes the Yahoo
+// rebuildYahooIDPool writes the pool again from the source phase 1 read:
+// the game player lists (rebuildYahooIDPoolFromGameLists) or the pages
+// (rebuildYahooIDPoolFromPages).
+func (a *Activities) rebuildYahooIDPool(ctx context.Context, result EnsureYahooIDPoolResult, expected EnsureYahooIDPoolInput) (EnsureYahooIDPoolResult, error) {
+	switch expected.Source {
+	case YahooIDPoolSourceGameLists:
+		return a.rebuildYahooIDPoolFromGameLists(ctx, result, expected)
+	case YahooIDPoolSourcePages:
+		return a.rebuildYahooIDPoolFromPages(ctx, result, expected)
+	default:
+		return result, fmt.Errorf("rebuild yahoo id pool: unknown source %q", expected.Source)
+	}
+}
+
+// rebuildYahooIDPoolFromPages writes the pool again from the stored Yahoo
+// player files and the current yahoo_league_players rows, then removes the Yahoo
 // IDs already matched in the database from the available set. It never
 // deletes the keys first: several batches may rebuild at once, and a batch
 // reading between a delete and the next write would match against an empty
@@ -150,7 +171,7 @@ func (a *Activities) restoreYahooIDAvailable(ctx context.Context) (int, error) {
 // league player or stale entry reached) the check stays the whole hash
 // after the rebuild against expected.PoolSize, as before: such a chain's
 // count holds its stale entries, which the page count cannot cover.
-func (a *Activities) rebuildYahooIDPool(ctx context.Context, result EnsureYahooIDPoolResult, expected EnsureYahooIDPoolInput) (EnsureYahooIDPoolResult, error) {
+func (a *Activities) rebuildYahooIDPoolFromPages(ctx context.Context, result EnsureYahooIDPoolResult, expected EnsureYahooIDPoolInput) (EnsureYahooIDPoolResult, error) {
 	parsed, err := a.parseAllYahooPlayers(ctx)
 	if err != nil {
 		return result, err
@@ -171,28 +192,43 @@ func (a *Activities) rebuildYahooIDPool(ctx context.Context, result EnsureYahooI
 		activity.GetLogger(ctx).Warn("Some Yahoo player files failed during the pool rebuild",
 			"read_errors", parsed.ReadErrors, "parse_errors", parsed.ParseErrors)
 	}
+	if err := a.removeMatchedFromAvailable(ctx); err != nil {
+		return result, err
+	}
+	saved.NonPageEntries = saved.PoolSize - pageEntries
+	return a.rebuiltResult(ctx, result, saved)
+}
+
+// removeMatchedFromAvailable removes the Yahoo IDs already matched in the
+// database from a rebuilt pool's available set.
+func (a *Activities) removeMatchedFromAvailable(ctx context.Context) error {
 	matched, err := a.Manifests.MatchedYahooIDs(ctx)
 	if err != nil {
-		return result, err
+		return err
 	}
-	if err := RemoveFromYahooIDPool(ctx, a.RedisClient, matched); err != nil {
-		return result, err
-	}
+	return RemoveFromYahooIDPool(ctx, a.RedisClient, matched)
+}
 
+// rebuiltResult completes result for a pool rebuilt as saved: its size, its
+// accounting for the next check and the available set's size.
+func (a *Activities) rebuiltResult(ctx context.Context, result EnsureYahooIDPoolResult, saved *SaveYahooIDPoolResult) (EnsureYahooIDPoolResult, error) {
 	available, err := a.RedisClient.SCard(ctx, YahooIDAvailableKey).Result()
 	if err != nil {
 		return result, fmt.Errorf("measure rebuilt yahoo id available set: %w", err)
 	}
 	result.Rebuilt = true
 	result.PoolSize = saved.PoolSize
-	result.NonPageEntries = saved.PoolSize - pageEntries
+	result.NonPageEntries = saved.NonPageEntries
+	if saved.Source == YahooIDPoolSourceGameLists {
+		result.ListSeasons = saved.ListSeasons
+	}
 	result.Available = int(available)
 	return result, nil
 }
 
 // checkRebuiltYahooIDPool fails a rebuild that holds fewer entries than
 // phase 1 saved: fewer page entries than its pages, or, without a non-page
-// count, a smaller hash than its pool (see rebuildYahooIDPool).
+// count, a smaller hash than its pool (see rebuildYahooIDPoolFromPages).
 func checkRebuiltYahooIDPool(expected EnsureYahooIDPoolInput, poolSize, pageEntries int, parsed ParseYahooPlayerBatchResult) error {
 	if expected.NonPageEntries == 0 {
 		if poolSize < expected.PoolSize {

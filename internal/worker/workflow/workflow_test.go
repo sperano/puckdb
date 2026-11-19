@@ -463,6 +463,7 @@ func TestProcessPlayersWorkflowTestSuite(t *testing.T) {
 // Test ProcessPlayersWorkflow Phase 1 (LoadYahoo) creates the player manifest and loads Yahoo files,
 // then transitions to Phase 2 (ProcessPlayers) via ContinueAsNew.
 func (s *ProcessPlayersWorkflowTestSuite) TestProcessPlayersWorkflow_Phase1_Success() {
+	s.usePagePool()
 	input := &ProcessPlayersInput{}
 	s.mockPhaseLoadYahooSuccess(1)
 
@@ -490,6 +491,7 @@ func (s *ProcessPlayersWorkflowTestSuite) TestProcessPlayersWorkflow_Phase1_Chil
 
 // Test ProcessPlayersWorkflow handles ListYahooPlayerFiles error during Phase 1 (LoadYahoo)
 func (s *ProcessPlayersWorkflowTestSuite) TestProcessPlayersWorkflow_Phase1_ListYahooError() {
+	s.usePagePool()
 	input := &ProcessPlayersInput{}
 
 	var playerAct *workplayer.Activities

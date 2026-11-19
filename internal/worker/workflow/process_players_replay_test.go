@@ -87,6 +87,12 @@ func registerReplayCommonActivities(t *testing.T, w worker.Worker) {
 		{"SaveYahooPlayersToRedis", func(_ context.Context, players []store.YahooPlayer) (*workplayer.SaveYahooIDPoolResult, error) {
 			return &workplayer.SaveYahooIDPoolResult{TotalPlayers: len(players), AvailablePlayers: len(players)}, nil
 		}},
+		{"BuildYahooIDPool", func(context.Context) (*workplayer.SaveYahooIDPoolResult, error) {
+			return &workplayer.SaveYahooIDPoolResult{
+				TotalPlayers: 1, AvailablePlayers: 1, PoolSize: 1,
+				Source: workplayer.YahooIDPoolSourceGameLists, ListSeasons: []int{2026}, ListEntries: 1,
+			}, nil
+		}},
 		{"LoadUnmatchedYahooPlayers", func(context.Context) ([]workplayer.UnmatchedYahooPlayer, error) {
 			return unmatched, nil
 		}},
@@ -143,6 +149,27 @@ func TestProcessPlayersReplaysLegacyHistories(t *testing.T) {
 	replayer.RegisterWorkflow(ProcessPlayersWorkflow)
 	replayer.RegisterWorkflow(ProcessPlayersWorkflowContinue)
 	for _, path := range processPlayersLegacyHistories {
+		require.NoError(t, replayer.ReplayWorkflowHistoryFromJSONFile(nil, path), path)
+	}
+}
+
+// processPlayersPagePoolHistories are run 1 and the first phase-2
+// execution of a manifest chain recorded on a Temporal dev server with the
+// code before the game player lists (commit 519fef3), with the activities
+// registerReplayCommonActivities and registerReplayManifestActivities
+// register: phase 1 parses the pages (no version marker).
+var processPlayersPagePoolHistories = []string{
+	"testdata/process_players_page_pool_1.json",
+	"testdata/process_players_page_pool_2.json",
+}
+
+// TestProcessPlayersReplaysPagePoolHistories replays a manifest chain whose
+// phase 1 ran before the game player lists: it must keep the page path.
+func TestProcessPlayersReplaysPagePoolHistories(t *testing.T) {
+	replayer := worker.NewWorkflowReplayer()
+	replayer.RegisterWorkflow(ProcessPlayersWorkflow)
+	replayer.RegisterWorkflow(ProcessPlayersWorkflowContinueV2)
+	for _, path := range processPlayersPagePoolHistories {
 		require.NoError(t, replayer.ReplayWorkflowHistoryFromJSONFile(nil, path), path)
 	}
 }

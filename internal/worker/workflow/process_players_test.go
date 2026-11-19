@@ -3,6 +3,10 @@ package workflow
 import (
 	"testing"
 
+	"go.temporal.io/sdk/converter"
+	"go.temporal.io/sdk/temporal"
+	"go.temporal.io/sdk/workflow"
+
 	"github.com/sperano/puckdb/internal/config"
 	"github.com/sperano/puckdb/internal/store"
 	workplayer "github.com/sperano/puckdb/internal/worker/player"
@@ -55,9 +59,64 @@ func TestLoadProcessPlayersConfig(t *testing.T) {
 // player.
 const yahooPlayersPerTestBatch = 1
 
-// Phase 1 grows the Yahoo bar from one step to one per Yahoo player batch;
-// the saved report's Total must follow, so Completed never exceeds it.
+// usePagePool makes phase 1 take the path recorded before the game player
+// lists (loadYahooPoolFromPages).
+func (s *ProcessPlayersWorkflowTestSuite) usePagePool() {
+	s.env.OnGetVersion(yahooPoolGameListsChangeID, workflow.DefaultVersion, yahooPoolGameListsVersion).
+		Return(workflow.DefaultVersion)
+}
+
+// Phase 1 builds the pool from the game player lists in one activity: one
+// Yahoo bar step, and the pool's source and seasons reach the continuation
+// state.
+func (s *ProcessPlayersWorkflowTestSuite) TestProcessPlayersWorkflow_Phase1_GameLists() {
+	const players = 2
+	var playerAct *workplayer.Activities
+	s.env.OnActivity(playerAct.CreateProcessPlayersManifest, mock.Anything, mock.Anything).Return(
+		workplayer.ManifestRef{ID: "run", Count: players, Hash: "h"}, nil)
+	pool := &workplayer.SaveYahooIDPoolResult{
+		TotalPlayers: 3, AvailablePlayers: 3, PoolSize: 3,
+		Source: workplayer.YahooIDPoolSourceGameLists, ListSeasons: []int{2026, 2025}, ListEntries: 2,
+	}
+	s.env.OnActivity(playerAct.BuildYahooIDPool, mock.Anything).Return(pool, nil).Once()
+	lastSaved := recordLastSavedReport(s.env)
+
+	s.env.ExecuteWorkflow(ProcessPlayersWorkflow, &ProcessPlayersInput{})
+
+	s.True(s.env.IsWorkflowCompleted())
+	var can *workflow.ContinueAsNewError
+	s.Require().ErrorAs(s.env.GetWorkflowError(), &can)
+	var state *processPlayersState
+	s.Require().NoError(converter.GetDefaultDataConverter().FromPayloads(can.Input, &state))
+	s.Equal(*pool, state.YahooPool)
+	report := lastSaved()
+	requireTotalIsBarSum(s.T(), report, processPlayersYahooEstimate+players+processPlayersUnmatchedEstimate)
+	yahooBar := report.Groups[GroupLoadYahoo].Bars[0]
+	s.Equal(processPlayersYahooEstimate, yahooBar.Current)
+	s.Equal(processPlayersYahooEstimate, yahooBar.Total)
+}
+
+// A failed BuildYahooIDPool fails the chain.
+func (s *ProcessPlayersWorkflowTestSuite) TestProcessPlayersWorkflow_Phase1_BuildPoolError() {
+	var playerAct *workplayer.Activities
+	s.env.OnActivity(playerAct.CreateProcessPlayersManifest, mock.Anything, mock.Anything).Return(
+		workplayer.ManifestRef{ID: "run", Count: 1, Hash: "h"}, nil)
+	s.env.OnActivity(playerAct.BuildYahooIDPool, mock.Anything).Return(
+		(*workplayer.SaveYahooIDPoolResult)(nil), temporal.NewNonRetryableApplicationError("storage down", "test", nil))
+
+	s.env.ExecuteWorkflow(ProcessPlayersWorkflow, &ProcessPlayersInput{})
+
+	s.True(s.env.IsWorkflowCompleted())
+	s.Require().Error(s.env.GetWorkflowError())
+	s.Contains(s.env.GetWorkflowError().Error(), "build yahoo id pool")
+	s.Contains(s.env.GetWorkflowError().Error(), "storage down")
+}
+
+// On the page path, phase 1 grows the Yahoo bar from one step to one per
+// Yahoo player batch; the saved report's Total must follow, so Completed
+// never exceeds it.
 func (s *ProcessPlayersWorkflowTestSuite) TestProcessPlayersWorkflow_Phase1_SavedTotalMatchesBars() {
+	s.usePagePool()
 	const players = 2
 	// One Yahoo player per batch, so the Yahoo bar needs more than one step.
 	batchSize := yahooPlayersPerTestBatch

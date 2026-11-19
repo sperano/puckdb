@@ -297,9 +297,10 @@ func registerPlayerActivities(w worker.Worker, d taskActivityDeps) {
 	w.RegisterActivity(playerActivities.RecordProcessPlayersErrors)
 	w.RegisterActivity(playerActivities.FinishProcessPlayersManifest)
 	w.RegisterActivity(playerActivities.EnsureYahooIDPool)
-	w.RegisterActivity(playerActivities.ListYahooPlayerFiles)
-	w.RegisterActivity(playerActivities.ParseYahooPlayerBatch)
-	w.RegisterActivity(playerActivities.SaveYahooPlayersToRedis)
+	w.RegisterActivity(playerActivities.BuildYahooIDPool)
+	w.RegisterActivity(playerActivities.ListYahooPlayerFiles)    // phase 1 recorded before the game player lists
+	w.RegisterActivity(playerActivities.ParseYahooPlayerBatch)   // phase 1 recorded before the game player lists
+	w.RegisterActivity(playerActivities.SaveYahooPlayersToRedis) // phase 1 recorded before the game player lists
 	w.RegisterActivity(playerActivities.LoadUnmatchedYahooPlayers)
 	w.RegisterActivity(playerActivities.VerifyUnmatchedBatch)
 	w.RegisterActivity(playerActivities.CleanupYahooIDPoolData)

@@ -44,8 +44,18 @@ type SaveYahooIDPoolResult struct {
 	// the yahoo_league_players players without a page, plus any entry an
 	// earlier save left in the hash (the save never deletes). PoolSize minus
 	// NonPageEntries is the pages saved, which a rebuild must reach again.
-	// 0 for chains started before the pool included league players.
+	// 0 for chains started before the pool included league players, and for
+	// game list pools, whose rebuild checks ListSeasons instead.
 	NonPageEntries int
+	// Source is what the pool was built from; a rebuild reads it again.
+	Source YahooIDPoolSource
+	// ListSeasons are the seasons whose committed game player list a game
+	// list pool read, newest first; a rebuild must find each again.
+	ListSeasons []int
+	// ListEntries is how many distinct Yahoo IDs the game player lists gave
+	// (the rest of PoolSize: league players no list names, and entries an
+	// earlier save left in the hash).
+	ListEntries int
 }
 
 // LoadYahooIDPool loads all Yahoo players from Redis.

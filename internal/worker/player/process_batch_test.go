@@ -13,6 +13,7 @@ import (
 	"github.com/sperano/nhl-api-go/nhl"
 	"github.com/sperano/puckdb/internal/cache"
 	"github.com/sperano/puckdb/internal/core"
+	"github.com/sperano/puckdb/internal/matching"
 	"github.com/sperano/puckdb/internal/resource"
 	"github.com/sperano/puckdb/internal/sqlcdb"
 	"github.com/sperano/puckdb/internal/store"
@@ -464,6 +465,7 @@ func TestProcessPlayerBatch_YahooMatchWithClearConflict(t *testing.T) {
 	assert.Equal(t, 1, result.Origins[core.OriginFileSystem])
 	assert.Equal(t, 1, result.Imported)
 	assert.Equal(t, 1, result.Matched) // Yahoo ID matched
+	assert.Equal(t, map[string]int{matching.MatchReasonNameOnly.String(): 1}, result.MatchReasons)
 	assert.Empty(t, result.Errors)
 	upserter.AssertExpectations(t)
 }
@@ -571,6 +573,7 @@ func TestProcessPlayerBatch_UpsertErrorWithYahooID(t *testing.T) {
 	// Error message should include Yahoo ID
 	assert.Contains(t, result.Errors[0], "yahoo_id=12345")
 	assert.Contains(t, result.Errors[0], "upsert error")
+	assert.Nil(t, result.MatchReasons, "a player that failed its upsert is not counted")
 }
 
 func TestProcessPlayerBatch_FullPlayerLandingWithAllFields(t *testing.T) {
@@ -849,6 +852,7 @@ func TestProcessPlayerBatch_UnmatchedLeavesYahooImageEmpty(t *testing.T) {
 	result, err := runProcessPlayerBatch(t, ctx, a, []store.BoxscorePlayer{{ID: int64(playerID)}})
 	require.NoError(t, err)
 	require.Equal(t, 0, result.Matched)
+	assert.Equal(t, map[string]int{matching.MatchReasonNoMatch.String(): 1}, result.MatchReasons)
 
 	assert.Empty(t, captured.YahooImage)
 }

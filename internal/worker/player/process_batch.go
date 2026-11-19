@@ -36,7 +36,13 @@ type ProcessPlayerBatchResult struct {
 	Origins        core.OriginCounts // Tracks where player landings were read from
 	AwardsImported int               // Player award rows upserted
 	TotalsImported int               // Player season total rows upserted
-	Errors         []string          // Error messages for failed players (ProcessPlayerBatch only)
+	// MatchReasons counts the imported landings by Yahoo matching outcome,
+	// keyed by matching.MatchReason.String() ("name+jersey",
+	// "team-tiebreaker", "ambiguous", "no-match", ...), so two runs' matches
+	// can be compared step by step. Players imported without a landing are
+	// not matched and not counted.
+	MatchReasons map[string]int
+	Errors       []string // Error messages for failed players (ProcessPlayerBatch only)
 }
 
 // Stages at which processing one player can fail, as recorded in
@@ -224,6 +230,7 @@ func (a *Activities) importPlayerLanding(
 	if matchResult.Matched {
 		result.Matched++
 	}
+	result.countMatchReason(matchResult.Reason)
 
 	awards, totals, err := a.upsertPlayerCareerData(ctx, landing)
 	if err != nil {
@@ -233,6 +240,14 @@ func (a *Activities) importPlayerLanding(
 		result.TotalsImported += totals
 	}
 	return matchResult.YahooID, matchResult.Matched
+}
+
+// countMatchReason counts one imported landing's matching outcome.
+func (r *ProcessPlayerBatchResult) countMatchReason(reason matching.MatchReason) {
+	if r.MatchReasons == nil {
+		r.MatchReasons = make(map[string]int)
+	}
+	r.MatchReasons[reason.String()]++
 }
 
 // upsertLandingPlayer upserts the player of landing with its Yahoo match.
