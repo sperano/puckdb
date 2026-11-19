@@ -11,8 +11,8 @@ import (
 )
 
 // checkYahooSeasonCache checks Yahoo fantasy files (leagues, teams, rosters,
-// summaries). Iterates core.AllFileTypes and emits one entry per FileType this
-// checker recognizes, in declaration order.
+// summaries, the season's game player list). Iterates core.AllFileTypes and
+// emits one entry per FileType this checker recognizes, in declaration order.
 func checkYahooSeasonCache(ctx context.Context, storage store.Storage, nhlSeason simpleSeason, yahooCfg config.Season) []cacheMetrics {
 	seasonYear := nhlSeason.startYear
 	daysInSeason := core.CountDays(nhlSeason.start, nhlSeason.end)
@@ -32,7 +32,9 @@ func checkYahooSeasonCache(ctx context.Context, storage store.Storage, nhlSeason
 	expectedSummaries := totalTeams * daysInSeason
 	summaryCount := countDailyTeamFiles(ctx, storage, nhlSeason, yahooCfg, now, teamSummaryResource)
 
-	cacheData := make([]cacheMetrics, 0, 4)
+	gameListExpected, gameListFound := countGamePlayerListFiles(ctx, storage, seasonYear)
+
+	cacheData := make([]cacheMetrics, 0, 5)
 	for _, ft := range core.AllFileTypes {
 		var expected, found int
 		switch ft {
@@ -44,6 +46,8 @@ func checkYahooSeasonCache(ctx context.Context, storage store.Storage, nhlSeason
 			expected, found = expectedRosters, rosterCount
 		case core.TeamSummary:
 			expected, found = expectedSummaries, summaryCount
+		case core.YahooGamePlayers:
+			expected, found = gameListExpected, gameListFound
 		default:
 			continue
 		}
@@ -77,6 +81,25 @@ func countTeamFiles(ctx context.Context, storage store.Storage, seasonYear int, 
 		}
 	}
 	return count
+}
+
+// countGamePlayerListFiles counts the season's committed game player list:
+// its manifest and each page the manifest names. Without a readable manifest
+// only the manifest is expected, since nothing else says how many pages the
+// list has.
+func countGamePlayerListFiles(ctx context.Context, storage store.Storage, seasonYear int) (expected, found int) {
+	manifest, err := resource.ReadParsed(ctx, storage, resource.GamePlayerList{Season: seasonYear})
+	if err != nil {
+		return 1, 0
+	}
+	found = 1
+	for _, start := range manifest.Starts {
+		page := resource.GamePlayers{Season: seasonYear, DownloadID: manifest.DownloadID, Start: start}
+		if resource.Exists(ctx, storage, page) {
+			found++
+		}
+	}
+	return 1 + len(manifest.Starts), found
 }
 
 // dailyTeamResource builds the cached file of one Yahoo team on one day.

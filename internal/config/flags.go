@@ -227,6 +227,7 @@ const (
 	FlagYahooPlayerMissingTTLDays     = "yahoo-player-missing-ttl-days"
 	FlagYahooPlayerPoolMaxAge         = "yahoo-player-pool-max-age"
 	FlagYahooPlayerPoolMaxAgeInSeason = "yahoo-player-pool-max-age-in-season"
+	FlagYahooGamePlayerListMaxAge     = "yahoo-game-player-list-max-age"
 	FlagYahooPoolLeagueConcurrency    = "yahoo-pool-league-concurrency"
 )
 
@@ -500,6 +501,7 @@ var YahooPlayerFlags = FlagGroup{
 		{FlagYahooPlayerMissingTTLDays, "", DefaultYahooPlayerMissingTTLDays, "Days a Yahoo player page's 404 marker is trusted before the page is fetched again", false},
 		{FlagYahooPlayerPoolMaxAge, "", DefaultYahooPlayerPoolMaxAge, "Hours before a league's Yahoo player pool is downloaded again before its regular season starts", false},
 		{FlagYahooPlayerPoolMaxAgeInSeason, "", DefaultYahooPlayerPoolMaxAgeInSeason, "Hours before a league's Yahoo player pool is downloaded again during its regular season", false},
+		{FlagYahooGamePlayerListMaxAge, "", DefaultYahooGamePlayerListMaxAge, "Hours before the player list of a Yahoo NHL game that is not over is downloaded again (a finished season's list is final)", false},
 		{FlagYahooPoolLeagueConcurrency, "", DefaultYahooPoolLeagueConcurrency, "Number of leagues of one season whose Yahoo player pools are downloaded concurrently", false},
 	},
 }

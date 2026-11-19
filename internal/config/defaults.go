@@ -97,6 +97,7 @@ const (
 	DefaultMaxYahooPlayerMissingTTLDays  = 3650
 	DefaultYahooPlayerPoolMaxAge         = 12 // hours
 	DefaultYahooPlayerPoolMaxAgeInSeason = 24 // hours
+	DefaultYahooGamePlayerListMaxAge     = 24 // hours
 	DefaultYahooPoolLeagueConcurrency    = 3
 )
 

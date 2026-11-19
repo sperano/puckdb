@@ -21,6 +21,8 @@ const (
 	validFetchXML        = `<fantasy_content><league></league></fantasy_content>`
 	validLeagueFetchXML  = `<fantasy_content><league><league_key>423.l.12345</league_key><league_id>12345</league_id><game_code>nhl</game_code><season>2023</season></league></fantasy_content>`
 	validGameKeyFetchXML = `<fantasy_content><games><game><game_key>423</game_key><code>nhl</code><season>2023</season></game></games></fantasy_content>`
+	validGamesFetchXML   = `<fantasy_content><games><game><game_key>423</game_key><code>nhl</code><season>2023</season></game></games></fantasy_content>`
+	validGamePlayersXML  = `<fantasy_content><game><game_key>423</game_key><code>nhl</code><season>2023</season><players count="1"><player><player_key>423.p.7001</player_key><player_id>7001</player_id></player></players></game></fantasy_content>`
 	malformedFetchXML    = `<fantasy_content><league>`
 )
 
@@ -30,6 +32,10 @@ func validFetchXMLFor(res Resource) []byte {
 		return []byte(validGameKeyFetchXML)
 	case resource.League:
 		return []byte(validLeagueFetchXML)
+	case resource.YahooGames:
+		return []byte(validGamesFetchXML)
+	case resource.GamePlayers:
+		return []byte(validGamePlayersXML)
 	}
 	return []byte(validFetchXML)
 }
@@ -47,6 +53,8 @@ func fetchResources() map[string]Resource {
 		"roster":       resource.Roster{LeagueID: testLeagueID, TeamID: 1, Date: day, GameKey: testGameKey},
 		"team-summary": resource.TeamSummary{LeagueID: testLeagueID, TeamID: 1, Date: day, GameKey: testGameKey},
 		"game-key":     resource.GameKey{Season: testYahooSeason},
+		"games":        resource.YahooGames{},
+		"game-players": resource.GamePlayers{Season: testYahooSeason, DownloadID: 1, Start: 0, GameKey: testGameKey},
 	}
 }
 

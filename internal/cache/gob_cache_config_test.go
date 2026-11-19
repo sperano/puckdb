@@ -43,6 +43,18 @@ types:
 	assert.False(t, cfg.Types[core.DailySchedule].SkipRedis)
 }
 
+// TestSampleGobCacheConfig loads the example config shipped in examples/, so
+// a misspelled file type there fails here, and pins the TTLs of the Yahoo
+// game files.
+func TestSampleGobCacheConfig(t *testing.T) {
+	const sampleTTL = 60 * time.Minute
+	cfg, err := LoadGobCacheConfig(filepath.Join("..", "..", "examples", "sample-gob-cache.yaml"))
+	require.NoError(t, err)
+
+	assert.Equal(t, sampleTTL, cfg.Types[core.YahooGames].TTL)
+	assert.Equal(t, sampleTTL, cfg.Types[core.YahooGamePlayers].TTL)
+}
+
 func TestLoadGobCacheConfig_UnknownFileType(t *testing.T) {
 	t.Parallel()
 
