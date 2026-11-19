@@ -311,10 +311,11 @@ func TestProcessPlayersManifestChain(t *testing.T) {
 	assert.Equal(t, "verify", chain.events[2], "before the first verify batch")
 }
 
-// TestProcessPlayersManifestChain_PagePoolSource: a chain whose phase 1
-// read the scraped pages records no source and no seasons, and every pool
-// check and batch of its continuations gets the page source, before and
-// after a rebuild.
+// TestProcessPlayersManifestChain_PagePoolSource: with a page-source pool
+// (no seasons) injected into the state phase 1 carries over (the page phase
+// 1 itself is covered by the process_players_page_pool_* replay histories),
+// every pool check and batch of the continuations gets the page source,
+// before and after a rebuild.
 func TestProcessPlayersManifestChain_PagePoolSource(t *testing.T) {
 	setViperInt(t, config.FlagPlayerLandingPlayersPerExec, chainPlayersPerExec)
 	chain := &manifestChain{}
