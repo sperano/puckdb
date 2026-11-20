@@ -96,6 +96,9 @@ var nameCases = []matchCase{
 	{name: "dropped apostrophe differs", first: "Ryan", last: "O'Reilly", team: "NSH",
 		pool:       []store.YahooPlayer{{YahooID: 4000, FirstName: "Ryan", LastName: "OReilly", Team: "Nashville"}},
 		wantReason: MatchReasonNoMatch},
+	{name: "apostrophe is not a loose separator", first: "Ryan", last: "O'Reilly", team: "NSH",
+		pool:       []store.YahooPlayer{{YahooID: 4000, FirstName: "Ryan", LastName: "O Reilly", Team: "Nashville"}},
+		wantReason: MatchReasonNoMatch},
 }
 
 // jerseyCases cover step 2: the jersey number singles out a name match.

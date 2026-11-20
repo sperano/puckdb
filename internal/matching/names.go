@@ -18,7 +18,7 @@ const minInitials = 2
 // candidateMatch is a Yahoo player whose name matches the NHL player's.
 type candidateMatch struct {
 	player        *store.YahooPlayer
-	fuzzyMatched  bool // true if matched via nickname alias, accent normalization, loose punctuation, initials or full-name match
+	fuzzyMatched  bool // true if matched via nickname alias, accent normalization, loose punctuation, initials or a full-name match with a different first/last split
 	fullNameMatch bool // true if matched via full name comparison (handles compound names)
 }
 
