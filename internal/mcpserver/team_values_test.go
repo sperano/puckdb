@@ -41,7 +41,7 @@ func mustDate(text string) pgtype.Date {
 }
 
 func category(statID int32, abbr, positionType string, sortOrder int16, sortKnown bool) sqlcdb.YahooLeagueStatCategory {
-	return sqlcdb.YahooLeagueStatCategory{StatID: statID, DisplayName: abbr, Name: abbr + " name", PositionType: positionType,
+	return sqlcdb.YahooLeagueStatCategory{StatID: statID, DisplayName: abbr, Name: abbr + " name", PositionType: positionType, Enabled: true,
 		SortOrder: pgtype.Int2{Int16: sortOrder, Valid: sortKnown}}
 }
 
@@ -49,9 +49,11 @@ func TestValueCategoriesMapsSupportedCategoriesInStatOrder(t *testing.T) {
 	gaa := category(statGAA, "GAA", "", sortLower, true)
 	display := category(statGoalsAgainst, "GA", "", sortLower, true)
 	display.IsOnlyDisplayStat = true
-	unnamed := sqlcdb.YahooLeagueStatCategory{StatID: statUnsupported, Abbr: "XYZ", Name: "Mystery"}
+	disabled := category(statWins, "W", "G", sortHigher, true)
+	disabled.Enabled = false
+	unnamed := sqlcdb.YahooLeagueStatCategory{StatID: statUnsupported, Abbr: "XYZ", Name: "Mystery", Enabled: true}
 	supported, unsupported := valueCategories([]sqlcdb.YahooLeagueStatCategory{
-		gaa, category(statGoals, "G", "P", sortHigher, true), display, unnamed, category(statSavePct, "SV%", "G", sortHigher, true),
+		gaa, category(statGoals, "G", "P", sortHigher, true), display, disabled, unnamed, category(statSavePct, "SV%", "G", sortHigher, true),
 	})
 	assert.Equal(t, []string{"XYZ"}, unsupported)
 	require.Len(t, supported, 3)

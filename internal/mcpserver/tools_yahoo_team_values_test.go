@@ -44,10 +44,15 @@ var (
 // teamValuesQueries serves get_yahoo_team_player_values's queries.
 type teamValuesQueries struct {
 	*fakeYahooQueries
-	team           sqlcdb.YahooTeam
-	teamErr        error
-	latest         pgtype.Date
-	latestErr      error
+	team      sqlcdb.YahooTeam
+	teamErr   error
+	latest    pgtype.Date
+	latestErr error
+	// rosterDays are the league's imported roster days that
+	// GetLatestYahooLeagueRosterDateOnOrBefore searches, or onOrBeforeErr.
+	rosterDays     []pgtype.Date
+	onOrBeforeErr  error
+	onOrBeforeArgs []sqlcdb.GetLatestYahooLeagueRosterDateOnOrBeforeParams
 	categories     []sqlcdb.YahooLeagueStatCategory
 	rows           []sqlcdb.ListYahooLeaguePlayerWindowTotalsRow
 	rowsErr        error
@@ -69,6 +74,17 @@ func (q *teamValuesQueries) GetYahooTeam(_ context.Context, arg sqlcdb.GetYahooT
 
 func (q *teamValuesQueries) GetLatestYahooLeagueRosterDate(context.Context, int32) (pgtype.Date, error) {
 	return q.latest, q.latestErr
+}
+
+func (q *teamValuesQueries) GetLatestYahooLeagueRosterDateOnOrBefore(_ context.Context, arg sqlcdb.GetLatestYahooLeagueRosterDateOnOrBeforeParams) (pgtype.Date, error) {
+	q.onOrBeforeArgs = append(q.onOrBeforeArgs, arg)
+	var found pgtype.Date
+	for _, day := range q.rosterDays {
+		if !day.Time.After(arg.OnOrBefore.Time) && (!found.Valid || day.Time.After(found.Time)) {
+			found = day
+		}
+	}
+	return found, q.onOrBeforeErr
 }
 
 func (q *teamValuesQueries) GetYahooLeagueStatCategories(context.Context, int32) ([]sqlcdb.YahooLeagueStatCategory, error) {
@@ -133,6 +149,7 @@ func newTeamValuesQueries() *teamValuesQueries {
 		fakeYahooQueries: base,
 		team:             sqlcdb.YahooTeam{LeagueID: allowedLeagueID, ID: valuesTestTeam, Name: "My Team"},
 		latest:           valuesTestTo,
+		rosterDays:       []pgtype.Date{mustDate(valuesTestStart), mustDate("2026-11-08"), mustDate("2026-11-10"), valuesTestTo},
 		categories: []sqlcdb.YahooLeagueStatCategory{
 			category(statGAA, "GAA", "G", sortLower, true), category(statGoals, "G", "P", sortHigher, true),
 			category(statWins, "W", "G", sortHigher, true), category(statUnsupported, "XYZ", "P", sortHigher, true),
@@ -220,6 +237,8 @@ func TestTeamValuesWindow(t *testing.T) {
 			" to=" + valuesTestToString + " requested_to=2026-11-25 latest_roster_date="},
 		{"explicit window", map[string]any{teamValuesFromArg: "2026-11-01", teamValuesToArg: "2026-11-10", activeOnlyArg: true},
 			"2026-11-01", "2026-11-10", " from=2026-11-01 to=2026-11-10 latest_roster_date=2026-11-19 active_only=true "},
+		{"to on a day without a roster", map[string]any{teamValuesFromArg: "2026-11-01", teamValuesToArg: "2026-11-09"},
+			"2026-11-01", "2026-11-08", " from=2026-11-01 to=2026-11-08 requested_to=2026-11-09 latest_roster_date=2026-11-19 "},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			q := newTeamValuesQueries()
@@ -252,6 +271,12 @@ func TestTeamValuesErrors(t *testing.T) {
 			fmt.Sprintf("team %d not found in league %d (use get_yahoo_teams_by_league)", valuesTestOtherTm, allowedLeagueID)},
 		{"team error", nil, func(q *teamValuesQueries, _ *fakeRankingReader) { q.teamErr = errors.New("boom") },
 			fmt.Sprintf("load team %d of league %d: boom", valuesTestTeam, allowedLeagueID)},
+		{"to before the first roster", map[string]any{teamValuesFromArg: "2026-10-01", teamValuesToArg: "2026-10-06"}, nil,
+			fmt.Sprintf("league %d has no roster imported on or before to 2026-10-06; its first imported rosters come later",
+				allowedLeagueID)},
+		{"roster date error", map[string]any{teamValuesToArg: "2026-11-09"},
+			func(q *teamValuesQueries, _ *fakeRankingReader) { q.onOrBeforeErr = errors.New("boom") },
+			fmt.Sprintf("load roster date of league %d on or before 2026-11-09: boom", allowedLeagueID)},
 		{"latest error", nil, func(q *teamValuesQueries, _ *fakeRankingReader) { q.latestErr = errors.New("boom") },
 			fmt.Sprintf("load latest roster date of league %d: boom", allowedLeagueID)},
 		{"totals error", nil, func(q *teamValuesQueries, _ *fakeRankingReader) { q.rowsErr = errors.New("boom") },

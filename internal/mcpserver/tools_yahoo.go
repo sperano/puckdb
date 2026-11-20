@@ -24,6 +24,7 @@ type yahooQueries interface {
 	GetYahooRosterWithPlayers(ctx context.Context, arg sqlcdb.GetYahooRosterWithPlayersParams) ([]sqlcdb.YahooRosterPlayer, error)
 	GetYahooLeagueRostersWithPlayers(ctx context.Context, arg sqlcdb.GetYahooLeagueRostersWithPlayersParams) ([]sqlcdb.GetYahooLeagueRostersWithPlayersRow, error)
 	GetLatestYahooLeagueRosterDate(ctx context.Context, leagueID int32) (pgtype.Date, error)
+	GetLatestYahooLeagueRosterDateOnOrBefore(ctx context.Context, arg sqlcdb.GetLatestYahooLeagueRosterDateOnOrBeforeParams) (pgtype.Date, error)
 	GetLatestYahooTeamRosterDate(ctx context.Context, arg sqlcdb.GetLatestYahooTeamRosterDateParams) (pgtype.Date, error)
 	GetYahooTeamRostersByPlayer(ctx context.Context, arg sqlcdb.GetYahooTeamRostersByPlayerParams) ([]sqlcdb.YahooTeamRoster, error)
 	GetYahooRotoStandings(ctx context.Context, leagueID int32) ([]sqlcdb.YahooRotoStanding, error)

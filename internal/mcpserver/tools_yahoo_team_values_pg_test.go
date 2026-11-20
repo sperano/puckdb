@@ -241,3 +241,28 @@ func TestListProjectionValuesByNHLPlayersReadsDatabase(t *testing.T) {
 	totals := projectedTotals(rows)
 	assert.Len(t, totals[int64(pgValuesSkater)], pgValuesProjectionStatsCnt, "the second key is ignored")
 }
+
+func TestGetLatestYahooLeagueRosterDateOnOrBeforeReadsDatabase(t *testing.T) {
+	pool := pgtest.Open(t)
+	cleanupTeamValuesFixture(t, pool)
+	t.Cleanup(func() { cleanupTeamValuesFixture(t, pool) })
+	seedTeamValuesFixture(t, pool)
+	q := sqlcdb.New(pool)
+	for _, tc := range []struct {
+		onOrBefore string
+		want       pgtype.Date
+	}{
+		// The fixture's roster days are 09-30, 10-02, 10-03 and 10-04.
+		{pgValuesTo, mustDate(pgValuesTo)},
+		{"3007-10-05", mustDate(pgValuesTo)},
+		{"3007-10-01", mustDate("3007-09-30")},
+		{"3007-09-29", pgtype.Date{}},
+	} {
+		t.Run(tc.onOrBefore, func(t *testing.T) {
+			got, err := q.GetLatestYahooLeagueRosterDateOnOrBefore(context.Background(),
+				sqlcdb.GetLatestYahooLeagueRosterDateOnOrBeforeParams{LeagueID: pgValuesLeague, OnOrBefore: mustDate(tc.onOrBefore)})
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, got)
+		})
+	}
+}

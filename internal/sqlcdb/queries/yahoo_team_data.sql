@@ -258,6 +258,13 @@ SELECT MAX(date)::date AS date
 FROM yahoo_team_rosters
 WHERE league_id = $1;
 
+-- name: GetLatestYahooLeagueRosterDateOnOrBefore :one
+-- The latest date on or before on_or_before with an imported roster row of
+-- any team of the league; NULL when the league has none by then.
+SELECT MAX(date)::date AS date
+FROM yahoo_team_rosters
+WHERE league_id = sqlc.arg(league_id) AND date <= sqlc.arg(on_or_before)::date;
+
 -- name: GetLatestYahooTeamRosterDate :one
 -- The latest date with an imported roster row of the team; NULL when it has
 -- none. Reads the primary key's (league_id, team_id, date) prefix.

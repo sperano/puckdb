@@ -41,7 +41,8 @@ func yahooTeamPlayerValuesTool(q yahooQueries, guard leagueGuard, rankings draft
 		Tool: mcp.NewTool(teamValuesToolName,
 			mcp.WithDescription("Rank one Yahoo fantasy team's players by what they produced in the league's own scoring "+
 				"categories, to answer who is the best or weakest player on a team. Prints a '# key=value' header (league, team, "+
-				"the from/to dates used, requested_to when to was moved back to the latest imported roster, active_only, the "+
+				"the from/to dates used, requested_to when to had no imported roster and was moved back to the latest one on or "+
+				"before it, active_only, the "+
 				"number of compared players, the draft projection used or projection=none, unsupported categories), then CSV "+
 				"sections: '# categories' (each category's columns, direction, and for a ratio category its numerator and "+
 				"denominator), '# skaters' and '# goalies' (one row per matched player the team rostered in the window: "+
@@ -57,7 +58,8 @@ func yahooTeamPlayerValuesTool(q yahooQueries, guard leagueGuard, rankings draft
 			mcp.WithNumber(yahooTeamIDParam.name, mcp.Required(), mcp.Description("Yahoo team ID")),
 			mcp.WithString(teamValuesFromArg, mcp.Description("First day, YYYY-MM-DD (default: the league's season start)")),
 			mcp.WithString(teamValuesToArg, mcp.Description("Last day and the roster to rank, YYYY-MM-DD (default and "+
-				"latest: the league's latest imported roster). "+rosterFreshnessNote)),
+				"latest: the league's latest imported roster; a day without one moves back to the latest imported roster "+
+				"before it). "+rosterFreshnessNote)),
 			mcp.WithBoolean(activeOnlyArg, mcp.Description("Count only days in an active slot, not BN, IR, IR+ or NA (default false)")),
 		),
 		Handler: guard.scoped(func(ctx context.Context, req mcp.CallToolRequest, leagueID int32) (*mcp.CallToolResult, error) {
@@ -157,8 +159,8 @@ func loadTeamValues(ctx context.Context, q yahooQueries, rankings draftRankingRe
 	return v, nil
 }
 
-// resolveWindow fills the default dates and moves a to after the latest
-// imported roster back to it, keeping the requested one for the header.
+// resolveWindow fills the default dates and moves to back to an imported
+// roster day (resolveTo).
 func (v *teamValues) resolveWindow(ctx context.Context, q yahooQueries) error {
 	latest, err := q.GetLatestYahooLeagueRosterDate(ctx, v.league.ID)
 	if err != nil {
@@ -168,8 +170,8 @@ func (v *teamValues) resolveWindow(ctx context.Context, q yahooQueries) error {
 		return fmt.Errorf("league %d: %w", v.league.ID, errNoTeamValueRosters)
 	}
 	v.latest = latest
-	if !v.args.to.Valid || v.args.to.Time.After(latest.Time) {
-		v.requestedTo, v.args.to = v.args.to, latest
+	if err := v.resolveTo(ctx, q); err != nil {
+		return err
 	}
 	if !v.args.from.Valid {
 		v.args.from = v.league.StartDate
@@ -180,6 +182,34 @@ func (v *teamValues) resolveWindow(ctx context.Context, q yahooQueries) error {
 	if v.args.from.Time.After(v.args.to.Time) {
 		return fmt.Errorf("%s %s is after %s %s", teamValuesFromArg, formatDate(v.args.from),
 			teamValuesToArg, formatDate(v.args.to))
+	}
+	return nil
+}
+
+// resolveTo moves to back to the latest imported roster on or before it
+// (the league's latest roster when to is unset), keeping the requested
+// date for the header, so the ranked roster and the comparison players
+// always come from an imported day; a to before the league's first
+// imported roster is refused.
+func (v *teamValues) resolveTo(ctx context.Context, q yahooQueries) error {
+	if !v.args.to.Valid || !v.args.to.Time.Before(v.latest.Time) {
+		if !v.args.to.Time.Equal(v.latest.Time) {
+			v.requestedTo, v.args.to = v.args.to, v.latest
+		}
+		return nil
+	}
+	rosterDate, err := q.GetLatestYahooLeagueRosterDateOnOrBefore(ctx, sqlcdb.GetLatestYahooLeagueRosterDateOnOrBeforeParams{
+		LeagueID: v.league.ID, OnOrBefore: v.args.to,
+	})
+	if err != nil {
+		return fmt.Errorf("load roster date of league %d on or before %s: %w", v.league.ID, formatDate(v.args.to), err)
+	}
+	if !rosterDate.Valid {
+		return fmt.Errorf("league %d has no roster imported on or before %s %s; its first imported rosters come later",
+			v.league.ID, teamValuesToArg, formatDate(v.args.to))
+	}
+	if !rosterDate.Time.Equal(v.args.to.Time) {
+		v.requestedTo, v.args.to = v.args.to, rosterDate
 	}
 	return nil
 }

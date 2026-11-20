@@ -71,12 +71,12 @@ func (c valueCategory) value(t statTotals) (float64, bool) {
 	return t[c.ratio.numerator] / denominator * c.ratio.scale, true
 }
 
-// valueCategories maps the league's scoring categories (display-only ones
-// left out) to box-score stats with projection.YahooCategoryStat, ordered by
+// valueCategories maps the league's scoring categories (disabled and
+// display-only ones left out, as draft.StatCategory.Scores does) to box-score stats with projection.YahooCategoryStat, ordered by
 // stat ID; the categories it cannot map are returned as unsupported.
 func valueCategories(rows []sqlcdb.YahooLeagueStatCategory) (supported []valueCategory, unsupported []string) {
 	for _, row := range rows {
-		if row.IsOnlyDisplayStat {
+		if !row.Enabled || row.IsOnlyDisplayStat {
 			continue
 		}
 		kind, stat, ok := projection.YahooCategoryStat(int(row.StatID))
