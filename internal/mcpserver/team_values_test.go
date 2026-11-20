@@ -223,3 +223,17 @@ func TestProjectedTotalsKeepsEachPlayersFirstKey(t *testing.T) {
 	})
 	assert.Equal(t, map[int64]statTotals{7: {projection.StatGoals: 10}, 8: {projection.StatWins: 30}}, totals)
 }
+
+func TestCategoryWithoutSortOrderIsLeftOutOfValue(t *testing.T) {
+	supported, unsupported := valueCategories([]sqlcdb.YahooLeagueStatCategory{
+		category(statFaceoffsWon, "FW", "P", sortHigher, false), category(statGoals, "G", "P", sortHigher, true),
+	})
+	assert.Empty(t, unsupported)
+	require.Len(t, supported, 2)
+	assert.Equal(t, statFaceoffsWon, supported[1].statID)
+	assert.Equal(t, draft.DirectionUnknown, supported[1].direction)
+	rows := teamValues{categories: supported}.categoryRows()
+	require.Len(t, rows, 2)
+	assert.True(t, rows[0].InValue)
+	assert.False(t, rows[1].InValue)
+}

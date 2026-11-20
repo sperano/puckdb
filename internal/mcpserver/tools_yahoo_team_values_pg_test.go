@@ -29,6 +29,10 @@ const (
 	pgValuesGoalie             int32 = 990781002
 	pgValuesOtherSkater        int32 = 990781003
 	pgValuesYahooOnly          int32 = 990781009
+	pgValuesReliefGoalie       int32 = 990781004
+	pgValuesBackupGoalie       int32 = 990781005
+	pgValuesGamePlayoff        int64 = 990781104
+	pgValuesPlayoffGoals             = 7
 	pgValuesGameA              int64 = 990781101
 	pgValuesGameB              int64 = 990781102
 	pgValuesGameFuture         int64 = 990781103
@@ -53,12 +57,14 @@ func cleanupTeamValuesFixture(t *testing.T, pool *pgxpool.Pool) {
 		sql  string
 		args []any
 	}{
-		{`DELETE FROM play_events WHERE game_id IN ($1, $2, $3)`, []any{pgValuesGameA, pgValuesGameB, pgValuesGameFuture}},
-		{`DELETE FROM games WHERE id IN ($1, $2, $3)`, []any{pgValuesGameA, pgValuesGameB, pgValuesGameFuture}},
+		{`DELETE FROM play_events WHERE game_id IN ($1, $2, $3, $4)`,
+			[]any{pgValuesGameA, pgValuesGameB, pgValuesGameFuture, pgValuesGamePlayoff}},
+		{`DELETE FROM games WHERE id IN ($1, $2, $3, $4)`, []any{pgValuesGameA, pgValuesGameB, pgValuesGameFuture, pgValuesGamePlayoff}},
 		{`DELETE FROM yahoo_leagues WHERE id = $1`, []any{pgValuesLeague}},
 		{`DELETE FROM yahoo_league_players WHERE league_key = $1`, []any{pgValuesLeagueKey}},
 		{`DELETE FROM projection_snapshots WHERE target_season = 30073008`, nil},
-		{`DELETE FROM players WHERE id IN ($1, $2, $3)`, []any{pgValuesSkater, pgValuesGoalie, pgValuesOtherSkater}},
+		{`DELETE FROM players WHERE id IN ($1, $2, $3, $4, $5)`,
+			[]any{pgValuesSkater, pgValuesGoalie, pgValuesOtherSkater, pgValuesReliefGoalie, pgValuesBackupGoalie}},
 	} {
 		_, err := pool.Exec(ctx, stmt.sql, stmt.args...)
 		require.NoError(t, err)
@@ -191,6 +197,63 @@ func TestListYahooLeaguePlayerWindowTotalsReadsDatabase(t *testing.T) {
 	activeGoalie := active[[2]int32{pgValuesTeam, pgValuesGoalie}]
 	assert.Equal(t, int64(1), activeGoalie.GoalieGames, "game B was an IR day")
 	assert.Equal(t, int64(0), activeGoalie.GoalsAgainst)
+}
+
+// seedTeamValuesGameRulesFixture adds to the fixture what the totals must
+// leave out: a final playoff game with a skater line on a window day, a
+// relief shutout and a starter shutout under the minimum time on ice (both
+// for the relief goalie of team 2), and a backup dressed with no ice time.
+func seedTeamValuesGameRulesFixture(t *testing.T, pool *pgxpool.Pool) {
+	t.Helper()
+	exec := func(sql string, args ...any) {
+		t.Helper()
+		_, err := pool.Exec(context.Background(), sql, args...)
+		require.NoError(t, err)
+	}
+	exec(`INSERT INTO players (id, yahoo_id, first_name, last_name, position) VALUES
+		($1, $1, 'Rex', 'Relief', 'G'), ($2, $2, 'Ben', 'Backup', 'G')`, pgValuesReliefGoalie, pgValuesBackupGoalie)
+	for _, r := range []struct {
+		player int32
+		date   string
+	}{{pgValuesReliefGoalie, "3007-10-02"}, {pgValuesReliefGoalie, "3007-10-03"}, {pgValuesBackupGoalie, "3007-10-02"}} {
+		exec(`INSERT INTO yahoo_team_rosters (league_id, team_id, date, player_id, player_key, selected_position)
+			VALUES ($1, $2, $3, $4, $5, 'G')`, pgValuesLeague, pgValuesOtherTeam, r.date, r.player, fmt.Sprintf("465.p.%d", r.player))
+	}
+	exec(`INSERT INTO games (id, season, game_type, game_date, game_state, home_team_id, away_team_id)
+		VALUES ($1, 30073008, 'playoffs', '3007-10-02', 'FINAL', $2, $3)`, pgValuesGamePlayoff, pgValuesNHLTeam, pgValuesNHLOpponent)
+	exec(`INSERT INTO game_skater_stats (game_id, player_id, team_id, is_home, sweater_number, position, goals, assists, points,
+		plus_minus, penalty_minutes, power_play_points, shots_on_goal, hits, blocked_shots) VALUES
+		($1, $2, $3, TRUE, 9, 'C', $4, 0, $4, 0, 0, 0, 9, 0, 0)`,
+		pgValuesGamePlayoff, pgValuesSkater, pgValuesNHLTeam, pgValuesPlayoffGoals)
+	exec(`INSERT INTO game_goalie_stats (game_id, player_id, team_id, is_home, sweater_number, decision, starter,
+		shots_against, saves, goals_against, toi_seconds) VALUES
+		($1, $3, $5, FALSE, 31, NULL, FALSE, 10, 10, 0, 3600),
+		($2, $3, $5, FALSE, 31, 'W', TRUE, 20, 20, 0, $6),
+		($1, $4, $5, FALSE, 35, NULL, FALSE, 0, 0, 0, 0)`,
+		pgValuesGameA, pgValuesGameB, pgValuesReliefGoalie, pgValuesBackupGoalie, pgValuesNHLOpponent,
+		projection.DefaultGoalieShutoutMinTOI-1)
+}
+
+func TestListYahooLeaguePlayerWindowTotalsCountsOnlyRegularSeasonGamesPlayedAndShutoutsStarted(t *testing.T) {
+	pool := pgtest.Open(t)
+	cleanupTeamValuesFixture(t, pool)
+	t.Cleanup(func() { cleanupTeamValuesFixture(t, pool) })
+	seedTeamValuesFixture(t, pool)
+	seedTeamValuesGameRulesFixture(t, pool)
+	rows := listTeamValueTotals(t, sqlcdb.New(pool), false)
+
+	skater := rows[[2]int32{pgValuesTeam, pgValuesSkater}]
+	assert.Equal(t, int64(2), skater.SkaterGames, "the playoff game is left out")
+	assert.Equal(t, int64(1), skater.Goals, "the playoff game is left out")
+	relief := rows[[2]int32{pgValuesOtherTeam, pgValuesReliefGoalie}]
+	assert.Equal(t, int64(2), relief.GoalieGames)
+	assert.Equal(t, int64(1), relief.Wins)
+	assert.Equal(t, int64(0), relief.Shutouts, "neither a relief shutout nor one under the minimum time on ice counts")
+	assert.Equal(t, int64(3600+projection.DefaultGoalieShutoutMinTOI-1), relief.GoalieTOISeconds)
+	backup := rows[[2]int32{pgValuesOtherTeam, pgValuesBackupGoalie}]
+	assert.Equal(t, int32(1), backup.Days)
+	assert.Equal(t, int64(0), backup.GoalieGames, "a game dressed with no time on ice is not played")
+	assert.Equal(t, int64(0), backup.Shutouts)
 }
 
 func seedProjection(t *testing.T, pool *pgxpool.Pool) uuid.UUID {
