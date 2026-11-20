@@ -142,3 +142,14 @@ func TestEnsureNewsSchedule_DoUpdateSetsNewSpecAndAction(t *testing.T) {
 // ────────────────────────────────────────────────────────────────────────────
 // Sync step / workflow type registration
 // ────────────────────────────────────────────────────────────────────────────
+
+func TestEnsureNewsSchedule_LogsInterval(t *testing.T) {
+	buf := captureLog(t)
+	fakeClient := &fakeScheduleClient{handle: &fakeScheduleHandle{}}
+	require.NoError(t, ensureNewsSchedule(t.Context(), fakeClient, newsTestScheduleMinutes))
+
+	assert.Equal(t, []map[string]any{{
+		"level": "info", "message": "Schedule set", "schedule": "news refresh",
+		"schedule_id": shared.ScheduleIDRefreshNews, "every": []any{(newsTestScheduleMinutes * time.Minute).String()},
+	}}, logLines(t, buf))
+}

@@ -4,12 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/sperano/puckdb/internal/cache"
 	"github.com/sperano/puckdb/internal/resource"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -38,6 +40,16 @@ func corruptFile() error {
 		&resource.ParseError{Err: errors.New("unexpected end of JSON input")})
 }
 
+const yahooTestURL = "https://fantasysports.yahooapis.com/fantasy/v2/league/465.l.1/settings"
+
+// yahooRefreshRejected is the error an oauth2 transport returns when Yahoo
+// rejects the stored refresh token: the token source's error inside the
+// request's *url.Error.
+func yahooRefreshRejected() error {
+	tokenErr := &cache.OAuth2TokenMissingError{Reason: "yahoo rejected the stored refresh token"}
+	return fmt.Errorf("download: %w", &url.Error{Op: "Get", URL: yahooTestURL, Err: tokenErr})
+}
+
 func batchOf(errs ...error) error {
 	return fmt.Errorf("upsert skater stats: %w", &BatchError{Errors: errs, Indices: make([]int, len(errs))})
 }
@@ -61,8 +73,9 @@ func TestClassifyActivityError_Permanent(t *testing.T) {
 	t.Parallel()
 	// Spelled out, not the constants, so a change to the advice fails here.
 	hints := map[string]string{
-		ErrTypeCorruptCachedFile: "a retry reads the same bytes; delete the cached file (for a Yahoo player pool page, the pool manifest) and re-run the fetch",
-		ErrTypeRejectedValue:     "every retry sends the same value",
+		ErrTypeCorruptCachedFile:  "a retry reads the same bytes; delete the cached file (for a Yahoo player pool page, the pool manifest) and re-run the fetch",
+		ErrTypeRejectedValue:      "every retry sends the same value",
+		ErrTypeYahooLoginRequired: "no retry can succeed before a new Yahoo login; the next fetch after it downloads the missed days",
 	}
 	tests := []struct {
 		name    string
@@ -80,6 +93,8 @@ func TestClassifyActivityError_Permanent(t *testing.T) {
 		{"not null", pgError(sqlStateNotNullViolation), ErrTypeRejectedValue},
 		{"check", pgError(sqlStateCheckViolation), ErrTypeRejectedValue},
 		{"every joined error permanent", errors.Join(corruptFile(), pgError(sqlStateStringTooLong)), ErrTypeCorruptCachedFile},
+		{"no Yahoo token stored", fmt.Errorf("%s: %w", yahooTestURL, &cache.OAuth2TokenMissingError{}), ErrTypeYahooLoginRequired},
+		{"refresh token rejected, through the HTTP transport", yahooRefreshRejected(), ErrTypeYahooLoginRequired},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

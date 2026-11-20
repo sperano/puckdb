@@ -979,6 +979,23 @@ var DraftWorkerFlags = FlagGroup{
 	},
 }
 
+// Scheduled sync flags (worker)
+const (
+	FlagSeasonsSyncSchedule  = "seasons-sync-schedule"
+	FlagPlayersSyncSchedule  = "players-sync-schedule"
+	FlagSyncScheduleTimeZone = "sync-schedule-time-zone"
+)
+
+// SyncScheduleFlags sets the worker's Temporal schedules of the current
+// season's seasons and players syncs.
+var SyncScheduleFlags = FlagGroup{
+	Flags: []FlagDef{
+		{FlagSeasonsSyncSchedule, "", DefaultSeasonsSyncSchedule, "Cron expression (e.g. \"0 6 * * *\") starting the current season's seasons sync (fetch-seasons + import-seasons) via a Temporal schedule; empty removes the schedule", false},
+		{FlagPlayersSyncSchedule, "", DefaultPlayersSyncSchedule, "Cron expression (e.g. \"0 8 * * 1\") starting the current season's players sync (yahoo-players through import-player-logs) via a Temporal schedule; empty removes the schedule", false},
+		{FlagSyncScheduleTimeZone, "", DefaultSyncScheduleTimeZone, "IANA time zone of the sync schedules' cron expressions", false},
+	},
+}
+
 // Player news flags
 const (
 	FlagNewsSourcesFile         = "news-sources-file"

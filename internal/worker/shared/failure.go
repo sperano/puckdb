@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/sperano/puckdb/internal/cache"
 	"github.com/sperano/puckdb/internal/resource"
 	"go.temporal.io/sdk/interceptor"
 	"go.temporal.io/sdk/temporal"
@@ -21,6 +22,10 @@ const (
 	// ErrTypeRejectedValue is a value PostgreSQL refuses for its column. The
 	// activity sends the same values again on every attempt.
 	ErrTypeRejectedValue = "RejectedValue"
+	// ErrTypeYahooLoginRequired is a Yahoo call without a usable OAuth2
+	// token: none is stored, or Yahoo rejected the refresh token. Only a new
+	// login at /yahoo/login stores one, so no retry can succeed.
+	ErrTypeYahooLoginRequired = "YahooLoginRequired"
 )
 
 // Hints appended to the message of a permanent failure.
@@ -29,6 +34,8 @@ const (
 	// downloaded again only with a new pool, which a missing manifest starts.
 	corruptCachedFileHint = "a retry reads the same bytes; delete the cached file (for a Yahoo player pool page, the pool manifest) and re-run the fetch"
 	rejectedValueHint     = "every retry sends the same value"
+	// The next fetch downloads every Yahoo day the failed runs missed.
+	yahooLoginRequiredHint = "no retry can succeed before a new Yahoo login; the next fetch after it downloads the missed days"
 )
 
 // SQLSTATE codes of value errors: PostgreSQL rejects a statement's own
@@ -62,7 +69,8 @@ var rejectedValueSQLStates = map[string]bool{
 
 // ClassifyActivityError returns err as a non-retryable ApplicationError when
 // no retry of the activity can succeed: a cached file that does not parse
-// (*resource.ParseError) or a value PostgreSQL rejects (rejectedValueSQLStates).
+// (*resource.ParseError), a value PostgreSQL rejects (rejectedValueSQLStates)
+// or a Yahoo call needing a new login (*cache.OAuth2TokenMissingError).
 // Everything else is returned unchanged and keeps the retry policy:
 // cancellations and deadlines, errors already carrying a Temporal error,
 // missing cached files (a fetch running next to the import writes them, the
@@ -84,6 +92,8 @@ func ClassifyActivityError(err error) error {
 		return permanentFailure(err, ErrTypeCorruptCachedFile, corruptCachedFileHint)
 	case ErrTypeRejectedValue:
 		return permanentFailure(err, ErrTypeRejectedValue, rejectedValueHint)
+	case ErrTypeYahooLoginRequired:
+		return permanentFailure(err, ErrTypeYahooLoginRequired, yahooLoginRequiredHint)
 	default:
 		return err
 	}
@@ -101,6 +111,8 @@ func permanentErrorType(err error) string {
 	switch e := err.(type) {
 	case *resource.ParseError:
 		return ErrTypeCorruptCachedFile
+	case *cache.OAuth2TokenMissingError:
+		return ErrTypeYahooLoginRequired
 	case *pgconn.PgError:
 		if rejectedValueSQLStates[e.Code] {
 			return ErrTypeRejectedValue

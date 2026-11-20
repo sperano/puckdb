@@ -20,6 +20,15 @@ const (
 	// player news refreshes.
 	ScheduleIDRefreshNews = "refresh-news-schedule"
 
+	// ScheduleIDSeasonsSync and ScheduleIDPlayersSync are the Temporal
+	// schedules of the current season's seasons and players syncs. Their
+	// runs' workflow IDs start with WorkflowIDScheduledSeasonsSync and
+	// WorkflowIDScheduledPlayersSync (Temporal appends the start time).
+	ScheduleIDSeasonsSync          = "seasons-sync-schedule"
+	ScheduleIDPlayersSync          = "players-sync-schedule"
+	WorkflowIDScheduledSeasonsSync = "scheduled-seasons-sync"
+	WorkflowIDScheduledPlayersSync = "scheduled-players-sync"
+
 	// WorkflowIDRefreshDraftRankings is the stable workflow ID of the draft
 	// ranking refresh. Starting it while it runs is rejected, which is how
 	// concurrent refreshes are prevented.
