@@ -73,12 +73,29 @@ func (q *teamValuesQueries) GetYahooTeam(_ context.Context, arg sqlcdb.GetYahooT
 	return q.team, nil
 }
 
-func (q *teamValuesQueries) GetLatestYahooLeagueRosterDate(context.Context, int32) (pgtype.Date, error) {
+// errWrongLeague fails a lookup made for another league than the team's, so
+// a cross-league query cannot pass unnoticed.
+var errWrongLeague = errors.New("query for another league than the team's")
+
+func (q *teamValuesQueries) checkLeague(leagueID int32) error {
+	if leagueID != q.team.LeagueID {
+		return fmt.Errorf("%w: got %d, want %d", errWrongLeague, leagueID, q.team.LeagueID)
+	}
+	return nil
+}
+
+func (q *teamValuesQueries) GetLatestYahooLeagueRosterDate(_ context.Context, leagueID int32) (pgtype.Date, error) {
+	if err := q.checkLeague(leagueID); err != nil {
+		return pgtype.Date{}, err
+	}
 	return q.latest, q.latestErr
 }
 
 func (q *teamValuesQueries) GetLatestYahooLeagueRosterDateOnOrBefore(_ context.Context, arg sqlcdb.GetLatestYahooLeagueRosterDateOnOrBeforeParams) (pgtype.Date, error) {
 	q.onOrBeforeArgs = append(q.onOrBeforeArgs, arg)
+	if err := q.checkLeague(arg.LeagueID); err != nil {
+		return pgtype.Date{}, err
+	}
 	var found pgtype.Date
 	for _, day := range q.rosterDays {
 		if !day.Time.After(arg.OnOrBefore.Time) && (!found.Valid || day.Time.After(found.Time)) {
