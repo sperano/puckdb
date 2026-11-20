@@ -90,7 +90,7 @@ type YahooIDMatchResult struct {
 // "sean o'reilly" and "Jean-Gabriel" stays "jean-gabriel". MatchYahooID
 // compares two name records with this exact form first, and reads hyphens,
 // dots and spaces as the same separator only when no name matches exactly
-// (candidatesByName); apostrophes always count. Player news, which finds
+// or through a nickname alias (candidatesByName); apostrophes always count. Player news, which finds
 // names inside prose, splits this result into words (news.Words:
 // "sean o reilly").
 func NormalizeName(name string) string {
