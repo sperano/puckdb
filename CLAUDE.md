@@ -216,7 +216,7 @@ func FetchEdgeWorkflow(ctx workflow.Context, input FetchEdgeWorkflowInput) (core
 
 ### Configuration Inside Workflow Code
 
-Workflow code must never read viper flags or config files directly. Any setting that shapes the command sequence (concurrency, batch sizes, which Yahoo leagues to process) is resolved **once at the start of the workflow** through `shared.SnapshotConfig` / `shared.SnapshotConfigInt`, which records the value in history via `SideEffect` so a replay after a worker restart reuses it instead of re-reading changed local settings. ContinueAsNew runs carry the snapshot in their input (see `FetchYahooPlayersInput.Config`). Activity options (timeouts, retry policy) are not part of the determinism check and may stay live. Reference: `internal/worker/workflow/season_config.go`.
+Workflow code must never read viper flags or config files directly. Any setting that shapes the command sequence (concurrency, batch sizes, which Yahoo leagues to process) is resolved **once at the start of the workflow** through `shared.SnapshotConfig` / `shared.SnapshotConfigInt`, which records the value in history via `SideEffect` so a replay after a worker restart reuses it instead of re-reading changed local settings. ContinueAsNew runs carry the snapshot in their input (see `processPlayersState.Config` in `process_players_manifest.go`). Activity options (timeouts, retry policy) are not part of the determinism check and may stay live. Reference: `internal/worker/workflow/season_config.go`.
 
 ## External Services
 
