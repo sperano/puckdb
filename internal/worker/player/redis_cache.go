@@ -120,11 +120,11 @@ func GetUnmatchedYahooIDs(ctx context.Context, client *redis.Client) ([]store.Ya
 	return result, nil
 }
 
-// GetYahooPlayerByID fetches a single Yahoo player from the pool by ID.
 // errUndecodableYahooPlayer marks a pool entry GetYahooPlayerByID read but
 // could not decode.
 var errUndecodableYahooPlayer = errors.New("undecodable yahoo player")
 
+// GetYahooPlayerByID fetches a single Yahoo player from the pool by ID.
 func GetYahooPlayerByID(ctx context.Context, client *redis.Client, yahooID store.YahooPlayerID) (*store.YahooPlayer, error) {
 	encoded, err := client.HGet(ctx, YahooIDPoolKey, yahooID.String()).Bytes()
 	if err != nil {
