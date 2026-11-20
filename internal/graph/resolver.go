@@ -149,6 +149,7 @@ func (r *Resolver) processPlayersResultData(ctx context.Context) (*model.Process
 		SkippedNonNHL:         result.SkippedNonNHL,
 		VerifiedNonNHLThisRun: result.VerifiedNonNHLThisRun,
 		TrulyUnmatched:        trulyUnmatched,
+		TrulyUnmatchedCount:   result.TrulyUnmatchedCount,
 		Errors:                result.Errors,
 	}, nil
 }

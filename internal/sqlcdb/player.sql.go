@@ -627,6 +627,33 @@ func (q *Queries) ListPlayerHeroImages(ctx context.Context) ([]ListPlayerHeroIma
 	return items, nil
 }
 
+const listPlayerIDsWithYahooID = `-- name: ListPlayerIDsWithYahooID :many
+SELECT id FROM players
+WHERE id = ANY($1::bigint[]) AND yahoo_id IS NOT NULL
+ORDER BY id
+`
+
+// The players among ids already matched to a Yahoo ID.
+func (q *Queries) ListPlayerIDsWithYahooID(ctx context.Context, ids []int64) ([]int64, error) {
+	rows, err := q.db.Query(ctx, listPlayerIDsWithYahooID, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []int64{}
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listPlayerNamesByIDs = `-- name: ListPlayerNamesByIDs :many
 SELECT id, first_name, last_name FROM players WHERE id = ANY($1::bigint[])
 `

@@ -70,7 +70,8 @@ type ProcessPlayersResultData {
 	totalYahooPlayers: Int!
 	skippedNonNHL: Int! @goField(name: "SkippedNonNHL")            # Excluded at load (verified non-NHL from previous runs)
 	verifiedNonNHLThisRun: Int! @goField(name: "VerifiedNonNHLThisRun")    # Verified as non-NHL during this run
-	trulyUnmatched: [TrulyUnmatchedPlayer!]!  # Have NHL games but weren't matched
+	trulyUnmatched: [TrulyUnmatchedPlayer!]!  # Have NHL games but weren't matched: a capped sample (all are in the worker log)
+	trulyUnmatchedCount: Int!  # Number of truly unmatched players, those trulyUnmatched leaves out included
 	errors: [String!]!
 }
 

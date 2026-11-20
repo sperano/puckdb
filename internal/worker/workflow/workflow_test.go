@@ -466,7 +466,7 @@ func (s *ProcessPlayersWorkflowTestSuite) TestProcessPlayersWorkflow_Phase1_Chil
 
 	var playerAct *workplayer.Activities
 	s.env.OnActivity(playerAct.CreateProcessPlayersManifest, mock.Anything, mock.Anything).Return(
-		workplayer.ManifestRef{}, errors.New("redis unavailable"))
+		workplayer.CreatedManifest{}, errors.New("redis unavailable"))
 
 	s.env.ExecuteWorkflow(ProcessPlayersWorkflow, input)
 
@@ -546,7 +546,7 @@ func (s *ProcessPlayersWorkflowTestSuite) TestProcessPlayersWorkflow_Phase4_Succ
 
 	// Mock Phase 4 activities - no unmatched players
 	var playerAct *workplayer.Activities
-	s.env.OnActivity(playerAct.LoadUnmatchedYahooPlayers, mock.Anything).Return(
+	s.env.OnActivity(playerAct.LoadUnmatchedYahooPlayers, mock.Anything, mock.Anything).Return(
 		[]workplayer.UnmatchedYahooPlayer{}, nil)
 	s.env.OnActivity(playerAct.CleanupYahooIDPoolData, mock.Anything).Maybe().Return(nil)
 
@@ -581,7 +581,7 @@ func (s *ProcessPlayersWorkflowTestSuite) TestProcessPlayersWorkflow_Phase4_With
 
 	// Mock Phase 4 activities - some unmatched players
 	var playerAct *workplayer.Activities
-	s.env.OnActivity(playerAct.LoadUnmatchedYahooPlayers, mock.Anything).Return(
+	s.env.OnActivity(playerAct.LoadUnmatchedYahooPlayers, mock.Anything, mock.Anything).Return(
 		[]workplayer.UnmatchedYahooPlayer{
 			{YahooID: 123, FirstName: "Unknown", LastName: "Player"},
 		}, nil)
@@ -600,6 +600,45 @@ func (s *ProcessPlayersWorkflowTestSuite) TestProcessPlayersWorkflow_Phase4_With
 	var res *ProcessPlayersResult
 	s.NoError(s.env.GetWorkflowResult(&res))
 	s.Equal(1, res.VerifiedNonNHLThisRun)
+}
+
+// Phase 3 keeps the first MaxReportedTrulyUnmatched truly unmatched players
+// in the result and counts all of them; a legacy chain, whose seasons are
+// unknown, loads every unmatched Yahoo ID.
+func (s *ProcessPlayersWorkflowTestSuite) TestProcessPlayersWorkflow_Phase4_CapsTrulyUnmatched() {
+	const extra = 7
+	total := workplayer.MaxReportedTrulyUnmatched + extra
+	input := &processPlayersInternalInput{
+		Phase:   phaseVerifyUnmatched,
+		Players: []store.BoxscorePlayer{{ID: 8471214, FirstName: "Sidney", LastName: "Crosby"}},
+	}
+	reportBytes := gobEncodeProgressReport(NewProcessPlayersProgressReport(len(input.Players)))
+	s.env.OnActivity(((*shared.ProgressActivities)(nil)).Load, mock.Anything, mock.Anything).Return(reportBytes, nil)
+
+	unmatched := make([]workplayer.UnmatchedYahooPlayer, total)
+	for i := range unmatched {
+		unmatched[i] = workplayer.UnmatchedYahooPlayer{YahooID: store.YahooPlayerID(1000 + i)}
+	}
+	var playerAct *workplayer.Activities
+	s.env.OnActivity(playerAct.LoadUnmatchedYahooPlayers, mock.Anything, workplayer.LoadUnmatchedInput{}).Return(unmatched, nil)
+	s.env.OnActivity(playerAct.VerifyUnmatchedBatch, mock.Anything, mock.Anything).Return(
+		func(_ context.Context, players []workplayer.UnmatchedYahooPlayer) (*workplayer.VerifyUnmatchedResult, error) {
+			result := &workplayer.VerifyUnmatchedResult{}
+			for _, p := range players {
+				result.TrulyUnmatched = append(result.TrulyUnmatched, workplayer.VerifiedPlayer{YahooID: p.YahooID, HasNHLGames: true})
+			}
+			return result, nil
+		})
+	s.env.OnActivity(playerAct.CleanupYahooIDPoolData, mock.Anything).Return(nil)
+
+	s.env.ExecuteWorkflow(ProcessPlayersWorkflowContinue, input)
+
+	s.True(s.env.IsWorkflowCompleted())
+	s.Require().NoError(s.env.GetWorkflowError())
+	var res *ProcessPlayersResult
+	s.Require().NoError(s.env.GetWorkflowResult(&res))
+	s.Equal(total, res.TrulyUnmatchedCount)
+	s.Len(res.TrulyUnmatched, workplayer.MaxReportedTrulyUnmatched)
 }
 
 // Test ProcessPlayersWorkflow invalid phase

@@ -39,7 +39,10 @@ const (
 // chainListSeasons and chainRebuiltSeasons are the game list seasons phase 1
 // and the rebuild report.
 var (
-	chainListSeasons    = []int{2026, 2025}
+	chainListSeasons = []int{2026, 2025}
+	// chainRunSeasons are the seasons the chain's manifest was extracted
+	// from: fewer than the pool's game lists.
+	chainRunSeasons     = []int{2026}
 	chainRebuiltSeasons = []int{2026, 2025, 2024}
 )
 
@@ -100,6 +103,17 @@ func TestProcessPlayersStateSizeIsBounded(t *testing.T) {
 	assert.Len(t, state.ErrorSample, maxCarriedErrorSample)
 }
 
+func TestManifestResultCarriesTheTrulyUnmatchedCount(t *testing.T) {
+	sample := []workplayer.VerifiedPlayer{{YahooID: 1}}
+	result := manifestResult(&processPlayersState{}, &workplayer.UnmatchedReport{
+		TrulyUnmatched: sample, TrulyUnmatchedCount: 61, VerifiedNonNHLCount: 3,
+	})
+
+	assert.Equal(t, sample, result.TrulyUnmatched)
+	assert.Equal(t, 61, result.TrulyUnmatchedCount)
+	assert.Equal(t, 3, result.VerifiedNonNHLThisRun)
+}
+
 func TestManifestBatches(t *testing.T) {
 	assert.Equal(t, []ordinalRange{{4, 7}, {7, 10}, {10, 11}}, manifestBatches(4, 11, 3))
 	assert.Empty(t, manifestBatches(5, 5, 3))
@@ -131,6 +145,8 @@ type manifestChain struct {
 	// finishErr fails FinishProcessPlayersManifest when set.
 	finishErr error
 	recorded  []workplayer.PlayerError
+	// unmatchedInputs are the inputs LoadUnmatchedYahooPlayers got.
+	unmatchedInputs []workplayer.LoadUnmatchedInput
 }
 
 func (c *manifestChain) event(e string) {
@@ -156,7 +172,10 @@ func (c *manifestChain) newEnv(t *testing.T) *testsuite.TestWorkflowEnvironment 
 				report.Groups[GroupVerifyUnmatched].Bars[0].Total))
 		})
 	env.OnActivity(act.CreateProcessPlayersManifest, mock.Anything, mock.Anything).
-		Return(workplayer.ManifestRef{ID: chainManifestID, Count: chainPlayers, Hash: "h"}, nil)
+		Return(workplayer.CreatedManifest{
+			ManifestRef: workplayer.ManifestRef{ID: chainManifestID, Count: chainPlayers, Hash: "h"},
+			Seasons:     chainRunSeasons,
+		}, nil)
 	env.OnActivity(act.BuildYahooIDPool, mock.Anything).
 		Return(&workplayer.SaveYahooIDPoolResult{
 			TotalPlayers: 1, AvailablePlayers: 1, PoolSize: chainPoolSize,
@@ -171,8 +190,13 @@ func (c *manifestChain) newEnv(t *testing.T) *testsuite.TestWorkflowEnvironment 
 			c.recorded = append(c.recorded, input.Errors...)
 			return nil
 		})
-	env.OnActivity(act.LoadUnmatchedYahooPlayers, mock.Anything).
-		Return([]workplayer.UnmatchedYahooPlayer{{YahooID: 1}, {YahooID: 2}}, nil)
+	env.OnActivity(act.LoadUnmatchedYahooPlayers, mock.Anything, mock.Anything).Return(
+		func(_ context.Context, input workplayer.LoadUnmatchedInput) ([]workplayer.UnmatchedYahooPlayer, error) {
+			c.mu.Lock()
+			defer c.mu.Unlock()
+			c.unmatchedInputs = append(c.unmatchedInputs, input)
+			return []workplayer.UnmatchedYahooPlayer{{YahooID: 1}, {YahooID: 2}}, nil
+		})
 	env.OnActivity(act.VerifyUnmatchedBatch, mock.Anything, mock.Anything).Return(&workplayer.VerifyUnmatchedResult{}, nil).
 		Run(func(mock.Arguments) { c.event("verify") })
 	env.OnActivity(act.CleanupYahooIDPoolData, mock.Anything).Return(nil)
@@ -253,6 +277,7 @@ func TestProcessPlayersManifestChain(t *testing.T) {
 	state := continued(t, env)
 	require.Equal(t, phaseProcessPlayers, state.Phase)
 	require.Equal(t, chainPoolSize, state.YahooPool.PoolSize)
+	require.Equal(t, chainRunSeasons, state.Seasons)
 
 	var phases []processPlayersPhase
 	for state.Phase == phaseProcessPlayers {
@@ -290,6 +315,8 @@ func TestProcessPlayersManifestChain(t *testing.T) {
 		"every continuation checks the pool, against the rebuilt size after a rebuild")
 	assert.Equal(t, [][]int{chainListSeasons, chainListSeasons, chainRebuiltSeasons, chainRebuiltSeasons}, chain.ensuredSeasons,
 		"the game list seasons cross ContinueAsNew and follow a rebuild")
+	assert.Equal(t, []workplayer.LoadUnmatchedInput{{Seasons: chainRunSeasons}}, chain.unmatchedInputs,
+		"phase 3 verifies only the manifest's seasons, not every game list's")
 	wantResize := fmt.Sprintf("save total=%d bars=%d unmatched=%d", 1+chainPlayers+chainUnmatched,
 		1+chainPlayers+chainUnmatched, chainUnmatched)
 	require.GreaterOrEqual(t, len(chain.events), 3)
@@ -301,7 +328,7 @@ func TestProcessPlayersManifestChain_NoPlayers(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestWorkflowEnvironment()
 	var act *workplayer.Activities
-	env.OnActivity(act.CreateProcessPlayersManifest, mock.Anything, mock.Anything).Return(workplayer.ManifestRef{ID: "run"}, nil)
+	env.OnActivity(act.CreateProcessPlayersManifest, mock.Anything, mock.Anything).Return(workplayer.CreatedManifest{ManifestRef: workplayer.ManifestRef{ID: "run"}}, nil)
 
 	env.ExecuteWorkflow(ProcessPlayersWorkflow, (*ProcessPlayersInput)(nil))
 

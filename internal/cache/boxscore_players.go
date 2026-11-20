@@ -19,6 +19,9 @@ const (
 	BoxscorePlayersKeyPrefix = "puckdb:boxscore-players:"
 	// AllBoxscorePlayersKey is the Redis key for the consolidated set of all players.
 	AllBoxscorePlayersKey = "puckdb:boxscore-players:all"
+	// AllBoxscorePlayerSeasonsKey is the Redis key for the start years of the
+	// seasons the consolidated set was built from.
+	AllBoxscorePlayerSeasonsKey = "puckdb:boxscore-players:all-seasons"
 )
 
 // boxscoreClient is the minimal Redis surface used by boxscore players functions.
@@ -120,4 +123,35 @@ func LoadAllBoxscorePlayers(ctx context.Context, client boxscoreClient) ([]store
 	}
 
 	return players, nil
+}
+
+// SaveAllBoxscorePlayerSeasons saves the start years of the seasons the
+// consolidated player set was built from, with the set's TTL.
+func SaveAllBoxscorePlayerSeasons(ctx context.Context, client boxscoreClient, seasons []int, ttl time.Duration) error {
+	var buf bytes.Buffer
+	if err := gob.NewEncoder(&buf).Encode(seasons); err != nil {
+		return fmt.Errorf("encode boxscore player seasons: %w", err)
+	}
+	if err := client.Set(ctx, AllBoxscorePlayerSeasonsKey, buf.Bytes(), ttl).Err(); err != nil {
+		return fmt.Errorf("save boxscore player seasons to redis: %w", err)
+	}
+	return nil
+}
+
+// LoadAllBoxscorePlayerSeasons loads the seasons SaveAllBoxscorePlayerSeasons
+// saved; nil when the key is missing (a set consolidated before the seasons
+// were saved, or expired).
+func LoadAllBoxscorePlayerSeasons(ctx context.Context, client boxscoreClient) ([]int, error) {
+	data, err := client.Get(ctx, AllBoxscorePlayerSeasonsKey).Bytes()
+	if err != nil {
+		if errors.Is(err, redis.Nil) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("load boxscore player seasons from redis: %w", err)
+	}
+	seasons := []int{}
+	if err := gob.NewDecoder(bytes.NewReader(data)).Decode(&seasons); err != nil {
+		return nil, fmt.Errorf("decode boxscore player seasons: %w", err)
+	}
+	return seasons, nil
 }

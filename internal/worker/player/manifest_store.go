@@ -41,16 +41,39 @@ func (s *PgProcessPlayersStore) GetManifest(ctx context.Context, id string) (Man
 	return newManifestRef(row.ID, int(row.PlayerCount), row.PlayersHash), nil
 }
 
+// ManifestSeasons implements ProcessPlayersStore.
+func (s *PgProcessPlayersStore) ManifestSeasons(ctx context.Context, id string) ([]int, error) {
+	row, err := sqlcdb.New(s.pool).GetProcessPlayersManifest(ctx, id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrManifestNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get process players manifest %s seasons: %w", id, err)
+	}
+	if row.Seasons == nil {
+		return nil, nil
+	}
+	seasons := make([]int, len(row.Seasons))
+	for i, season := range row.Seasons {
+		seasons[i] = int(season)
+	}
+	return seasons, nil
+}
+
 // CreateManifest implements ProcessPlayersStore. Two attempts creating the
 // same id at once conflict on the primary key: the second waits for the
 // first's transaction, inserts nothing and returns the committed manifest.
 func (s *PgProcessPlayersStore) CreateManifest(
-	ctx context.Context, id, workflowID string, players []store.BoxscorePlayer, hash []byte,
+	ctx context.Context, id, workflowID string, players []store.BoxscorePlayer, hash []byte, seasons []int,
 ) (ManifestRef, error) {
 	if len(players) == 0 || len(players) > math.MaxInt32 {
 		return ManifestRef{}, fmt.Errorf("create process players manifest %s: %d players", id, len(players))
 	}
-	created, err := s.insertManifest(ctx, id, workflowID, players, hash)
+	stored, err := manifestSeasonsParam(seasons)
+	if err != nil {
+		return ManifestRef{}, fmt.Errorf("create process players manifest %s: %w", id, err)
+	}
+	created, err := s.insertManifest(ctx, id, workflowID, players, hash, stored)
 	if err != nil {
 		return ManifestRef{}, err
 	}
@@ -60,11 +83,27 @@ func (s *PgProcessPlayersStore) CreateManifest(
 	return newManifestRef(id, len(players), hash), nil
 }
 
+// manifestSeasonsParam converts seasons to the nullable seasons column: nil
+// stays NULL (unknown).
+func manifestSeasonsParam(seasons []int) ([]int32, error) {
+	if seasons == nil {
+		return nil, nil
+	}
+	stored := make([]int32, len(seasons))
+	for i, season := range seasons {
+		if season < 0 || season > math.MaxInt32 {
+			return nil, fmt.Errorf("season %d out of range", season)
+		}
+		stored[i] = int32(season)
+	}
+	return stored, nil
+}
+
 // insertManifest inserts the header and players of a new manifest and
 // applies the retention, in one transaction. It reports false, writing
 // nothing, when the id already exists.
 func (s *PgProcessPlayersStore) insertManifest(
-	ctx context.Context, id, workflowID string, players []store.BoxscorePlayer, hash []byte,
+	ctx context.Context, id, workflowID string, players []store.BoxscorePlayer, hash []byte, seasons []int32,
 ) (bool, error) {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -74,7 +113,7 @@ func (s *PgProcessPlayersStore) insertManifest(
 	q := sqlcdb.New(tx)
 
 	_, err = q.InsertProcessPlayersManifest(ctx, sqlcdb.InsertProcessPlayersManifestParams{
-		ID: id, WorkflowID: workflowID, PlayerCount: int32(len(players)), PlayersHash: hash,
+		ID: id, WorkflowID: workflowID, PlayerCount: int32(len(players)), PlayersHash: hash, Seasons: seasons,
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return false, nil

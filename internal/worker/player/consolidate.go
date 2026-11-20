@@ -21,13 +21,15 @@ type ConsolidatePlayersResult struct {
 }
 
 // ConsolidateBoxscorePlayersActivity loads players from all seasons,
-// deduplicates them, and saves the consolidated set to Redis.
+// deduplicates them, and saves the consolidated set to Redis with the start
+// years of the seasons it loaded (a season whose load failed is left out).
 func (a *Activities) ConsolidateBoxscorePlayersActivity(ctx context.Context, input ConsolidatePlayersInput) (ConsolidatePlayersResult, error) {
 	logger := activity.GetLogger(ctx)
 	redisClient := a.RedisClient
 
 	playerMap := make(map[int64]store.BoxscorePlayer)
 	totalPlayers := 0
+	loadedSeasons := make([]int, 0, len(input.Seasons))
 
 	for _, season := range input.Seasons {
 		players, err := cache.LoadBoxscorePlayers(ctx, redisClient, season)
@@ -36,6 +38,7 @@ func (a *Activities) ConsolidateBoxscorePlayersActivity(ctx context.Context, inp
 			continue
 		}
 
+		loadedSeasons = append(loadedSeasons, season.StartYear())
 		totalPlayers += len(players)
 		for _, p := range players {
 			playerMap[p.ID] = p
@@ -47,6 +50,12 @@ func (a *Activities) ConsolidateBoxscorePlayersActivity(ctx context.Context, inp
 		uniquePlayers = append(uniquePlayers, p)
 	}
 
+	// The seasons go first: a reader between the two writes pairs the new
+	// seasons with the previous set, which at worst verifies too few
+	// unmatched Yahoo IDs once, never hides the new set's seasons.
+	if err := cache.SaveAllBoxscorePlayerSeasons(ctx, redisClient, loadedSeasons, a.BoxscorePlayerCacheTTL); err != nil {
+		return ConsolidatePlayersResult{}, err
+	}
 	if err := cache.SaveAllBoxscorePlayers(ctx, redisClient, uniquePlayers, a.BoxscorePlayerCacheTTL); err != nil {
 		return ConsolidatePlayersResult{}, err
 	}

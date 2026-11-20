@@ -26,7 +26,12 @@ const (
 type processPlayersState struct {
 	Config   processPlayersConfig   // snapshotted once in run 1
 	Manifest workplayer.ManifestRef // the chain's player list
-	Phase    processPlayersPhase
+	// Seasons are the start years of the seasons the manifest's list was
+	// extracted from; phase 3 verifies only the Yahoo IDs their game player
+	// lists name. Nil (unknown, or a chain started before it was carried)
+	// verifies every unmatched Yahoo ID.
+	Seasons []int
+	Phase   processPlayersPhase
 	// Cursor is the next manifest ordinal phase 2 processes.
 	Cursor      int
 	Totals      processPlayersTotals
@@ -147,13 +152,14 @@ func runManifestFirstExecution(ctx workflow.Context, cfg processPlayersConfig) (
 
 	info := workflow.GetInfo(ctx)
 	var playerAct *workplayer.Activities
-	var manifest workplayer.ManifestRef
+	var created workplayer.CreatedManifest
 	if err := workflow.ExecuteActivity(ctx, playerAct.CreateProcessPlayersManifest, workplayer.CreateManifestInput{
 		ManifestID: shared.ChainRunID(info),
 		WorkflowID: info.WorkflowExecution.ID,
-	}).Get(ctx, &manifest); err != nil {
+	}).Get(ctx, &created); err != nil {
 		return nil, fmt.Errorf("create process players manifest: %w", err)
 	}
+	manifest := created.ManifestRef
 	if manifest.Count == 0 {
 		logger.Info("No players to process")
 		return &ProcessPlayersResult{}, nil
@@ -162,12 +168,14 @@ func runManifestFirstExecution(ctx workflow.Context, cfg processPlayersConfig) (
 	logger.Info("ProcessPlayersWorkflow started",
 		"total_players", manifest.Count,
 		"manifest", manifest.ID,
+		"seasons", created.Seasons,
 		"batch_size", cfg.BatchSize,
 		"concurrency", cfg.Concurrency)
 
 	state := &processPlayersState{
 		Config:   cfg,
 		Manifest: manifest,
+		Seasons:  created.Seasons,
 		Phase:    phaseProcessPlayers,
 		Totals:   processPlayersTotals{Origins: core.OriginCounts{}},
 		Progress: NewProcessPlayersProgressReport(manifest.Count),
@@ -343,7 +351,7 @@ func recordBatchErrors(ctx workflow.Context, state *processPlayersState, errs []
 func runManifestVerify(ctx workflow.Context, tracker *shared.ReportTracker, state *processPlayersState) (*ProcessPlayersResult, error) {
 	logger := workflow.GetLogger(ctx)
 
-	unmatchedPlayers := loadUnmatchedPlayers(ctx)
+	unmatchedPlayers := loadUnmatchedPlayers(ctx, workplayer.LoadUnmatchedInput{Seasons: state.Seasons})
 	tracker.SetBarTotal(shared.BarRef{Group: GroupVerifyUnmatched}, len(unmatchedPlayers))
 	tracker.RecalcTotal()
 	tracker.Save(ctx)
@@ -354,7 +362,7 @@ func runManifestVerify(ctx workflow.Context, tracker *shared.ReportTracker, stat
 	totals := state.Totals
 	tracker.CompleteGroup(ctx, GroupVerifyUnmatched,
 		fmt.Sprintf("Imported %d players: %d Yahoo! matched, %d truly unmatched, %d unverified and %d errors in %s.",
-			totals.Imported, totals.Matched, len(unmatchedReport.TrulyUnmatched),
+			totals.Imported, totals.Matched, unmatchedReport.TrulyUnmatchedCount,
 			unmatchedReport.UnverifiedCount, totals.Errors, tracker.GetElapsed(ctx, GroupVerifyUnmatched)))
 
 	result := manifestResult(state, unmatchedReport)
@@ -369,7 +377,7 @@ func runManifestVerify(ctx workflow.Context, tracker *shared.ReportTracker, stat
 		"birth_date_pages_downloaded", result.BirthDatePagesDownloaded,
 		"birth_date_pages_failed", result.BirthDatePagesFailed,
 		"birth_date_pages_missing", result.BirthDatePagesMissing,
-		"truly_unmatched", len(result.TrulyUnmatched))
+		"truly_unmatched", result.TrulyUnmatchedCount)
 
 	// Fail the chain when any player failed, so the sync halts visibly: a
 	// 'success' with silent errors is how the FK-violation gap
@@ -417,6 +425,7 @@ func manifestResult(state *processPlayersState, unmatched *workplayer.UnmatchedR
 		SkippedNonNHL:            state.YahooPool.SkippedNonNHL,
 		VerifiedNonNHLThisRun:    unmatched.VerifiedNonNHLCount,
 		TrulyUnmatched:           unmatched.TrulyUnmatched,
+		TrulyUnmatchedCount:      unmatched.TrulyUnmatchedCount,
 		Errors:                   state.ErrorSample,
 	}
 }

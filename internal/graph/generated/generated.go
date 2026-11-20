@@ -1142,6 +1142,7 @@ type ComplexityRoot struct {
 		TotalPlayers          func(childComplexity int) int
 		TotalYahooPlayers     func(childComplexity int) int
 		TrulyUnmatched        func(childComplexity int) int
+		TrulyUnmatchedCount   func(childComplexity int) int
 		VerifiedNonNHLThisRun func(childComplexity int) int
 	}
 
@@ -6718,6 +6719,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.ProcessPlayersResultData.TrulyUnmatched(childComplexity), true
+	case "ProcessPlayersResultData.trulyUnmatchedCount":
+		if e.ComplexityRoot.ProcessPlayersResultData.TrulyUnmatchedCount == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProcessPlayersResultData.TrulyUnmatchedCount(childComplexity), true
 	case "ProcessPlayersResultData.verifiedNonNHLThisRun":
 		if e.ComplexityRoot.ProcessPlayersResultData.VerifiedNonNHLThisRun == nil {
 			break
@@ -10417,7 +10424,8 @@ type ProcessPlayersResultData {
 	totalYahooPlayers: Int!
 	skippedNonNHL: Int! @goField(name: "SkippedNonNHL")            # Excluded at load (verified non-NHL from previous runs)
 	verifiedNonNHLThisRun: Int! @goField(name: "VerifiedNonNHLThisRun")    # Verified as non-NHL during this run
-	trulyUnmatched: [TrulyUnmatchedPlayer!]!  # Have NHL games but weren't matched
+	trulyUnmatched: [TrulyUnmatchedPlayer!]!  # Have NHL games but weren't matched: a capped sample (all are in the worker log)
+	trulyUnmatchedCount: Int!  # Number of truly unmatched players, those trulyUnmatched leaves out included
 	errors: [String!]!
 }
 
@@ -13058,6 +13066,8 @@ func (ec *executionContext) childFields_ProcessPlayersResultData(ctx context.Con
 		return ec.fieldContext_ProcessPlayersResultData_verifiedNonNHLThisRun(ctx, field)
 	case "trulyUnmatched":
 		return ec.fieldContext_ProcessPlayersResultData_trulyUnmatched(ctx, field)
+	case "trulyUnmatchedCount":
+		return ec.fieldContext_ProcessPlayersResultData_trulyUnmatchedCount(ctx, field)
 	case "errors":
 		return ec.fieldContext_ProcessPlayersResultData_errors(ctx, field)
 	}
@@ -35454,6 +35464,29 @@ func (ec *executionContext) fieldContext_ProcessPlayersResultData_trulyUnmatched
 	return fc, nil
 }
 
+func (ec *executionContext) _ProcessPlayersResultData_trulyUnmatchedCount(ctx context.Context, field graphql.CollectedField, obj *model.ProcessPlayersResultData) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ProcessPlayersResultData_trulyUnmatchedCount(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.TrulyUnmatchedCount, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ProcessPlayersResultData_trulyUnmatchedCount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("ProcessPlayersResultData", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
 func (ec *executionContext) _ProcessPlayersResultData_errors(ctx context.Context, field graphql.CollectedField, obj *model.ProcessPlayersResultData) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -51668,6 +51701,11 @@ func (ec *executionContext) _ProcessPlayersResultData(ctx context.Context, sel a
 			}
 		case "trulyUnmatched":
 			out.Values[i] = ec._ProcessPlayersResultData_trulyUnmatched(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "trulyUnmatchedCount":
+			out.Values[i] = ec._ProcessPlayersResultData_trulyUnmatchedCount(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}

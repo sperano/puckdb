@@ -3,8 +3,10 @@ package cmd
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/sperano/puckdb/internal/graph/model"
@@ -252,13 +254,18 @@ func TestGetProcessPlayersResultData(t *testing.T) {
 
 	t.Run("with unmatched players", func(t *testing.T) {
 		t.Parallel()
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			body, _ := io.ReadAll(r.Body)
+			if !strings.Contains(string(body), "trulyUnmatchedCount") {
+				t.Errorf("query does not ask for trulyUnmatchedCount: %s", body)
+			}
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte(`{"data": {"processPlayersResultData": {
 				"totalPlayers": 10, "importedPlayers": 8, "matchedWithYahoo": 7,
 				"downloaded": 5, "cacheHits": 3, "missing": 2,
 				"totalYahooPlayers": 12, "skippedNonNHL": 1, "verifiedNonNHLThisRun": 0,
 				"trulyUnmatched": [{"yahooID": 999, "firstName": "John", "lastName": "Doe", "nhlGames": 5, "nhlPlayerID": 123, "nhlName": "J. Doe"}],
+				"trulyUnmatchedCount": 61,
 				"errors": ["error1"]
 			}}}`))
 		}))
@@ -274,6 +281,9 @@ func TestGetProcessPlayersResultData(t *testing.T) {
 		}
 		if result.TrulyUnmatched[0].YahooID != 999 {
 			t.Errorf("yahooID = %d, want 999", result.TrulyUnmatched[0].YahooID)
+		}
+		if result.TrulyUnmatchedCount != 61 {
+			t.Errorf("trulyUnmatchedCount = %d, want 61", result.TrulyUnmatchedCount)
 		}
 		if len(result.Errors) != 1 {
 			t.Fatalf("errors = %d, want 1", len(result.Errors))

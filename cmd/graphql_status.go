@@ -54,7 +54,7 @@ func (c *GraphQLClient) GetProcessPlayersResultData(ctx context.Context) (*model
 	const query = `query { processPlayersResultData {
 		totalPlayers importedPlayers matchedWithYahoo downloaded cacheHits missing
 		totalYahooPlayers skippedNonNHL verifiedNonNHLThisRun
-		trulyUnmatched { yahooID firstName lastName nhlGames nhlPlayerID nhlName } errors
+		trulyUnmatched { yahooID firstName lastName nhlGames nhlPlayerID nhlName } trulyUnmatchedCount errors
 	}}`
 	resp, err := c.execute(ctx, query, nil)
 	if err != nil {

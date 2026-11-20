@@ -152,3 +152,65 @@ func TestSaveAndLoadAllBoxscorePlayers(t *testing.T) {
 
 	require.NoError(t, mock.ExpectationsWereMet())
 }
+
+func TestSaveAndLoadAllBoxscorePlayerSeasons(t *testing.T) {
+	t.Parallel()
+
+	client, mock := redismock.NewClientMock()
+	ctx := context.Background()
+	ttl := 30 * time.Minute
+	seasons := []int{2024, 2025}
+
+	var gobBuf bytes.Buffer
+	require.NoError(t, gob.NewEncoder(&gobBuf).Encode(seasons))
+	mock.ExpectSet(AllBoxscorePlayerSeasonsKey, gobBuf.Bytes(), ttl).SetVal("OK")
+	require.NoError(t, SaveAllBoxscorePlayerSeasons(ctx, client, seasons, ttl))
+
+	mock.ExpectGet(AllBoxscorePlayerSeasonsKey).SetVal(gobBuf.String())
+	got, err := LoadAllBoxscorePlayerSeasons(ctx, client)
+	require.NoError(t, err)
+	assert.Equal(t, seasons, got)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestLoadAllBoxscorePlayerSeasons_EmptyIsKnownMissIsNil(t *testing.T) {
+	t.Parallel()
+
+	client, mock := redismock.NewClientMock()
+	ctx := context.Background()
+
+	var gobBuf bytes.Buffer
+	require.NoError(t, gob.NewEncoder(&gobBuf).Encode([]int{}))
+	mock.ExpectGet(AllBoxscorePlayerSeasonsKey).SetVal(gobBuf.String())
+	got, err := LoadAllBoxscorePlayerSeasons(ctx, client)
+	require.NoError(t, err)
+	assert.Equal(t, []int{}, got, "an empty saved list is known: no season")
+
+	mock.ExpectGet(AllBoxscorePlayerSeasonsKey).RedisNil()
+	got, err = LoadAllBoxscorePlayerSeasons(ctx, client)
+	require.NoError(t, err)
+	assert.Nil(t, got, "a missing key is unknown")
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestAllBoxscorePlayerSeasons_Errors(t *testing.T) {
+	t.Parallel()
+
+	client, mock := redismock.NewClientMock()
+	ctx := context.Background()
+	redisErr := errors.New("connection refused")
+
+	mock.ExpectGet(AllBoxscorePlayerSeasonsKey).SetErr(redisErr)
+	_, err := LoadAllBoxscorePlayerSeasons(ctx, client)
+	assert.ErrorIs(t, err, redisErr)
+
+	mock.ExpectGet(AllBoxscorePlayerSeasonsKey).SetVal("not gob")
+	_, err = LoadAllBoxscorePlayerSeasons(ctx, client)
+	assert.ErrorContains(t, err, "decode boxscore player seasons")
+
+	var gobBuf bytes.Buffer
+	require.NoError(t, gob.NewEncoder(&gobBuf).Encode([]int{2025}))
+	mock.ExpectSet(AllBoxscorePlayerSeasonsKey, gobBuf.Bytes(), time.Minute).SetErr(redisErr)
+	assert.ErrorIs(t, SaveAllBoxscorePlayerSeasons(ctx, client, []int{2025}, time.Minute), redisErr)
+	require.NoError(t, mock.ExpectationsWereMet())
+}

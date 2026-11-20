@@ -98,7 +98,10 @@ type ProcessPlayersResult struct {
 	TotalYahooPlayers     int
 	SkippedNonNHL         int
 	VerifiedNonNHLThisRun int
-	TrulyUnmatched        []workplayer.VerifiedPlayer
+	// TrulyUnmatched is the first workplayer.MaxReportedTrulyUnmatched of
+	// the TrulyUnmatchedCount truly unmatched players (all are logged).
+	TrulyUnmatched      []workplayer.VerifiedPlayer
+	TrulyUnmatchedCount int
 
 	// Errors: every error for a legacy chain; for a manifest chain the first
 	// maxCarriedErrorSample (all of them are in process_players_manifest_errors).
@@ -190,15 +193,16 @@ func loadYahooPool(ctx workflow.Context, tracker *shared.ReportTracker) (*workpl
 	return saveResult, nil
 }
 
-// loadUnmatchedPlayers returns the Yahoo players phase 2 left unmatched, or
-// none when they cannot be loaded. ctx must carry activity options.
-func loadUnmatchedPlayers(ctx workflow.Context) []workplayer.UnmatchedYahooPlayer {
+// loadUnmatchedPlayers returns the Yahoo players phase 2 left unmatched that
+// input selects, or none when they cannot be loaded. ctx must carry activity
+// options.
+func loadUnmatchedPlayers(ctx workflow.Context, input workplayer.LoadUnmatchedInput) []workplayer.UnmatchedYahooPlayer {
 	logger := workflow.GetLogger(ctx)
 	logger.Info("ProcessPlayersWorkflow Phase 3: verifying unmatched players")
 
 	var playerAct *workplayer.Activities
 	var unmatchedPlayers []workplayer.UnmatchedYahooPlayer
-	if err := workflow.ExecuteActivity(ctx, playerAct.LoadUnmatchedYahooPlayers).Get(ctx, &unmatchedPlayers); err != nil {
+	if err := workflow.ExecuteActivity(ctx, playerAct.LoadUnmatchedYahooPlayers, input).Get(ctx, &unmatchedPlayers); err != nil {
 		logger.Warn("Failed to load unmatched Yahoo players", "error", err)
 		unmatchedPlayers = []workplayer.UnmatchedYahooPlayer{}
 	}
@@ -234,10 +238,7 @@ func verifyUnmatchedPlayers(ctx workflow.Context, tracker *shared.ReportTracker,
 				logger.Warn("Failed to verify batch", "error", err, "batch_index", batchIndex)
 				return nil // Continue processing other batches
 			}
-			unmatchedReport.TrulyUnmatched = append(unmatchedReport.TrulyUnmatched, batchResult.TrulyUnmatched...)
-			unmatchedReport.VerifiedNonNHLCount += len(batchResult.VerifiedNonNHL)
-			unmatchedReport.NotFoundCount += len(batchResult.NotFoundInNHL)
-			unmatchedReport.UnverifiedCount += len(batchResult.Unverified)
+			addVerifiedBatch(logger, unmatchedReport, batchResult)
 			return nil
 		},
 	})
@@ -253,20 +254,39 @@ func verifyUnmatchedPlayers(ctx workflow.Context, tracker *shared.ReportTracker,
 	return unmatchedReport
 }
 
-// logUnmatchedReport logs the players phase 3 could not verify or found
-// with NHL games but no match.
+// addVerifiedBatch counts one verified batch into report, keeping the first
+// workplayer.MaxReportedTrulyUnmatched truly unmatched players and logging
+// every one, so the whole list is in the worker log.
+func addVerifiedBatch(logger log.Logger, report *workplayer.UnmatchedReport, batch *workplayer.VerifyUnmatchedResult) {
+	for _, p := range batch.TrulyUnmatched {
+		logger.Warn("Truly unmatched player with NHL games",
+			"yahoo_id", p.YahooID,
+			"yahoo_name", p.FirstName+" "+p.LastName,
+			"nhl_player_id", p.NHLPlayerID,
+			"nhl_name", p.NHLName,
+			"nhl_games", p.NHLGames)
+		if len(report.TrulyUnmatched) < workplayer.MaxReportedTrulyUnmatched {
+			report.TrulyUnmatched = append(report.TrulyUnmatched, p)
+		}
+	}
+	report.TrulyUnmatchedCount += len(batch.TrulyUnmatched)
+	report.VerifiedNonNHLCount += len(batch.VerifiedNonNHL)
+	report.NotFoundCount += len(batch.NotFoundInNHL)
+	report.MatchedNamesakeCount += len(batch.MatchedNamesakes)
+	report.UnverifiedCount += len(batch.Unverified)
+}
+
+// logUnmatchedReport logs phase 3's totals.
 func logUnmatchedReport(logger log.Logger, unmatchedReport *workplayer.UnmatchedReport) {
 	if unmatchedReport.UnverifiedCount > 0 {
 		logger.Warn("Some unmatched players could not be verified (NHL API errors); they will be retried next run",
 			"unverified", unmatchedReport.UnverifiedCount)
 	}
-
-	// Log truly unmatched players
-	for _, p := range unmatchedReport.TrulyUnmatched {
-		logger.Warn("Truly unmatched player with NHL games",
-			"yahoo_id", p.YahooID,
-			"yahoo_name", p.FirstName+" "+p.LastName,
-			"nhl_name", p.NHLName,
-			"nhl_games", p.NHLGames)
-	}
+	logger.Info("Verified unmatched players",
+		"truly_unmatched", unmatchedReport.TrulyUnmatchedCount,
+		"reported", len(unmatchedReport.TrulyUnmatched),
+		"verified_non_nhl", unmatchedReport.VerifiedNonNHLCount,
+		"not_found", unmatchedReport.NotFoundCount,
+		"matched_namesakes", unmatchedReport.MatchedNamesakeCount,
+		"unverified", unmatchedReport.UnverifiedCount)
 }

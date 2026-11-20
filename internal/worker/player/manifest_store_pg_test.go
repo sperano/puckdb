@@ -31,7 +31,7 @@ func newPgManifestStore(t *testing.T) (*PgProcessPlayersStore, *pgxpool.Pool) {
 func createPgManifest(t *testing.T, s *PgProcessPlayersStore, id string, players ...store.BoxscorePlayer) ManifestRef {
 	t.Helper()
 	sorted := sortManifestPlayers(players)
-	ref, err := s.CreateManifest(context.Background(), id, "process-players", sorted, hashManifestPlayers(sorted))
+	ref, err := s.CreateManifest(context.Background(), id, "process-players", sorted, hashManifestPlayers(sorted), nil)
 	require.NoError(t, err)
 	return ref
 }
@@ -73,6 +73,35 @@ func TestPgManifest_StoresPlayersInOrdinalOrder(t *testing.T) {
 	assert.ErrorIs(t, err, ErrManifestNotFound)
 }
 
+func TestPgManifest_StoresSeasonsAndNullAsUnknown(t *testing.T) {
+	s, _ := newPgManifestStore(t)
+	ctx := context.Background()
+	players := []store.BoxscorePlayer{{ID: 1}}
+
+	_, err := s.CreateManifest(ctx, "run-1", "process-players", players, hashManifestPlayers(players), []int{2024, 2025})
+	require.NoError(t, err)
+	_, err = s.CreateManifest(ctx, "run-2", "process-players", players, hashManifestPlayers(players), nil)
+	require.NoError(t, err)
+	_, err = s.CreateManifest(ctx, "run-3", "process-players", players, hashManifestPlayers(players), []int{-1})
+	require.ErrorContains(t, err, "season -1 out of range")
+
+	seasons, err := s.ManifestSeasons(ctx, "run-1")
+	require.NoError(t, err)
+	assert.Equal(t, []int{2024, 2025}, seasons)
+	seasons, err = s.ManifestSeasons(ctx, "run-2")
+	require.NoError(t, err)
+	assert.Nil(t, seasons)
+	_, err = s.ManifestSeasons(ctx, "missing")
+	assert.ErrorIs(t, err, ErrManifestNotFound)
+
+	// An existing id keeps the seasons it was created with.
+	_, err = s.CreateManifest(ctx, "run-1", "process-players", players, hashManifestPlayers(players), []int{2026})
+	require.NoError(t, err)
+	seasons, err = s.ManifestSeasons(ctx, "run-1")
+	require.NoError(t, err)
+	assert.Equal(t, []int{2024, 2025}, seasons)
+}
+
 func TestPgManifest_CreatingAnExistingIDKeepsTheFirstManifest(t *testing.T) {
 	s, pool := newPgManifestStore(t)
 	first := createPgManifest(t, s, "run-1", store.BoxscorePlayer{ID: 1}, store.BoxscorePlayer{ID: 2})
@@ -92,7 +121,7 @@ func TestPgManifest_ConcurrentCreationsConverge(t *testing.T) {
 		wg.Go(func() {
 			// Each attempt read a different list: whichever commits first wins.
 			players := []store.BoxscorePlayer{{ID: 1}, {ID: int64(100 + i)}}
-			refs[i], errs[i] = s.CreateManifest(context.Background(), "run-1", "process-players", players, hashManifestPlayers(players))
+			refs[i], errs[i] = s.CreateManifest(context.Background(), "run-1", "process-players", players, hashManifestPlayers(players), nil)
 		})
 	}
 	wg.Wait()

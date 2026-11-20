@@ -546,7 +546,7 @@ func (s *LoadUnmatchedSuite) TestEmpty() {
 	act := &Activities{RedisClient: redisClient}
 	s.env.RegisterActivity(act.LoadUnmatchedYahooPlayers)
 
-	future, err := s.env.ExecuteActivity(act.LoadUnmatchedYahooPlayers)
+	future, err := s.env.ExecuteActivity(act.LoadUnmatchedYahooPlayers, LoadUnmatchedInput{})
 	require.NoError(s.T(), err)
 
 	var players []UnmatchedYahooPlayer
@@ -575,7 +575,7 @@ func (s *LoadUnmatchedSuite) TestSuccess() {
 	act := &Activities{RedisClient: redisClient}
 	s.env.RegisterActivity(act.LoadUnmatchedYahooPlayers)
 
-	future, err := s.env.ExecuteActivity(act.LoadUnmatchedYahooPlayers)
+	future, err := s.env.ExecuteActivity(act.LoadUnmatchedYahooPlayers, LoadUnmatchedInput{})
 	require.NoError(s.T(), err)
 
 	var players []UnmatchedYahooPlayer
@@ -593,7 +593,7 @@ func (s *LoadUnmatchedSuite) TestRedisError() {
 	act := &Activities{RedisClient: redisClient}
 	s.env.RegisterActivity(act.LoadUnmatchedYahooPlayers)
 
-	_, err := s.env.ExecuteActivity(act.LoadUnmatchedYahooPlayers)
+	_, err := s.env.ExecuteActivity(act.LoadUnmatchedYahooPlayers, LoadUnmatchedInput{})
 	require.Error(s.T(), err)
 	require.NoError(s.T(), mockRedis.ExpectationsWereMet())
 }

@@ -18,37 +18,64 @@ type CreateManifestInput struct {
 	WorkflowID string
 }
 
+// CreatedManifest is the manifest CreateProcessPlayersManifest created or
+// found, with the start years of the seasons its list was extracted from
+// (nil: unknown). ManifestRef is embedded so a result recorded before Seasons
+// existed decodes unchanged.
+type CreatedManifest struct {
+	ManifestRef
+	Seasons []int
+}
+
 // CreateProcessPlayersManifest copies the consolidated boxscore player list
-// from Redis into a durable manifest ordered by player ID. When the manifest
-// already exists (a retry after a commit, or an attempt overlapping a timed
-// out one) it returns it without reading Redis again, so the chain keeps the
-// list it started with even if the Redis key changed in between. A missing
-// or empty Redis list returns Count 0 and stores nothing.
-func (a *Activities) CreateProcessPlayersManifest(ctx context.Context, input CreateManifestInput) (ManifestRef, error) {
+// and its seasons from Redis into a durable manifest ordered by player ID.
+// When the manifest already exists (a retry after a commit, or an attempt
+// overlapping a timed out one) it returns it without reading Redis again, so
+// the chain keeps the list it started with even if the Redis key changed in
+// between. A missing or empty Redis list returns Count 0 and stores nothing.
+func (a *Activities) CreateProcessPlayersManifest(ctx context.Context, input CreateManifestInput) (CreatedManifest, error) {
 	logger := activity.GetLogger(ctx)
 	ref, err := a.Manifests.GetManifest(ctx, input.ManifestID)
 	if err == nil {
 		logger.Info("Process players manifest already exists", "manifest", ref.ID, "players", ref.Count)
-		return ref, nil
+		return a.withManifestSeasons(ctx, ref)
 	}
 	if !errors.Is(err, ErrManifestNotFound) {
-		return ManifestRef{}, err
+		return CreatedManifest{}, err
 	}
 
 	players, err := cache.LoadAllBoxscorePlayers(ctx, a.RedisClient)
 	if err != nil {
-		return ManifestRef{}, fmt.Errorf("load boxscore players from redis: %w", err)
+		return CreatedManifest{}, fmt.Errorf("load boxscore players from redis: %w", err)
 	}
 	if len(players) == 0 {
-		return ManifestRef{ID: input.ManifestID}, nil
+		return CreatedManifest{ManifestRef: ManifestRef{ID: input.ManifestID}}, nil
+	}
+	seasons, err := cache.LoadAllBoxscorePlayerSeasons(ctx, a.RedisClient)
+	if err != nil {
+		return CreatedManifest{}, fmt.Errorf("load boxscore player seasons from redis: %w", err)
+	}
+	if seasons == nil {
+		logger.Warn("Boxscore player list has no saved seasons; phase 3 will verify every unmatched Yahoo ID")
 	}
 	sorted := sortManifestPlayers(players)
-	ref, err = a.Manifests.CreateManifest(ctx, input.ManifestID, input.WorkflowID, sorted, hashManifestPlayers(sorted))
+	ref, err = a.Manifests.CreateManifest(ctx, input.ManifestID, input.WorkflowID, sorted, hashManifestPlayers(sorted), seasons)
 	if err != nil {
-		return ManifestRef{}, err
+		return CreatedManifest{}, err
 	}
-	logger.Info("Created process players manifest", "manifest", ref.ID, "players", ref.Count, "hash", ref.Hash)
-	return ref, nil
+	logger.Info("Created process players manifest", "manifest", ref.ID, "players", ref.Count, "hash", ref.Hash,
+		"seasons", seasons)
+	return a.withManifestSeasons(ctx, ref)
+}
+
+// withManifestSeasons adds the stored seasons to ref: an existing manifest
+// keeps the seasons it was created with.
+func (a *Activities) withManifestSeasons(ctx context.Context, ref ManifestRef) (CreatedManifest, error) {
+	seasons, err := a.Manifests.ManifestSeasons(ctx, ref.ID)
+	if err != nil {
+		return CreatedManifest{}, err
+	}
+	return CreatedManifest{ManifestRef: ref, Seasons: seasons}, nil
 }
 
 // ManifestBatchInput is one batch of a ProcessPlayers chain: the manifest

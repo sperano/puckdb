@@ -1,13 +1,14 @@
 -- name: InsertProcessPlayersManifest :one
 -- Returns no row when a manifest with this id already exists (a retried or
 -- overlapping creation); the caller then reads the committed one.
-INSERT INTO process_players_manifests (id, workflow_id, player_count, players_hash)
-VALUES (sqlc.arg(id), sqlc.arg(workflow_id), sqlc.arg(player_count), sqlc.arg(players_hash))
+INSERT INTO process_players_manifests (id, workflow_id, player_count, players_hash, seasons)
+VALUES (sqlc.arg(id), sqlc.arg(workflow_id), sqlc.arg(player_count), sqlc.arg(players_hash),
+        sqlc.narg(seasons)::integer[])
 ON CONFLICT (id) DO NOTHING
 RETURNING id;
 
 -- name: GetProcessPlayersManifest :one
-SELECT id, player_count, players_hash
+SELECT id, player_count, players_hash, seasons
 FROM process_players_manifests
 WHERE id = sqlc.arg(id);
 

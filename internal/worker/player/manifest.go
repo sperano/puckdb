@@ -55,9 +55,14 @@ type ProcessPlayersStore interface {
 	// GetManifest returns the manifest's reference, or ErrManifestNotFound.
 	GetManifest(ctx context.Context, id string) (ManifestRef, error)
 	// CreateManifest stores players (already ordered, see sortManifestPlayers)
-	// under id in one transaction and deletes manifests beyond the retention.
-	// When id already exists it returns the stored manifest unchanged.
-	CreateManifest(ctx context.Context, id, workflowID string, players []store.BoxscorePlayer, hash []byte) (ManifestRef, error)
+	// under id in one transaction, with the start years of the seasons the
+	// list was extracted from (nil: unknown), and deletes manifests beyond the
+	// retention. When id already exists it returns the stored manifest
+	// unchanged.
+	CreateManifest(ctx context.Context, id, workflowID string, players []store.BoxscorePlayer, hash []byte, seasons []int) (ManifestRef, error)
+	// ManifestSeasons returns the seasons stored with the manifest (nil:
+	// unknown), or ErrManifestNotFound.
+	ManifestSeasons(ctx context.Context, id string) ([]int, error)
 	// ManifestPlayers returns the players at ordinals [from, to), in order.
 	ManifestPlayers(ctx context.Context, id string, from, to int) ([]store.BoxscorePlayer, error)
 	// RecordErrors upserts errs; ErrManifestNotFound when id does not exist,

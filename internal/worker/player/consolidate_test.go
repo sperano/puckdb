@@ -46,4 +46,35 @@ func TestConsolidateBoxscorePlayersActivity_RegisteredNameAndDedupe(t *testing.T
 	require.NoError(t, err)
 	require.ElementsMatch(t, []store.BoxscorePlayer{mcDavid, draisaitl}, all)
 	require.Equal(t, cacheTTL, server.TTL(cache.AllBoxscorePlayersKey))
+
+	seasons, err := cache.LoadAllBoxscorePlayerSeasons(ctx, redisClient)
+	require.NoError(t, err)
+	require.Equal(t, []int{2023, 2024}, seasons)
+	require.Equal(t, cacheTTL, server.TTL(cache.AllBoxscorePlayerSeasonsKey))
+}
+
+// A season whose list cannot be read contributes no players, so it is not
+// one of the consolidated set's seasons.
+func TestConsolidateBoxscorePlayersActivity_LeavesOutAnUnreadableSeason(t *testing.T) {
+	t.Parallel()
+	server := miniredis.RunT(t)
+	redisClient := redis.NewClient(&redis.Options{Addr: server.Addr()})
+	t.Cleanup(func() { _ = redisClient.Close() })
+
+	ctx := context.Background()
+	readable, corrupt := nhl.NewSeason(2024), nhl.NewSeason(2025)
+	require.NoError(t, cache.SaveBoxscorePlayers(ctx, redisClient, readable, []store.BoxscorePlayer{{ID: 1}}, 0))
+	require.NoError(t, server.Set(cache.BoxscorePlayersKey(corrupt), "not gob"))
+
+	act := &Activities{RedisClient: redisClient}
+	var suite testsuite.WorkflowTestSuite
+	env := suite.NewTestActivityEnvironment()
+	env.RegisterActivity(act)
+	_, err := env.ExecuteActivity(act.ConsolidateBoxscorePlayersActivity,
+		ConsolidatePlayersInput{Seasons: []nhl.Season{readable, corrupt}})
+	require.NoError(t, err)
+
+	seasons, err := cache.LoadAllBoxscorePlayerSeasons(ctx, redisClient)
+	require.NoError(t, err)
+	require.Equal(t, []int{2024}, seasons)
 }

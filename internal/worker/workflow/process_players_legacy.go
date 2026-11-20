@@ -285,7 +285,8 @@ func runPhaseVerifyUnmatched(ctx workflow.Context, tracker *shared.ReportTracker
 	logger := workflow.GetLogger(ctx)
 	ctx = workflow.WithActivityOptions(ctx, shared.DefaultActivityOptions())
 
-	unmatchedPlayers := loadUnmatchedPlayers(ctx)
+	// A legacy chain does not know its seasons: verify every unmatched ID.
+	unmatchedPlayers := loadUnmatchedPlayers(ctx, workplayer.LoadUnmatchedInput{})
 	// No save here, unlike runManifestVerify: recorded legacy histories
 	// have none.
 	tracker.SetBarTotal(shared.BarRef{Group: GroupVerifyUnmatched}, len(unmatchedPlayers))
@@ -301,7 +302,7 @@ func runPhaseVerifyUnmatched(ctx workflow.Context, tracker *shared.ReportTracker
 	// Mark Phase 3 complete with comprehensive summary
 	tracker.CompleteGroup(ctx, GroupVerifyUnmatched,
 		fmt.Sprintf("Imported %d players: %d Yahoo! matched, %d truly unmatched, %d unverified and %d errors in %s.",
-			input.TotalImported, input.TotalMatched, len(unmatchedReport.TrulyUnmatched),
+			input.TotalImported, input.TotalMatched, unmatchedReport.TrulyUnmatchedCount,
 			unmatchedReport.UnverifiedCount, len(input.AllErrors), tracker.GetElapsed(ctx, GroupVerifyUnmatched)))
 
 	logger.Info("ProcessPlayersWorkflow completed",
@@ -311,7 +312,7 @@ func runPhaseVerifyUnmatched(ctx workflow.Context, tracker *shared.ReportTracker
 		"missing", input.TotalMissing,
 		"imported", input.TotalImported,
 		"matched_with_yahoo", input.TotalMatched,
-		"truly_unmatched", len(unmatchedReport.TrulyUnmatched))
+		"truly_unmatched", unmatchedReport.TrulyUnmatchedCount)
 
 	yahooPoolResult := input.YahooPoolResult
 	if yahooPoolResult == nil {
@@ -329,6 +330,7 @@ func runPhaseVerifyUnmatched(ctx workflow.Context, tracker *shared.ReportTracker
 		SkippedNonNHL:         yahooPoolResult.SkippedNonNHL,
 		VerifiedNonNHLThisRun: unmatchedReport.VerifiedNonNHLCount,
 		TrulyUnmatched:        unmatchedReport.TrulyUnmatched,
+		TrulyUnmatchedCount:   unmatchedReport.TrulyUnmatchedCount,
 		Errors:                input.AllErrors,
 	}
 
