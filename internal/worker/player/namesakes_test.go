@@ -114,7 +114,7 @@ func TestProcessPlayerBatch_MatchesANamesakeBySeasons(t *testing.T) {
 		entries[p.YahooID.String()] = string(encodeYahooPlayer(t, p))
 	}
 	mockRedis.ExpectHGetAll(YahooIDPoolKey).SetVal(entries)
-	mockRedis.ExpectSRem(YahooIDAvailableKey, olderID).SetVal(1)
+	mockRedis.ExpectSRem(YahooIDAvailableKey, int(olderID)).SetVal(1)
 
 	upserter := NewMockPlayerUpserter()
 	upserter.On("ClearConflictingYahooID", mock.Anything, mock.AnythingOfType("sqlcdb.ClearConflictingYahooIDParams")).Return(nil)
@@ -138,4 +138,5 @@ func TestProcessPlayerBatch_MatchesANamesakeBySeasons(t *testing.T) {
 	assert.Equal(t, 1, result.BirthDatePagesMissing)
 	assert.Equal(t, 1, result.BirthDatePagesDownloaded, "the younger Green's page is still read for his birth date")
 	assert.Equal(t, int64(olderID), upserted.YahooID.Int64)
+	require.NoError(t, mockRedis.ExpectationsWereMet(), "the matched ID leaves the available pool")
 }

@@ -7,8 +7,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/sperano/puckdb/internal/core"
+	"github.com/sperano/puckdb/internal/fixtures/metricsfixtures"
 	"github.com/sperano/puckdb/internal/httpx"
 	"github.com/sperano/puckdb/internal/matching"
+	"github.com/sperano/puckdb/internal/metrics"
 	"github.com/sperano/puckdb/internal/resource"
 	"github.com/sperano/puckdb/internal/store"
 	"github.com/stretchr/testify/assert"
@@ -102,6 +105,11 @@ func TestYahooBirthDate_MarkerAge(t *testing.T) {
 				writeMarker(t, s, eliasForwardID, missingTestNow.Add(-missingYahooPlayerPageTTL))
 			},
 			wantRequested: 1},
+		{name: "dated after now",
+			marker: func(t *testing.T, s store.Storage) {
+				writeMarker(t, s, eliasForwardID, missingTestNow.Add(time.Second))
+			},
+			wantRequested: 1},
 		{name: "does not parse",
 			marker: func(t *testing.T, s store.Storage) {
 				require.NoError(t, s.Write(context.Background(), markerPath(eliasForwardID), []byte("{")))
@@ -170,4 +178,20 @@ func TestAddYahooBirthDates_KnownMissingPageLeavesTheMatchWithoutBirthDates(t *t
 	assert.Equal(t, matching.YahooIDMatchResult{Reason: matching.MatchReasonAmbiguous}, match)
 	assert.Equal(t, ProcessPlayerBatchResult{BirthDatePagesMissing: 2}, result)
 	assert.True(t, pool[eliasForwardID].BirthDate.IsZero())
+}
+
+// A page skipped for its recorded 404 counts as a missing download. Not
+// parallel: the download counter is process-global.
+func TestYahooBirthDate_KnownMissingPageCountsAsMissingDownload(t *testing.T) {
+	mem := store.NewMemStorage()
+	writeMarker(t, mem, eliasForwardID, missingTestNow)
+	a := &Activities{Storage: mem, Now: fixedNow}
+	before := metricsfixtures.DownloadCount(t, core.YahooPlayer, metrics.ResultMissing)
+	errorsBefore := metricsfixtures.DownloadCount(t, core.YahooPlayer, metrics.ResultError)
+
+	_, _, err := a.yahooBirthDate(context.Background(), eliasForwardID)
+
+	require.ErrorIs(t, err, errYahooPlayerPageMissing)
+	assert.Equal(t, before+1, metricsfixtures.DownloadCount(t, core.YahooPlayer, metrics.ResultMissing))
+	assert.Equal(t, errorsBefore, metricsfixtures.DownloadCount(t, core.YahooPlayer, metrics.ResultError))
 }

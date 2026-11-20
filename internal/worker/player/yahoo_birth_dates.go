@@ -86,7 +86,8 @@ func (o *batchOutcome) birthDateUnavailable(landing *nhl.PlayerLanding, id store
 // not change), unless it no longer parses; a downloaded page is stored and
 // cached only once it parses. A page with no stored copy whose 404 was
 // recorded within missingYahooPlayerPageTTL returns errYahooPlayerPageMissing
-// without a download; a download answering 404 records it.
+// without a download, counted as a missing download; a download answering
+// 404 records it.
 func (a *Activities) yahooBirthDate(ctx context.Context, id store.YahooPlayerID) (time.Time, bool, error) {
 	page := resource.YahooPlayer{PlayerID: id}
 	raw, _, err := a.GobCache.ReadParsedCached(ctx, a.Storage, page)
@@ -104,6 +105,7 @@ func (a *Activities) yahooBirthDate(ctx context.Context, id store.YahooPlayerID)
 		return time.Time{}, false, fmt.Errorf("read %s: %w", page.Path(), err)
 	}
 	if a.recentlyMissing(ctx, id) {
+		metrics.IncDownload(page.Type(), metrics.ResultMissing)
 		return time.Time{}, false, fmt.Errorf("%s: %w", page.URL(), errYahooPlayerPageMissing)
 	}
 	player, downloaded, err := a.downloadYahooPlayerPage(ctx, page)

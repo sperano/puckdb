@@ -40,7 +40,8 @@ func classifyFileType(dataPath, filePath, filename string) core.FileType {
 		return core.PlayerLanding
 	case "players-missing":
 		return core.PlayerLanding
-	case resource.YahooPlayersDir:
+	case resource.YahooPlayersDir, resource.YahooPlayerMissingDir:
+		// Pages and their 404 markers (see resource.MissingYahooPlayer.Type()).
 		return core.YahooPlayer
 	case "game-keys":
 		return core.GameKey

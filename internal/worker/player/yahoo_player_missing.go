@@ -24,8 +24,9 @@ var errYahooPlayerPageMissing = errors.New("player page answered 404")
 const missingYahooPlayerPageTTL = 30 * 24 * time.Hour
 
 // recentlyMissing reports whether id's page has a 404 recorded within
-// missingYahooPlayerPageTTL. A marker that cannot be read or parsed counts
-// as none, so the page is asked for again.
+// missingYahooPlayerPageTTL. A marker that cannot be read or parsed, or
+// dated after now (a clock moved back, a bad timestamp), counts as none, so
+// the page is asked for again.
 func (a *Activities) recentlyMissing(ctx context.Context, id store.YahooPlayerID) bool {
 	marker := resource.MissingYahooPlayer{PlayerID: id}
 	content, err := resource.ReadParsed(ctx, a.Storage, marker)
@@ -35,7 +36,8 @@ func (a *Activities) recentlyMissing(ctx context.Context, id store.YahooPlayerID
 		}
 		return false
 	}
-	return a.now().Sub(content.RecordedAt) < missingYahooPlayerPageTTL
+	age := a.now().Sub(content.RecordedAt)
+	return age >= 0 && age < missingYahooPlayerPageTTL
 }
 
 // recordIfMissing records a 404 marker for id when err is the download's
