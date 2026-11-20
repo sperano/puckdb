@@ -39,6 +39,9 @@ type yahooQueries interface {
 	GetLatestYahooLeagueRuleSnapshot(ctx context.Context, arg sqlcdb.GetLatestYahooLeagueRuleSnapshotParams) (sqlcdb.YahooLeagueRuleSnapshot, error)
 	ListYahooLeaguePlayersWithNHL(ctx context.Context, leagueKey string) ([]sqlcdb.ListYahooLeaguePlayersWithNHLRow, error)
 	ListYahooTransactionMoves(ctx context.Context, arg sqlcdb.ListYahooTransactionMovesParams) ([]sqlcdb.ListYahooTransactionMovesRow, error)
+	GetYahooTeam(ctx context.Context, arg sqlcdb.GetYahooTeamParams) (sqlcdb.YahooTeam, error)
+	ListYahooLeaguePlayerWindowTotals(ctx context.Context, arg sqlcdb.ListYahooLeaguePlayerWindowTotalsParams) ([]sqlcdb.ListYahooLeaguePlayerWindowTotalsRow, error)
+	ListProjectionValuesByNHLPlayers(ctx context.Context, arg sqlcdb.ListProjectionValuesByNHLPlayersParams) ([]sqlcdb.ListProjectionValuesByNHLPlayersRow, error)
 }
 
 // leagueIndependentYahooTools names the yahoo tools that take no league ID or
@@ -57,6 +60,7 @@ type draftToolSource interface {
 	draftPoolSource
 	draftRankingsSource
 	draftOverrideSource
+	draftRankingReader
 }
 
 func registerYahooTools(srv *server.MCPServer, q yahooQueries, guard leagueGuard, draft draftToolSource) {
@@ -69,6 +73,7 @@ func yahooTools(q yahooQueries, guard leagueGuard, draft draftToolSource) []serv
 		yahooTeamsTool(q, guard),
 		yahooRosterTool(q, guard),
 		yahooLeagueRostersTool(q, guard),
+		yahooTeamPlayerValuesTool(q, guard, draft),
 		yahooPlayerOwnershipTool(q, guard),
 		yahooRotoStandingsTool(q, guard),
 		yahooTeamStandingsTool(q, guard),

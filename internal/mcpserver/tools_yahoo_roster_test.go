@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -26,14 +27,23 @@ const (
 // teamRosterQueries serves get_yahoo_roster's two queries.
 type teamRosterQueries struct {
 	*fakeYahooQueries
-	rows        []sqlcdb.YahooRosterPlayer
-	latest      pgtype.Date
-	latestErr   error
-	latestCalls []sqlcdb.GetLatestYahooTeamRosterDateParams
+	// rows are the roster of teamRosterTestDate, latestRows (or
+	// latestRowsErr) the roster of any other date.
+	rows          []sqlcdb.YahooRosterPlayer
+	latestRows    []sqlcdb.YahooRosterPlayer
+	latestRowsErr error
+	rosterCalls   []sqlcdb.GetYahooRosterWithPlayersParams
+	latest        pgtype.Date
+	latestErr     error
+	latestCalls   []sqlcdb.GetLatestYahooTeamRosterDateParams
 }
 
-func (q *teamRosterQueries) GetYahooRosterWithPlayers(context.Context, sqlcdb.GetYahooRosterWithPlayersParams) ([]sqlcdb.YahooRosterPlayer, error) {
-	return q.rows, nil
+func (q *teamRosterQueries) GetYahooRosterWithPlayers(_ context.Context, arg sqlcdb.GetYahooRosterWithPlayersParams) ([]sqlcdb.YahooRosterPlayer, error) {
+	q.rosterCalls = append(q.rosterCalls, arg)
+	if arg.Date.Time.Format(time.DateOnly) == teamRosterTestDate {
+		return q.rows, nil
+	}
+	return q.latestRows, q.latestRowsErr
 }
 
 func (q *teamRosterQueries) GetLatestYahooTeamRosterDate(_ context.Context, arg sqlcdb.GetLatestYahooTeamRosterDateParams) (pgtype.Date, error) {
@@ -59,14 +69,44 @@ func TestYahooRosterToolRowsNeedNoLatestDate(t *testing.T) {
 	assert.Empty(t, q.latestCalls)
 }
 
-func TestYahooRosterToolEmptyDateGivesLatestDate(t *testing.T) {
-	q := &teamRosterQueries{fakeYahooQueries: newFakeYahooQueries(),
-		latest: pgtype.Date{Time: time.Date(2026, time.November, 17, 0, 0, 0, 0, time.UTC), Valid: true}}
+func TestYahooRosterToolDateAfterLatestGivesLatestRoster(t *testing.T) {
+	latest := pgtype.Date{Time: time.Date(2026, time.November, 17, 0, 0, 0, 0, time.UTC), Valid: true}
+	q := &teamRosterQueries{fakeYahooQueries: newFakeYahooQueries(), latest: latest,
+		latestRows: []sqlcdb.YahooRosterPlayer{{LeagueID: allowedLeagueID, TeamID: teamRosterTestTeam, Date: latest,
+			YahooPlayerID: 7, PlayerKey: "465.p.7", SelectedPosition: "C"}}}
 	result := callTeamRosterTool(t, q)
 	require.False(t, result.IsError, resultText(t, result))
-	assert.Equal(t, fmt.Sprintf("no roster imported for team %d of league %d on %s; latest imported date: 2026-11-17",
+	first, table, found := strings.Cut(resultText(t, result), "\n")
+	require.True(t, found)
+	assert.Equal(t, fmt.Sprintf("no roster imported for team %d of league %d on %s, after its latest imported roster; "+
+		"this is the latest one, of 2026-11-17:", teamRosterTestTeam, allowedLeagueID, teamRosterTestDate), first)
+	lines := strings.Split(strings.TrimSuffix(table, "\n"), "\n")
+	require.Len(t, lines, 2)
+	assert.True(t, strings.HasPrefix(lines[1], fmt.Sprintf("%d,%d,2026-11-17,7,465.p.7,C,", allowedLeagueID, teamRosterTestTeam)), lines[1])
+	require.Len(t, q.rosterCalls, 2)
+	assert.Equal(t, sqlcdb.GetYahooRosterWithPlayersParams{LeagueID: allowedLeagueID, TeamID: teamRosterTestTeam, Date: latest},
+		q.rosterCalls[1])
+}
+
+func TestYahooRosterToolLatestRosterError(t *testing.T) {
+	q := &teamRosterQueries{fakeYahooQueries: newFakeYahooQueries(),
+		latest:        pgtype.Date{Time: time.Date(2026, time.November, 17, 0, 0, 0, 0, time.UTC), Valid: true},
+		latestRowsErr: errors.New("connection reset")}
+	result := callTeamRosterTool(t, q)
+	assert.True(t, result.IsError)
+	assert.Equal(t, fmt.Sprintf("load roster of team %d in league %d on 2026-11-17: connection reset",
+		teamRosterTestTeam, allowedLeagueID), resultText(t, result))
+}
+
+func TestYahooRosterToolDateBeforeLatestGivesLatestDate(t *testing.T) {
+	q := &teamRosterQueries{fakeYahooQueries: newFakeYahooQueries(),
+		latest: pgtype.Date{Time: time.Date(2026, time.November, 20, 0, 0, 0, 0, time.UTC), Valid: true}}
+	result := callTeamRosterTool(t, q)
+	require.False(t, result.IsError, resultText(t, result))
+	assert.Equal(t, fmt.Sprintf("no roster imported for team %d of league %d on %s; latest imported date: 2026-11-20",
 		teamRosterTestTeam, allowedLeagueID, teamRosterTestDate), resultText(t, result))
 	assert.Equal(t, []sqlcdb.GetLatestYahooTeamRosterDateParams{{LeagueID: allowedLeagueID, TeamID: teamRosterTestTeam}}, q.latestCalls)
+	assert.Len(t, q.rosterCalls, 1)
 }
 
 func TestYahooRosterToolTeamWithoutAnyRoster(t *testing.T) {
@@ -110,8 +150,12 @@ func TestLatestRosterDatesReadDatabase(t *testing.T) {
 		leagueIDArg: float64(pgTestLeagueID), "team_id": float64(pgTestTeamID), "date": teamRosterTestDate,
 	})
 	require.False(t, team.IsError, resultText(t, team))
-	assert.Equal(t, fmt.Sprintf("no roster imported for team %d of league %d on %s; latest imported date: %s",
-		pgTestTeamID, pgTestLeagueID, teamRosterTestDate, rosterDate), resultText(t, team))
+	first, table, _ := strings.Cut(resultText(t, team), "\n")
+	assert.Equal(t, fmt.Sprintf("no roster imported for team %d of league %d on %s, after its latest imported roster; "+
+		"this is the latest one, of %s:", pgTestTeamID, pgTestLeagueID, teamRosterTestDate, rosterDate), first)
+	// The team's two roster rows of rosterDate, not pgRosterOtherTeamID's later one.
+	assert.Len(t, strings.Split(strings.TrimSuffix(table, "\n"), "\n"), 3, table)
+	assert.NotContains(t, table, pgRosterLaterDate)
 
 	league := leagueRostersOutput(t, callTool(t, server.GetTool(leagueRostersToolName).Handler,
 		map[string]any{leagueIDArg: float64(pgTestLeagueID), "date": teamRosterTestDate}))
