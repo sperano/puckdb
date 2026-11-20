@@ -72,13 +72,14 @@ func (a *Activities) LoadUnmatchedYahooPlayers(ctx context.Context, input LoadUn
 	}
 
 	logger.Info("Loaded unmatched Yahoo players", "count", len(unmatched),
-		"seasons", input.Seasons, "skipped_other_seasons", skipped)
+		"seasons", input.Seasons, "skipped", skipped)
 	return unmatched, nil
 }
 
 // loadUnmatchedYahooPlayersImpl contains the testable logic for
 // LoadUnmatchedYahooPlayers. It also returns how many unmatched Yahoo IDs
-// input.Seasons left out.
+// input.Seasons left out: those listed in none of them, and, when the seasons
+// are known, those whose pool details are missing or undecodable.
 func (a *Activities) loadUnmatchedYahooPlayersImpl(ctx context.Context, input LoadUnmatchedInput) ([]UnmatchedYahooPlayer, int, error) {
 	unmatchedIDs, err := GetUnmatchedYahooIDs(ctx, a.RedisClient)
 	if err != nil {

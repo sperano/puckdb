@@ -2,6 +2,7 @@ package player
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -85,8 +86,9 @@ type VerifyUnmatchedResult struct {
 	MatchedNamesakes []VerifiedPlayer
 
 	// Unverified contains players whose verification could not be completed
-	// because an NHL API call or the database lookup of matched namesakes
-	// failed. Their classification is unknown; they
+	// because the player has no name (its pool details were missing or
+	// undecodable), or an NHL API call or the database lookup of matched
+	// namesakes failed. Their classification is unknown; they
 	// are not persisted and will be verified again on the next run.
 	Unverified []VerifiedPlayer
 }
@@ -118,7 +120,7 @@ func (r *VerifyUnmatchedResult) classify(verified VerifiedPlayer) (persist bool)
 // - TrulyUnmatched: have NHL games but weren't matched (need investigation)
 // - NotFoundInNHL: no matching name in NHL database
 // - MatchedNamesakes: every NHL namesake already has a Yahoo ID
-// - Unverified: NHL API or matched-namesake lookup failure, classification unknown (retried next run)
+// - Unverified: no name, NHL API or matched-namesake lookup failure, classification unknown (retried next run)
 func (a *Activities) VerifyUnmatchedBatch(ctx context.Context, players []UnmatchedYahooPlayer) (*VerifyUnmatchedResult, error) {
 	logger := activity.GetLogger(ctx)
 
@@ -213,13 +215,18 @@ func (a *Activities) verifyUnmatchedBatch(ctx context.Context, players []Unmatch
 	return result, nil
 }
 
+// errNamelessPlayer marks an unmatched Yahoo player loaded without a name (its
+// pool details were missing or undecodable): searching an empty name matches
+// nothing, which must not read as "not found in the NHL".
+var errNamelessPlayer = errors.New("yahoo player has no name to search")
+
 // verifyPlayer checks if a Yahoo player has any NHL regular season games.
 // The first NHL player the search matches by name and that has no Yahoo ID
 // yet decides NHLPlayerID and NHLGames; when every one has a Yahoo ID the
 // player is a MatchedNamesake.
 //
-// A non-nil error means the verification could not be completed (an NHL API
-// call or the database lookup failed) and the returned VerifiedPlayer must
+// A non-nil error means the verification could not be completed (the player
+// has no name, an NHL API call or the database lookup failed) and the returned VerifiedPlayer must
 // not be treated as a classification. With a nil error, FoundInNHL=false is
 // a positive result: the search completed and no name matched.
 func (a *Activities) verifyPlayer(ctx context.Context, player UnmatchedYahooPlayer) (VerifiedPlayer, error) {
@@ -229,7 +236,10 @@ func (a *Activities) verifyPlayer(ctx context.Context, player UnmatchedYahooPlay
 		LastName:  player.LastName,
 	}
 
-	playerName := player.FirstName + " " + player.LastName
+	playerName := strings.TrimSpace(player.FirstName + " " + player.LastName)
+	if playerName == "" {
+		return result, fmt.Errorf("yahoo id %d: %w", player.YahooID, errNamelessPlayer)
+	}
 
 	searchResults, err := a.NHLClient.SearchPlayer(ctx, playerName, maxSearchResults)
 	if err != nil {

@@ -69,7 +69,7 @@ func TestListNamesakeNHLSeasons(t *testing.T) {
 	}, rows, "a playoffs-only season is listed; the excluded player, other names, other leagues, preseason and seasons without a game are left out; a season is listed once")
 }
 
-// The query returns, in order, the asked players that have a Yahoo ID.
+// The query returns the asked players that have a Yahoo ID, ordered by player ID.
 func TestListPlayerIDsWithYahooID(t *testing.T) {
 	pool := pgtest.Open(t, "players")
 	t.Cleanup(func() { pgtest.Truncate(t, pool, "players") })

@@ -77,13 +77,15 @@ func TestSaveConsolidatedBoxscorePlayers_Error(t *testing.T) {
 	players := []store.BoxscorePlayer{{ID: 1}}
 
 	mock.ExpectTxPipeline()
-	mock.ExpectSet(AllBoxscorePlayersKey, gobBytes(t, players), time.Minute).SetErr(redisErr)
-	mock.ExpectSet(AllBoxscorePlayerSeasonsKey, gobBytes(t, []int{2025}), time.Minute).SetVal("OK")
-	mock.ExpectTxPipelineExec()
+	mock.ExpectSet(AllBoxscorePlayersKey, gobBytes(t, players), time.Minute).SetVal("OK")
+	mock.ExpectSet(AllBoxscorePlayerSeasonsKey, gobBytes(t, []int{2025}), time.Minute).SetErr(redisErr)
+	// redismock answers a transaction's commands in order and stops at the
+	// first error, so no EXEC is expected after the failing SET.
 
 	err := SaveConsolidatedBoxscorePlayers(ctx, client, players, []int{2025}, time.Minute)
 	assert.ErrorIs(t, err, redisErr)
 	assert.ErrorContains(t, err, "save consolidated boxscore players to redis")
+	require.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestLoadConsolidatedBoxscorePlayers_MissingKeys(t *testing.T) {
