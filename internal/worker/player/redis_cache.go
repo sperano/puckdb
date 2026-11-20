@@ -40,15 +40,6 @@ type SaveYahooIDPoolResult struct {
 	// PoolSize is the pool hash size measured after the save (players with
 	// the same Yahoo ID count once); EnsureYahooIDPool checks against it.
 	PoolSize int
-	// NonPageEntries is how many pool entries the save wrote from no page:
-	// the yahoo_league_players players without a page, plus any entry an
-	// earlier save left in the hash (the save never deletes). PoolSize minus
-	// NonPageEntries is the pages saved, which a rebuild must reach again.
-	// 0 for chains started before the pool included league players, and for
-	// game list pools, whose rebuild checks ListSeasons instead.
-	NonPageEntries int
-	// Source is what the pool was built from; a rebuild reads it again.
-	Source YahooIDPoolSource
 	// ListSeasons are the seasons whose committed game player list a game
 	// list pool read, newest first; a rebuild must find each again.
 	ListSeasons []int

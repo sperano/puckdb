@@ -30,6 +30,10 @@ const workflowSDKImport = `"go.temporal.io/sdk/workflow"`
 // schedules them: histories of a still-registered workflow type recorded
 // their names. Each entry says which workflow did.
 var historyOnlyActivities = map[string]string{
+	"FetchYahooPlayerBatch":         "FetchYahooPlayersWorkflow before game player lists",
+	"ListYahooPlayerFiles":          "ProcessPlayersWorkflow before game player lists",
+	"ParseYahooPlayerBatch":         "ProcessPlayersWorkflow before game player lists",
+	"SaveYahooPlayersToRedis":       "ProcessPlayersWorkflow before game player lists",
 	"ImportEdgeSkaters":             "ImportEdgeWorkflow before the per-team Edge imports",
 	"ImportEdgeGoalies":             "ImportEdgeWorkflow before the per-team Edge imports",
 	"ImportEdgeTeams":               "ImportEdgeWorkflow before the per-team Edge imports",

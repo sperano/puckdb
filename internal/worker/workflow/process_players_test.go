@@ -55,19 +55,8 @@ func TestLoadProcessPlayersConfig(t *testing.T) {
 	})
 }
 
-// yahooPlayersPerTestBatch splits the mocked Yahoo listing into one batch per
-// player.
-const yahooPlayersPerTestBatch = 1
-
-// usePagePool makes phase 1 take the path recorded before the game player
-// lists (loadYahooPoolFromPages).
-func (s *ProcessPlayersWorkflowTestSuite) usePagePool() {
-	s.env.OnGetVersion(yahooPoolGameListsChangeID, workflow.DefaultVersion, yahooPoolGameListsVersion).
-		Return(workflow.DefaultVersion)
-}
-
 // Phase 1 builds the pool from the game player lists in one activity: one
-// Yahoo bar step, and the pool's source and seasons reach the continuation
+// Yahoo bar step, and the pool's seasons reach the continuation
 // state.
 func (s *ProcessPlayersWorkflowTestSuite) TestProcessPlayersWorkflow_Phase1_GameLists() {
 	const players = 2
@@ -76,7 +65,7 @@ func (s *ProcessPlayersWorkflowTestSuite) TestProcessPlayersWorkflow_Phase1_Game
 		workplayer.ManifestRef{ID: "run", Count: players, Hash: "h"}, nil)
 	pool := &workplayer.SaveYahooIDPoolResult{
 		TotalPlayers: 3, AvailablePlayers: 3, PoolSize: 3,
-		Source: workplayer.YahooIDPoolSourceGameLists, ListSeasons: []int{2026, 2025}, ListEntries: 2,
+		ListSeasons: []int{2026, 2025}, ListEntries: 2,
 	}
 	s.env.OnActivity(playerAct.BuildYahooIDPool, mock.Anything).Return(pool, nil).Once()
 	lastSaved := recordLastSavedReport(s.env)
@@ -112,27 +101,6 @@ func (s *ProcessPlayersWorkflowTestSuite) TestProcessPlayersWorkflow_Phase1_Buil
 	s.Contains(s.env.GetWorkflowError().Error(), "storage down")
 }
 
-// On the page path, phase 1 grows the Yahoo bar from one step to one per
-// Yahoo player batch; the saved report's Total must follow, so Completed
-// never exceeds it.
-func (s *ProcessPlayersWorkflowTestSuite) TestProcessPlayersWorkflow_Phase1_SavedTotalMatchesBars() {
-	s.usePagePool()
-	const players = 2
-	// One Yahoo player per batch, so the Yahoo bar needs more than one step.
-	batchSize := yahooPlayersPerTestBatch
-	yahooIDs := s.mockPhaseLoadYahooSuccess(players)
-	lastSaved := recordLastSavedReport(s.env)
-
-	s.env.ExecuteWorkflow(ProcessPlayersWorkflow, &ProcessPlayersInput{BatchSize: &batchSize})
-
-	s.True(s.env.IsWorkflowCompleted())
-	yahooBatches := shared.BatchCount(len(yahooIDs), batchSize)
-	s.Require().Greater(yahooBatches, processPlayersYahooEstimate)
-	report := lastSaved()
-	requireTotalIsBarSum(s.T(), report, yahooBatches+players+processPlayersUnmatchedEstimate)
-	s.LessOrEqual(report.Completed, report.Total)
-}
-
 // Phase 3 grows the Unmatched bar from one step to one per unmatched player;
 // the saved report's Total must follow, so Completed never exceeds it.
 func (s *ProcessPlayersWorkflowTestSuite) TestProcessPlayersWorkflow_Phase3_SavedTotalMatchesBars() {
@@ -163,20 +131,4 @@ func (s *ProcessPlayersWorkflowTestSuite) TestProcessPlayersWorkflow_Phase3_Save
 	report := lastSaved()
 	requireTotalIsBarSum(s.T(), report, processPlayersYahooEstimate+len(input.Players)+len(unmatched))
 	s.LessOrEqual(report.Completed, report.Total)
-}
-
-// mockPhaseLoadYahooSuccess mocks the activities ProcessPlayersWorkflow runs
-// up to its ContinueAsNew into Phase 2, with a manifest of playerCount
-// players, and returns the Yahoo player IDs the listing activity reports.
-func (s *ProcessPlayersWorkflowTestSuite) mockPhaseLoadYahooSuccess(playerCount int) []store.YahooPlayerID {
-	yahooIDs := []store.YahooPlayerID{1, 2, 3}
-	var playerAct *workplayer.Activities
-	s.env.OnActivity(playerAct.CreateProcessPlayersManifest, mock.Anything, mock.Anything).Return(
-		workplayer.ManifestRef{ID: "run", Count: playerCount, Hash: "h"}, nil)
-	s.env.OnActivity(playerAct.ListYahooPlayerFiles, mock.Anything).Return(yahooIDs, nil)
-	s.env.OnActivity(playerAct.ParseYahooPlayerBatch, mock.Anything, mock.Anything).Return(
-		[]store.YahooPlayer{{YahooID: 1, FirstName: "Test", LastName: "Player"}}, nil)
-	s.env.OnActivity(playerAct.SaveYahooPlayersToRedis, mock.Anything, mock.Anything).Return(
-		&workplayer.SaveYahooIDPoolResult{TotalPlayers: 1, AvailablePlayers: 1}, nil)
-	return yahooIDs
 }

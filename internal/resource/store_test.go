@@ -221,7 +221,6 @@ func labelTestResources() []core.Resource {
 		resource.Roster{LeagueID: leagueID, TeamID: yahooTeamID, Date: date},
 		resource.TeamSummary{LeagueID: leagueID, TeamID: yahooTeamID, Date: date},
 		resource.YahooPlayer{PlayerID: yahooPlayer},
-		resource.MissingYahooPlayer{PlayerID: yahooPlayer},
 		resource.GameKey{Season: startSeason},
 		resource.Transactions{Season: startSeason, LeagueID: leagueID},
 		resource.DraftResults{Season: startSeason, LeagueID: leagueID},

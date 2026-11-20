@@ -263,84 +263,10 @@ func (s *ManifestActivitySuite) TestBatch_ProcessesItsWindowAndReturnsErrorsWith
 	upserter.AssertNumberOfCalls(s.T(), "UpsertPlayer", 2)
 }
 
-func (s *ManifestActivitySuite) TestBatch_RebuildsAPoolLostDuringTheExecution() {
-	player := store.BoxscorePlayer{ID: 1, FirstName: "Only", LastName: "Player", Position: "C"}
-	ref := s.putManifest("run-1", player)
-	s.writeMissingLanding(player)
-	require.NoError(s.T(), s.act.Storage.Write(context.Background(),
-		resource.YahooPlayer{PlayerID: 97}.Path(), []byte(sampleYahooPlayerHTML)))
-	upserter := NewMockPlayerUpserter()
-	upserter.On("UpsertPlayer", mock.Anything, mock.Anything).Return(nil)
-	s.act.Queries = upserter
-
-	_, err := s.env.ExecuteActivity(s.act.ProcessPlayerManifestBatch,
-		ManifestBatchInput{Manifest: ref, From: 0, To: 1, YahooPoolSize: 1})
-	s.Require().NoError(err)
-
-	pool, err := LoadYahooIDPool(context.Background(), s.redis)
-	s.Require().NoError(err)
-	s.Len(pool, 1, "the batch rebuilt the expired pool before matching")
-}
-
-func (s *ManifestActivitySuite) TestBatch_RebuildsAfterLeaguePlayersWereDeleted() {
-	player := store.BoxscorePlayer{ID: 1, FirstName: "Only", LastName: "Player", Position: "C"}
-	ref := s.putManifest("run-1", player)
-	s.writeMissingLanding(player)
-	require.NoError(s.T(), s.act.Storage.Write(context.Background(),
-		resource.YahooPlayer{PlayerID: 97}.Path(), []byte(sampleYahooPlayerHTML)))
+func (s *ManifestActivitySuite) TestBatch_LegacyBatchesDoNotRebuildThePool() {
 	s.act.LeaguePlayers = fakeLeaguePlayers{rows: []sqlcdb.ListYahooLeaguePlayersForPoolRow{
 		leagueRow(7000, "Mitch Marner", "TOR", "RW"),
 	}}
-	upserter := NewMockPlayerUpserter()
-	upserter.On("UpsertPlayer", mock.Anything, mock.Anything).Return(nil)
-	s.act.Queries = upserter
-
-	// The chain saved 1 page and 2 league players; one league player was
-	// deleted since.
-	_, err := s.env.ExecuteActivity(s.act.ProcessPlayerManifestBatch,
-		ManifestBatchInput{Manifest: ref, From: 0, To: 1, YahooPoolSize: 3, YahooNonPageEntries: 2})
-	s.Require().NoError(err)
-
-	pool, err := LoadYahooIDPool(context.Background(), s.redis)
-	s.Require().NoError(err)
-	s.Len(pool, 2, "the page and the remaining league player")
-}
-
-func (s *ManifestActivitySuite) TestBatch_RebuildsAPartialPool() {
-	player := store.BoxscorePlayer{ID: 1, FirstName: "Only", LastName: "Player", Position: "C"}
-	ref := s.putManifest("run-1", player)
-	s.writeMissingLanding(player)
-	require.NoError(s.T(), saveYahooPlayersToRedisImplForTest(s.redis, 97))
-	for _, id := range []store.YahooPlayerID{97, 29} {
-		require.NoError(s.T(), s.act.Storage.Write(context.Background(),
-			resource.YahooPlayer{PlayerID: id}.Path(), []byte(sampleYahooPlayerHTML)))
-	}
-	upserter := NewMockPlayerUpserter()
-	upserter.On("UpsertPlayer", mock.Anything, mock.Anything).Return(nil)
-	s.act.Queries = upserter
-
-	_, err := s.env.ExecuteActivity(s.act.ProcessPlayerManifestBatch,
-		ManifestBatchInput{Manifest: ref, From: 0, To: 1, YahooPoolSize: 2})
-	s.Require().NoError(err)
-
-	pool, err := LoadYahooIDPool(context.Background(), s.redis)
-	s.Require().NoError(err)
-	s.Len(pool, 2, "a pool read while another batch rebuilds it is completed first")
-}
-
-// saveYahooPlayersToRedisImplForTest saves a pool of the given Yahoo IDs.
-func saveYahooPlayersToRedisImplForTest(client *redis.Client, ids ...store.YahooPlayerID) error {
-	players := make([]store.YahooPlayer, len(ids))
-	for i, id := range ids {
-		players[i] = store.YahooPlayer{YahooID: id}
-	}
-	_, err := saveYahooPlayersToRedisImpl(context.Background(), client, players)
-	return err
-}
-
-func (s *ManifestActivitySuite) TestBatch_LegacyBatchesDoNotRebuildThePool() {
-	require.NoError(s.T(), s.act.Storage.Write(context.Background(),
-		resource.YahooPlayer{PlayerID: 97}.Path(), []byte(sampleYahooPlayerHTML)))
 
 	pool, err := s.act.loadYahooIDPool(context.Background(), EnsureYahooIDPoolInput{})
 	s.Require().NoError(err)

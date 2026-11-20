@@ -174,7 +174,7 @@ func runManifestFirstExecution(ctx workflow.Context, cfg processPlayersConfig) (
 	if err != nil {
 		return nil, err
 	}
-	pool, err := loadYahooPool(ctx, tracker, cfg.BatchSize, cfg.Concurrency)
+	pool, err := loadYahooPool(ctx, tracker)
 	if err != nil {
 		return nil, err
 	}
@@ -227,10 +227,9 @@ func ensureYahooPool(ctx workflow.Context, state *processPlayersState) error {
 		workflow.GetLogger(ctx).Warn("Rebuilt the lost Yahoo ID pool",
 			"expected", state.YahooPool.PoolSize, "found", result.FoundSize,
 			"rebuilt", result.PoolSize, "available", result.Available,
-			"read_errors", result.ReadErrors, "parse_errors", result.ParseErrors)
+			"seasons", len(result.ListSeasons))
 	}
 	state.YahooPool.PoolSize = result.PoolSize
-	state.YahooPool.NonPageEntries = result.NonPageEntries
 	state.YahooPool.ListSeasons = result.ListSeasons
 	return nil
 }
@@ -239,8 +238,7 @@ func ensureYahooPool(ctx workflow.Context, state *processPlayersState) error {
 // against.
 func (s *processPlayersState) yahooPoolCheck() workplayer.EnsureYahooIDPoolInput {
 	return workplayer.EnsureYahooIDPoolInput{
-		PoolSize: s.YahooPool.PoolSize, NonPageEntries: s.YahooPool.NonPageEntries,
-		Source: s.YahooPool.Source, ListSeasons: s.YahooPool.ListSeasons,
+		PoolSize: s.YahooPool.PoolSize, ListSeasons: s.YahooPool.ListSeasons,
 	}
 }
 
@@ -272,8 +270,7 @@ func runManifestWindow(ctx workflow.Context, tracker *shared.ReportTracker, stat
 		Start: func(_ workflow.Context, i int) workflow.Future {
 			return workflow.ExecuteActivity(ctx, playerAct.ProcessPlayerManifestBatch, workplayer.ManifestBatchInput{
 				Manifest: state.Manifest, From: batches[i].From, To: batches[i].To,
-				YahooPoolSize: state.YahooPool.PoolSize, YahooNonPageEntries: state.YahooPool.NonPageEntries,
-				YahooPoolSource: state.YahooPool.Source, YahooListSeasons: state.YahooPool.ListSeasons,
+				YahooPoolSize: state.YahooPool.PoolSize, YahooListSeasons: state.YahooPool.ListSeasons,
 			})
 		},
 		Handle: func(ctx workflow.Context, _ int, f workflow.Future) error {

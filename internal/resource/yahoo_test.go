@@ -137,15 +137,6 @@ func TestYahooPlayer_URL(t *testing.T) {
 	}
 }
 
-func TestMissingYahooPlayer_Path(t *testing.T) {
-	playerID := resource.YahooPlayerID(12345)
-	r := resource.MissingYahooPlayer{PlayerID: playerID}
-	expected := "yahoo-players-missing/player-12345.txt"
-	if got := r.Path(); got != expected {
-		t.Errorf("MissingYahooPlayer.Path() = %q, want %q", got, expected)
-	}
-}
-
 func TestGameKey_Path(t *testing.T) {
 	r := resource.GameKey{Season: 2024}
 	expected := "game-keys/gamekey-2024.xml"
@@ -176,7 +167,6 @@ func TestYahooResource_Type(t *testing.T) {
 		{"Roster", resource.Roster{LeagueID: 12345, TeamID: 1, Date: date, GameKey: 453}, core.Roster},
 		{"TeamSummary", resource.TeamSummary{LeagueID: 12345, TeamID: 1, Date: date, GameKey: 453}, core.TeamSummary},
 		{"YahooPlayer", resource.YahooPlayer{PlayerID: 12345}, core.YahooPlayer},
-		{"MissingYahooPlayer", resource.MissingYahooPlayer{PlayerID: 12345}, core.YahooPlayer},
 		{"GameKey", resource.GameKey{Season: 2024}, core.GameKey},
 		{"Transactions", resource.Transactions{Season: 2023, LeagueID: 12345, GameKey: 453}, core.YahooTransactions},
 		{"DraftResults", resource.DraftResults{Season: 2023, LeagueID: 12345, GameKey: 453}, core.YahooDraftResults},
@@ -348,32 +338,6 @@ func TestYahooPlayer_ParseFormat(t *testing.T) {
 	t.Parallel()
 	r := resource.YahooPlayer{PlayerID: 12345}
 	input := []byte("<html>player page</html>")
-
-	t.Run("parse_passthrough", func(t *testing.T) {
-		result, err := r.Parse(input)
-		if err != nil {
-			t.Fatalf("Parse() unexpected error: %v", err)
-		}
-		if string(result) != string(input) {
-			t.Errorf("Parse() = %q, want %q (passthrough)", result, input)
-		}
-	})
-
-	t.Run("format_passthrough", func(t *testing.T) {
-		result, err := r.Format(input)
-		if err != nil {
-			t.Fatalf("Format() unexpected error: %v", err)
-		}
-		if string(result) != string(input) {
-			t.Errorf("Format() = %q, want %q (passthrough)", result, input)
-		}
-	})
-}
-
-func TestMissingYahooPlayer_ParseFormat(t *testing.T) {
-	t.Parallel()
-	r := resource.MissingYahooPlayer{PlayerID: 12345}
-	input := []byte("missing")
 
 	t.Run("parse_passthrough", func(t *testing.T) {
 		result, err := r.Parse(input)

@@ -460,20 +460,6 @@ func TestProcessPlayersWorkflowTestSuite(t *testing.T) {
 	suite.Run(t, new(ProcessPlayersWorkflowTestSuite))
 }
 
-// Test ProcessPlayersWorkflow Phase 1 (LoadYahoo) creates the player manifest and loads Yahoo files,
-// then transitions to Phase 2 (ProcessPlayers) via ContinueAsNew.
-func (s *ProcessPlayersWorkflowTestSuite) TestProcessPlayersWorkflow_Phase1_Success() {
-	s.usePagePool()
-	input := &ProcessPlayersInput{}
-	s.mockPhaseLoadYahooSuccess(1)
-
-	s.env.ExecuteWorkflow(ProcessPlayersWorkflow, input)
-
-	// Phase 1 completes and ContinueAsNew into Phase 2.
-	// In the test environment ContinueAsNew is treated as workflow completion.
-	s.True(s.env.IsWorkflowCompleted())
-}
-
 // Test ProcessPlayersWorkflow handles a manifest creation failure in Phase 1.
 func (s *ProcessPlayersWorkflowTestSuite) TestProcessPlayersWorkflow_Phase1_ChildError() {
 	input := &ProcessPlayersInput{}
@@ -487,24 +473,6 @@ func (s *ProcessPlayersWorkflowTestSuite) TestProcessPlayersWorkflow_Phase1_Chil
 	s.True(s.env.IsWorkflowCompleted())
 	s.Error(s.env.GetWorkflowError())
 	s.Contains(s.env.GetWorkflowError().Error(), "redis unavailable")
-}
-
-// Test ProcessPlayersWorkflow handles ListYahooPlayerFiles error during Phase 1 (LoadYahoo)
-func (s *ProcessPlayersWorkflowTestSuite) TestProcessPlayersWorkflow_Phase1_ListYahooError() {
-	s.usePagePool()
-	input := &ProcessPlayersInput{}
-
-	var playerAct *workplayer.Activities
-	s.env.OnActivity(playerAct.CreateProcessPlayersManifest, mock.Anything, mock.Anything).Return(
-		workplayer.ManifestRef{ID: "run", Count: 1, Hash: "h"}, nil)
-	s.env.OnActivity(playerAct.ListYahooPlayerFiles, mock.Anything).Return(
-		([]store.YahooPlayerID)(nil), errors.New("file system error"))
-
-	s.env.ExecuteWorkflow(ProcessPlayersWorkflow, input)
-
-	s.True(s.env.IsWorkflowCompleted())
-	s.Error(s.env.GetWorkflowError())
-	s.Contains(s.env.GetWorkflowError().Error(), "file system error")
 }
 
 // Test ProcessPlayersWorkflow Phase 3 (ProcessPlayers) via ContinueAsNew entry point

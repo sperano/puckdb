@@ -40,7 +40,7 @@ func classifyFileType(dataPath, filePath, filename string) core.FileType {
 		return core.PlayerLanding
 	case "players-missing":
 		return core.PlayerLanding
-	case "yahoo-players", "yahoo-players-missing":
+	case resource.YahooPlayersDir:
 		return core.YahooPlayer
 	case "game-keys":
 		return core.GameKey
