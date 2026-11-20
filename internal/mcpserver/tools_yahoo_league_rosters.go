@@ -62,8 +62,9 @@ func yahooLeagueRostersTool(q yahooQueries, guard leagueGuard) server.ServerTool
 				"one row per rostered player as CSV ordered by team, selected position and Yahoo player ID. name is the "+
 				"matched NHL player's, else Yahoo's from the league's imported player pool; nhl_player_id is empty when no "+
 				"NHL player is matched. team is the player's NHL team abbreviation as Yahoo lists it, status the Yahoo "+
-				"status code (DTD, O, IR, ...; empty when Yahoo lists none). A date with no imported rosters (before the "+
-				"season, or not imported yet) has roster_rows=0."),
+				"status code (DTD, O, IR, ...; empty when Yahoo lists none). "+rosterFreshnessNote+" A date with no "+
+				"imported rosters (before the season, or not imported yet) has roster_rows=0, and the header then adds "+
+				"latest_roster_date, the league's latest date with imported rosters (none when it has no rosters)."),
 			mcp.WithNumber(leagueIDArg, mcp.Required(), mcp.Description("Yahoo league ID (use get_yahoo_leagues to find IDs)")),
 			mcp.WithString("date", mcp.Required(), mcp.Description("Roster date in YYYY-MM-DD format")),
 			mcp.WithNumber("limit", mcp.Description(fmt.Sprintf("Max roster rows (default %d, max %d)",
@@ -101,6 +102,9 @@ type leagueRosters struct {
 	date   pgtype.Date
 	teams  []sqlcdb.YahooTeam
 	rows   []sqlcdb.GetYahooLeagueRostersWithPlayersRow
+	// latest is the league's latest imported roster date, read only when
+	// the date has no rows.
+	latest pgtype.Date
 }
 
 // loadLeagueRosters reads the league row, its teams and every roster row
@@ -121,7 +125,15 @@ func loadLeagueRosters(ctx context.Context, q yahooQueries, leagueID int32, date
 	if err != nil {
 		return leagueRosters{}, fmt.Errorf("load rosters of league %d on %s: %w", leagueID, date.Time.Format(time.DateOnly), err)
 	}
-	return leagueRosters{league: league, date: date, teams: teams, rows: rows}, nil
+	result := leagueRosters{league: league, date: date, teams: teams, rows: rows}
+	if len(rows) > 0 {
+		return result, nil
+	}
+	result.latest, err = q.GetLatestYahooLeagueRosterDate(ctx, leagueID)
+	if err != nil {
+		return leagueRosters{}, fmt.Errorf("load latest roster date of league %d: %w", leagueID, err)
+	}
+	return result, nil
 }
 
 // text renders the header, the teams and the first limit roster rows.
@@ -167,7 +179,21 @@ func (r leagueRosters) header(returned int) metadataHeader {
 	h.add("teams", len(r.teams))
 	h.add("roster_rows", len(r.rows))
 	h.add("returned", returned)
+	if len(r.rows) == 0 {
+		h.add("latest_roster_date", latestRosterDateValue(r.latest))
+	}
 	return h
+}
+
+// noLatestRosterDate is latest_roster_date for a league with no imported
+// roster.
+const noLatestRosterDate = "none"
+
+func latestRosterDateValue(latest pgtype.Date) string {
+	if !latest.Valid {
+		return noLatestRosterDate
+	}
+	return latest.Time.Format(time.DateOnly)
 }
 
 func leagueRosterRowOf(row sqlcdb.GetYahooLeagueRostersWithPlayersRow) leagueRosterRow {

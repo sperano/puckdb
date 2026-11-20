@@ -8,6 +8,7 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 	"github.com/sperano/puckdb/internal/fixtures/draftfixtures"
@@ -86,6 +87,10 @@ type rosterYahooQueries struct {
 func (q *rosterYahooQueries) GetYahooRosterWithPlayers(_ context.Context, arg sqlcdb.GetYahooRosterWithPlayersParams) ([]sqlcdb.YahooRosterPlayer, error) {
 	q.rosters = append(q.rosters, arg)
 	return nil, nil
+}
+
+func (q *rosterYahooQueries) GetLatestYahooTeamRosterDate(context.Context, sqlcdb.GetLatestYahooTeamRosterDateParams) (pgtype.Date, error) {
+	return pgtype.Date{}, nil
 }
 
 func (q *rosterYahooQueries) GetUnrosteredSkaters(_ context.Context, arg sqlcdb.GetUnrosteredSkatersParams) ([]sqlcdb.SkaterRecentStat, error) {

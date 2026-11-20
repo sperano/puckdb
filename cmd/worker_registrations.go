@@ -51,6 +51,10 @@ func registerTasksWorkflows(w worker.Worker) {
 	w.RegisterWorkflow(workflow.InitializeWorkflow)
 	w.RegisterWorkflow(workflow.ExtractBoxscorePlayersWorkflow)
 
+	// Scheduled syncs (ensureSyncSchedules)
+	w.RegisterWorkflow(workflow.ScheduledSeasonsSyncWorkflow)
+	w.RegisterWorkflow(workflow.ScheduledPlayersSyncWorkflow)
+
 	// Simulation workflow
 	simulation.RegisterSimPoolWorkflow(w)
 

@@ -183,6 +183,21 @@ func (q *Queries) DeleteYahooTeamSummary(ctx context.Context, arg DeleteYahooTea
 	return err
 }
 
+const getLatestYahooLeagueRosterDate = `-- name: GetLatestYahooLeagueRosterDate :one
+SELECT MAX(date)::date AS date
+FROM yahoo_team_rosters
+WHERE league_id = $1
+`
+
+// The latest date with an imported roster row of any team of the league;
+// NULL when the league has none.
+func (q *Queries) GetLatestYahooLeagueRosterDate(ctx context.Context, leagueID int32) (pgtype.Date, error) {
+	row := q.db.QueryRow(ctx, getLatestYahooLeagueRosterDate, leagueID)
+	var date pgtype.Date
+	err := row.Scan(&date)
+	return date, err
+}
+
 const getLatestYahooStandingsSnapshotDate = `-- name: GetLatestYahooStandingsSnapshotDate :one
 SELECT MAX(date)::date AS date
 FROM yahoo_team_summaries
@@ -194,6 +209,26 @@ WHERE league_id = $1 AND standings_captured_at IS NOT NULL
 // capture never moves it.
 func (q *Queries) GetLatestYahooStandingsSnapshotDate(ctx context.Context, leagueID int32) (pgtype.Date, error) {
 	row := q.db.QueryRow(ctx, getLatestYahooStandingsSnapshotDate, leagueID)
+	var date pgtype.Date
+	err := row.Scan(&date)
+	return date, err
+}
+
+const getLatestYahooTeamRosterDate = `-- name: GetLatestYahooTeamRosterDate :one
+SELECT MAX(date)::date AS date
+FROM yahoo_team_rosters
+WHERE league_id = $1 AND team_id = $2
+`
+
+type GetLatestYahooTeamRosterDateParams struct {
+	LeagueID int32 `json:"league_id"`
+	TeamID   int32 `json:"team_id"`
+}
+
+// The latest date with an imported roster row of the team; NULL when it has
+// none. Reads the primary key's (league_id, team_id, date) prefix.
+func (q *Queries) GetLatestYahooTeamRosterDate(ctx context.Context, arg GetLatestYahooTeamRosterDateParams) (pgtype.Date, error) {
+	row := q.db.QueryRow(ctx, getLatestYahooTeamRosterDate, arg.LeagueID, arg.TeamID)
 	var date pgtype.Date
 	err := row.Scan(&date)
 	return date, err

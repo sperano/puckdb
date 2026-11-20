@@ -373,6 +373,11 @@ const (
 	DefaultNewsFetchMaxAttempts  = 4
 	DefaultNewsFetchRetryInitial = 30  // seconds
 	DefaultNewsFetchRetryMax     = 900 // seconds
+	// The sync schedules are off by default (empty cron expression); their
+	// cron expressions read in the NHL's home time zone.
+	DefaultSeasonsSyncSchedule  = ""
+	DefaultPlayersSyncSchedule  = ""
+	DefaultSyncScheduleTimeZone = "America/Toronto"
 	// DefaultNewsScheduleMinutes of 0 leaves the periodic refresh off.
 	DefaultNewsScheduleMinutes = 0
 	DefaultNewsForce           = false

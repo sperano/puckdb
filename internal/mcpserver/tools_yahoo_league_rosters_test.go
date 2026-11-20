@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -47,6 +48,15 @@ type fakeLeagueRosterQueries struct {
 	rostersErr  error
 	rosterCalls []sqlcdb.GetYahooLeagueRostersWithPlayersParams
 	teamsErr    error
+	// latest is what GetLatestYahooLeagueRosterDate returns, or latestErr.
+	latest      pgtype.Date
+	latestErr   error
+	latestCalls []int32
+}
+
+func (f *fakeLeagueRosterQueries) GetLatestYahooLeagueRosterDate(_ context.Context, leagueID int32) (pgtype.Date, error) {
+	f.latestCalls = append(f.latestCalls, leagueID)
+	return f.latest, f.latestErr
 }
 
 func (f *fakeLeagueRosterQueries) GetYahooLeagueRostersWithPlayers(_ context.Context, arg sqlcdb.GetYahooLeagueRostersWithPlayersParams) ([]sqlcdb.GetYahooLeagueRostersWithPlayersRow, error) {
@@ -127,6 +137,7 @@ func TestYahooLeagueRostersToolReportsEveryTeam(t *testing.T) {
 		{"2", "Team Two", "1"},
 		{"3", "Team, Three", "0"},
 	}, out.sections[leagueRosterTeamsSection], "every team is listed, even one with no rows on the date")
+	assert.Empty(t, q.latestCalls, "a date with rosters needs no latest date")
 	assert.Equal(t, [][]string{
 		{"team_id", "selected_position", "yahoo_player_id", "player_key", "name", "nhl_player_id", "team", "positions",
 			"status", "injury_note"},
@@ -159,10 +170,20 @@ func TestYahooLeagueRostersToolDefaultLimit(t *testing.T) {
 func TestYahooLeagueRostersToolNoRostersOnDate(t *testing.T) {
 	q := newFakeLeagueRosterQueries()
 	q.rosters = []sqlcdb.GetYahooLeagueRostersWithPlayersRow{}
+	q.latest = pgtype.Date{Time: time.Date(2026, time.November, 1, 0, 0, 0, 0, time.UTC), Valid: true}
 	out := leagueRostersOutput(t, callLeagueRostersTool(t, q, nil))
-	assert.Contains(t, out.header, " teams=3 roster_rows=0 returned=0")
+	assert.Equal(t, fmt.Sprintf("# league_id=%d league_key=%s season=%d date=%s teams=3 roster_rows=0 returned=0 latest_roster_date=2026-11-01",
+		allowedLeagueID, allowedLeagueKey, rosterSeason, rosterDate), out.header)
+	assert.Equal(t, []int32{allowedLeagueID}, q.latestCalls)
 	assert.Equal(t, []string{"3", "Team, Three", "0"}, out.sections[leagueRosterTeamsSection][3])
 	assert.Equal(t, [][]string{{noResultsText}}, out.sections[leagueRostersSection])
+}
+
+func TestYahooLeagueRostersToolNoRostersAtAll(t *testing.T) {
+	q := newFakeLeagueRosterQueries()
+	q.rosters = []sqlcdb.GetYahooLeagueRostersWithPlayersRow{}
+	out := leagueRostersOutput(t, callLeagueRostersTool(t, q, nil))
+	assert.True(t, strings.HasSuffix(out.header, " roster_rows=0 returned=0 latest_roster_date=none"), out.header)
 }
 
 func TestYahooLeagueRostersToolRejectsInvalidArguments(t *testing.T) {
@@ -210,6 +231,10 @@ func TestYahooLeagueRostersToolQueryErrors(t *testing.T) {
 			fmt.Sprintf("load teams of league %d: connection reset", allowedLeagueID)},
 		"rosters": {func(q *fakeLeagueRosterQueries) { q.rostersErr = errors.New("timeout") },
 			fmt.Sprintf("load rosters of league %d on %s: timeout", allowedLeagueID, rosterDate)},
+		"latest date": {func(q *fakeLeagueRosterQueries) {
+			q.rosters = []sqlcdb.GetYahooLeagueRostersWithPlayersRow{}
+			q.latestErr = errors.New("too many connections")
+		}, fmt.Sprintf("load latest roster date of league %d: too many connections", allowedLeagueID)},
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {

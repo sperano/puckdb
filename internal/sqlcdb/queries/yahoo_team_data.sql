@@ -251,6 +251,20 @@ SELECT * FROM yahoo_team_rosters
 WHERE league_id = $1 AND date = $2
 ORDER BY team_id, player_id;
 
+-- name: GetLatestYahooLeagueRosterDate :one
+-- The latest date with an imported roster row of any team of the league;
+-- NULL when the league has none.
+SELECT MAX(date)::date AS date
+FROM yahoo_team_rosters
+WHERE league_id = $1;
+
+-- name: GetLatestYahooTeamRosterDate :one
+-- The latest date with an imported roster row of the team; NULL when it has
+-- none. Reads the primary key's (league_id, team_id, date) prefix.
+SELECT MAX(date)::date AS date
+FROM yahoo_team_rosters
+WHERE league_id = $1 AND team_id = $2;
+
 -- name: GetYahooLeagueRostersWithPlayers :many
 -- The rows of GetYahooTeamRostersByDate joined to the matched NHL player.
 -- name is the NHL player's, else Yahoo's from the league's imported pool

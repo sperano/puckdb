@@ -23,6 +23,8 @@ type yahooQueries interface {
 	GetYahooTeamSummaryStatsSnapshot(ctx context.Context, arg sqlcdb.GetYahooTeamSummaryStatsSnapshotParams) ([]sqlcdb.GetYahooTeamSummaryStatsSnapshotRow, error)
 	GetYahooRosterWithPlayers(ctx context.Context, arg sqlcdb.GetYahooRosterWithPlayersParams) ([]sqlcdb.YahooRosterPlayer, error)
 	GetYahooLeagueRostersWithPlayers(ctx context.Context, arg sqlcdb.GetYahooLeagueRostersWithPlayersParams) ([]sqlcdb.GetYahooLeagueRostersWithPlayersRow, error)
+	GetLatestYahooLeagueRosterDate(ctx context.Context, leagueID int32) (pgtype.Date, error)
+	GetLatestYahooTeamRosterDate(ctx context.Context, arg sqlcdb.GetLatestYahooTeamRosterDateParams) (pgtype.Date, error)
 	GetYahooTeamRostersByPlayer(ctx context.Context, arg sqlcdb.GetYahooTeamRostersByPlayerParams) ([]sqlcdb.YahooTeamRoster, error)
 	GetYahooRotoStandings(ctx context.Context, leagueID int32) ([]sqlcdb.YahooRotoStanding, error)
 	GetYahooSeasonTeamTotals(ctx context.Context, leagueID int32) ([]sqlcdb.YahooSeasonTeamTotal, error)
@@ -99,32 +101,6 @@ func yahooLeaguesTool(q yahooQueries, guard leagueGuard) server.ServerTool {
 			}
 			return ResultCSV(guard.filter(leagues))
 		},
-	}
-}
-
-func yahooRosterTool(q yahooQueries, guard leagueGuard) server.ServerTool {
-	return server.ServerTool{
-		Tool: mcp.NewTool("get_yahoo_roster",
-			mcp.WithDescription("Get the roster for a Yahoo fantasy team on a specific date, joined with player details."),
-			mcp.WithNumber(leagueIDArg, mcp.Required(), mcp.Description("Yahoo league ID")),
-			mcp.WithNumber("team_id", mcp.Required(), mcp.Description("Yahoo team ID")),
-			mcp.WithString("date", mcp.Required(), mcp.Description("Roster date in YYYY-MM-DD format")),
-		),
-		Handler: guard.scoped(func(ctx context.Context, req mcp.CallToolRequest, leagueID int32) (*mcp.CallToolResult, error) {
-			teamID, errResult := requireInt[int32](req, yahooTeamIDParam)
-			if errResult != nil {
-				return errResult, nil
-			}
-			d, errResult := requireDate(req)
-			if errResult != nil {
-				return errResult, nil
-			}
-			return toolResult(q.GetYahooRosterWithPlayers(ctx, sqlcdb.GetYahooRosterWithPlayersParams{
-				LeagueID: leagueID,
-				TeamID:   teamID,
-				Date:     d,
-			}))
-		}),
 	}
 }
 
