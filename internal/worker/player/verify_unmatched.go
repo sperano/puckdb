@@ -85,7 +85,8 @@ type VerifyUnmatchedResult struct {
 	MatchedNamesakes []VerifiedPlayer
 
 	// Unverified contains players whose verification could not be completed
-	// because an NHL API call failed. Their classification is unknown; they
+	// because an NHL API call or the database lookup of matched namesakes
+	// failed. Their classification is unknown; they
 	// are not persisted and will be verified again on the next run.
 	Unverified []VerifiedPlayer
 }
@@ -117,7 +118,7 @@ func (r *VerifyUnmatchedResult) classify(verified VerifiedPlayer) (persist bool)
 // - TrulyUnmatched: have NHL games but weren't matched (need investigation)
 // - NotFoundInNHL: no matching name in NHL database
 // - MatchedNamesakes: every NHL namesake already has a Yahoo ID
-// - Unverified: NHL API failure, classification unknown (retried next run)
+// - Unverified: NHL API or matched-namesake lookup failure, classification unknown (retried next run)
 func (a *Activities) VerifyUnmatchedBatch(ctx context.Context, players []UnmatchedYahooPlayer) (*VerifyUnmatchedResult, error) {
 	logger := activity.GetLogger(ctx)
 

@@ -102,7 +102,7 @@ func TestLoadUnmatchedYahooPlayers_PlayerDetailsMissing(t *testing.T) {
 	mockRedis.ExpectSMembers(YahooIDAvailableKey).SetVal([]string{"999"})
 
 	// Player details not found
-	mockRedis.ExpectHGet(YahooIDPoolKey, "999").SetErr(errors.New("redis: nil"))
+	mockRedis.ExpectHGet(YahooIDPoolKey, "999").RedisNil()
 
 	a := &Activities{RedisClient: client}
 	result, skipped, err := a.loadUnmatchedYahooPlayersImpl(ctx, LoadUnmatchedInput{})
@@ -122,7 +122,7 @@ func TestLoadUnmatchedYahooPlayers_SeasonsSkipAPlayerWithoutDetails(t *testing.T
 	ctx := context.Background()
 	client, mockRedis := redismock.NewClientMock()
 	mockRedis.ExpectSMembers(YahooIDAvailableKey).SetVal([]string{"999"})
-	mockRedis.ExpectHGet(YahooIDPoolKey, "999").SetErr(errors.New("redis: nil"))
+	mockRedis.ExpectHGet(YahooIDPoolKey, "999").RedisNil()
 
 	a := &Activities{RedisClient: client}
 	result, skipped, err := a.loadUnmatchedYahooPlayersImpl(ctx, LoadUnmatchedInput{Seasons: []int{2025}})
@@ -131,6 +131,56 @@ func TestLoadUnmatchedYahooPlayers_SeasonsSkipAPlayerWithoutDetails(t *testing.T
 	assert.Empty(t, result)
 	assert.Equal(t, 1, skipped)
 	assert.NoError(t, mockRedis.ExpectationsWereMet())
+}
+
+// A Redis failure reading a player's details fails the load (the activity
+// retries) instead of dropping the Yahoo ID, with or without seasons.
+func TestLoadUnmatchedYahooPlayers_DetailsReadErrorFails(t *testing.T) {
+	t.Parallel()
+
+	for _, seasons := range [][]int{nil, {2025}} {
+		ctx := context.Background()
+		client, mockRedis := redismock.NewClientMock()
+		mockRedis.ExpectSMembers(YahooIDAvailableKey).SetVal([]string{"999"})
+		readErr := errors.New("i/o timeout")
+		mockRedis.ExpectHGet(YahooIDPoolKey, "999").SetErr(readErr)
+
+		a := &Activities{RedisClient: client}
+		result, skipped, err := a.loadUnmatchedYahooPlayersImpl(ctx, LoadUnmatchedInput{Seasons: seasons})
+
+		require.ErrorIs(t, err, readErr, "seasons %v", seasons)
+		assert.Nil(t, result)
+		assert.Zero(t, skipped)
+		assert.NoError(t, mockRedis.ExpectationsWereMet())
+	}
+}
+
+// An undecodable pool entry is no Redis failure: the Yahoo ID is kept
+// without details when the seasons are unknown, and skipped otherwise.
+func TestLoadUnmatchedYahooPlayers_UndecodableDetails(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		seasons     []int
+		wantLen     int
+		wantSkipped int
+	}{
+		{nil, 1, 0},
+		{[]int{2025}, 0, 1},
+	} {
+		ctx := context.Background()
+		client, mockRedis := redismock.NewClientMock()
+		mockRedis.ExpectSMembers(YahooIDAvailableKey).SetVal([]string{"999"})
+		mockRedis.ExpectHGet(YahooIDPoolKey, "999").SetVal("not gob")
+
+		a := &Activities{RedisClient: client}
+		result, skipped, err := a.loadUnmatchedYahooPlayersImpl(ctx, LoadUnmatchedInput{Seasons: tc.seasons})
+
+		require.NoError(t, err)
+		assert.Len(t, result, tc.wantLen, "seasons %v", tc.seasons)
+		assert.Equal(t, tc.wantSkipped, skipped, "seasons %v", tc.seasons)
+		assert.NoError(t, mockRedis.ExpectationsWereMet())
+	}
 }
 
 // A single-season run over the pool of every season's game player lists

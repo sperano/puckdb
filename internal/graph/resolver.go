@@ -124,8 +124,14 @@ func (r *Resolver) processPlayersResultData(ctx context.Context) (*model.Process
 	if err := run.Get(ctx, &result); err != nil {
 		return nil, err
 	}
+	return processPlayersResultModel(result), nil
+}
 
-	// Convert worker result to GraphQL model
+// processPlayersResultModel converts a ProcessPlayers result to its GraphQL
+// model. A result recorded before TrulyUnmatchedCount existed decodes it as
+// 0 while listing every truly unmatched player, so the count is never below
+// the list's length.
+func processPlayersResultModel(result workflow.ProcessPlayersResult) *model.ProcessPlayersResultData {
 	trulyUnmatched := make([]*model.TrulyUnmatchedPlayer, len(result.TrulyUnmatched))
 	for i, p := range result.TrulyUnmatched {
 		trulyUnmatched[i] = &model.TrulyUnmatchedPlayer{
@@ -149,9 +155,9 @@ func (r *Resolver) processPlayersResultData(ctx context.Context) (*model.Process
 		SkippedNonNHL:         result.SkippedNonNHL,
 		VerifiedNonNHLThisRun: result.VerifiedNonNHLThisRun,
 		TrulyUnmatched:        trulyUnmatched,
-		TrulyUnmatchedCount:   result.TrulyUnmatchedCount,
+		TrulyUnmatchedCount:   max(result.TrulyUnmatchedCount, len(result.TrulyUnmatched)),
 		Errors:                result.Errors,
-	}, nil
+	}
 }
 
 func (r *Resolver) fetchPlayerLandings(ctx context.Context, input *model.FetchPlayerLandingsInput) (bool, error) {

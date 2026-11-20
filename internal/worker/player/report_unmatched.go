@@ -2,8 +2,10 @@ package player
 
 import (
 	"context"
+	"errors"
 	"slices"
 
+	"github.com/go-redis/redis/v8"
 	"github.com/rs/zerolog/log"
 	"github.com/sperano/puckdb/internal/store"
 	"go.temporal.io/sdk/activity"
@@ -45,7 +47,8 @@ type UnmatchedReport struct {
 	NotFoundCount int
 
 	// UnverifiedCount is the number of players whose verification failed
-	// (NHL API error). They are not cached and will be re-verified next run.
+	// (an NHL API error, or a failed database lookup of matched namesakes).
+	// They are not cached and will be re-verified next run.
 	UnverifiedCount int
 }
 
@@ -86,6 +89,10 @@ func (a *Activities) loadUnmatchedYahooPlayersImpl(ctx context.Context, input Lo
 	skipped := 0
 	for _, id := range unmatchedIDs {
 		player, err := GetYahooPlayerByID(ctx, a.RedisClient, id)
+		if err != nil && !playerDetailsUnavailable(err) {
+			// A Redis failure must not drop the ID: fail so the activity retries.
+			return nil, 0, err
+		}
 		if err != nil {
 			log.Warn().Err(err).Int("yahoo_id", int(id)).Msg("Failed to load unmatched Yahoo player details")
 			if input.Seasons != nil {
@@ -110,6 +117,13 @@ func (a *Activities) loadUnmatchedYahooPlayersImpl(ctx context.Context, input Lo
 	}
 
 	return unmatched, skipped, nil
+}
+
+// playerDetailsUnavailable reports whether err says the pool holds no usable
+// details for the Yahoo ID (missing or undecodable), rather than that Redis
+// failed.
+func playerDetailsUnavailable(err error) bool {
+	return errors.Is(err, redis.Nil) || errors.Is(err, errUndecodableYahooPlayer)
 }
 
 // listedInSeasons reports whether a game player list of one of seasons names
