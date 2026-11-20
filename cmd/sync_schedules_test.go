@@ -141,6 +141,13 @@ func TestEnsureSyncSchedulesErrorsNameTheSchedule(t *testing.T) {
 	cfg.Players = ""
 	err = ensureSyncSchedules(t.Context(), r, cfg)
 	assert.Equal(t, "remove players sync schedule: "+assert.AnError.Error(), err.Error())
+
+	r = newScheduleRecorder()
+	r.createErr = temporal.ErrScheduleAlreadyRunning
+	r.handle(shared.ScheduleIDSeasonsSync).updateErr = assert.AnError
+	err = ensureSyncSchedules(t.Context(), r, bothSyncSchedules())
+	require.ErrorIs(t, err, assert.AnError)
+	assert.Equal(t, "set seasons sync schedule: "+assert.AnError.Error(), err.Error())
 }
 
 func TestEnsureSyncSchedulesUpdatesExistingSchedule(t *testing.T) {

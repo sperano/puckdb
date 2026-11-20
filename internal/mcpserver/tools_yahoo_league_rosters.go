@@ -108,7 +108,8 @@ type leagueRosters struct {
 }
 
 // loadLeagueRosters reads the league row, its teams and every roster row
-// of the date.
+// of the date and, when the date has no rows, the league's latest imported
+// roster date.
 func loadLeagueRosters(ctx context.Context, q yahooQueries, leagueID int32, date pgtype.Date) (leagueRosters, error) {
 	league, err := loadLeague(ctx, q, leagueID)
 	if err != nil {

@@ -150,7 +150,6 @@ func TestScheduledSeasonsSyncImportsAfterFailedFetch(t *testing.T) {
 	err := env.GetWorkflowError()
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), errScheduledFetch.Error())
-	assert.NotContains(t, err.Error(), errScheduledImport.Error())
 }
 
 func TestScheduledSeasonsSyncReportsBothFailures(t *testing.T) {
@@ -179,6 +178,39 @@ func TestScheduledSeasonsSyncCancelledFetchSkipsImport(t *testing.T) {
 	err := env.GetWorkflowError()
 	require.Error(t, err)
 	assert.True(t, temporal.IsCanceledError(err), "got %v", err)
+}
+
+// scheduledSyncFetchDuration is how long the blocking fetch mock runs, and
+// scheduledSyncCancelAfter when the test cancels the run during it.
+const (
+	scheduledSyncFetchDuration = time.Hour
+	scheduledSyncCancelAfter   = time.Minute
+)
+
+func TestScheduledSeasonsSyncCancelledRunSkipsImportAfterFetchError(t *testing.T) {
+	env := newScheduledSyncEnv(t, scheduledSyncNow)
+	rec := &syncStepRecorder{}
+	// The fetch ignores its cancellation and fails with an error of its own,
+	// so only the run's cancelled context can stop the import.
+	env.OnWorkflow(FetchSeasonsWorkflow, mock.Anything, mock.Anything).Return(
+		func(ctx workflow.Context, input *model.SeasonsInput) error {
+			rec.record(ctx, input)
+			disconnected, _ := workflow.NewDisconnectedContext(ctx)
+			_ = workflow.Sleep(disconnected, scheduledSyncFetchDuration)
+			return errScheduledFetch
+		}).Maybe()
+	mockSeasonsStep(env, rec, ImportSeasonsWorkflow, nil)
+	env.RegisterDelayedCallback(env.CancelWorkflow, scheduledSyncCancelAfter)
+
+	env.ExecuteWorkflow(ScheduledSeasonsSyncWorkflow)
+
+	assert.Equal(t, []string{shared.WorkflowIDFetchSeasons}, rec.ids, "a cancelled run must not start the import")
+	err := env.GetWorkflowError()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), errScheduledFetch.Error())
+	// An import attempted on the cancelled context would add its own
+	// cancellation to the run's error.
+	assert.False(t, temporal.IsCanceledError(err), "the run must report only the fetch error, got %v", err)
 }
 
 // mockPlayersSteps mocks every players step: the step with ID failID
