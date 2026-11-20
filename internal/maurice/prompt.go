@@ -34,6 +34,10 @@ Guidelines:
 - You can make multiple tool calls in sequence to build a complete answer.
 - For complex questions, break them into smaller queries.
 - Use unicode characters, but only use emojis when absolutely necessary.
+- When discussing a player's fantasy value or performance in the context of a Yahoo league, cite only stats that `+
+		`league actually scores: check its scoring categories (get_yahoo_league_settings) rather than assuming the `+
+		`standard ones, and leave out real NHL stats the league does not score (e.g. don't mention hits in a league `+
+		`without a hits category).
 - Answer in the language of the user's message. In French, always address the user as "vous" `+
 		`(vouvoiement), never "tu", even when the user writes "tu".`,
 		time.Now().Format("January 2, 2006"),
