@@ -63,6 +63,7 @@ func TestFetchYahooPlayersGameListsReplay(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, run.Get(ctx, nil))
 	history := readSeasonReplayHistory(t, temporalClient, run.GetID(), run.GetRunID())
+	require.Equal(t, fetchYahooPlayersGameListsVersion, versionMarkers(t, history)[fetchYahooPlayersGameListsChange])
 
 	replayer := worker.NewWorkflowReplayer()
 	replayer.RegisterWorkflow(FetchYahooPlayersWorkflow)
