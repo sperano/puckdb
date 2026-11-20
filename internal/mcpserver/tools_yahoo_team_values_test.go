@@ -262,6 +262,10 @@ func TestTeamValuesErrors(t *testing.T) {
 	}{
 		{"from after to", map[string]any{teamValuesFromArg: "2026-11-15", teamValuesToArg: "2026-11-10"}, nil,
 			"from 2026-11-15 is after to 2026-11-10"},
+		{"from after a to moved back", map[string]any{teamValuesFromArg: "2026-11-09", teamValuesToArg: "2026-11-09"}, nil,
+			"from 2026-11-09 is after to 2026-11-09, moved back to 2026-11-08, the latest imported roster day on or before it"},
+		{"from after a to past the latest roster", map[string]any{teamValuesFromArg: "2026-11-21", teamValuesToArg: "2026-11-25"}, nil,
+			"from 2026-11-21 is after to 2026-11-25, moved back to " + valuesTestToString + ", the latest imported roster day on or before it"},
 		{"no season start", nil, func(q *teamValuesQueries, _ *fakeRankingReader) {
 			q.leagues[0].StartDate = pgtype.Date{}
 		}, fmt.Sprintf("league %d has no season start date: pass from", allowedLeagueID)},

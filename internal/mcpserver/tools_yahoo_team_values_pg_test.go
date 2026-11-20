@@ -31,6 +31,7 @@ const (
 	pgValuesYahooOnly          int32 = 990781009
 	pgValuesReliefGoalie       int32 = 990781004
 	pgValuesBackupGoalie       int32 = 990781005
+	pgValuesMinimumGoalie      int32 = 990781006
 	pgValuesGamePlayoff        int64 = 990781104
 	pgValuesPlayoffGoals             = 7
 	pgValuesGameA              int64 = 990781101
@@ -63,8 +64,9 @@ func cleanupTeamValuesFixture(t *testing.T, pool *pgxpool.Pool) {
 		{`DELETE FROM yahoo_leagues WHERE id = $1`, []any{pgValuesLeague}},
 		{`DELETE FROM yahoo_league_players WHERE league_key = $1`, []any{pgValuesLeagueKey}},
 		{`DELETE FROM projection_snapshots WHERE target_season = 30073008`, nil},
-		{`DELETE FROM players WHERE id IN ($1, $2, $3, $4, $5)`,
-			[]any{pgValuesSkater, pgValuesGoalie, pgValuesOtherSkater, pgValuesReliefGoalie, pgValuesBackupGoalie}},
+		{`DELETE FROM players WHERE id IN ($1, $2, $3, $4, $5, $6)`,
+			[]any{pgValuesSkater, pgValuesGoalie, pgValuesOtherSkater, pgValuesReliefGoalie, pgValuesBackupGoalie,
+				pgValuesMinimumGoalie}},
 	} {
 		_, err := pool.Exec(ctx, stmt.sql, stmt.args...)
 		require.NoError(t, err)
@@ -202,7 +204,8 @@ func TestListYahooLeaguePlayerWindowTotalsReadsDatabase(t *testing.T) {
 // seedTeamValuesGameRulesFixture adds to the fixture what the totals must
 // leave out: a final playoff game with a skater line on a window day, a
 // relief shutout and a starter shutout under the minimum time on ice (both
-// for the relief goalie of team 2), and a backup dressed with no ice time.
+// for the relief goalie of team 2), and a backup dressed with no ice time;
+// and what it must keep: a starter shutout at exactly the minimum.
 func seedTeamValuesGameRulesFixture(t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()
 	exec := func(sql string, args ...any) {
@@ -211,11 +214,13 @@ func seedTeamValuesGameRulesFixture(t *testing.T, pool *pgxpool.Pool) {
 		require.NoError(t, err)
 	}
 	exec(`INSERT INTO players (id, yahoo_id, first_name, last_name, position) VALUES
-		($1, $1, 'Rex', 'Relief', 'G'), ($2, $2, 'Ben', 'Backup', 'G')`, pgValuesReliefGoalie, pgValuesBackupGoalie)
+		($1, $1, 'Rex', 'Relief', 'G'), ($2, $2, 'Ben', 'Backup', 'G'), ($3, $3, 'Mia', 'Minimum', 'G')`,
+		pgValuesReliefGoalie, pgValuesBackupGoalie, pgValuesMinimumGoalie)
 	for _, r := range []struct {
 		player int32
 		date   string
-	}{{pgValuesReliefGoalie, "3007-10-02"}, {pgValuesReliefGoalie, "3007-10-03"}, {pgValuesBackupGoalie, "3007-10-02"}} {
+	}{{pgValuesReliefGoalie, "3007-10-02"}, {pgValuesReliefGoalie, "3007-10-03"}, {pgValuesBackupGoalie, "3007-10-02"},
+		{pgValuesMinimumGoalie, "3007-10-03"}} {
 		exec(`INSERT INTO yahoo_team_rosters (league_id, team_id, date, player_id, player_key, selected_position)
 			VALUES ($1, $2, $3, $4, $5, 'G')`, pgValuesLeague, pgValuesOtherTeam, r.date, r.player, fmt.Sprintf("465.p.%d", r.player))
 	}
@@ -229,9 +234,10 @@ func seedTeamValuesGameRulesFixture(t *testing.T, pool *pgxpool.Pool) {
 		shots_against, saves, goals_against, toi_seconds) VALUES
 		($1, $3, $5, FALSE, 31, NULL, FALSE, 10, 10, 0, 3600),
 		($2, $3, $5, FALSE, 31, 'W', TRUE, 20, 20, 0, $6),
-		($1, $4, $5, FALSE, 35, NULL, FALSE, 0, 0, 0, 0)`,
+		($1, $4, $5, FALSE, 35, NULL, FALSE, 0, 0, 0, 0),
+		($2, $7, $5, FALSE, 40, 'W', TRUE, 25, 25, 0, $8)`,
 		pgValuesGameA, pgValuesGameB, pgValuesReliefGoalie, pgValuesBackupGoalie, pgValuesNHLOpponent,
-		projection.DefaultGoalieShutoutMinTOI-1)
+		projection.DefaultGoalieShutoutMinTOI-1, pgValuesMinimumGoalie, projection.DefaultGoalieShutoutMinTOI)
 }
 
 func TestListYahooLeaguePlayerWindowTotalsCountsOnlyRegularSeasonGamesPlayedAndShutoutsStarted(t *testing.T) {
@@ -254,6 +260,9 @@ func TestListYahooLeaguePlayerWindowTotalsCountsOnlyRegularSeasonGamesPlayedAndS
 	assert.Equal(t, int32(1), backup.Days)
 	assert.Equal(t, int64(0), backup.GoalieGames, "a game dressed with no time on ice is not played")
 	assert.Equal(t, int64(0), backup.Shutouts)
+	minimum := rows[[2]int32{pgValuesOtherTeam, pgValuesMinimumGoalie}]
+	assert.Equal(t, int64(1), minimum.GoalieGames)
+	assert.Equal(t, int64(1), minimum.Shutouts, "a starter shutout at exactly the minimum time on ice counts")
 }
 
 func seedProjection(t *testing.T, pool *pgxpool.Pool) uuid.UUID {

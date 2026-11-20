@@ -180,10 +180,20 @@ func (v *teamValues) resolveWindow(ctx context.Context, q yahooQueries) error {
 		return fmt.Errorf("league %d has no season start date: pass %s", v.league.ID, teamValuesFromArg)
 	}
 	if v.args.from.Time.After(v.args.to.Time) {
+		return v.fromAfterToError()
+	}
+	return nil
+}
+
+// fromAfterToError names the requested to, and the roster day it moved
+// back to when it did, so the caller sees the date they passed.
+func (v *teamValues) fromAfterToError() error {
+	if !v.requestedTo.Valid {
 		return fmt.Errorf("%s %s is after %s %s", teamValuesFromArg, formatDate(v.args.from),
 			teamValuesToArg, formatDate(v.args.to))
 	}
-	return nil
+	return fmt.Errorf("%s %s is after %s %s, moved back to %s, the latest imported roster day on or before it",
+		teamValuesFromArg, formatDate(v.args.from), teamValuesToArg, formatDate(v.requestedTo), formatDate(v.args.to))
 }
 
 // resolveTo moves to back to the latest imported roster on or before it
