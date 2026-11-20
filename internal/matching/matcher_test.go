@@ -84,8 +84,9 @@ var nameCases = []matchCase{
 	{name: "compound first name is not a first-name match", first: "Charles Alexis", last: "Legault",
 		pool:       []store.YahooPlayer{{YahooID: 12345, FirstName: "Charles", LastName: "Smith"}},
 		wantReason: MatchReasonNoMatch},
-	// Punctuation is part of the name for this matcher (see NormalizeName):
-	// only HTML-escaped and identical punctuation match.
+	// Apostrophes are part of the name for this matcher (see NormalizeName):
+	// only HTML-escaped and identical ones match. Hyphens and dots:
+	// looseNameCases.
 	{name: "same apostrophe", first: "Ryan", last: "O'Reilly", team: "NSH",
 		pool:   []store.YahooPlayer{{YahooID: 4000, FirstName: "Ryan", LastName: "O'Reilly", Team: "Nashville"}},
 		wantID: 4000, wantReason: MatchReasonNameOnly},
@@ -94,9 +95,6 @@ var nameCases = []matchCase{
 		wantReason: MatchReasonNoMatch},
 	{name: "dropped apostrophe differs", first: "Ryan", last: "O'Reilly", team: "NSH",
 		pool:       []store.YahooPlayer{{YahooID: 4000, FirstName: "Ryan", LastName: "OReilly", Team: "Nashville"}},
-		wantReason: MatchReasonNoMatch},
-	{name: "hyphen differs from a space", first: "Jean-Gabriel", last: "Pageau", team: "NYI",
-		pool:       []store.YahooPlayer{{YahooID: 4001, FirstName: "Jean Gabriel", LastName: "Pageau", Team: "NY Islanders"}},
 		wantReason: MatchReasonNoMatch},
 }
 
@@ -219,6 +217,7 @@ func TestMatchYahooID(t *testing.T) {
 		cases []matchCase
 	}{
 		{"name", nameCases},
+		{"loose name", looseNameCases},
 		{"jersey", jerseyCases},
 		{"birth date", birthDateCases},
 		{"team", teamCases},
