@@ -1469,6 +1469,7 @@ type ProcessPlayersResultData struct {
 	SkippedNonNHL         int                     `json:"skippedNonNHL"`
 	VerifiedNonNHLThisRun int                     `json:"verifiedNonNHLThisRun"`
 	TrulyUnmatched        []*TrulyUnmatchedPlayer `json:"trulyUnmatched"`
+	TrulyUnmatchedCount   int                     `json:"trulyUnmatchedCount"`
 	Errors                []string                `json:"errors"`
 }
 

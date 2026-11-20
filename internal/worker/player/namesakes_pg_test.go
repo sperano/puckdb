@@ -1,6 +1,7 @@
 package player
 
-// PostgreSQL-backed coverage for the ListNamesakeNHLSeasons query. Skips
+// PostgreSQL-backed coverage for the ListNamesakeNHLSeasons and
+// ListPlayerIDsWithYahooID queries. Skips
 // unless PUCKDB_TEST_PG_URL is set.
 
 import (
@@ -67,3 +68,28 @@ func TestListNamesakeNHLSeasons(t *testing.T) {
 		{PlayerID: 8451789, StartYear: 2005},
 	}, rows, "a playoffs-only season is listed; the excluded player, other names, other leagues, preseason and seasons without a game are left out; a season is listed once")
 }
+
+// The query returns the asked players that have a Yahoo ID, ordered by player ID.
+func TestListPlayerIDsWithYahooID(t *testing.T) {
+	pool := pgtest.Open(t, "players")
+	t.Cleanup(func() { pgtest.Truncate(t, pool, "players") })
+	ctx := context.Background()
+	for _, p := range []struct {
+		id      int64
+		yahooID *int64
+	}{
+		{3, ptr(int64(6300))},
+		{1, ptr(int64(6100))},
+		{2, nil},
+	} {
+		_, err := pool.Exec(ctx, `INSERT INTO players (id, yahoo_id, first_name, last_name) VALUES ($1, $2, 'a', 'b')`, p.id, p.yahooID)
+		require.NoError(t, err)
+	}
+
+	ids, err := sqlcdb.New(pool).ListPlayerIDsWithYahooID(ctx, []int64{3, 2, 4, 1})
+
+	require.NoError(t, err)
+	require.Equal(t, []int64{1, 3}, ids, "a player without a Yahoo ID and an unknown ID are left out")
+}
+
+func ptr[T any](v T) *T { return &v }

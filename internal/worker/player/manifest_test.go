@@ -30,6 +30,7 @@ const boxscorePlayerTTL = 0
 type fakeManifestStore struct {
 	mu        sync.Mutex
 	refs      map[string]ManifestRef
+	seasons   map[string][]int
 	players   map[string][]store.BoxscorePlayer
 	errors    map[string][]PlayerError
 	finished  map[string]bool
@@ -40,6 +41,7 @@ type fakeManifestStore struct {
 func newFakeManifestStore() *fakeManifestStore {
 	return &fakeManifestStore{
 		refs:     map[string]ManifestRef{},
+		seasons:  map[string][]int{},
 		players:  map[string][]store.BoxscorePlayer{},
 		errors:   map[string][]PlayerError{},
 		finished: map[string]bool{},
@@ -56,7 +58,7 @@ func (f *fakeManifestStore) GetManifest(_ context.Context, id string) (ManifestR
 	return ref, nil
 }
 
-func (f *fakeManifestStore) CreateManifest(_ context.Context, id, _ string, players []store.BoxscorePlayer, hash []byte) (ManifestRef, error) {
+func (f *fakeManifestStore) CreateManifest(_ context.Context, id, _ string, players []store.BoxscorePlayer, hash []byte, seasons []int) (ManifestRef, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.creations++
@@ -65,8 +67,18 @@ func (f *fakeManifestStore) CreateManifest(_ context.Context, id, _ string, play
 	}
 	ref := newManifestRef(id, len(players), hash)
 	f.refs[id] = ref
+	f.seasons[id] = seasons
 	f.players[id] = players
 	return ref, nil
+}
+
+func (f *fakeManifestStore) ManifestSeasons(_ context.Context, id string) ([]int, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if _, ok := f.refs[id]; !ok {
+		return nil, ErrManifestNotFound
+	}
+	return f.seasons[id], nil
 }
 
 func (f *fakeManifestStore) ManifestPlayers(_ context.Context, id string, from, to int) ([]store.BoxscorePlayer, error) {
@@ -144,16 +156,27 @@ func (s *ManifestActivitySuite) SetupTest() {
 	s.env.RegisterActivity(s.act)
 }
 
+// saveRedisPlayers saves a consolidated set without seasons, as a worker
+// from before the seasons were saved did.
 func (s *ManifestActivitySuite) saveRedisPlayers(players ...store.BoxscorePlayer) {
-	require.NoError(s.T(), cache.SaveAllBoxscorePlayers(context.Background(), s.redis, players, boxscorePlayerTTL))
+	s.saveRedisSet(players, nil)
+	require.NoError(s.T(), s.redis.Del(context.Background(), cache.AllBoxscorePlayerSeasonsKey).Err())
+}
+
+func (s *ManifestActivitySuite) saveRedisSet(players []store.BoxscorePlayer, seasons []int) {
+	require.NoError(s.T(), cache.SaveConsolidatedBoxscorePlayers(context.Background(), s.redis, players, seasons, boxscorePlayerTTL))
 }
 
 func (s *ManifestActivitySuite) createManifest(id string) ManifestRef {
+	return s.createManifestWithSeasons(id).ManifestRef
+}
+
+func (s *ManifestActivitySuite) createManifestWithSeasons(id string) CreatedManifest {
 	future, err := s.env.ExecuteActivity(s.act.CreateProcessPlayersManifest, CreateManifestInput{ManifestID: id, WorkflowID: "wf"})
 	require.NoError(s.T(), err)
-	var ref ManifestRef
-	require.NoError(s.T(), future.Get(&ref))
-	return ref
+	var created CreatedManifest
+	require.NoError(s.T(), future.Get(&created))
+	return created
 }
 
 func (s *ManifestActivitySuite) TestCreate_CopiesTheRedisListOrderedByID() {
@@ -175,6 +198,42 @@ func (s *ManifestActivitySuite) TestCreate_ReturnsAnExistingManifestWithoutReadi
 	s.Equal(1, s.store.creations)
 }
 
+func (s *ManifestActivitySuite) TestCreate_StoresAndReturnsTheListsSeasons() {
+	s.saveRedisSet([]store.BoxscorePlayer{{ID: 1}}, []int{2025})
+
+	created := s.createManifestWithSeasons("run-1")
+
+	s.Equal([]int{2025}, created.Seasons)
+	s.Equal([]int{2025}, s.store.seasons["run-1"])
+}
+
+func (s *ManifestActivitySuite) TestCreate_ListWithoutSavedSeasonsHasUnknownSeasons() {
+	s.saveRedisPlayers(store.BoxscorePlayer{ID: 1})
+
+	created := s.createManifestWithSeasons("run-1")
+
+	s.Equal(1, created.Count)
+	s.Nil(created.Seasons)
+}
+
+func (s *ManifestActivitySuite) TestCreate_AnExistingManifestKeepsItsSeasons() {
+	s.saveRedisSet([]store.BoxscorePlayer{{ID: 1}}, []int{2024, 2025})
+	s.createManifestWithSeasons("run-1")
+	s.saveRedisSet([]store.BoxscorePlayer{{ID: 1}}, []int{2026})
+
+	s.Equal([]int{2024, 2025}, s.createManifestWithSeasons("run-1").Seasons)
+}
+
+// A result recorded before CreatedManifest existed was a bare ManifestRef.
+func TestCreatedManifest_DecodesARecordedManifestRef(t *testing.T) {
+	recorded, err := json.Marshal(ManifestRef{ID: "run-1", Count: 3, Hash: "ab"})
+	require.NoError(t, err)
+
+	var created CreatedManifest
+	require.NoError(t, json.Unmarshal(recorded, &created))
+	assert.Equal(t, CreatedManifest{ManifestRef: ManifestRef{ID: "run-1", Count: 3, Hash: "ab"}}, created)
+}
+
 func (s *ManifestActivitySuite) TestCreate_EmptyRedisListStoresNothing() {
 	s.Equal(ManifestRef{ID: "run-1"}, s.createManifest("run-1"))
 	s.Zero(s.store.creations)
@@ -182,7 +241,7 @@ func (s *ManifestActivitySuite) TestCreate_EmptyRedisListStoresNothing() {
 
 // putManifest stores players as manifest id directly.
 func (s *ManifestActivitySuite) putManifest(id string, players ...store.BoxscorePlayer) ManifestRef {
-	ref, err := s.store.CreateManifest(context.Background(), id, "wf", players, hashManifestPlayers(players))
+	ref, err := s.store.CreateManifest(context.Background(), id, "wf", players, hashManifestPlayers(players), nil)
 	require.NoError(s.T(), err)
 	return ref
 }

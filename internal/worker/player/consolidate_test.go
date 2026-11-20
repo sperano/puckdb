@@ -46,4 +46,66 @@ func TestConsolidateBoxscorePlayersActivity_RegisteredNameAndDedupe(t *testing.T
 	require.NoError(t, err)
 	require.ElementsMatch(t, []store.BoxscorePlayer{mcDavid, draisaitl}, all)
 	require.Equal(t, cacheTTL, server.TTL(cache.AllBoxscorePlayersKey))
+
+	_, seasons, err := cache.LoadConsolidatedBoxscorePlayers(ctx, redisClient)
+	require.NoError(t, err)
+	require.Equal(t, []int{2023, 2024}, seasons)
+	require.Equal(t, cacheTTL, server.TTL(cache.AllBoxscorePlayerSeasonsKey))
+}
+
+func newConsolidateEnv(t *testing.T) (*miniredis.Miniredis, *redis.Client, *testsuite.TestActivityEnvironment, *Activities) {
+	t.Helper()
+	server := miniredis.RunT(t)
+	redisClient := redis.NewClient(&redis.Options{Addr: server.Addr()})
+	t.Cleanup(func() { _ = redisClient.Close() })
+	act := &Activities{RedisClient: redisClient}
+	var suite testsuite.WorkflowTestSuite
+	env := suite.NewTestActivityEnvironment()
+	env.RegisterActivity(act)
+	return server, redisClient, env, act
+}
+
+// A season whose list cannot be read fails the activity, so it is retried,
+// and leaves the previous consolidated set and seasons in place.
+func TestConsolidateBoxscorePlayersActivity_FailsOnAnUnreadableSeason(t *testing.T) {
+	t.Parallel()
+	server, redisClient, env, act := newConsolidateEnv(t)
+	ctx := context.Background()
+	readable, corrupt := nhl.NewSeason(2024), nhl.NewSeason(2025)
+	previous := []store.BoxscorePlayer{{ID: 99}}
+	require.NoError(t, cache.SaveConsolidatedBoxscorePlayers(ctx, redisClient, previous, []int{2023}, 0))
+	require.NoError(t, cache.SaveBoxscorePlayers(ctx, redisClient, readable, []store.BoxscorePlayer{{ID: 1}}, 0))
+	require.NoError(t, server.Set(cache.BoxscorePlayersKey(corrupt), "not gob"))
+
+	_, err := env.ExecuteActivity(act.ConsolidateBoxscorePlayersActivity,
+		ConsolidatePlayersInput{Seasons: []nhl.Season{readable, corrupt}})
+	require.ErrorContains(t, err, "load boxscore players of season 20252026")
+	require.ErrorContains(t, err, "decode boxscore players")
+
+	players, seasons, err := cache.LoadConsolidatedBoxscorePlayers(ctx, redisClient)
+	require.NoError(t, err)
+	require.Equal(t, previous, players)
+	require.Equal(t, []int{2023}, seasons)
+}
+
+// A season with no saved list adds no players, so it is not one of the
+// consolidated set's seasons and phase 3 does not verify its Yahoo IDs.
+func TestConsolidateBoxscorePlayersActivity_LeavesOutASeasonWithNoSavedList(t *testing.T) {
+	t.Parallel()
+	_, redisClient, env, act := newConsolidateEnv(t)
+	ctx := context.Background()
+	saved, missing := nhl.NewSeason(2024), nhl.NewSeason(2025)
+	require.NoError(t, cache.SaveBoxscorePlayers(ctx, redisClient, saved, []store.BoxscorePlayer{{ID: 1}}, 0))
+
+	value, err := env.ExecuteActivity(act.ConsolidateBoxscorePlayersActivity,
+		ConsolidatePlayersInput{Seasons: []nhl.Season{saved, missing}})
+	require.NoError(t, err)
+	var result ConsolidatePlayersResult
+	require.NoError(t, value.Get(&result))
+	require.Equal(t, ConsolidatePlayersResult{TotalPlayers: 1, UniquePlayers: 1}, result)
+
+	players, seasons, err := cache.LoadConsolidatedBoxscorePlayers(ctx, redisClient)
+	require.NoError(t, err)
+	require.Equal(t, []store.BoxscorePlayer{{ID: 1}}, players)
+	require.Equal(t, []int{2024}, seasons)
 }

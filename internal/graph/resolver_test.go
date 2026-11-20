@@ -10,7 +10,9 @@ import (
 	"github.com/sperano/puckdb/internal/appuser"
 	"github.com/sperano/puckdb/internal/graph/model"
 	"github.com/sperano/puckdb/internal/maurice"
+	workplayer "github.com/sperano/puckdb/internal/worker/player"
 	"github.com/sperano/puckdb/internal/worker/shared"
+	"github.com/sperano/puckdb/internal/worker/workflow"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -217,6 +219,31 @@ func TestYahooTokenStatus_LoginURL(t *testing.T) {
 			require.NoError(t, err)
 			assert.False(t, status.Valid, "no token is stored")
 			assert.Equal(t, tt.want, status.LoginURL)
+		})
+	}
+}
+
+func TestProcessPlayersResultModelTrulyUnmatchedCount(t *testing.T) {
+	t.Parallel()
+
+	listed := []workplayer.VerifiedPlayer{{YahooID: 1}, {YahooID: 2}}
+	for _, tc := range []struct {
+		name   string
+		result workflow.ProcessPlayersResult
+		want   int
+	}{
+		{"a capped list keeps the recorded count",
+			workflow.ProcessPlayersResult{TrulyUnmatched: listed, TrulyUnmatchedCount: 61}, 61},
+		{"a result recorded before the count existed counts its list",
+			workflow.ProcessPlayersResult{TrulyUnmatched: listed}, 2},
+		{"no truly unmatched player",
+			workflow.ProcessPlayersResult{}, 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got := processPlayersResultModel(tc.result)
+			assert.Equal(t, tc.want, got.TrulyUnmatchedCount)
+			assert.Len(t, got.TrulyUnmatched, len(tc.result.TrulyUnmatched))
 		})
 	}
 }

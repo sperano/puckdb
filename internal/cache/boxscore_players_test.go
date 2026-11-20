@@ -122,33 +122,3 @@ func TestLoadAllBoxscorePlayers_Error(t *testing.T) {
 	assert.Nil(t, got)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
-
-func TestSaveAndLoadAllBoxscorePlayers(t *testing.T) {
-	t.Parallel()
-
-	client, mock := redismock.NewClientMock()
-	ctx := context.Background()
-	ttl := 30 * time.Minute
-
-	players := []store.BoxscorePlayer{
-		{ID: 8, FirstName: "Alex", LastName: "Ovechkin", Position: "LW"},
-	}
-
-	var gobBuf bytes.Buffer
-	require.NoError(t, gob.NewEncoder(&gobBuf).Encode(players))
-	gobBytes := gobBuf.Bytes()
-
-	anyArgs := func(expected, actual []any) error { return nil }
-	mock.CustomMatch(anyArgs).ExpectSet(AllBoxscorePlayersKey, "x", ttl).SetVal("OK")
-
-	err := SaveAllBoxscorePlayers(ctx, client, players, ttl)
-	require.NoError(t, err)
-
-	mock.ExpectGet(AllBoxscorePlayersKey).SetVal(string(gobBytes))
-
-	got, err := LoadAllBoxscorePlayers(ctx, client)
-	require.NoError(t, err)
-	assert.Equal(t, players, got)
-
-	require.NoError(t, mock.ExpectationsWereMet())
-}

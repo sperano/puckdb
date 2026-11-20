@@ -44,20 +44,28 @@ type NamesakeSeasonLister interface {
 	ListNamesakeNHLSeasons(ctx context.Context, arg sqlcdb.ListNamesakeNHLSeasonsParams) ([]sqlcdb.ListNamesakeNHLSeasonsRow, error)
 }
 
+// MatchedPlayerLister tells which NHL players already have a Yahoo ID, so
+// phase 3 does not report a Yahoo player under a namesake matched to another
+// Yahoo ID.
+type MatchedPlayerLister interface {
+	ListPlayerIDsWithYahooID(ctx context.Context, ids []int64) ([]int64, error)
+}
+
 // ActivityQueries is every pool-scoped query the player activities run, the single
-// dependency NewActivities spreads over Queries, CareerQueries, LeaguePlayers
-// and Namesakes.
+// dependency NewActivities spreads over Queries, CareerQueries, LeaguePlayers,
+// Namesakes and MatchedPlayers.
 type ActivityQueries interface {
 	PlayerUpserter
 	PlayerCareerUpserter
 	YahooLeaguePlayerLister
 	NamesakeSeasonLister
+	MatchedPlayerLister
 }
 
 var _ ActivityQueries = (*sqlcdb.Queries)(nil)
 
 // Activities groups player-related activities with their dependencies.
-// Queries, CareerQueries, LeaguePlayers and Namesakes stay separate narrow seams for tests; the worker
+// Queries, CareerQueries, LeaguePlayers, Namesakes and MatchedPlayers stay separate narrow seams for tests; the worker
 // builds the struct with NewActivities.
 type Activities struct {
 	Storage       store.Storage
@@ -71,6 +79,9 @@ type Activities struct {
 	// Namesakes gives the matcher the seasons of a player's NHL namesakes;
 	// nil skips the seasons step (matching.MatchYahooIDBySeasons).
 	Namesakes NamesakeSeasonLister
+	// MatchedPlayers lets phase 3 skip NHL namesakes already matched to a
+	// Yahoo ID; nil skips none.
+	MatchedPlayers MatchedPlayerLister
 	// YahooPlayerPages downloads public Yahoo Sports player pages, for the
 	// birth dates the game player lists lack (yahoo_birth_dates.go); it must
 	// apply the process's Yahoo rate limit. Nil: only stored pages are read.
@@ -84,8 +95,8 @@ type Activities struct {
 	Manifests ProcessPlayersStore
 }
 
-// NewActivities returns a copy of deps with Queries, CareerQueries, LeaguePlayers
-// and Namesakes set to queries, so the worker cannot leave one nil; values already set in deps
+// NewActivities returns a copy of deps with Queries, CareerQueries, LeaguePlayers,
+// Namesakes and MatchedPlayers set to queries, so the worker cannot leave one nil; values already set in deps
 // are replaced. Manifests stays the caller's: it is a transactional store,
 // not a pool-scoped query.
 func NewActivities(queries ActivityQueries, deps Activities) *Activities {
@@ -93,6 +104,7 @@ func NewActivities(queries ActivityQueries, deps Activities) *Activities {
 	deps.CareerQueries = queries
 	deps.LeaguePlayers = queries
 	deps.Namesakes = queries
+	deps.MatchedPlayers = queries
 	return &deps
 }
 

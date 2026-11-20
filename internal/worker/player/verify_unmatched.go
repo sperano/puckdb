@@ -2,7 +2,9 @@ package player
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 	"unicode"
@@ -43,6 +45,9 @@ type VerifiedPlayer struct {
 	FoundInNHL  bool // True if player was found in NHL search
 	NHLPlayerID int64
 	NHLName     string // The matched NHL player name (may differ from Yahoo name)
+	// MatchedNamesake is true when every NHL player the search matched by
+	// name already has a Yahoo ID: this Yahoo player is another person.
+	MatchedNamesake bool
 }
 
 // heartbeatFunc records progress on a long-running activity so Temporal
@@ -75,8 +80,15 @@ type VerifyUnmatchedResult struct {
 	// returned no matching name.
 	NotFoundInNHL []VerifiedPlayer
 
+	// MatchedNamesakes contains players whose every NHL namesake already has
+	// a Yahoo ID. Not persisted: a namesake reaching the NHL later must be
+	// verified again.
+	MatchedNamesakes []VerifiedPlayer
+
 	// Unverified contains players whose verification could not be completed
-	// because an NHL API call failed. Their classification is unknown; they
+	// because the player has no full name (its pool details were missing or
+	// undecodable, or lack a first or last name), or an NHL API call or the database lookup of matched
+	// namesakes failed. Their classification is unknown; they
 	// are not persisted and will be verified again on the next run.
 	Unverified []VerifiedPlayer
 }
@@ -89,6 +101,9 @@ func (r *VerifyUnmatchedResult) classify(verified VerifiedPlayer) (persist bool)
 	case !verified.FoundInNHL:
 		r.NotFoundInNHL = append(r.NotFoundInNHL, verified)
 		return true
+	case verified.MatchedNamesake:
+		r.MatchedNamesakes = append(r.MatchedNamesakes, verified)
+		return false
 	case verified.HasNHLGames:
 		r.TrulyUnmatched = append(r.TrulyUnmatched, verified)
 		return false
@@ -104,7 +119,8 @@ func (r *VerifyUnmatchedResult) classify(verified VerifiedPlayer) (persist bool)
 // - VerifiedNonNHL: confirmed 0 NHL games (can be ignored in future)
 // - TrulyUnmatched: have NHL games but weren't matched (need investigation)
 // - NotFoundInNHL: no matching name in NHL database
-// - Unverified: NHL API failure, classification unknown (retried next run)
+// - MatchedNamesakes: every NHL namesake already has a Yahoo ID
+// - Unverified: no name, NHL API or matched-namesake lookup failure, classification unknown (retried next run)
 func (a *Activities) VerifyUnmatchedBatch(ctx context.Context, players []UnmatchedYahooPlayer) (*VerifyUnmatchedResult, error) {
 	logger := activity.GetLogger(ctx)
 
@@ -118,6 +134,7 @@ func (a *Activities) VerifyUnmatchedBatch(ctx context.Context, players []Unmatch
 		"verified_non_nhl", len(result.VerifiedNonNHL),
 		"truly_unmatched", len(result.TrulyUnmatched),
 		"not_found", len(result.NotFoundInNHL),
+		"matched_namesakes", len(result.MatchedNamesakes),
 		"unverified", len(result.Unverified))
 
 	return result, nil
@@ -147,6 +164,8 @@ func (a *Activities) verifyUnmatchedBatch(ctx context.Context, players []Unmatch
 		TrulyUnmatched: make([]VerifiedPlayer, 0),
 		NotFoundInNHL:  make([]VerifiedPlayer, 0),
 		Unverified:     make([]VerifiedPlayer, 0),
+		// MatchedNamesakes stays nil when empty: a result recorded before it
+		// existed decodes the same.
 	}
 
 	newlyVerifiedNonNHL := make([]store.YahooPlayerID, 0)
@@ -164,7 +183,7 @@ func (a *Activities) verifyUnmatchedBatch(ctx context.Context, players []Unmatch
 			continue
 		}
 
-		verified, err := verifyPlayer(ctx, a.NHLClient, a.Storage, a.GobCache, player)
+		verified, err := a.verifyPlayer(ctx, player)
 		if err != nil {
 			// A failed API call may be the cancellation itself (the client
 			// returns ctx.Err()); honor it here rather than filing the
@@ -196,57 +215,96 @@ func (a *Activities) verifyUnmatchedBatch(ctx context.Context, players []Unmatch
 	return result, nil
 }
 
+// errNamelessPlayer marks an unmatched Yahoo player loaded without a full name
+// (its pool details were missing or undecodable, or lack a first or last
+// name): searching an empty or partial name matches nothing, which must not
+// read as "not found in the NHL".
+var errNamelessPlayer = errors.New("yahoo player has no full name to search")
+
 // verifyPlayer checks if a Yahoo player has any NHL regular season games.
+// The first NHL player the search matches by name and that has no Yahoo ID
+// yet decides NHLPlayerID and NHLGames; when every one has a Yahoo ID the
+// player is a MatchedNamesake.
 //
-// A non-nil error means the verification could not be completed (an NHL API
-// call failed) and the returned VerifiedPlayer must not be treated as a
-// classification. With a nil error, FoundInNHL=false is a positive result:
-// the search completed and no name matched.
-func verifyPlayer(ctx context.Context, client shared.NHLClient, storage store.Storage, gobCache *cache.GobCache, player UnmatchedYahooPlayer) (VerifiedPlayer, error) {
+// A non-nil error means the verification could not be completed (the player
+// has no full name, an NHL API call or the database lookup failed) and the returned VerifiedPlayer must
+// not be treated as a classification. With a nil error, FoundInNHL=false is
+// a positive result: the search completed and no name matched.
+func (a *Activities) verifyPlayer(ctx context.Context, player UnmatchedYahooPlayer) (VerifiedPlayer, error) {
 	result := VerifiedPlayer{
 		YahooID:   player.YahooID,
 		FirstName: player.FirstName,
 		LastName:  player.LastName,
 	}
 
-	playerName := player.FirstName + " " + player.LastName
+	firstName, lastName := strings.TrimSpace(player.FirstName), strings.TrimSpace(player.LastName)
+	if firstName == "" || lastName == "" {
+		return result, fmt.Errorf("yahoo id %d: %w", player.YahooID, errNamelessPlayer)
+	}
+	playerName := firstName + " " + lastName
 
-	searchResults, err := client.SearchPlayer(ctx, playerName, maxSearchResults)
+	searchResults, err := a.NHLClient.SearchPlayer(ctx, playerName, maxSearchResults)
 	if err != nil {
 		return result, fmt.Errorf("search %q: %w", playerName, err)
 	}
 
-	if len(searchResults) == 0 {
+	candidates := findMatchingPlayers(playerName, searchResults)
+	if len(candidates) == 0 {
 		return result, nil
 	}
-
-	matchedResult := findMatchingPlayer(playerName, searchResults)
-	if matchedResult == nil {
-		return result, nil
-	}
-
 	result.FoundInNHL = true
+
+	candidates, err = a.withoutYahooMatched(ctx, candidates)
+	if err != nil {
+		return result, fmt.Errorf("matched namesakes of %q: %w", playerName, err)
+	}
+	if len(candidates) == 0 {
+		result.MatchedNamesake = true
+		return result, nil
+	}
+	matchedResult := candidates[0]
 	result.NHLPlayerID = matchedResult.PlayerID.Int64()
 	result.NHLName = matchedResult.Name
 
-	landing, err := fetchPlayerLanding(ctx, client, storage, gobCache, matchedResult.PlayerID)
+	landing, err := fetchPlayerLanding(ctx, a.NHLClient, a.Storage, a.GobCache, matchedResult.PlayerID)
 	if err != nil {
 		return result, fmt.Errorf("landing for %q (nhl id %d): %w", playerName, result.NHLPlayerID, err)
 	}
 
-	nhlGames := 0
-	if landing.SeasonTotals != nil {
-		for _, season := range landing.SeasonTotals {
-			if season.LeagueAbbrev == leagueNHL && season.GameType == nhl.GameTypeRegularSeason {
-				nhlGames += season.GamesPlayed
-			}
-		}
-	}
-
-	result.NHLGames = nhlGames
-	result.HasNHLGames = nhlGames > 0
+	result.NHLGames = nhlRegularSeasonGames(landing)
+	result.HasNHLGames = result.NHLGames > 0
 
 	return result, nil
+}
+
+// nhlRegularSeasonGames is the player's NHL regular season games played.
+func nhlRegularSeasonGames(landing *nhl.PlayerLanding) int {
+	games := 0
+	for _, season := range landing.SeasonTotals {
+		if season.LeagueAbbrev == leagueNHL && season.GameType == nhl.GameTypeRegularSeason {
+			games += season.GamesPlayed
+		}
+	}
+	return games
+}
+
+// withoutYahooMatched returns candidates without the NHL players that already
+// have a Yahoo ID, in order; all of them when a.MatchedPlayers is nil.
+func (a *Activities) withoutYahooMatched(ctx context.Context, candidates []nhl.PlayerSearchResult) ([]nhl.PlayerSearchResult, error) {
+	if a.MatchedPlayers == nil {
+		return candidates, nil
+	}
+	ids := make([]int64, len(candidates))
+	for i, c := range candidates {
+		ids[i] = c.PlayerID.Int64()
+	}
+	matchedIDs, err := a.MatchedPlayers.ListPlayerIDsWithYahooID(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	return slices.DeleteFunc(slices.Clone(candidates), func(c nhl.PlayerSearchResult) bool {
+		return slices.Contains(matchedIDs, c.PlayerID.Int64())
+	}), nil
 }
 
 // fetchPlayerLanding retrieves player landing data, using cache if available.
@@ -262,14 +320,16 @@ func fetchPlayerLanding(ctx context.Context, client shared.NHLClient, storage st
 	return client.PlayerLanding(ctx, playerID)
 }
 
-// findMatchingPlayer finds a search result where the name actually matches.
-func findMatchingPlayer(searchedName string, results []nhl.PlayerSearchResult) *nhl.PlayerSearchResult {
-	for i := range results {
-		if namesMatchForVerification(searchedName, results[i].Name) {
-			return &results[i]
+// findMatchingPlayers returns the search results whose name actually
+// matches, in search order.
+func findMatchingPlayers(searchedName string, results []nhl.PlayerSearchResult) []nhl.PlayerSearchResult {
+	var matches []nhl.PlayerSearchResult
+	for _, r := range results {
+		if namesMatchForVerification(searchedName, r.Name) {
+			matches = append(matches, r)
 		}
 	}
-	return nil
+	return matches
 }
 
 // namesMatchForVerification checks if two player names refer to the same person.

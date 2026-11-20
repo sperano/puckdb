@@ -6,6 +6,7 @@ import (
 	"encoding/gob"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/go-redis/redis/v8"
@@ -19,6 +20,9 @@ const (
 	BoxscorePlayersKeyPrefix = "puckdb:boxscore-players:"
 	// AllBoxscorePlayersKey is the Redis key for the consolidated set of all players.
 	AllBoxscorePlayersKey = "puckdb:boxscore-players:all"
+	// AllBoxscorePlayerSeasonsKey is the Redis key for the start years of the
+	// seasons the consolidated set was built from.
+	AllBoxscorePlayerSeasonsKey = "puckdb:boxscore-players:all-seasons"
 )
 
 // boxscoreClient is the minimal Redis surface used by boxscore players functions.
@@ -84,26 +88,6 @@ func LoadBoxscorePlayers(ctx context.Context, client boxscoreClient, season nhl.
 	return players, nil
 }
 
-// SaveAllBoxscorePlayers saves the consolidated unique player set to Redis.
-func SaveAllBoxscorePlayers(ctx context.Context, client boxscoreClient, players []store.BoxscorePlayer, ttl time.Duration) error {
-	var buf bytes.Buffer
-	if err := gob.NewEncoder(&buf).Encode(players); err != nil {
-		return fmt.Errorf("encode all boxscore players: %w", err)
-	}
-
-	if err := client.Set(ctx, AllBoxscorePlayersKey, buf.Bytes(), ttl).Err(); err != nil {
-		return fmt.Errorf("save all boxscore players to redis: %w", err)
-	}
-
-	log.Info().
-		Int("players", len(players)).
-		Int("bytes", buf.Len()).
-		Dur("ttl", ttl).
-		Msg("Saved consolidated boxscore players to Redis")
-
-	return nil
-}
-
 // LoadAllBoxscorePlayers loads the consolidated player set from Redis.
 func LoadAllBoxscorePlayers(ctx context.Context, client boxscoreClient) ([]store.BoxscorePlayer, error) {
 	data, err := client.Get(ctx, AllBoxscorePlayersKey).Bytes()
@@ -120,4 +104,65 @@ func LoadAllBoxscorePlayers(ctx context.Context, client boxscoreClient) ([]store
 	}
 
 	return players, nil
+}
+
+// consolidatedClient is the Redis surface of the consolidated set's
+// atomic save and load.
+type consolidatedClient interface {
+	TxPipelined(ctx context.Context, fn func(redis.Pipeliner) error) ([]redis.Cmder, error)
+	MGet(ctx context.Context, keys ...string) *redis.SliceCmd
+}
+
+// SaveConsolidatedBoxscorePlayers saves the consolidated unique player set
+// and the start years of the seasons it was built from in one MULTI/EXEC
+// transaction, both with ttl, so no reader sees one without the other.
+func SaveConsolidatedBoxscorePlayers(ctx context.Context, client consolidatedClient, players []store.BoxscorePlayer, seasons []int, ttl time.Duration) error {
+	var playersBuf, seasonsBuf bytes.Buffer
+	if err := gob.NewEncoder(&playersBuf).Encode(players); err != nil {
+		return fmt.Errorf("encode all boxscore players: %w", err)
+	}
+	if err := gob.NewEncoder(&seasonsBuf).Encode(seasons); err != nil {
+		return fmt.Errorf("encode boxscore player seasons: %w", err)
+	}
+	_, err := client.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
+		pipe.Set(ctx, AllBoxscorePlayersKey, playersBuf.Bytes(), ttl)
+		pipe.Set(ctx, AllBoxscorePlayerSeasonsKey, seasonsBuf.Bytes(), ttl)
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("save consolidated boxscore players to redis: %w", err)
+	}
+	log.Info().
+		Int("players", len(players)).
+		Ints("seasons", seasons).
+		Int("bytes", playersBuf.Len()).
+		Dur("ttl", ttl).
+		Msg("Saved consolidated boxscore players to Redis")
+	return nil
+}
+
+// LoadConsolidatedBoxscorePlayers reads the consolidated player set and its
+// seasons in one MGET, so both come from the same save. A missing set is nil
+// players; missing seasons (a set saved before the seasons were, or expired
+// first) are nil seasons, unknown, while an empty saved list is known.
+func LoadConsolidatedBoxscorePlayers(ctx context.Context, client consolidatedClient) ([]store.BoxscorePlayer, []int, error) {
+	values, err := client.MGet(ctx, AllBoxscorePlayersKey, AllBoxscorePlayerSeasonsKey).Result()
+	if err != nil {
+		return nil, nil, fmt.Errorf("load consolidated boxscore players from redis: %w", err)
+	}
+	var players []store.BoxscorePlayer
+	if data, ok := values[0].(string); ok {
+		if err := gob.NewDecoder(strings.NewReader(data)).Decode(&players); err != nil {
+			return nil, nil, fmt.Errorf("decode all boxscore players: %w", err)
+		}
+	}
+	data, ok := values[1].(string)
+	if !ok {
+		return players, nil, nil
+	}
+	seasons := []int{}
+	if err := gob.NewDecoder(strings.NewReader(data)).Decode(&seasons); err != nil {
+		return nil, nil, fmt.Errorf("decode boxscore player seasons: %w", err)
+	}
+	return players, seasons, nil
 }

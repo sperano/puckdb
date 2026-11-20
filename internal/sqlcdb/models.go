@@ -1790,6 +1790,7 @@ type ProcessPlayersManifest struct {
 	PlayersHash []byte             `json:"players_hash"`
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
 	FinishedAt  pgtype.Timestamptz `json:"finished_at"`
+	Seasons     []int32            `json:"seasons"`
 }
 
 type ProcessPlayersManifestError struct {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"slices"
 	"testing"
 	"time"
 
@@ -736,4 +737,171 @@ func TestVerifyUnmatchedBatch_RecordsHeartbeatPerPlayer(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []store.YahooPlayerID{111, 222}, heartbeats)
 	require.NoError(t, mockRedis.ExpectationsWereMet())
+}
+
+// fakeMatchedPlayers is a MatchedPlayerLister answering from matched; it
+// records the IDs it was asked about.
+type fakeMatchedPlayers struct {
+	matched []int64
+	err     error
+	asked   [][]int64
+}
+
+func (f *fakeMatchedPlayers) ListPlayerIDsWithYahooID(_ context.Context, ids []int64) ([]int64, error) {
+	f.asked = append(f.asked, ids)
+	if f.err != nil {
+		return nil, f.err
+	}
+	var found []int64
+	for _, id := range ids {
+		if slices.Contains(f.matched, id) {
+			found = append(found, id)
+		}
+	}
+	return found, nil
+}
+
+// Erik Karlsson the defenceman (8474578) already has a Yahoo ID: an unmatched
+// Yahoo Erik Karlsson is reported under the namesake that has none.
+func TestVerifyUnmatchedBatch_SkipsANamesakeAlreadyMatched(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	client := &MockNHLClient{}
+	redisClient, mockRedis := redismock.NewClientMock()
+	mockRedis.ExpectSMembers(VerifiedNonNHLKey).SetVal([]string{})
+
+	matchedDefenceman, forward := nhl.PlayerID(8474578), nhl.PlayerID(8476346)
+	client.On("SearchPlayer", ctx, "Erik Karlsson", maxSearchResults).Return([]nhl.PlayerSearchResult{
+		{PlayerID: matchedDefenceman, Name: "Erik Karlsson"},
+		{PlayerID: 8470000, Name: "Erik Johnson"},
+		{PlayerID: forward, Name: "Erik Karlsson"},
+	}, nil)
+	client.On("PlayerLanding", ctx, forward).Return(&nhl.PlayerLanding{
+		PlayerID: forward,
+		SeasonTotals: []nhl.SeasonTotal{
+			{LeagueAbbrev: "NHL", GameType: nhl.GameTypeRegularSeason, GamesPlayed: 12},
+		},
+	}, nil)
+	lister := &fakeMatchedPlayers{matched: []int64{int64(matchedDefenceman)}}
+
+	a := &Activities{Storage: store.NewMemStorage(), NHLClient: client, RedisClient: redisClient, MatchedPlayers: lister}
+	result, err := a.verifyUnmatchedBatch(ctx, []UnmatchedYahooPlayer{
+		{YahooID: 7000, FirstName: "Erik", LastName: "Karlsson"},
+	}, noopHeartbeat)
+
+	require.NoError(t, err)
+	require.Len(t, result.TrulyUnmatched, 1)
+	got := result.TrulyUnmatched[0]
+	assert.Equal(t, int64(forward), got.NHLPlayerID)
+	assert.Equal(t, 12, got.NHLGames)
+	assert.False(t, got.MatchedNamesake)
+	assert.Empty(t, result.MatchedNamesakes)
+	assert.Equal(t, [][]int64{{int64(matchedDefenceman), int64(forward)}}, lister.asked,
+		"only the name matches are looked up")
+	client.AssertExpectations(t)
+}
+
+// With several unmatched namesakes left, the player is reported under the
+// first one the search returned.
+func TestVerifyUnmatchedBatch_PicksTheFirstUnmatchedNamesake(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	client := &MockNHLClient{}
+	redisClient, mockRedis := redismock.NewClientMock()
+	mockRedis.ExpectSMembers(VerifiedNonNHLKey).SetVal([]string{})
+
+	matched, first, last := nhl.PlayerID(8474578), nhl.PlayerID(8476346), nhl.PlayerID(8480000)
+	client.On("SearchPlayer", ctx, "Erik Karlsson", maxSearchResults).Return([]nhl.PlayerSearchResult{
+		{PlayerID: matched, Name: "Erik Karlsson"},
+		{PlayerID: first, Name: "Erik Karlsson"},
+		{PlayerID: last, Name: "Erik Karlsson"},
+	}, nil)
+	client.On("PlayerLanding", ctx, first).Return(&nhl.PlayerLanding{
+		PlayerID: first,
+		SeasonTotals: []nhl.SeasonTotal{
+			{LeagueAbbrev: "NHL", GameType: nhl.GameTypeRegularSeason, GamesPlayed: 5},
+		},
+	}, nil)
+	lister := &fakeMatchedPlayers{matched: []int64{int64(matched)}}
+
+	a := &Activities{Storage: store.NewMemStorage(), NHLClient: client, RedisClient: redisClient, MatchedPlayers: lister}
+	result, err := a.verifyUnmatchedBatch(ctx, []UnmatchedYahooPlayer{
+		{YahooID: 7000, FirstName: "Erik", LastName: "Karlsson"},
+	}, noopHeartbeat)
+
+	require.NoError(t, err)
+	require.Len(t, result.TrulyUnmatched, 1)
+	assert.Equal(t, int64(first), result.TrulyUnmatched[0].NHLPlayerID)
+	assert.Equal(t, 5, result.TrulyUnmatched[0].NHLGames)
+	client.AssertNotCalled(t, "PlayerLanding", mock.Anything, last)
+	client.AssertExpectations(t)
+}
+
+func TestVerifyUnmatchedBatch_EveryNamesakeMatchedIsAMatchedNamesake(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	client := &MockNHLClient{}
+	redisClient, mockRedis := redismock.NewClientMock()
+	mockRedis.ExpectSMembers(VerifiedNonNHLKey).SetVal([]string{})
+
+	client.On("SearchPlayer", ctx, "Sebastian Aho", maxSearchResults).Return([]nhl.PlayerSearchResult{
+		{PlayerID: 8478427, Name: "Sebastian Aho"},
+		{PlayerID: 8480222, Name: "Sebastian Aho"},
+	}, nil)
+	lister := &fakeMatchedPlayers{matched: []int64{8478427, 8480222}}
+
+	a := &Activities{Storage: store.NewMemStorage(), NHLClient: client, RedisClient: redisClient, MatchedPlayers: lister}
+	result, err := a.verifyUnmatchedBatch(ctx, []UnmatchedYahooPlayer{
+		{YahooID: 7001, FirstName: "Sebastian", LastName: "Aho"},
+	}, noopHeartbeat)
+
+	require.NoError(t, err)
+	assert.Equal(t, []VerifiedPlayer{{
+		YahooID: 7001, FirstName: "Sebastian", LastName: "Aho", FoundInNHL: true, MatchedNamesake: true,
+	}}, result.MatchedNamesakes)
+	assert.Empty(t, result.TrulyUnmatched)
+	assert.Empty(t, result.VerifiedNonNHL)
+	assert.Empty(t, result.NotFoundInNHL)
+	client.AssertNotCalled(t, "PlayerLanding", mock.Anything, mock.Anything)
+	// No SADD was expected: a matched namesake is not persisted.
+	require.NoError(t, mockRedis.ExpectationsWereMet())
+}
+
+func TestVerifyUnmatchedBatch_MatchedLookupFailureLeavesThePlayerUnverified(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	client := &MockNHLClient{}
+	redisClient, mockRedis := redismock.NewClientMock()
+	mockRedis.ExpectSMembers(VerifiedNonNHLKey).SetVal([]string{})
+
+	client.On("SearchPlayer", ctx, "Erik Karlsson", maxSearchResults).Return([]nhl.PlayerSearchResult{
+		{PlayerID: 8474578, Name: "Erik Karlsson"},
+	}, nil)
+	lister := &fakeMatchedPlayers{err: errors.New("connection refused")}
+
+	a := &Activities{Storage: store.NewMemStorage(), NHLClient: client, RedisClient: redisClient, MatchedPlayers: lister}
+	result, err := a.verifyUnmatchedBatch(ctx, []UnmatchedYahooPlayer{
+		{YahooID: 7000, FirstName: "Erik", LastName: "Karlsson"},
+	}, noopHeartbeat)
+
+	require.NoError(t, err)
+	require.Len(t, result.Unverified, 1)
+	assert.Equal(t, store.YahooPlayerID(7000), result.Unverified[0].YahooID)
+	assert.Empty(t, result.TrulyUnmatched)
+	assert.Empty(t, result.MatchedNamesakes)
+	client.AssertNotCalled(t, "PlayerLanding", mock.Anything, mock.Anything)
+}
+
+func TestClassify_MatchedNamesakeIsNotPersisted(t *testing.T) {
+	t.Parallel()
+
+	var result VerifyUnmatchedResult
+	persist := result.classify(VerifiedPlayer{YahooID: 1, FoundInNHL: true, MatchedNamesake: true})
+
+	assert.False(t, persist)
+	assert.Equal(t, []VerifiedPlayer{{YahooID: 1, FoundInNHL: true, MatchedNamesake: true}}, result.MatchedNamesakes)
 }

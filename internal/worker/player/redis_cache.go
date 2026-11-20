@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/gob"
+	"errors"
 	"fmt"
 	"strconv"
 	"time"
@@ -119,6 +120,10 @@ func GetUnmatchedYahooIDs(ctx context.Context, client *redis.Client) ([]store.Ya
 	return result, nil
 }
 
+// errUndecodableYahooPlayer marks a pool entry GetYahooPlayerByID read but
+// could not decode.
+var errUndecodableYahooPlayer = errors.New("undecodable yahoo player")
+
 // GetYahooPlayerByID fetches a single Yahoo player from the pool by ID.
 func GetYahooPlayerByID(ctx context.Context, client *redis.Client, yahooID store.YahooPlayerID) (*store.YahooPlayer, error) {
 	encoded, err := client.HGet(ctx, YahooIDPoolKey, yahooID.String()).Bytes()
@@ -128,7 +133,7 @@ func GetYahooPlayerByID(ctx context.Context, client *redis.Client, yahooID store
 
 	var player store.YahooPlayer
 	if err := gob.NewDecoder(bytes.NewReader(encoded)).Decode(&player); err != nil {
-		return nil, fmt.Errorf("decode yahoo player %d: %w", yahooID, err)
+		return nil, fmt.Errorf("decode yahoo player %d: %w: %w", yahooID, errUndecodableYahooPlayer, err)
 	}
 
 	return &player, nil

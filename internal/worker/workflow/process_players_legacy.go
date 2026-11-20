@@ -10,6 +10,7 @@ package workflow
 // running (see the wiki page puckdb/plans/process-players-continuation).
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -285,7 +286,8 @@ func runPhaseVerifyUnmatched(ctx workflow.Context, tracker *shared.ReportTracker
 	logger := workflow.GetLogger(ctx)
 	ctx = workflow.WithActivityOptions(ctx, shared.DefaultActivityOptions())
 
-	unmatchedPlayers := loadUnmatchedPlayers(ctx)
+	// A legacy chain does not know its seasons: verify every unmatched ID.
+	unmatchedPlayers, loadErr := loadUnmatchedPlayers(ctx, workplayer.LoadUnmatchedInput{})
 	// No save here, unlike runManifestVerify: recorded legacy histories
 	// have none.
 	tracker.SetBarTotal(shared.BarRef{Group: GroupVerifyUnmatched}, len(unmatchedPlayers))
@@ -301,7 +303,7 @@ func runPhaseVerifyUnmatched(ctx workflow.Context, tracker *shared.ReportTracker
 	// Mark Phase 3 complete with comprehensive summary
 	tracker.CompleteGroup(ctx, GroupVerifyUnmatched,
 		fmt.Sprintf("Imported %d players: %d Yahoo! matched, %d truly unmatched, %d unverified and %d errors in %s.",
-			input.TotalImported, input.TotalMatched, len(unmatchedReport.TrulyUnmatched),
+			input.TotalImported, input.TotalMatched, unmatchedReport.TrulyUnmatchedCount,
 			unmatchedReport.UnverifiedCount, len(input.AllErrors), tracker.GetElapsed(ctx, GroupVerifyUnmatched)))
 
 	logger.Info("ProcessPlayersWorkflow completed",
@@ -311,7 +313,7 @@ func runPhaseVerifyUnmatched(ctx workflow.Context, tracker *shared.ReportTracker
 		"missing", input.TotalMissing,
 		"imported", input.TotalImported,
 		"matched_with_yahoo", input.TotalMatched,
-		"truly_unmatched", len(unmatchedReport.TrulyUnmatched))
+		"truly_unmatched", unmatchedReport.TrulyUnmatchedCount)
 
 	yahooPoolResult := input.YahooPoolResult
 	if yahooPoolResult == nil {
@@ -329,6 +331,7 @@ func runPhaseVerifyUnmatched(ctx workflow.Context, tracker *shared.ReportTracker
 		SkippedNonNHL:         yahooPoolResult.SkippedNonNHL,
 		VerifiedNonNHLThisRun: unmatchedReport.VerifiedNonNHLCount,
 		TrulyUnmatched:        unmatchedReport.TrulyUnmatched,
+		TrulyUnmatchedCount:   unmatchedReport.TrulyUnmatchedCount,
 		Errors:                input.AllErrors,
 	}
 
@@ -339,15 +342,20 @@ func runPhaseVerifyUnmatched(ctx workflow.Context, tracker *shared.ReportTracker
 	// and fail the workflow so the sync chain halts visibly. A 'success'
 	// completion with silent errors is exactly how the FK-violation gap
 	// (player_season_totals_season_team_id_fkey) went unnoticed.
+	var playerErr error
 	if len(input.AllErrors) > 0 {
 		for _, e := range input.AllErrors {
 			logger.Error("ProcessPlayers per-player error", "error", e)
 		}
-		return result, fmt.Errorf(
+		playerErr = fmt.Errorf(
 			"ProcessPlayersWorkflow finished with %d per-player error(s):\n  %s",
 			len(input.AllErrors),
 			strings.Join(input.AllErrors, "\n  "))
 	}
-
+	// A failed load of the unmatched players fails the workflow too: its
+	// report would otherwise read as "nothing unmatched".
+	if err := errors.Join(loadErr, playerErr); err != nil {
+		return result, err
+	}
 	return result, nil
 }

@@ -62,7 +62,7 @@ func (s *ProcessPlayersWorkflowTestSuite) TestProcessPlayersWorkflow_Phase1_Game
 	const players = 2
 	var playerAct *workplayer.Activities
 	s.env.OnActivity(playerAct.CreateProcessPlayersManifest, mock.Anything, mock.Anything).Return(
-		workplayer.ManifestRef{ID: "run", Count: players, Hash: "h"}, nil)
+		workplayer.CreatedManifest{ManifestRef: workplayer.ManifestRef{ID: "run", Count: players, Hash: "h"}}, nil)
 	pool := &workplayer.SaveYahooIDPoolResult{
 		TotalPlayers: 3, AvailablePlayers: 3, PoolSize: 3,
 		ListSeasons: []int{2026, 2025}, ListEntries: 2,
@@ -89,7 +89,7 @@ func (s *ProcessPlayersWorkflowTestSuite) TestProcessPlayersWorkflow_Phase1_Game
 func (s *ProcessPlayersWorkflowTestSuite) TestProcessPlayersWorkflow_Phase1_BuildPoolError() {
 	var playerAct *workplayer.Activities
 	s.env.OnActivity(playerAct.CreateProcessPlayersManifest, mock.Anything, mock.Anything).Return(
-		workplayer.ManifestRef{ID: "run", Count: 1, Hash: "h"}, nil)
+		workplayer.CreatedManifest{ManifestRef: workplayer.ManifestRef{ID: "run", Count: 1, Hash: "h"}}, nil)
 	s.env.OnActivity(playerAct.BuildYahooIDPool, mock.Anything).Return(
 		(*workplayer.SaveYahooIDPoolResult)(nil), temporal.NewNonRetryableApplicationError("storage down", "test", nil))
 
@@ -119,7 +119,7 @@ func (s *ProcessPlayersWorkflowTestSuite) TestProcessPlayersWorkflow_Phase3_Save
 	lastSaved := recordLastSavedReport(s.env)
 
 	var playerAct *workplayer.Activities
-	s.env.OnActivity(playerAct.LoadUnmatchedYahooPlayers, mock.Anything).Return(unmatched, nil)
+	s.env.OnActivity(playerAct.LoadUnmatchedYahooPlayers, mock.Anything, mock.Anything).Return(unmatched, nil)
 	s.env.OnActivity(playerAct.VerifyUnmatchedBatch, mock.Anything, mock.Anything).Return(
 		&workplayer.VerifyUnmatchedResult{VerifiedNonNHL: []store.YahooPlayerID{123, 124, 125}}, nil)
 	s.env.OnActivity(playerAct.CleanupYahooIDPoolData, mock.Anything).Return(nil)

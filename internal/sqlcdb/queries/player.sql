@@ -299,3 +299,9 @@ SELECT id, yahoo_image FROM players WHERE yahoo_image <> '' ORDER BY id;
 
 -- name: CountPlayerYahooImages :one
 SELECT COUNT(*) FROM players WHERE yahoo_image <> '';
+
+-- name: ListPlayerIDsWithYahooID :many
+-- The players among ids already matched to a Yahoo ID.
+SELECT id FROM players
+WHERE id = ANY(sqlc.arg(ids)::bigint[]) AND yahoo_id IS NOT NULL
+ORDER BY id;

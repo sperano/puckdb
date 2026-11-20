@@ -54,36 +54,44 @@ func (q *Queries) FinishProcessPlayersManifest(ctx context.Context, id string) (
 }
 
 const getProcessPlayersManifest = `-- name: GetProcessPlayersManifest :one
-SELECT id, player_count, players_hash
+SELECT id, player_count, players_hash, seasons
 FROM process_players_manifests
 WHERE id = $1
 `
 
 type GetProcessPlayersManifestRow struct {
-	ID          string `json:"id"`
-	PlayerCount int32  `json:"player_count"`
-	PlayersHash []byte `json:"players_hash"`
+	ID          string  `json:"id"`
+	PlayerCount int32   `json:"player_count"`
+	PlayersHash []byte  `json:"players_hash"`
+	Seasons     []int32 `json:"seasons"`
 }
 
 func (q *Queries) GetProcessPlayersManifest(ctx context.Context, id string) (GetProcessPlayersManifestRow, error) {
 	row := q.db.QueryRow(ctx, getProcessPlayersManifest, id)
 	var i GetProcessPlayersManifestRow
-	err := row.Scan(&i.ID, &i.PlayerCount, &i.PlayersHash)
+	err := row.Scan(
+		&i.ID,
+		&i.PlayerCount,
+		&i.PlayersHash,
+		&i.Seasons,
+	)
 	return i, err
 }
 
 const insertProcessPlayersManifest = `-- name: InsertProcessPlayersManifest :one
-INSERT INTO process_players_manifests (id, workflow_id, player_count, players_hash)
-VALUES ($1, $2, $3, $4)
+INSERT INTO process_players_manifests (id, workflow_id, player_count, players_hash, seasons)
+VALUES ($1, $2, $3, $4,
+        $5::integer[])
 ON CONFLICT (id) DO NOTHING
 RETURNING id
 `
 
 type InsertProcessPlayersManifestParams struct {
-	ID          string `json:"id"`
-	WorkflowID  string `json:"workflow_id"`
-	PlayerCount int32  `json:"player_count"`
-	PlayersHash []byte `json:"players_hash"`
+	ID          string  `json:"id"`
+	WorkflowID  string  `json:"workflow_id"`
+	PlayerCount int32   `json:"player_count"`
+	PlayersHash []byte  `json:"players_hash"`
+	Seasons     []int32 `json:"seasons"`
 }
 
 // Returns no row when a manifest with this id already exists (a retried or
@@ -94,6 +102,7 @@ func (q *Queries) InsertProcessPlayersManifest(ctx context.Context, arg InsertPr
 		arg.WorkflowID,
 		arg.PlayerCount,
 		arg.PlayersHash,
+		arg.Seasons,
 	)
 	var id string
 	err := row.Scan(&id)
