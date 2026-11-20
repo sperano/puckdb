@@ -403,15 +403,17 @@ func TestProcessPlayersManifestVerify_FinishFailureStillReports(t *testing.T) {
 	assert.Equal(t, chainPlayers, result.ImportedPlayers)
 }
 
-// A load of the unmatched players that fails after its retries fails the
-// chain once the manifest is finished, instead of reporting nothing unmatched.
+// A retryable load failure of the unmatched players is retried up to the
+// default attempt limit, then fails the chain once the manifest is finished,
+// instead of reporting nothing unmatched.
 func TestProcessPlayersManifestVerify_LoadFailureFailsTheChain(t *testing.T) {
-	chain := &manifestChain{loadErr: temporal.NewNonRetryableApplicationError("redis down", "test", nil)}
+	chain := &manifestChain{loadErr: temporal.NewApplicationError("redis down", "test")}
 	env := chain.newEnv(t)
 
 	env.ExecuteWorkflow(ProcessPlayersWorkflowContinueV2, verifyState())
 
 	require.True(t, env.IsWorkflowCompleted())
+	assert.Len(t, chain.unmatchedInputs, config.DefaultTemporalRetryMaxAttempts, "every attempt is made")
 	require.ErrorContains(t, env.GetWorkflowError(), "load unmatched yahoo players: ")
 	require.ErrorContains(t, env.GetWorkflowError(), "redis down")
 	assert.NotContains(t, chain.events, "verify", "nothing to verify")

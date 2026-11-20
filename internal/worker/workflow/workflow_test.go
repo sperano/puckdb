@@ -6,9 +6,11 @@ import (
 	"encoding/gob"
 	"errors"
 	"sync"
+	"sync/atomic"
 	"testing"
 
 	"github.com/sperano/nhl-api-go/nhl"
+	"github.com/sperano/puckdb/internal/config"
 	"github.com/sperano/puckdb/internal/core"
 	"github.com/sperano/puckdb/internal/graph/model"
 	"github.com/sperano/puckdb/internal/store"
@@ -642,8 +644,9 @@ func (s *ProcessPlayersWorkflowTestSuite) TestProcessPlayersWorkflow_Phase4_Caps
 	s.Len(res.TrulyUnmatched, workplayer.MaxReportedTrulyUnmatched)
 }
 
-// A legacy chain whose unmatched players cannot be loaded fails instead of
-// completing with an empty unmatched report.
+// A legacy chain whose unmatched players cannot be loaded retries the load up
+// to the default attempt limit, then fails instead of completing with an
+// empty unmatched report.
 func (s *ProcessPlayersWorkflowTestSuite) TestProcessPlayersWorkflow_Phase4_LoadFailureFails() {
 	input := &processPlayersInternalInput{
 		Phase:   phaseVerifyUnmatched,
@@ -653,13 +656,16 @@ func (s *ProcessPlayersWorkflowTestSuite) TestProcessPlayersWorkflow_Phase4_Load
 	s.env.OnActivity(((*shared.ProgressActivities)(nil)).Load, mock.Anything, mock.Anything).Return(reportBytes, nil)
 
 	var playerAct *workplayer.Activities
+	var loadAttempts atomic.Int32
 	s.env.OnActivity(playerAct.LoadUnmatchedYahooPlayers, mock.Anything, workplayer.LoadUnmatchedInput{}).Return(
-		nil, temporal.NewNonRetryableApplicationError("redis down", "test", nil))
+		nil, temporal.NewApplicationError("redis down", "test")).
+		Run(func(mock.Arguments) { loadAttempts.Add(1) })
 	s.env.OnActivity(playerAct.CleanupYahooIDPoolData, mock.Anything).Maybe().Return(nil)
 
 	s.env.ExecuteWorkflow(ProcessPlayersWorkflowContinue, input)
 
 	s.True(s.env.IsWorkflowCompleted())
+	s.Equal(int32(config.DefaultTemporalRetryMaxAttempts), loadAttempts.Load(), "every attempt is made")
 	s.Require().Error(s.env.GetWorkflowError())
 	s.Contains(s.env.GetWorkflowError().Error(), "load unmatched yahoo players: ")
 	s.Contains(s.env.GetWorkflowError().Error(), "redis down")
