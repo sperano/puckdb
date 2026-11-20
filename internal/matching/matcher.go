@@ -1,9 +1,9 @@
 // Package matching links an NHL player to the Yahoo ID of the same player
-// by name, jersey number, birth date and team, reporting a MatchReason
-// (NameJersey, NameBirthdate, TeamTiebreaker, Ambiguous, NoMatch, ...) for
-// every outcome. It also holds the static NHL team table and Yahoo's
-// team-name/abbreviation variants that both this matcher and the news
-// player resolver read.
+// by name, jersey number, birth date, listed seasons and team, reporting a
+// MatchReason (NameJersey, NameBirthdate, NameSeasons, TeamTiebreaker,
+// Ambiguous, NoMatch, ...) for every outcome. It also holds the static NHL
+// team table and Yahoo's team-name/abbreviation variants that both this
+// matcher and the news player resolver read.
 package matching
 
 import (
@@ -44,6 +44,10 @@ const (
 	MatchReasonTeamTiebreaker
 	// MatchReasonAmbiguous indicates multiple matches with no disambiguating factor.
 	MatchReasonAmbiguous
+	// MatchReasonNameSeasons indicates a match based on name and the seasons
+	// the player played against the seasons whose Yahoo game player lists
+	// name each candidate (MatchYahooIDBySeasons).
+	MatchReasonNameSeasons
 )
 
 // String returns the string representation of the match reason.
@@ -63,6 +67,8 @@ func (r MatchReason) String() string {
 		return "team-tiebreaker"
 	case MatchReasonAmbiguous:
 		return "ambiguous"
+	case MatchReasonNameSeasons:
+		return "name+seasons"
 	default:
 		return "unknown"
 	}
@@ -123,10 +129,24 @@ func NormalizeName(name string) string {
 // step that keeps several narrows the candidates for the next one; a step
 // that keeps none is ignored, so a disambiguator nobody shares never rules
 // out every name match.
+//
+// MatchYahooID never runs the seasons step of MatchYahooIDBySeasons.
 func MatchYahooID(
 	landing *nhl.PlayerLanding,
 	nhlTeamAbbrev string,
 	nhlBirthDate time.Time,
+	pool map[store.YahooPlayerID]*store.YahooPlayer,
+) (YahooIDMatchResult, error) {
+	return matchYahooID(landing, nhlTeamAbbrev, nhlBirthDate, nil, pool)
+}
+
+// matchYahooID is MatchYahooID with the seasons step run between the birth
+// date and team steps when namesakes is not nil.
+func matchYahooID(
+	landing *nhl.PlayerLanding,
+	nhlTeamAbbrev string,
+	nhlBirthDate time.Time,
+	namesakes NamesakeSeasons,
 	pool map[store.YahooPlayerID]*store.YahooPlayer,
 ) (YahooIDMatchResult, error) {
 	candidates := candidatesByName(landing, pool)
@@ -146,6 +166,12 @@ func MatchYahooID(
 			return matchedResult(landing, kept[0], MatchReasonNameBirthdate), nil
 		}
 		candidates = narrow(candidates, kept)
+	}
+
+	if len(candidates) > 1 && namesakes != nil {
+		if c, ok := singleBySeasons(landing, candidates, namesakes); ok {
+			return matchedResult(landing, c, MatchReasonNameSeasons), nil
+		}
 	}
 
 	if len(candidates) > 1 {

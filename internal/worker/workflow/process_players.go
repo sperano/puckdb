@@ -87,11 +87,12 @@ type ProcessPlayersResult struct {
 	Downloaded int
 	CacheHits  int
 	Missing    int
-	// BirthDatePagesDownloaded and BirthDatePagesFailed sum the batches'
-	// Yahoo Sports page counts (see workplayer.ProcessPlayerBatchResult);
-	// zero for a legacy chain.
+	// BirthDatePagesDownloaded, BirthDatePagesFailed and
+	// BirthDatePagesMissing sum the batches' Yahoo Sports page counts (see
+	// workplayer.ProcessPlayerBatchResult); zero for a legacy chain.
 	BirthDatePagesDownloaded int
 	BirthDatePagesFailed     int
+	BirthDatePagesMissing    int
 
 	// Yahoo stats
 	TotalYahooPlayers     int

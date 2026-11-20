@@ -225,6 +225,7 @@ func (c *manifestChain) batch(_ context.Context, input workplayer.ManifestBatchI
 		result.MatchReasons = map[string]int{reason: result.Imported}
 		result.BirthDatePagesDownloaded = 2
 		result.BirthDatePagesFailed = 1
+		result.BirthDatePagesMissing = 3
 	}
 	return result, nil
 }
@@ -273,6 +274,7 @@ func TestProcessPlayersManifestChain(t *testing.T) {
 		"match reasons are summed across batches and executions")
 	assert.Equal(t, 8, state.Totals.BirthDatePagesDownloaded, "birth date page downloads are summed across batches and executions")
 	assert.Equal(t, 4, state.Totals.BirthDatePagesFailed, "birth date page failures are summed across batches and executions")
+	assert.Equal(t, 12, state.Totals.BirthDatePagesMissing, "known missing birth date pages are summed across batches and executions")
 	assert.Equal(t, []string{"player 2: read error"}, state.ErrorSample)
 	assert.Equal(t, []workplayer.PlayerError{{PlayerID: 2, Stage: workplayer.StageRead, Message: "player 2: read error"}},
 		chain.recorded, "errors of completed batches reach the error table")
@@ -380,10 +382,11 @@ func TestManifestResultCarriesMatchReasons(t *testing.T) {
 }
 
 func TestManifestResultCarriesBirthDatePageCounts(t *testing.T) {
-	state := &processPlayersState{Totals: processPlayersTotals{BirthDatePagesDownloaded: 4, BirthDatePagesFailed: 1}}
+	state := &processPlayersState{Totals: processPlayersTotals{BirthDatePagesDownloaded: 4, BirthDatePagesFailed: 1, BirthDatePagesMissing: 2}}
 
 	result := manifestResult(state, &workplayer.UnmatchedReport{})
 
 	assert.Equal(t, 4, result.BirthDatePagesDownloaded)
 	assert.Equal(t, 1, result.BirthDatePagesFailed)
+	assert.Equal(t, 2, result.BirthDatePagesMissing)
 }

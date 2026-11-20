@@ -47,3 +47,18 @@ ORDER BY season DESC, game_type, sequence;
 
 -- name: CountPlayerSeasonTotals :one
 SELECT COUNT(*) FROM player_season_totals;
+
+-- name: ListNamesakeNHLSeasons :many
+-- The NHL seasons (start years) each other player with the same normalized
+-- name played at least one regular-season or playoff game in, for the Yahoo
+-- matcher's seasons step (matching.MatchYahooIDBySeasons).
+SELECT DISTINCT t.player_id, (t.season / 10000)::integer AS start_year
+FROM players p
+JOIN player_season_totals t ON t.player_id = p.id
+WHERE p.first_name_normalized = sqlc.arg(first_name_normalized)
+  AND p.last_name_normalized = sqlc.arg(last_name_normalized)
+  AND p.id <> sqlc.arg(exclude_player_id)
+  AND t.league_abbrev = 'NHL'
+  AND t.game_type IN ('regular_season', 'playoffs')
+  AND t.games_played > 0
+ORDER BY t.player_id, start_year;

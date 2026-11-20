@@ -1,6 +1,7 @@
 package resource
 
 import (
+	"encoding/json"
 	"encoding/xml"
 	"fmt"
 	"strings"
@@ -206,6 +207,41 @@ func (y YahooPlayer) Parse(data []byte) ([]byte, error) {
 
 func (y YahooPlayer) Format(data []byte) ([]byte, error) {
 	return data, nil
+}
+
+// YahooPlayerMissingDir holds the markers of Yahoo Sports player pages that
+// answered 404 (MissingYahooPlayer).
+const YahooPlayerMissingDir = "yahoo-players-missing"
+
+// MissingYahooPlayer marks a Yahoo Sports player page that answered 404, as
+// the page of a retired player does, so the birth date lookup does not ask
+// for it again on every run; the content records when.
+type MissingYahooPlayer struct {
+	PlayerID YahooPlayerID
+}
+
+// MissingYahooPlayerContent is a MissingYahooPlayer marker's content.
+type MissingYahooPlayerContent struct {
+	// RecordedAt is when the page answered 404.
+	RecordedAt time.Time `json:"recorded_at"`
+}
+
+func (m MissingYahooPlayer) Path() string {
+	return fmt.Sprintf("%s/player-%d.json", YahooPlayerMissingDir, m.PlayerID)
+}
+
+func (m MissingYahooPlayer) Type() core.FileType { return core.YahooPlayer }
+
+func (m MissingYahooPlayer) Parse(data []byte) (MissingYahooPlayerContent, error) {
+	var content MissingYahooPlayerContent
+	if err := json.Unmarshal(data, &content); err != nil {
+		return content, fmt.Errorf("parse missing Yahoo player marker %d: %w", m.PlayerID, err)
+	}
+	return content, nil
+}
+
+func (m MissingYahooPlayer) Format(content MissingYahooPlayerContent) ([]byte, error) {
+	return json.Marshal(content)
 }
 
 // GameKey represents a Yahoo Fantasy game key resource.

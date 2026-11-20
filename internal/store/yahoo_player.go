@@ -24,6 +24,10 @@ type YahooPlayer struct {
 	Team         string    // optional, may be empty
 	ImageURL     string    // optional
 	BirthDate    time.Time // optional, zero value if not found
+	// Seasons are the start years, ascending, of the seasons whose committed
+	// Yahoo game player list names the player; empty for a player no list
+	// names (a league player) and for pools saved before lists carried it.
+	Seasons []int
 }
 
 // Regex patterns for parsing Yahoo player HTML

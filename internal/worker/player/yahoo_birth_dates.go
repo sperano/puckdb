@@ -24,9 +24,10 @@ var errNoYahooPlayerPages = errors.New("no Yahoo player page downloader")
 // needs for landing: the game player lists carry none, so for each name
 // match the jersey step leaves tied (matching.BirthDatesNeeded) the player's
 // Yahoo Sports page is read, from storage or Valkey when stored, downloaded
-// otherwise, and its birth date set on the batch's pool entry. A page that
-// cannot be had is logged and counted; the match then runs without that
-// date, as it did before birth dates were fetched. The batch remembers it
+// otherwise, and its birth date set on the batch's pool entry. A page whose
+// 404 was recorded recently (resource.MissingYahooPlayer) is not asked for
+// and is counted apart. A page that cannot be had is logged and counted;
+// the match then runs without that date, as it did before birth dates were fetched. The batch remembers it
 // (out.unavailableBirthDates), so a later landing tied on the same Yahoo ID
 // does not request it again; the next batch or run tries the page again.
 // It returns ctx's error once ctx is done, so a cancelled activity stops
@@ -51,20 +52,30 @@ func (a *Activities) addYahooBirthDates(
 			return fmt.Errorf("birth date of Yahoo player %d: %w", id, ctxErr)
 		}
 		if err != nil {
-			result.BirthDatePagesFailed++
-			if out.unavailableBirthDates == nil {
-				out.unavailableBirthDates = map[store.YahooPlayerID]struct{}{}
-			}
-			out.unavailableBirthDates[id] = struct{}{}
-			log.Warn().Err(err).
-				Int64("nhl_id", landing.PlayerID.Int64()).
-				Int("yahoo_id", int(id)).
-				Msg("Yahoo player birth date unavailable")
+			out.birthDateUnavailable(landing, id, err)
 			continue
 		}
 		pool[id].BirthDate = birth
 	}
 	return nil
+}
+
+// birthDateUnavailable records that id's birth date page cannot be had in
+// this batch, counting a recorded 404 apart from a failure.
+func (o *batchOutcome) birthDateUnavailable(landing *nhl.PlayerLanding, id store.YahooPlayerID, err error) {
+	if o.unavailableBirthDates == nil {
+		o.unavailableBirthDates = map[store.YahooPlayerID]struct{}{}
+	}
+	o.unavailableBirthDates[id] = struct{}{}
+	if errors.Is(err, errYahooPlayerPageMissing) {
+		o.result.BirthDatePagesMissing++
+		return
+	}
+	o.result.BirthDatePagesFailed++
+	log.Warn().Err(err).
+		Int64("nhl_id", landing.PlayerID.Int64()).
+		Int("yahoo_id", int(id)).
+		Msg("Yahoo player birth date unavailable")
 }
 
 // yahooBirthDate returns the birth date on id's Yahoo Sports page (zero when
@@ -73,7 +84,9 @@ func (a *Activities) addYahooBirthDates(
 // stored. A stored page is
 // read through the gob cache and never downloaded again (a birth date does
 // not change), unless it no longer parses; a downloaded page is stored and
-// cached only once it parses.
+// cached only once it parses. A page with no stored copy whose 404 was
+// recorded within missingYahooPlayerPageTTL returns errYahooPlayerPageMissing
+// without a download; a download answering 404 records it.
 func (a *Activities) yahooBirthDate(ctx context.Context, id store.YahooPlayerID) (time.Time, bool, error) {
 	page := resource.YahooPlayer{PlayerID: id}
 	raw, _, err := a.GobCache.ReadParsedCached(ctx, a.Storage, page)
@@ -90,8 +103,12 @@ func (a *Activities) yahooBirthDate(ctx context.Context, id store.YahooPlayerID)
 		metrics.IncDownload(page.Type(), metrics.ResultError)
 		return time.Time{}, false, fmt.Errorf("read %s: %w", page.Path(), err)
 	}
+	if a.recentlyMissing(ctx, id) {
+		return time.Time{}, false, fmt.Errorf("%s: %w", page.URL(), errYahooPlayerPageMissing)
+	}
 	player, downloaded, err := a.downloadYahooPlayerPage(ctx, page)
 	if err != nil {
+		a.recordIfMissing(ctx, id, err)
 		metrics.IncDownload(page.Type(), metrics.ResultError)
 		return time.Time{}, downloaded, err
 	}
