@@ -198,6 +198,26 @@ func (q *Queries) GetLatestYahooLeagueRosterDate(ctx context.Context, leagueID i
 	return date, err
 }
 
+const getLatestYahooLeagueRosterDateOnOrBefore = `-- name: GetLatestYahooLeagueRosterDateOnOrBefore :one
+SELECT MAX(date)::date AS date
+FROM yahoo_team_rosters
+WHERE league_id = $1 AND date <= $2::date
+`
+
+type GetLatestYahooLeagueRosterDateOnOrBeforeParams struct {
+	LeagueID   int32       `json:"league_id"`
+	OnOrBefore pgtype.Date `json:"on_or_before"`
+}
+
+// The latest date on or before on_or_before with an imported roster row of
+// any team of the league; NULL when the league has none by then.
+func (q *Queries) GetLatestYahooLeagueRosterDateOnOrBefore(ctx context.Context, arg GetLatestYahooLeagueRosterDateOnOrBeforeParams) (pgtype.Date, error) {
+	row := q.db.QueryRow(ctx, getLatestYahooLeagueRosterDateOnOrBefore, arg.LeagueID, arg.OnOrBefore)
+	var date pgtype.Date
+	err := row.Scan(&date)
+	return date, err
+}
+
 const getLatestYahooStandingsSnapshotDate = `-- name: GetLatestYahooStandingsSnapshotDate :one
 SELECT MAX(date)::date AS date
 FROM yahoo_team_summaries
