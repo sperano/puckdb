@@ -156,12 +156,15 @@ func (s *ManifestActivitySuite) SetupTest() {
 	s.env.RegisterActivity(s.act)
 }
 
+// saveRedisPlayers saves a consolidated set without seasons, as a worker
+// from before the seasons were saved did.
 func (s *ManifestActivitySuite) saveRedisPlayers(players ...store.BoxscorePlayer) {
-	require.NoError(s.T(), cache.SaveAllBoxscorePlayers(context.Background(), s.redis, players, boxscorePlayerTTL))
+	s.saveRedisSet(players, nil)
+	require.NoError(s.T(), s.redis.Del(context.Background(), cache.AllBoxscorePlayerSeasonsKey).Err())
 }
 
-func (s *ManifestActivitySuite) saveRedisSeasons(seasons ...int) {
-	require.NoError(s.T(), cache.SaveAllBoxscorePlayerSeasons(context.Background(), s.redis, seasons, boxscorePlayerTTL))
+func (s *ManifestActivitySuite) saveRedisSet(players []store.BoxscorePlayer, seasons []int) {
+	require.NoError(s.T(), cache.SaveConsolidatedBoxscorePlayers(context.Background(), s.redis, players, seasons, boxscorePlayerTTL))
 }
 
 func (s *ManifestActivitySuite) createManifest(id string) ManifestRef {
@@ -196,8 +199,7 @@ func (s *ManifestActivitySuite) TestCreate_ReturnsAnExistingManifestWithoutReadi
 }
 
 func (s *ManifestActivitySuite) TestCreate_StoresAndReturnsTheListsSeasons() {
-	s.saveRedisPlayers(store.BoxscorePlayer{ID: 1})
-	s.saveRedisSeasons(2025)
+	s.saveRedisSet([]store.BoxscorePlayer{{ID: 1}}, []int{2025})
 
 	created := s.createManifestWithSeasons("run-1")
 
@@ -215,10 +217,9 @@ func (s *ManifestActivitySuite) TestCreate_ListWithoutSavedSeasonsHasUnknownSeas
 }
 
 func (s *ManifestActivitySuite) TestCreate_AnExistingManifestKeepsItsSeasons() {
-	s.saveRedisPlayers(store.BoxscorePlayer{ID: 1})
-	s.saveRedisSeasons(2024, 2025)
+	s.saveRedisSet([]store.BoxscorePlayer{{ID: 1}}, []int{2024, 2025})
 	s.createManifestWithSeasons("run-1")
-	s.saveRedisSeasons(2026)
+	s.saveRedisSet([]store.BoxscorePlayer{{ID: 1}}, []int{2026})
 
 	s.Equal([]int{2024, 2025}, s.createManifestWithSeasons("run-1").Seasons)
 }

@@ -44,16 +44,12 @@ func (a *Activities) CreateProcessPlayersManifest(ctx context.Context, input Cre
 		return CreatedManifest{}, err
 	}
 
-	players, err := cache.LoadAllBoxscorePlayers(ctx, a.RedisClient)
+	players, seasons, err := cache.LoadConsolidatedBoxscorePlayers(ctx, a.RedisClient)
 	if err != nil {
-		return CreatedManifest{}, fmt.Errorf("load boxscore players from redis: %w", err)
+		return CreatedManifest{}, err
 	}
 	if len(players) == 0 {
 		return CreatedManifest{ManifestRef: ManifestRef{ID: input.ManifestID}}, nil
-	}
-	seasons, err := cache.LoadAllBoxscorePlayerSeasons(ctx, a.RedisClient)
-	if err != nil {
-		return CreatedManifest{}, fmt.Errorf("load boxscore player seasons from redis: %w", err)
 	}
 	if seasons == nil {
 		logger.Warn("Boxscore player list has no saved seasons; phase 3 will verify every unmatched Yahoo ID")

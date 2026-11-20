@@ -2,6 +2,7 @@ package player
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/sperano/nhl-api-go/nhl"
 	"github.com/sperano/puckdb/internal/cache"
@@ -21,8 +22,11 @@ type ConsolidatePlayersResult struct {
 }
 
 // ConsolidateBoxscorePlayersActivity loads players from all seasons,
-// deduplicates them, and saves the consolidated set to Redis with the start
-// years of the seasons it loaded (a season whose load failed is left out).
+// deduplicates them, and saves the consolidated set to Redis atomically with
+// the start years of the seasons it loaded. A season whose list cannot be
+// read fails the activity (Temporal retries it) rather than leaving the
+// season's unmatched Yahoo IDs out of phase 3; a season with no saved list
+// (expired, never extracted) adds no players and is not one of the seasons.
 func (a *Activities) ConsolidateBoxscorePlayersActivity(ctx context.Context, input ConsolidatePlayersInput) (ConsolidatePlayersResult, error) {
 	logger := activity.GetLogger(ctx)
 	redisClient := a.RedisClient
@@ -34,7 +38,10 @@ func (a *Activities) ConsolidateBoxscorePlayersActivity(ctx context.Context, inp
 	for _, season := range input.Seasons {
 		players, err := cache.LoadBoxscorePlayers(ctx, redisClient, season)
 		if err != nil {
-			logger.Warn("Failed to load players for season, skipping", "season", season.ID(), "error", err)
+			return ConsolidatePlayersResult{}, fmt.Errorf("load boxscore players of season %d: %w", season.ID(), err)
+		}
+		if players == nil {
+			logger.Warn("No saved boxscore players for season, leaving it out", "season", season.ID())
 			continue
 		}
 
@@ -50,18 +57,13 @@ func (a *Activities) ConsolidateBoxscorePlayersActivity(ctx context.Context, inp
 		uniquePlayers = append(uniquePlayers, p)
 	}
 
-	// The seasons go first: a reader between the two writes pairs the new
-	// seasons with the previous set, which at worst verifies too few
-	// unmatched Yahoo IDs once, never hides the new set's seasons.
-	if err := cache.SaveAllBoxscorePlayerSeasons(ctx, redisClient, loadedSeasons, a.BoxscorePlayerCacheTTL); err != nil {
-		return ConsolidatePlayersResult{}, err
-	}
-	if err := cache.SaveAllBoxscorePlayers(ctx, redisClient, uniquePlayers, a.BoxscorePlayerCacheTTL); err != nil {
+	if err := cache.SaveConsolidatedBoxscorePlayers(ctx, redisClient, uniquePlayers, loadedSeasons, a.BoxscorePlayerCacheTTL); err != nil {
 		return ConsolidatePlayersResult{}, err
 	}
 
 	logger.Info("Consolidated boxscore players",
-		"seasons", len(input.Seasons),
+		"seasons", len(loadedSeasons),
+		"requested_seasons", len(input.Seasons),
 		"total_players", totalPlayers,
 		"unique_players", len(uniquePlayers))
 
