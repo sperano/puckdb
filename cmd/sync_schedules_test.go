@@ -129,6 +129,23 @@ func TestEnsureSyncSchedulesRejectsUnknownTimeZone(t *testing.T) {
 	assert.Empty(t, r.creates)
 }
 
+func TestEnsureSyncSchedulesRejectsEmptyTimeZone(t *testing.T) {
+	r := newScheduleRecorder()
+	cfg := bothSyncSchedules()
+	cfg.TimeZone = ""
+	err := ensureSyncSchedules(t.Context(), r, cfg)
+
+	require.ErrorIs(t, err, errEmptySyncScheduleTimeZone)
+	assert.Empty(t, r.creates)
+}
+
+func TestEnsureSyncSchedulesEmptyTimeZoneAllowedWithoutSchedules(t *testing.T) {
+	r := newScheduleRecorder()
+	require.NoError(t, ensureSyncSchedules(t.Context(), r, syncSchedulesConfig{}))
+	assert.True(t, r.handle(shared.ScheduleIDSeasonsSync).deleteCalled)
+	assert.True(t, r.handle(shared.ScheduleIDPlayersSync).deleteCalled)
+}
+
 func TestEnsureSyncSchedulesErrorsNameTheSchedule(t *testing.T) {
 	r := newScheduleRecorder()
 	r.createErr = assert.AnError

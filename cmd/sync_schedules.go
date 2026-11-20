@@ -22,6 +22,10 @@ import (
 // fetches every day not cached yet.
 const syncScheduleCatchupWindow = 12 * time.Hour
 
+// errEmptySyncScheduleTimeZone refuses a sync schedule with no time zone,
+// which would silently run in UTC.
+var errEmptySyncScheduleTimeZone = errors.New("sync schedule time zone is empty")
+
 // syncSchedulesConfig is the worker's sync schedule settings: a cron
 // expression per sync (empty: no schedule) and their time zone.
 type syncSchedulesConfig struct {
@@ -47,6 +51,10 @@ type scheduleSpec struct {
 // workflow.ScheduledSeasonsSyncWorkflow).
 func ensureSyncSchedules(ctx context.Context, schedules client.ScheduleClient, cfg syncSchedulesConfig) error {
 	if cfg.Seasons != "" || cfg.Players != "" {
+		// time.LoadLocation and Temporal both read "" as UTC.
+		if cfg.TimeZone == "" {
+			return errEmptySyncScheduleTimeZone
+		}
 		if _, err := time.LoadLocation(cfg.TimeZone); err != nil {
 			return fmt.Errorf("sync schedule time zone %q: %w", cfg.TimeZone, err)
 		}

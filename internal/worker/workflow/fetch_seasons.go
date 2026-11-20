@@ -4,8 +4,8 @@
 // for player landings (imported later, by ProcessPlayersWorkflow's
 // batches), Yahoo players and assets; ProcessPlayersWorkflow's
 // ContinueAsNew chain; draft ranking and news refresh; the scheduled seasons
-// and players syncs, which run those workflows as children; and database
-// initialization. Each workflow delegates its work to activities in the
+// and players syncs, which run the steps of `sync seasons` and `sync
+// players` as children; and database initialization. Each workflow delegates its work to activities in the
 // sibling nhl, yahoo, player, asset, newsfeed and draftranking packages,
 // using shared for progress tracking, config snapshotting and worker
 // pools. admin and simulation define their own workflows instead of
