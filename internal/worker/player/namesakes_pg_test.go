@@ -42,6 +42,7 @@ func TestListNamesakeNHLSeasons(t *testing.T) {
 		{8451789, 19992000, "regular_season", "NHL", 70},
 		{8451789, 20002001, "regular_season", "NHL", 40},
 		{8451789, 20002001, "playoffs", "NHL", 5},
+		{8451789, 20052006, "playoffs", "NHL", 3},
 		{8451789, 19831984, "regular_season", "Czech", 40},
 		{8451789, 19981999, "preseason", "NHL", 3},
 		{8451789, 19971998, "regular_season", "NHL", 0},
@@ -63,5 +64,6 @@ func TestListNamesakeNHLSeasons(t *testing.T) {
 	require.Equal(t, []sqlcdb.ListNamesakeNHLSeasonsRow{
 		{PlayerID: 8451789, StartYear: 1999},
 		{PlayerID: 8451789, StartYear: 2000},
-	}, rows, "the excluded player, other names, other leagues, preseason and seasons without a game are left out; a season is listed once")
+		{PlayerID: 8451789, StartYear: 2005},
+	}, rows, "a playoffs-only season is listed; the excluded player, other names, other leagues, preseason and seasons without a game are left out; a season is listed once")
 }

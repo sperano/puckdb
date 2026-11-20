@@ -19,9 +19,9 @@ const nhlLeagueAbbrev = "NHL"
 type NamesakeSeasons func() ([][]int, error)
 
 // MatchYahooIDBySeasons is MatchYahooID with one more step between the birth
-// date (3) and team (4) steps, for the name matches the game player lists
-// leave tied when Yahoo has no birth date (a retired player's Yahoo Sports
-// page is gone): the seasons whose game player list names each candidate
+// date (3) and team (4) steps, for any name match still tied after the
+// birth date step (a retired player's Yahoo Sports page is gone, or its
+// birth date does not single one candidate out): the seasons whose game player list names each candidate
 // (store.YahooPlayer.Seasons) against the NHL seasons the player played
 // (NHLSeasonsPlayed). It picks a candidate only when every candidate has
 // list seasons, exactly one candidate's seasons overlap the player's, and no
