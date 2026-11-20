@@ -1,9 +1,15 @@
 package cmd
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"strings"
 	"testing"
 	"time"
+
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 
 	puckdbtemporal "github.com/sperano/puckdb/internal/temporal"
 	"github.com/sperano/puckdb/internal/worker/shared"
@@ -164,4 +170,44 @@ func TestUpdatedPolicyZeroCatchupKeepsExisting(t *testing.T) {
 	got := updatedPolicy(&client.SchedulePolicies{CatchupWindow: time.Hour}, 0)
 	assert.Equal(t, &client.SchedulePolicies{Overlap: enumspb.SCHEDULE_OVERLAP_POLICY_SKIP, CatchupWindow: time.Hour}, got)
 	assert.Equal(t, &client.SchedulePolicies{Overlap: enumspb.SCHEDULE_OVERLAP_POLICY_SKIP}, updatedPolicy(nil, 0))
+}
+
+// captureLog sends the global logger to a buffer for the test.
+func captureLog(t *testing.T) *bytes.Buffer {
+	t.Helper()
+	var buf bytes.Buffer
+	previous := log.Logger
+	log.Logger = zerolog.New(&buf)
+	t.Cleanup(func() { log.Logger = previous })
+	return &buf
+}
+
+// logLines decodes each JSON log line in buf.
+func logLines(t *testing.T, buf *bytes.Buffer) []map[string]any {
+	t.Helper()
+	var lines []map[string]any
+	for _, line := range strings.Split(strings.TrimSpace(buf.String()), "\n") {
+		var entry map[string]any
+		require.NoError(t, json.Unmarshal([]byte(line), &entry))
+		lines = append(lines, entry)
+	}
+	return lines
+}
+
+func TestEnsureSyncSchedulesLogsCronAndRemoval(t *testing.T) {
+	buf := captureLog(t)
+	cfg := bothSyncSchedules()
+	cfg.Players = ""
+	require.NoError(t, ensureSyncSchedules(t.Context(), newScheduleRecorder(), cfg))
+
+	lines := logLines(t, buf)
+	require.Len(t, lines, 2)
+	assert.Equal(t, map[string]any{
+		"level": "info", "message": "Schedule set", "schedule": "seasons sync",
+		"schedule_id": shared.ScheduleIDSeasonsSync, "cron": []any{syncTestSeasonsCron}, "time_zone": syncTestTimeZone,
+	}, lines[0])
+	assert.Equal(t, map[string]any{
+		"level": "info", "message": "Schedule removed", "schedule": "players sync",
+		"schedule_id": shared.ScheduleIDPlayersSync,
+	}, lines[1])
 }

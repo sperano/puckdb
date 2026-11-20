@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	puckdbtemporal "github.com/sperano/puckdb/internal/temporal"
 	"github.com/sperano/puckdb/internal/worker/shared"
@@ -89,6 +90,7 @@ func ensureSchedule(ctx context.Context, schedules client.ScheduleClient, s sche
 		if err != nil && !errors.As(err, &notFound) {
 			return fmt.Errorf("remove %s schedule: %w", s.Name, err)
 		}
+		log.Info().Str("schedule", s.Name).Str("schedule_id", s.ID).Msg("Schedule removed")
 		return nil
 	}
 	_, err := schedules.Create(ctx, client.ScheduleOptions{
@@ -112,8 +114,24 @@ func ensureSchedule(ctx context.Context, schedules client.ScheduleClient, s sche
 	if err != nil {
 		return fmt.Errorf("set %s schedule: %w", s.Name, err)
 	}
-	log.Info().Str("schedule_id", s.ID).Msg("Schedule set")
+	logScheduleSpec(log.Info().Str("schedule", s.Name).Str("schedule_id", s.ID), s.Spec).Msg("Schedule set")
 	return nil
+}
+
+// logScheduleSpec adds what spec runs on to e: its cron expressions and time
+// zone, or its intervals.
+func logScheduleSpec(e *zerolog.Event, spec *client.ScheduleSpec) *zerolog.Event {
+	if len(spec.CronExpressions) > 0 {
+		e = e.Strs("cron", spec.CronExpressions).Str("time_zone", spec.TimeZoneName)
+	}
+	if len(spec.Intervals) > 0 {
+		every := make([]string, len(spec.Intervals))
+		for i, interval := range spec.Intervals {
+			every[i] = interval.Every.String()
+		}
+		e = e.Strs("every", every)
+	}
+	return e
 }
 
 // updatedPolicy is policy with the overlap and catch-up settings Create
