@@ -85,13 +85,7 @@ func syncScheduleAction(id string, fn any) *client.ScheduleWorkflowAction {
 func ensureSchedule(ctx context.Context, schedules client.ScheduleClient, s scheduleSpec) error {
 	handle := schedules.GetHandle(ctx, s.ID)
 	if s.Spec == nil {
-		err := handle.Delete(ctx)
-		var notFound *serviceerror.NotFound
-		if err != nil && !errors.As(err, &notFound) {
-			return fmt.Errorf("remove %s schedule: %w", s.Name, err)
-		}
-		log.Info().Str("schedule", s.Name).Str("schedule_id", s.ID).Msg("Schedule removed")
-		return nil
+		return removeSchedule(ctx, handle, s)
 	}
 	_, err := schedules.Create(ctx, client.ScheduleOptions{
 		ID:            s.ID,
@@ -115,6 +109,22 @@ func ensureSchedule(ctx context.Context, schedules client.ScheduleClient, s sche
 		return fmt.Errorf("set %s schedule: %w", s.Name, err)
 	}
 	logScheduleSpec(log.Info().Str("schedule", s.Name).Str("schedule_id", s.ID), s.Spec).Msg("Schedule set")
+	return nil
+}
+
+// removeSchedule deletes the schedule behind handle. An absent schedule is
+// not an error and is not logged as removed: only a debug line says so.
+func removeSchedule(ctx context.Context, handle client.ScheduleHandle, s scheduleSpec) error {
+	err := handle.Delete(ctx)
+	var notFound *serviceerror.NotFound
+	if errors.As(err, &notFound) {
+		log.Debug().Str("schedule", s.Name).Str("schedule_id", s.ID).Msg("Schedule absent, nothing to remove")
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("remove %s schedule: %w", s.Name, err)
+	}
+	log.Info().Str("schedule", s.Name).Str("schedule_id", s.ID).Msg("Schedule removed")
 	return nil
 }
 

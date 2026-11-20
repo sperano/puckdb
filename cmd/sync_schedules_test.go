@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	enumspb "go.temporal.io/api/enums/v1"
+	"go.temporal.io/api/serviceerror"
 	"go.temporal.io/sdk/client"
 	"go.temporal.io/sdk/temporal"
 )
@@ -215,6 +216,23 @@ func TestEnsureSyncSchedulesLogsCronAndRemoval(t *testing.T) {
 	}, lines[0])
 	assert.Equal(t, map[string]any{
 		"level": "info", "message": "Schedule removed", "schedule": "players sync",
+		"schedule_id": shared.ScheduleIDPlayersSync,
+	}, lines[1])
+}
+
+func TestEnsureSyncSchedulesAbsentScheduleIsNotLoggedAsRemoved(t *testing.T) {
+	buf := captureLog(t)
+	cfg := bothSyncSchedules()
+	cfg.Players = ""
+	r := newScheduleRecorder()
+	r.handle(shared.ScheduleIDPlayersSync).deleteErr = serviceerror.NewNotFound("no schedule")
+	require.NoError(t, ensureSyncSchedules(t.Context(), r, cfg))
+
+	lines := logLines(t, buf)
+	require.Len(t, lines, 2)
+	assert.Equal(t, "Schedule set", lines[0]["message"])
+	assert.Equal(t, map[string]any{
+		"level": "debug", "message": "Schedule absent, nothing to remove", "schedule": "players sync",
 		"schedule_id": shared.ScheduleIDPlayersSync,
 	}, lines[1])
 }
