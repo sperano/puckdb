@@ -1,13 +1,3 @@
-// Package maurice orchestrates the Maurice AI chat: Service runs the
-// prompt/tool-call loop (internal/llm for completions, internal/mcp for
-// tool discovery and calls) and persists conversations, turns and messages
-// through the DB interface, implemented by a SQLite store (the REPL,
-// single local user) and a PostgreSQL store (the API, one user per login
-// provider identity and API instance via internal/appuser). LLM-call and
-// tool-call usage is persisted only by the PostgreSQL store; SQLite keeps
-// conversations, turns and messages alone. RunREPL (repl*.go) is the
-// `maurice` CLI command's REPL loop, its streams injectable through
-// REPLConfig.
 package maurice
 
 import (
@@ -50,8 +40,8 @@ func TestChat_AnthropicAcceptsHistoryCapInsideToolResults(t *testing.T) {
 	seed = append(seed, toolRound("second", 1)...)
 	seed = append(seed, TurnMessage{Role: "assistant", Content: "a0"}, TurnMessage{Role: "user", Content: "q1"}, TurnMessage{Role: "assistant", Content: "a1"})
 	convID := seedConversation(t, db, seed...)
-	// 13 messages with the prompt; keeping 10 drops q0, the 4-call assistant
-	// and two of its results.
+	// 12 messages with the prompt; keeping 10 drops q0 and the 4-call
+	// assistant, then capHistory drops everything before q1.
 	const maxHistory = 10
 
 	client := llm.NewAnthropicClient(server.URL, "test-key", "test-model")

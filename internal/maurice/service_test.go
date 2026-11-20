@@ -463,8 +463,8 @@ func TestLoadHistory_TruncatesToMaxHistory(t *testing.T) {
 	assert.Equal(t, "follow-up", first.Messages[maxHistory].Content)
 }
 
-// loadHistory drops leading "tool" messages whose paired assistant
-// tool_use block was sliced off by the maxHistory cap.
+// capHistory drops every message before the first "user" message left by
+// the maxHistory cap, here the tool result whose assistant was cut off.
 func TestLoadHistory_SkipsLeadingToolAfterTruncation(t *testing.T) {
 	db := newTestDB(t)
 	const maxHistory = 3
