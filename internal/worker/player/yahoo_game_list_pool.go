@@ -14,19 +14,6 @@ import (
 	"go.temporal.io/sdk/activity"
 )
 
-// YahooIDPoolSource names what a ProcessPlayers chain built its Yahoo ID
-// pool from, so a rebuild reads the same source and checks it the same way.
-type YahooIDPoolSource string
-
-const (
-	// YahooIDPoolSourcePages is the scraped yahoo-players/ pages. It is the
-	// zero value: chains started before the game player lists decode it.
-	YahooIDPoolSourcePages YahooIDPoolSource = ""
-	// YahooIDPoolSourceGameLists is the committed Yahoo game player lists
-	// (resource.GamePlayerList), one per season.
-	YahooIDPoolSourceGameLists YahooIDPoolSource = "game_lists"
-)
-
 // gameListPlayers is every player of the committed game player lists, one
 // entry per Yahoo ID, and the seasons whose list was read (newest first).
 type gameListPlayers struct {
@@ -69,7 +56,6 @@ func (a *Activities) saveGameListPool(ctx context.Context, listed gameListPlayer
 	if err != nil {
 		return nil, err
 	}
-	result.Source = YahooIDPoolSourceGameLists
 	result.ListSeasons = listed.Seasons
 	result.ListEntries = listEntries
 	return result, nil

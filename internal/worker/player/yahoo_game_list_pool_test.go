@@ -147,7 +147,7 @@ func (s *GameListPoolSuite) TestBuildKeepsEachPlayerFromTheNewestSeasonListingIt
 
 	s.Equal(&SaveYahooIDPoolResult{
 		TotalPlayers: 4, AvailablePlayers: 4, PoolSize: 4,
-		Source: YahooIDPoolSourceGameLists, ListSeasons: []int{2026, 2025}, ListEntries: 3,
+		ListSeasons: []int{2026, 2025}, ListEntries: 3,
 	}, result)
 	pool := s.pool()
 	s.Equal(&store.YahooPlayer{
@@ -164,7 +164,6 @@ func (s *GameListPoolSuite) TestBuildWithoutGamesListHasOnlyLeaguePlayers() {
 
 	result := s.build()
 
-	s.Equal(YahooIDPoolSourceGameLists, result.Source)
 	s.Empty(result.ListSeasons)
 	s.Equal(0, result.ListEntries)
 	s.Equal(1, result.PoolSize)
@@ -218,7 +217,7 @@ func (s *GameListPoolSuite) TestLostListPoolIsRebuiltFromTheLists() {
 	s.store.matched = []store.YahooPlayerID{3737}
 
 	result, err := s.ensure(EnsureYahooIDPoolInput{
-		PoolSize: built.PoolSize, Source: YahooIDPoolSourceGameLists, ListSeasons: []int{2026, 2025},
+		PoolSize: built.PoolSize, ListSeasons: []int{2026, 2025},
 	})
 
 	s.Require().NoError(err)
@@ -237,7 +236,7 @@ func (s *GameListPoolSuite) TestRebuildAcceptsAShorterCurrentSeasonList() {
 		[]gameListPlayerXML{{ID: 3737, First: "Sidney", Last: "Crosby", Team: "TOR", Number: 87, Position: "C"}})
 
 	result, err := s.ensure(EnsureYahooIDPoolInput{
-		PoolSize: 3, Source: YahooIDPoolSourceGameLists, ListSeasons: []int{2026, 2025},
+		PoolSize: 3, ListSeasons: []int{2026, 2025},
 	})
 
 	s.Require().NoError(err)
@@ -250,16 +249,10 @@ func (s *GameListPoolSuite) TestRebuildFailsWhenASeasonPhase1ReadHasNoList() {
 	s.Require().NoError(s.mem.Delete(context.Background(), resource.GamePlayerList{Season: 2025}.Path()))
 
 	_, err := s.ensure(EnsureYahooIDPoolInput{
-		PoolSize: 3, Source: YahooIDPoolSourceGameLists, ListSeasons: []int{2026, 2025},
+		PoolSize: 3, ListSeasons: []int{2026, 2025},
 	})
 
 	s.Require().ErrorContains(err, "no committed game player list for seasons [2025]")
-}
-
-func (s *GameListPoolSuite) TestRebuildRefusesAnUnknownSource() {
-	_, err := s.ensure(EnsureYahooIDPoolInput{PoolSize: 1, Source: "elsewhere"})
-
-	s.Require().ErrorContains(err, `unknown source "elsewhere"`)
 }
 
 // TestBatchRebuildsALostListPoolFromTheLists: a batch finding a smaller
@@ -267,7 +260,7 @@ func (s *GameListPoolSuite) TestRebuildRefusesAnUnknownSource() {
 func (s *GameListPoolSuite) TestBatchRebuildsALostListPoolFromTheLists() {
 	s.twoSeasons()
 	input := ManifestBatchInput{
-		YahooPoolSize: 3, YahooPoolSource: YahooIDPoolSourceGameLists, YahooListSeasons: []int{2026, 2025},
+		YahooPoolSize: 3, YahooListSeasons: []int{2026, 2025},
 	}
 	s.env.RegisterActivityWithOptions(func(ctx context.Context) (map[store.YahooPlayerID]*store.YahooPlayer, error) {
 		return s.act.loadYahooIDPool(ctx, input.yahooPool())

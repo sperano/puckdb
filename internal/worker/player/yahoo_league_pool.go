@@ -67,8 +67,7 @@ func mergeLeaguePlayers(pages []store.YahooPlayer, rows []sqlcdb.ListYahooLeague
 // (the main source's entries) hold. Phase 1's save and the pool rebuild
 // both go through it. The rows are read again at each rebuild and may have
 // changed since phase 1 (a newer pool import deletes the players Yahoo no
-// longer lists), so the page count lets a page pool's rebuild check the page
-// entries alone (rebuildYahooIDPoolFromPages).
+// longer lists), so the list entry count reports how many distinct Yahoo IDs the committed lists supplied.
 func (a *Activities) withLeaguePlayers(ctx context.Context, pages []store.YahooPlayer) ([]store.YahooPlayer, int, error) {
 	rows, err := a.LeaguePlayers.ListYahooLeaguePlayersForPool(ctx)
 	if err != nil {

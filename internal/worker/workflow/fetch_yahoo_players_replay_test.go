@@ -12,29 +12,6 @@ import (
 	"go.temporal.io/sdk/worker"
 )
 
-// fetchYahooPlayersScanHistories are the two executions of a player ID scan
-// (IDs 1 to 5, three per execution, batches of two, two at once), recorded
-// on a Temporal dev server with the code before the game player lists
-// (commit 7561f57), FetchYahooPlayerBatch faked. The first snapshots its
-// config, the second runs on the config it carried and, being the last,
-// completes: it pins that fetchYahooPlayersScanFinalChange keeps such a
-// recorded completion.
-var fetchYahooPlayersScanHistories = []string{
-	"testdata/fetch_yahoo_players_scan_1.json",
-	"testdata/fetch_yahoo_players_scan_2.json",
-}
-
-// TestFetchYahooPlayersReplaysScanHistories replays executions recorded
-// before the game player lists: without a version marker they must take the
-// scan path, unchanged.
-func TestFetchYahooPlayersReplaysScanHistories(t *testing.T) {
-	replayer := worker.NewWorkflowReplayer()
-	replayer.RegisterWorkflow(FetchYahooPlayersWorkflow)
-	for _, path := range fetchYahooPlayersScanHistories {
-		require.NoError(t, replayer.ReplayWorkflowHistoryFromJSONFile(nil, path), path)
-	}
-}
-
 // registerGameListReplayActivities registers the game list activities under
 // their production names: two seasons, the older kept, the newer downloaded
 // in two pages.
@@ -86,7 +63,6 @@ func TestFetchYahooPlayersGameListsReplay(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, run.Get(ctx, nil))
 	history := readSeasonReplayHistory(t, temporalClient, run.GetID(), run.GetRunID())
-	require.Equal(t, fetchYahooPlayersGameListsVersion, versionMarkers(t, history)[fetchYahooPlayersGameListsChange])
 
 	replayer := worker.NewWorkflowReplayer()
 	replayer.RegisterWorkflow(FetchYahooPlayersWorkflow)

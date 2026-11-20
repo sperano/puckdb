@@ -18,8 +18,6 @@ const (
 
 	// YahooPlayersDir is the directory containing Yahoo player HTML files.
 	YahooPlayersDir = "yahoo-players"
-	// YahooPlayersMissingDir is the directory containing missing Yahoo player markers.
-	YahooPlayersMissingDir = "yahoo-players-missing"
 )
 
 // YahooPlayerID is the unique identifier Yahoo assigns to a player.
@@ -207,27 +205,6 @@ func (y YahooPlayer) Parse(data []byte) ([]byte, error) {
 }
 
 func (y YahooPlayer) Format(data []byte) ([]byte, error) {
-	return data, nil
-}
-
-// MissingYahooPlayer is a marker for Yahoo player IDs that returned 404.
-// This does not implement URLResource since it's just a cache marker.
-type MissingYahooPlayer struct {
-	PlayerID YahooPlayerID
-}
-
-func (m MissingYahooPlayer) Path() string {
-	return fmt.Sprintf("%s/player-%d.txt", YahooPlayersMissingDir, m.PlayerID)
-}
-
-func (m MissingYahooPlayer) Type() core.FileType { return core.YahooPlayer }
-
-// Parse returns the raw bytes (typically empty or a placeholder).
-func (m MissingYahooPlayer) Parse(data []byte) ([]byte, error) {
-	return data, nil
-}
-
-func (m MissingYahooPlayer) Format(data []byte) ([]byte, error) {
 	return data, nil
 }
 

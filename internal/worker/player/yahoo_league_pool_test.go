@@ -63,36 +63,36 @@ func TestYahooPlayerFromLeagueRow(t *testing.T) {
 	}
 }
 
-func TestMergeLeaguePlayers_PageWinsAndDuplicatesCollapse(t *testing.T) {
+func TestMergeLeaguePlayers_ListWinsAndDuplicatesCollapse(t *testing.T) {
 	t.Parallel()
 
-	page := store.YahooPlayer{YahooID: 6743, FirstName: "Connor", LastName: "McDavid", JerseyNumber: 97, Team: "Edmonton"}
+	listed := store.YahooPlayer{YahooID: 6743, FirstName: "Connor", LastName: "McDavid", JerseyNumber: 97, Team: "Edmonton"}
 	rows := []sqlcdb.ListYahooLeaguePlayersForPoolRow{
 		leagueRow(6743, "Connor McDavid", "EDM", "C"),
 		leagueRow(7000, "Mitch Marner", "TOR", "RW"),
 		leagueRow(7000, "Mitch Marner", "LV", "RW"),
 	}
 
-	merged := mergeLeaguePlayers([]store.YahooPlayer{page}, rows)
+	merged := mergeLeaguePlayers([]store.YahooPlayer{listed}, rows)
 
 	require.Len(t, merged, 2)
-	assert.Equal(t, page, merged[0], "the page's jersey number is kept")
+	assert.Equal(t, listed, merged[0], "the list entry's jersey number is kept")
 	assert.Equal(t, store.YahooPlayerID(7000), merged[1].YahooID)
 	assert.Equal(t, "Toronto", merged[1].Team, "the first row (newest season) wins")
 }
 
-func newPoolActivities(t *testing.T, pages store.Storage, rows ...sqlcdb.ListYahooLeaguePlayersForPoolRow) *Activities {
+func newPoolActivities(t *testing.T, storage store.Storage, rows ...sqlcdb.ListYahooLeaguePlayersForPoolRow) *Activities {
 	t.Helper()
 	client := redis.NewClient(&redis.Options{Addr: miniredis.RunT(t).Addr()})
 	t.Cleanup(func() { _ = client.Close() })
-	return &Activities{Storage: pages, RedisClient: client, LeaguePlayers: fakeLeaguePlayers{rows: rows}, Manifests: newFakeManifestStore()}
+	return &Activities{Storage: storage, RedisClient: client, LeaguePlayers: fakeLeaguePlayers{rows: rows}, Manifests: newFakeManifestStore()}
 }
 
 func landing(first, last string) *nhl.PlayerLanding {
 	return &nhl.PlayerLanding{FirstName: nhl.LocalizedString{Default: first}, LastName: nhl.LocalizedString{Default: last}}
 }
 
-func TestPoolWithoutPagesMatchesLeaguePlayers(t *testing.T) {
+func TestPoolWithoutGameListsMatchesLeaguePlayers(t *testing.T) {
 	ctx := context.Background()
 	act := newPoolActivities(t, store.NewMemStorage(),
 		leagueRow(6743, "Connor McDavid", "EDM", "C"),
@@ -101,10 +101,10 @@ func TestPoolWithoutPagesMatchesLeaguePlayers(t *testing.T) {
 		leagueRow(4, "Sebastian Aho", "NYI", "D"),
 	)
 
-	players, pages, err := act.withLeaguePlayers(ctx, nil)
+	players, listEntries, err := act.withLeaguePlayers(ctx, nil)
 	require.NoError(t, err)
 	assert.Len(t, players, 4)
-	assert.Zero(t, pages)
+	assert.Zero(t, listEntries)
 	saved, err := saveYahooPlayersToRedisImpl(ctx, act.RedisClient, players)
 	require.NoError(t, err)
 	assert.Equal(t, 4, saved.PoolSize)
@@ -134,48 +134,48 @@ func TestWithLeaguePlayers_ListErrorFails(t *testing.T) {
 	require.ErrorContains(t, err, "db down")
 }
 
-func TestWithLeaguePlayers_CountsTheDistinctPages(t *testing.T) {
+func TestWithLeaguePlayers_CountsTheDistinctListEntries(t *testing.T) {
 	act := &Activities{LeaguePlayers: fakeLeaguePlayers{rows: []sqlcdb.ListYahooLeaguePlayersForPoolRow{
 		leagueRow(6743, "Connor McDavid", "EDM", "C"),
 		leagueRow(7000, "Mitch Marner", "TOR", "RW"),
 	}}}
 
-	players, pages, err := act.withLeaguePlayers(context.Background(),
+	players, listEntries, err := act.withLeaguePlayers(context.Background(),
 		[]store.YahooPlayer{{YahooID: 6743}, {YahooID: 29}, {YahooID: 29}})
 
 	require.NoError(t, err)
-	assert.Len(t, players, 4, "McDavid has a page; the duplicate page stays for the hash to collapse")
-	assert.Equal(t, 2, pages, "the duplicate page counts once")
+	assert.Len(t, players, 4, "McDavid has a list entry; the duplicate list entry stays for the hash to collapse")
+	assert.Equal(t, 2, listEntries, "the duplicate list entry counts once")
 }
 
-func TestSaveYahooPlayersToRedis_LeagueOnlyPool(t *testing.T) {
+func TestBuildYahooIDPool_LeagueOnlyPool(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestActivityEnvironment()
 	act := newPoolActivities(t, store.NewMemStorage(), leagueRow(7000, "Mitch Marner", "TOR", "RW"))
-	env.RegisterActivity(act.SaveYahooPlayersToRedis)
+	env.RegisterActivity(act.BuildYahooIDPool)
 
-	future, err := env.ExecuteActivity(act.SaveYahooPlayersToRedis, []store.YahooPlayer{})
+	future, err := env.ExecuteActivity(act.BuildYahooIDPool)
 
 	require.NoError(t, err)
 	var result SaveYahooIDPoolResult
 	require.NoError(t, future.Get(&result))
-	assert.Equal(t, SaveYahooIDPoolResult{TotalPlayers: 1, AvailablePlayers: 1, PoolSize: 1, NonPageEntries: 1}, result)
+	assert.Equal(t, SaveYahooIDPoolResult{TotalPlayers: 1, AvailablePlayers: 1, PoolSize: 1}, result)
 	pool, err := LoadYahooIDPool(context.Background(), act.RedisClient)
 	require.NoError(t, err)
 	require.Contains(t, pool, store.YahooPlayerID(7000))
 	assert.Equal(t, "Marner", pool[7000].LastName)
 }
 
-func TestSaveYahooPlayersToRedis_ListErrorSavesNothing(t *testing.T) {
+func TestBuildYahooIDPool_ListErrorSavesNothing(t *testing.T) {
 	var ts testsuite.WorkflowTestSuite
 	env := ts.NewTestActivityEnvironment()
 	mr := miniredis.RunT(t)
 	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
 	t.Cleanup(func() { _ = client.Close() })
-	act := &Activities{RedisClient: client, LeaguePlayers: fakeLeaguePlayers{err: errors.New("db down")}}
-	env.RegisterActivity(act.SaveYahooPlayersToRedis)
+	act := &Activities{Storage: store.NewMemStorage(), RedisClient: client, LeaguePlayers: fakeLeaguePlayers{err: errors.New("db down")}}
+	env.RegisterActivity(act.BuildYahooIDPool)
 
-	_, err := env.ExecuteActivity(act.SaveYahooPlayersToRedis, []store.YahooPlayer{{YahooID: 97, LastName: "McDavid"}})
+	_, err := env.ExecuteActivity(act.BuildYahooIDPool)
 
 	require.ErrorContains(t, err, "list yahoo league players: db down")
 	assert.False(t, mr.Exists(YahooIDPoolKey), "no pool is saved without the league players")

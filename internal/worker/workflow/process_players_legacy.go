@@ -130,7 +130,7 @@ func ProcessPlayersWorkflowContinue(ctx workflow.Context, input *processPlayersI
 
 // runPhaseLoadYahoo loads Yahoo player pool into Redis.
 func runPhaseLoadYahoo(ctx workflow.Context, tracker *shared.ReportTracker, input *processPlayersInternalInput) (*ProcessPlayersResult, error) {
-	saveResult, err := loadYahooPool(ctx, tracker, input.BatchSize, input.Concurrency)
+	saveResult, err := loadYahooPool(ctx, tracker)
 	if err != nil {
 		return nil, err
 	}

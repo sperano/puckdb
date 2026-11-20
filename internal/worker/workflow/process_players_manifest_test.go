@@ -53,8 +53,6 @@ const (
 	chainFailingOrdinal = 2
 	chainPoolSize       = 4
 	chainRebuiltPool    = 3
-	chainNonPageEntries = 1
-	chainRebuiltNonPage = 2
 	chainManifestID     = "chain-run"
 	chainMatchedPerItem = 1
 	chainUnmatched      = 2
@@ -124,16 +122,9 @@ type manifestChain struct {
 	events  []string
 	ensured []int
 	pools   []int
-	// ensuredNonPage and poolsNonPage are the non-page entry counts beside
-	// ensured and pools.
-	ensuredNonPage []int
-	poolsNonPage   []int
-	// ensuredSeasons and poolsSeasons are the game list seasons, and
-	// ensuredSources and poolsSources the pool sources, beside them.
+	// ensuredSeasons and poolsSeasons record the game list seasons.
 	ensuredSeasons [][]int
 	poolsSeasons   [][]int
-	ensuredSources []workplayer.YahooIDPoolSource
-	poolsSources   []workplayer.YahooIDPoolSource
 	// rebuiltSeasons are the game list seasons ensure reports after its
 	// rebuild.
 	rebuiltSeasons []int
@@ -168,8 +159,8 @@ func (c *manifestChain) newEnv(t *testing.T) *testsuite.TestWorkflowEnvironment 
 		Return(workplayer.ManifestRef{ID: chainManifestID, Count: chainPlayers, Hash: "h"}, nil)
 	env.OnActivity(act.BuildYahooIDPool, mock.Anything).
 		Return(&workplayer.SaveYahooIDPoolResult{
-			TotalPlayers: 1, AvailablePlayers: 1, PoolSize: chainPoolSize, NonPageEntries: chainNonPageEntries,
-			Source: workplayer.YahooIDPoolSourceGameLists, ListSeasons: chainListSeasons, ListEntries: 1,
+			TotalPlayers: 1, AvailablePlayers: 1, PoolSize: chainPoolSize,
+			ListSeasons: chainListSeasons, ListEntries: 1,
 		}, nil)
 	env.OnActivity(act.EnsureYahooIDPool, mock.Anything, mock.Anything).Return(c.ensure)
 	env.OnActivity(act.ProcessPlayerManifestBatch, mock.Anything, mock.Anything).Return(c.batch)
@@ -200,16 +191,14 @@ func (c *manifestChain) ensure(_ context.Context, input workplayer.EnsureYahooID
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.ensured = append(c.ensured, input.PoolSize)
-	c.ensuredNonPage = append(c.ensuredNonPage, input.NonPageEntries)
 	c.ensuredSeasons = append(c.ensuredSeasons, input.ListSeasons)
-	c.ensuredSources = append(c.ensuredSources, input.Source)
 	if len(c.ensured) == 2 {
 		return workplayer.EnsureYahooIDPoolResult{
-			Rebuilt: true, PoolSize: chainRebuiltPool, NonPageEntries: chainRebuiltNonPage, ListSeasons: c.rebuiltSeasons,
+			Rebuilt: true, PoolSize: chainRebuiltPool, ListSeasons: c.rebuiltSeasons,
 		}, nil
 	}
 	return workplayer.EnsureYahooIDPoolResult{
-		FoundSize: input.PoolSize, PoolSize: input.PoolSize, NonPageEntries: input.NonPageEntries, ListSeasons: input.ListSeasons,
+		FoundSize: input.PoolSize, PoolSize: input.PoolSize, ListSeasons: input.ListSeasons,
 	}, nil
 }
 
@@ -218,9 +207,7 @@ func (c *manifestChain) batch(_ context.Context, input workplayer.ManifestBatchI
 	defer c.mu.Unlock()
 	c.batches = append(c.batches, ordinalRange{From: input.From, To: input.To})
 	c.pools = append(c.pools, input.YahooPoolSize)
-	c.poolsNonPage = append(c.poolsNonPage, input.YahooNonPageEntries)
 	c.poolsSeasons = append(c.poolsSeasons, input.YahooListSeasons)
-	c.poolsSources = append(c.poolsSources, input.YahooPoolSource)
 	result := workplayer.ManifestBatchResult{
 		ProcessPlayerBatchResult: workplayer.ProcessPlayerBatchResult{Origins: core.OriginCounts{core.OriginFileSystem: 1}},
 	}
@@ -278,12 +265,8 @@ func TestProcessPlayersManifestChain(t *testing.T) {
 	assert.ElementsMatch(t, []ordinalRange{{0, 1}, {1, 2}, {2, 3}, {3, 4}, {4, 5}}, chain.batches, "each ordinal once")
 	assert.ElementsMatch(t, []int{chainPoolSize, chainPoolSize, chainRebuiltPool, chainRebuiltPool, chainRebuiltPool},
 		chain.pools, "batches expect the pool size of their execution's check")
-	assert.ElementsMatch(t, []int{chainNonPageEntries, chainNonPageEntries, chainRebuiltNonPage, chainRebuiltNonPage, chainRebuiltNonPage},
-		chain.poolsNonPage, "batches get the non-page entry count of their execution's check")
 	assert.ElementsMatch(t, [][]int{chainListSeasons, chainListSeasons, chainRebuiltSeasons, chainRebuiltSeasons, chainRebuiltSeasons},
 		chain.poolsSeasons, "batches get the game list seasons of their execution's check")
-	gameLists := workplayer.YahooIDPoolSourceGameLists
-	assert.Equal(t, []workplayer.YahooIDPoolSource{gameLists, gameLists, gameLists, gameLists, gameLists}, chain.poolsSources)
 	assert.Equal(t, 1, state.Totals.Errors)
 	assert.Equal(t, 4, state.Totals.Imported)
 	assert.Equal(t, map[string]int{"name+jersey": 2, "team-tiebreaker": 2}, state.Totals.MatchReasons,
@@ -303,46 +286,13 @@ func TestProcessPlayersManifestChain(t *testing.T) {
 
 	assert.Equal(t, []int{chainPoolSize, chainPoolSize, chainRebuiltPool, chainRebuiltPool}, chain.ensured,
 		"every continuation checks the pool, against the rebuilt size after a rebuild")
-	assert.Equal(t, []int{chainNonPageEntries, chainNonPageEntries, chainRebuiltNonPage, chainRebuiltNonPage}, chain.ensuredNonPage,
-		"the non-page entry count crosses ContinueAsNew and follows a rebuild")
 	assert.Equal(t, [][]int{chainListSeasons, chainListSeasons, chainRebuiltSeasons, chainRebuiltSeasons}, chain.ensuredSeasons,
 		"the game list seasons cross ContinueAsNew and follow a rebuild")
-	assert.Equal(t, []workplayer.YahooIDPoolSource{gameLists, gameLists, gameLists, gameLists}, chain.ensuredSources)
 	wantResize := fmt.Sprintf("save total=%d bars=%d unmatched=%d", 1+chainPlayers+chainUnmatched,
 		1+chainPlayers+chainUnmatched, chainUnmatched)
 	require.GreaterOrEqual(t, len(chain.events), 3)
 	assert.Equal(t, wantResize, chain.events[1], "phase 3 saves its resized bar with a recomputed Total")
 	assert.Equal(t, "verify", chain.events[2], "before the first verify batch")
-}
-
-// TestProcessPlayersManifestChain_PagePoolSource: with a page-source pool
-// (no seasons) injected into the state phase 1 carries over (the page phase
-// 1 itself is covered by the process_players_page_pool_* replay histories),
-// every pool check and batch of the continuations gets the page source,
-// before and after a rebuild.
-func TestProcessPlayersManifestChain_PagePoolSource(t *testing.T) {
-	setViperInt(t, config.FlagPlayerLandingPlayersPerExec, chainPlayersPerExec)
-	chain := &manifestChain{}
-
-	env := chain.newEnv(t)
-	env.ExecuteWorkflow(ProcessPlayersWorkflow, &ProcessPlayersInput{BatchSize: intPtr(chainBatchSize), Concurrency: intPtr(chainConcurrency)})
-	state := continued(t, env)
-	state.YahooPool.Source = workplayer.YahooIDPoolSourcePages
-	state.YahooPool.ListSeasons = nil
-
-	for state.Phase == phaseProcessPlayers {
-		env = chain.newEnv(t)
-		env.ExecuteWorkflow(ProcessPlayersWorkflowContinueV2, state)
-		state = continued(t, env)
-	}
-	require.Equal(t, phaseVerifyUnmatched, state.Phase)
-	pages := workplayer.YahooIDPoolSourcePages
-	assert.Equal(t, []workplayer.YahooIDPoolSource{pages, pages, pages}, chain.ensuredSources)
-	assert.Equal(t, [][]int{nil, nil, nil}, chain.ensuredSeasons)
-	assert.Equal(t, []workplayer.YahooIDPoolSource{pages, pages, pages, pages, pages}, chain.poolsSources)
-	assert.Equal(t, [][]int{nil, nil, nil, nil, nil}, chain.poolsSeasons)
-	assert.Equal(t, pages, state.YahooPool.Source)
-	assert.Nil(t, state.YahooPool.ListSeasons)
 }
 
 func TestProcessPlayersManifestChain_NoPlayers(t *testing.T) {

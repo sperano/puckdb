@@ -3,7 +3,6 @@ package workflow
 import (
 	"fmt"
 
-	"github.com/sperano/puckdb/internal/store"
 	workplayer "github.com/sperano/puckdb/internal/worker/player"
 	"github.com/sperano/puckdb/internal/worker/shared"
 	"go.temporal.io/sdk/log"
@@ -21,8 +20,7 @@ const (
 
 const (
 	// processPlayersYahooEstimate is the Yahoo bar's Total: the one
-	// BuildYahooIDPool activity, or, on the page path, until Phase 1 resizes
-	// it to the number of Yahoo player batches.
+	// BuildYahooIDPool activity.
 	processPlayersYahooEstimate = 1
 	// processPlayersUnmatchedEstimate is the Unmatched bar's Total until
 	// Phase 3 resizes it to the number of unmatched players.
@@ -158,23 +156,16 @@ func ProcessPlayersWorkflow(ctx workflow.Context, input *ProcessPlayersInput) (*
 	return runManifestFirstExecution(ctx, cfg)
 }
 
-// yahooPoolGameListsChangeID is the GetVersion change ID of phase 1's pool
-// source. workflow.DefaultVersion (a phase 1 recorded before the change)
-// keeps parsing the scraped pages (loadYahooPoolFromPages).
+// Retain the marker for game-list pool histories recorded before the page
+// pool branch was removed.
 const yahooPoolGameListsChangeID = "process-players-yahoo-pool-game-lists"
-
-// yahooPoolGameListsVersion builds the pool from the committed game player
-// lists in one activity (BuildYahooIDPool).
 const yahooPoolGameListsVersion workflow.Version = 1
 
 // loadYahooPool is phase 1: save the Yahoo ID pool to Redis from the
 // committed game player lists, together with the yahoo_league_players
 // players no list names. ctx must carry activity options.
-func loadYahooPool(ctx workflow.Context, tracker *shared.ReportTracker, batchSize, concurrency int) (*workplayer.SaveYahooIDPoolResult, error) {
-	if workflow.GetVersion(ctx, yahooPoolGameListsChangeID, workflow.DefaultVersion, yahooPoolGameListsVersion) ==
-		workflow.DefaultVersion {
-		return loadYahooPoolFromPages(ctx, tracker, batchSize, concurrency)
-	}
+func loadYahooPool(ctx workflow.Context, tracker *shared.ReportTracker) (*workplayer.SaveYahooIDPoolResult, error) {
+	workflow.GetVersion(ctx, yahooPoolGameListsChangeID, workflow.DefaultVersion, yahooPoolGameListsVersion)
 	logger := workflow.GetLogger(ctx)
 	logger.Info("ProcessPlayersWorkflow Phase 1: loading Yahoo player pool from the game player lists")
 	tracker.StartGroup(ctx, GroupLoadYahoo)
@@ -195,64 +186,6 @@ func loadYahooPool(ctx workflow.Context, tracker *shared.ReportTracker, batchSiz
 		fmt.Sprintf("Loaded %d Yahoo players (%d from %d seasons' game player lists) in %s.",
 			saveResult.TotalPlayers, saveResult.ListEntries, len(saveResult.ListSeasons),
 			tracker.GetElapsed(ctx, GroupLoadYahoo)))
-	return saveResult, nil
-}
-
-// loadYahooPoolFromPages is phase 1 as recorded before the game player
-// lists: parse every stored Yahoo player file and save the Yahoo ID pool to
-// Redis, together with the yahoo_league_players players without a page
-// (SaveYahooPlayersToRedis adds them). Kept for replay until no such
-// history remains.
-func loadYahooPoolFromPages(ctx workflow.Context, tracker *shared.ReportTracker, batchSize, concurrency int) (*workplayer.SaveYahooIDPoolResult, error) {
-	logger := workflow.GetLogger(ctx)
-
-	logger.Info("ProcessPlayersWorkflow Phase 1: loading Yahoo player pool")
-	tracker.StartGroup(ctx, GroupLoadYahoo)
-
-	// Step 1a: List all Yahoo player files
-	var playerAct *workplayer.Activities
-	var yahooPlayerIDs []int
-	if err := workflow.ExecuteActivity(ctx, playerAct.ListYahooPlayerFiles).Get(ctx, &yahooPlayerIDs); err != nil {
-		return nil, fmt.Errorf("list yahoo player files: %w", err)
-	}
-	logger.Info("Listed Yahoo player files", "count", len(yahooPlayerIDs))
-
-	// Step 1b: Parse Yahoo players in batches with concurrency
-	var allYahooPlayers []store.YahooPlayer
-	batches := shared.NewBatches(yahooPlayerIDs, batchSize)
-	// Resized without a save: legacy chain histories record no save here
-	// (ResizeBar would add a local activity they lack); the next save (the
-	// first batch's IncrementBarBy in RunWorkerPool, or CompleteGroup with
-	// no batches) writes the new size.
-	tracker.SetBarTotal(shared.BarRef{Group: GroupLoadYahoo}, batches.Count())
-	tracker.RecalcTotal()
-
-	opts := shared.PoolOptions{
-		Total: batches.Count(), Concurrency: concurrency,
-		Progress: shared.SingleBar{Bar: shared.BarRef{Group: GroupLoadYahoo}},
-		Start: func(_ workflow.Context, batchIndex int) workflow.Future {
-			return workflow.ExecuteActivity(ctx, playerAct.ParseYahooPlayerBatch, batches.Batch(batchIndex))
-		},
-		Handle: shared.CollectSlicesInto(&allYahooPlayers),
-	}
-	if err := tracker.RunWorkerPool(ctx, opts); err != nil {
-		return nil, fmt.Errorf("parse yahoo players: %w", err)
-	}
-	logger.Info("Parsed Yahoo players", "count", len(allYahooPlayers))
-
-	// Step 1c: Save all players to Redis
-	var saveResult *workplayer.SaveYahooIDPoolResult
-	if err := workflow.ExecuteActivity(ctx, playerAct.SaveYahooPlayersToRedis, allYahooPlayers).Get(ctx, &saveResult); err != nil {
-		return nil, fmt.Errorf("save yahoo players to redis: %w", err)
-	}
-	logger.Info("Saved Yahoo pool to Redis",
-		"total", saveResult.TotalPlayers,
-		"available", saveResult.AvailablePlayers,
-		"skipped_non_nhl", saveResult.SkippedNonNHL)
-
-	tracker.CompleteGroup(ctx, GroupLoadYahoo,
-		fmt.Sprintf("Loaded %d Yahoo players in %s.",
-			saveResult.TotalPlayers, tracker.GetElapsed(ctx, GroupLoadYahoo)))
 	return saveResult, nil
 }
 

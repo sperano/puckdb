@@ -23,6 +23,7 @@ import (
 // The ProcessPlayers chain used by the replay tests: five players, two per
 // execution, one per batch, so phase 2 runs three executions.
 const (
+	replayExecutions     = 5
 	replayPlayers        = 5
 	replayPlayersPerExec = 2
 	replayBatchSize      = 1
@@ -57,9 +58,8 @@ func replayBatchResult(playerIDs []int64) workplayer.ProcessPlayerBatchResult {
 	return result
 }
 
-// registerReplayCommonActivities registers the activities both the legacy and
-// the manifest chain call, under their production names, plus progress
-// persistence on a private miniredis.
+// registerReplayCommonActivities registers progress persistence on a private
+// miniredis and the activities the player workflows share.
 func registerReplayCommonActivities(t *testing.T, w worker.Worker) {
 	t.Helper()
 	mr := miniredis.RunT(t)
@@ -74,23 +74,10 @@ func registerReplayCommonActivities(t *testing.T, w worker.Worker) {
 		name string
 		fn   any
 	}{
-		{"ListYahooPlayerFiles", func(context.Context) ([]store.YahooPlayerID, error) {
-			return []store.YahooPlayerID{replayYahooID}, nil
-		}},
-		{"ParseYahooPlayerBatch", func(_ context.Context, ids []store.YahooPlayerID) ([]store.YahooPlayer, error) {
-			players := make([]store.YahooPlayer, len(ids))
-			for i, id := range ids {
-				players[i] = store.YahooPlayer{YahooID: id, FirstName: "Un", LastName: "Matched"}
-			}
-			return players, nil
-		}},
-		{"SaveYahooPlayersToRedis", func(_ context.Context, players []store.YahooPlayer) (*workplayer.SaveYahooIDPoolResult, error) {
-			return &workplayer.SaveYahooIDPoolResult{TotalPlayers: len(players), AvailablePlayers: len(players)}, nil
-		}},
 		{"BuildYahooIDPool", func(context.Context) (*workplayer.SaveYahooIDPoolResult, error) {
 			return &workplayer.SaveYahooIDPoolResult{
 				TotalPlayers: 1, AvailablePlayers: 1, PoolSize: 1,
-				Source: workplayer.YahooIDPoolSourceGameLists, ListSeasons: []int{2026}, ListEntries: 1,
+				ListSeasons: []int{2026}, ListEntries: 1,
 			}, nil
 		}},
 		{"LoadUnmatchedYahooPlayers", func(context.Context) ([]workplayer.UnmatchedYahooPlayer, error) {
@@ -127,49 +114,17 @@ func readProcessPlayersChain(t *testing.T, temporalClient client.Client, workflo
 	return chain
 }
 
-// processPlayersLegacyHistories are the five executions of a legacy chain
-// (run 1, three phase-2 continuations, phase 3), recorded on a Temporal dev
-// server with the code before the player manifest (commit b0bb2c2), with
-// the activities registerReplayCommonActivities registers plus
-// LoadAllBoxscorePlayers returning replayBoxscorePlayers() and
-// ProcessPlayerBatch returning replayBatchResult of its players' IDs.
-var processPlayersLegacyHistories = []string{
-	"testdata/process_players_legacy_1.json",
-	"testdata/process_players_legacy_2.json",
-	"testdata/process_players_legacy_3.json",
-	"testdata/process_players_legacy_4.json",
-	"testdata/process_players_legacy_5.json",
-}
-
-// TestProcessPlayersReplaysLegacyHistories replays a chain recorded before
-// the manifest: run 1 must keep the legacy path (no version marker), and the
-// legacy continuation type must still decode and run its input.
-func TestProcessPlayersReplaysLegacyHistories(t *testing.T) {
+// TestProcessPlayersReplaysLegacyContinuations covers each execution after
+// the first run of a chain recorded before the player manifest.
+func TestProcessPlayersReplaysLegacyContinuations(t *testing.T) {
 	replayer := worker.NewWorkflowReplayer()
-	replayer.RegisterWorkflow(ProcessPlayersWorkflow)
 	replayer.RegisterWorkflow(ProcessPlayersWorkflowContinue)
-	for _, path := range processPlayersLegacyHistories {
-		require.NoError(t, replayer.ReplayWorkflowHistoryFromJSONFile(nil, path), path)
-	}
-}
-
-// processPlayersPagePoolHistories are run 1 and the first phase-2
-// execution of a manifest chain recorded on a Temporal dev server with the
-// code before the game player lists (commit 519fef3), with the activities
-// registerReplayCommonActivities and registerReplayManifestActivities
-// register: phase 1 parses the pages (no version marker).
-var processPlayersPagePoolHistories = []string{
-	"testdata/process_players_page_pool_1.json",
-	"testdata/process_players_page_pool_2.json",
-}
-
-// TestProcessPlayersReplaysPagePoolHistories replays a manifest chain whose
-// phase 1 ran before the game player lists: it must keep the page path.
-func TestProcessPlayersReplaysPagePoolHistories(t *testing.T) {
-	replayer := worker.NewWorkflowReplayer()
-	replayer.RegisterWorkflow(ProcessPlayersWorkflow)
-	replayer.RegisterWorkflow(ProcessPlayersWorkflowContinueV2)
-	for _, path := range processPlayersPagePoolHistories {
+	for _, path := range []string{
+		"testdata/process_players_legacy_2.json",
+		"testdata/process_players_legacy_3.json",
+		"testdata/process_players_legacy_4.json",
+		"testdata/process_players_legacy_5.json",
+	} {
 		require.NoError(t, replayer.ReplayWorkflowHistoryFromJSONFile(nil, path), path)
 	}
 }
@@ -236,7 +191,7 @@ func TestProcessPlayersManifestChainReplays(t *testing.T) {
 	err = temporalClient.GetWorkflow(ctx, run.GetID(), "").Get(ctx, nil)
 	require.ErrorContains(t, err, "finished with 1 per-player error(s)")
 	chain := readProcessPlayersChain(t, temporalClient, run.GetID(), run.GetRunID())
-	require.Len(t, chain, len(processPlayersLegacyHistories), "run 1, three phase-2 executions, phase 3")
+	require.Len(t, chain, replayExecutions, "run 1, three phase-2 executions, phase 3")
 
 	replayer := worker.NewWorkflowReplayer()
 	replayer.RegisterWorkflow(ProcessPlayersWorkflow)

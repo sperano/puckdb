@@ -5,7 +5,6 @@ import (
 	"errors"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/sperano/puckdb/internal/resource"
 	"github.com/sperano/puckdb/internal/worker/shared"
@@ -261,23 +260,6 @@ func TestFetchYahooPlayersWorkflow_ListErrorFails(t *testing.T) {
 
 	require.True(t, env.IsWorkflowCompleted())
 	require.ErrorContains(t, env.GetWorkflowError(), "list Yahoo NHL games")
-}
-
-// TestFetchYahooPlayersWorkflow_ScanInputRunsGameLists checks that an
-// execution a scan continued into (its input carries the scan's position and
-// config) downloads the game lists instead of scanning.
-func TestFetchYahooPlayersWorkflow_ScanInputRunsGameLists(t *testing.T) {
-	f := threeSeasonFakes()
-	input := &FetchYahooPlayersInput{
-		StartPlayerID: legacyScanPlayersPerExecution + 1, TotalCompleted: legacyScanPlayersPerExecution,
-		StartedAt: time.Date(2026, time.November, 1, 0, 0, 0, 0, time.UTC),
-		Config:    &FetchYahooPlayersScanConfig{MaxPlayerID: legacyScanMaxPlayerID, Concurrency: 1, ActivityBatchSize: 1, PlayersPerExecution: 1},
-	}
-
-	_, err := runGameListWorkflow(t, f, input)
-
-	require.NoError(t, err, "no FetchYahooPlayerBatch is mocked, so a scan would fail")
-	require.Len(t, f.commits, 1)
 }
 
 func TestGameListPages(t *testing.T) {
