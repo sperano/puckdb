@@ -194,20 +194,23 @@ func loadYahooPool(ctx workflow.Context, tracker *shared.ReportTracker) (*workpl
 }
 
 // loadUnmatchedPlayers returns the Yahoo players phase 2 left unmatched that
-// input selects, or none when they cannot be loaded. ctx must carry activity
+// input selects. When they cannot be loaded (the activity's retries are
+// exhausted) it returns none with the error: the caller still runs phase 3,
+// issuing the same commands as an empty load, then fails the workflow so the
+// empty report does not read as "nothing unmatched". ctx must carry activity
 // options.
-func loadUnmatchedPlayers(ctx workflow.Context, input workplayer.LoadUnmatchedInput) []workplayer.UnmatchedYahooPlayer {
+func loadUnmatchedPlayers(ctx workflow.Context, input workplayer.LoadUnmatchedInput) ([]workplayer.UnmatchedYahooPlayer, error) {
 	logger := workflow.GetLogger(ctx)
 	logger.Info("ProcessPlayersWorkflow Phase 3: verifying unmatched players")
 
 	var playerAct *workplayer.Activities
 	var unmatchedPlayers []workplayer.UnmatchedYahooPlayer
 	if err := workflow.ExecuteActivity(ctx, playerAct.LoadUnmatchedYahooPlayers, input).Get(ctx, &unmatchedPlayers); err != nil {
-		logger.Warn("Failed to load unmatched Yahoo players", "error", err)
-		unmatchedPlayers = []workplayer.UnmatchedYahooPlayer{}
+		logger.Error("Failed to load unmatched Yahoo players", "error", err)
+		return []workplayer.UnmatchedYahooPlayer{}, fmt.Errorf("load unmatched yahoo players: %w", err)
 	}
 	logger.Info("Loaded unmatched Yahoo players", "count", len(unmatchedPlayers))
-	return unmatchedPlayers
+	return unmatchedPlayers, nil
 }
 
 // verifyUnmatchedPlayers is phase 3: check each unmatched Yahoo player

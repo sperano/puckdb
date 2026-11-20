@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
+	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/testsuite"
 )
 
@@ -639,6 +640,29 @@ func (s *ProcessPlayersWorkflowTestSuite) TestProcessPlayersWorkflow_Phase4_Caps
 	s.Require().NoError(s.env.GetWorkflowResult(&res))
 	s.Equal(total, res.TrulyUnmatchedCount)
 	s.Len(res.TrulyUnmatched, workplayer.MaxReportedTrulyUnmatched)
+}
+
+// A legacy chain whose unmatched players cannot be loaded fails instead of
+// completing with an empty unmatched report.
+func (s *ProcessPlayersWorkflowTestSuite) TestProcessPlayersWorkflow_Phase4_LoadFailureFails() {
+	input := &processPlayersInternalInput{
+		Phase:   phaseVerifyUnmatched,
+		Players: []store.BoxscorePlayer{{ID: 8471214, FirstName: "Sidney", LastName: "Crosby"}},
+	}
+	reportBytes := gobEncodeProgressReport(NewProcessPlayersProgressReport(len(input.Players)))
+	s.env.OnActivity(((*shared.ProgressActivities)(nil)).Load, mock.Anything, mock.Anything).Return(reportBytes, nil)
+
+	var playerAct *workplayer.Activities
+	s.env.OnActivity(playerAct.LoadUnmatchedYahooPlayers, mock.Anything, workplayer.LoadUnmatchedInput{}).Return(
+		nil, temporal.NewNonRetryableApplicationError("redis down", "test", nil))
+	s.env.OnActivity(playerAct.CleanupYahooIDPoolData, mock.Anything).Maybe().Return(nil)
+
+	s.env.ExecuteWorkflow(ProcessPlayersWorkflowContinue, input)
+
+	s.True(s.env.IsWorkflowCompleted())
+	s.Require().Error(s.env.GetWorkflowError())
+	s.Contains(s.env.GetWorkflowError().Error(), "load unmatched yahoo players: ")
+	s.Contains(s.env.GetWorkflowError().Error(), "redis down")
 }
 
 // Test ProcessPlayersWorkflow invalid phase

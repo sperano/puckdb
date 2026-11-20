@@ -33,12 +33,30 @@ func TestVerifyUnmatchedBatch_NamelessPlayerStaysUnverified(t *testing.T) {
 	require.NoError(t, mockRedis.ExpectationsWereMet(), "no SADD of the verified non-NHL set")
 }
 
-func TestVerifyPlayer_NamelessPlayerIsAnError(t *testing.T) {
+// A name missing its first or last part is not searched either: the single
+// token matches no NHL full name, which would file the player as not found.
+func TestVerifyPlayer_PartialNameIsAnError(t *testing.T) {
 	t.Parallel()
 
-	a := &Activities{NHLClient: &MockNHLClient{}}
-	_, err := a.verifyPlayer(context.Background(), UnmatchedYahooPlayer{YahooID: 4242, FirstName: " "})
+	tests := []struct {
+		name   string
+		player UnmatchedYahooPlayer
+	}{
+		{"blank", UnmatchedYahooPlayer{YahooID: 4242, FirstName: " "}},
+		{"first name only", UnmatchedYahooPlayer{YahooID: 4242, FirstName: "Connor", LastName: " "}},
+		{"last name only", UnmatchedYahooPlayer{YahooID: 4242, LastName: "McDavid"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	require.ErrorIs(t, err, errNamelessPlayer)
-	assert.EqualError(t, err, "yahoo id 4242: yahoo player has no name to search")
+			client := &MockNHLClient{}
+			a := &Activities{NHLClient: client}
+			_, err := a.verifyPlayer(context.Background(), tt.player)
+
+			require.ErrorIs(t, err, errNamelessPlayer)
+			assert.EqualError(t, err, "yahoo id 4242: yahoo player has no full name to search")
+			client.AssertNotCalled(t, "SearchPlayer")
+		})
+	}
 }

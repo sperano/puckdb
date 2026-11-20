@@ -10,6 +10,7 @@ package workflow
 // running (see the wiki page puckdb/plans/process-players-continuation).
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -286,7 +287,7 @@ func runPhaseVerifyUnmatched(ctx workflow.Context, tracker *shared.ReportTracker
 	ctx = workflow.WithActivityOptions(ctx, shared.DefaultActivityOptions())
 
 	// A legacy chain does not know its seasons: verify every unmatched ID.
-	unmatchedPlayers := loadUnmatchedPlayers(ctx, workplayer.LoadUnmatchedInput{})
+	unmatchedPlayers, loadErr := loadUnmatchedPlayers(ctx, workplayer.LoadUnmatchedInput{})
 	// No save here, unlike runManifestVerify: recorded legacy histories
 	// have none.
 	tracker.SetBarTotal(shared.BarRef{Group: GroupVerifyUnmatched}, len(unmatchedPlayers))
@@ -341,15 +342,20 @@ func runPhaseVerifyUnmatched(ctx workflow.Context, tracker *shared.ReportTracker
 	// and fail the workflow so the sync chain halts visibly. A 'success'
 	// completion with silent errors is exactly how the FK-violation gap
 	// (player_season_totals_season_team_id_fkey) went unnoticed.
+	var playerErr error
 	if len(input.AllErrors) > 0 {
 		for _, e := range input.AllErrors {
 			logger.Error("ProcessPlayers per-player error", "error", e)
 		}
-		return result, fmt.Errorf(
+		playerErr = fmt.Errorf(
 			"ProcessPlayersWorkflow finished with %d per-player error(s):\n  %s",
 			len(input.AllErrors),
 			strings.Join(input.AllErrors, "\n  "))
 	}
-
+	// A failed load of the unmatched players fails the workflow too: its
+	// report would otherwise read as "nothing unmatched".
+	if err := errors.Join(loadErr, playerErr); err != nil {
+		return result, err
+	}
 	return result, nil
 }

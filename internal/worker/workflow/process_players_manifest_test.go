@@ -147,6 +147,8 @@ type manifestChain struct {
 	recorded  []workplayer.PlayerError
 	// unmatchedInputs are the inputs LoadUnmatchedYahooPlayers got.
 	unmatchedInputs []workplayer.LoadUnmatchedInput
+	// loadErr fails LoadUnmatchedYahooPlayers when set.
+	loadErr error
 }
 
 func (c *manifestChain) event(e string) {
@@ -195,6 +197,9 @@ func (c *manifestChain) newEnv(t *testing.T) *testsuite.TestWorkflowEnvironment 
 			c.mu.Lock()
 			defer c.mu.Unlock()
 			c.unmatchedInputs = append(c.unmatchedInputs, input)
+			if c.loadErr != nil {
+				return nil, c.loadErr
+			}
 			return []workplayer.UnmatchedYahooPlayer{{YahooID: 1}, {YahooID: 2}}, nil
 		})
 	env.OnActivity(act.VerifyUnmatchedBatch, mock.Anything, mock.Anything).Return(&workplayer.VerifyUnmatchedResult{}, nil).
@@ -396,6 +401,36 @@ func TestProcessPlayersManifestVerify_FinishFailureStillReports(t *testing.T) {
 	var result *ProcessPlayersResult
 	require.NoError(t, env.GetWorkflowResult(&result))
 	assert.Equal(t, chainPlayers, result.ImportedPlayers)
+}
+
+// A load of the unmatched players that fails after its retries fails the
+// chain once the manifest is finished, instead of reporting nothing unmatched.
+func TestProcessPlayersManifestVerify_LoadFailureFailsTheChain(t *testing.T) {
+	chain := &manifestChain{loadErr: temporal.NewNonRetryableApplicationError("redis down", "test", nil)}
+	env := chain.newEnv(t)
+
+	env.ExecuteWorkflow(ProcessPlayersWorkflowContinueV2, verifyState())
+
+	require.True(t, env.IsWorkflowCompleted())
+	require.ErrorContains(t, env.GetWorkflowError(), "load unmatched yahoo players: ")
+	require.ErrorContains(t, env.GetWorkflowError(), "redis down")
+	assert.NotContains(t, chain.events, "verify", "nothing to verify")
+	env.AssertActivityCalled(t, "FinishProcessPlayersManifest", mock.Anything, chainManifestID)
+}
+
+// Both a failed load and per-player errors are in the chain's error.
+func TestProcessPlayersManifestVerify_LoadFailureAndPlayerErrors(t *testing.T) {
+	chain := &manifestChain{loadErr: temporal.NewNonRetryableApplicationError("redis down", "test", nil)}
+	env := chain.newEnv(t)
+	state := verifyState()
+	state.Totals.Errors = 1
+	state.ErrorSample = []string{"player 2: read error"}
+
+	env.ExecuteWorkflow(ProcessPlayersWorkflowContinueV2, state)
+
+	require.True(t, env.IsWorkflowCompleted())
+	require.ErrorContains(t, env.GetWorkflowError(), "redis down")
+	require.ErrorContains(t, env.GetWorkflowError(), "finished with 1 per-player error(s)")
 }
 
 func TestManifestResultCarriesMatchReasons(t *testing.T) {

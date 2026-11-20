@@ -351,7 +351,7 @@ func recordBatchErrors(ctx workflow.Context, state *processPlayersState, errs []
 func runManifestVerify(ctx workflow.Context, tracker *shared.ReportTracker, state *processPlayersState) (*ProcessPlayersResult, error) {
 	logger := workflow.GetLogger(ctx)
 
-	unmatchedPlayers := loadUnmatchedPlayers(ctx, workplayer.LoadUnmatchedInput{Seasons: state.Seasons})
+	unmatchedPlayers, loadErr := loadUnmatchedPlayers(ctx, workplayer.LoadUnmatchedInput{Seasons: state.Seasons})
 	tracker.SetBarTotal(shared.BarRef{Group: GroupVerifyUnmatched}, len(unmatchedPlayers))
 	tracker.RecalcTotal()
 	tracker.Save(ctx)
@@ -379,14 +379,19 @@ func runManifestVerify(ctx workflow.Context, tracker *shared.ReportTracker, stat
 		"birth_date_pages_missing", result.BirthDatePagesMissing,
 		"truly_unmatched", result.TrulyUnmatchedCount)
 
-	// Fail the chain when any player failed, so the sync halts visibly: a
-	// 'success' with silent errors is how the FK-violation gap
+	// Fail the chain when any player failed, or when the unmatched players
+	// could not be loaded, so the sync halts visibly: a 'success' with silent
+	// errors is how the FK-violation gap
 	// (player_season_totals_season_team_id_fkey) went unnoticed.
+	var playerErr error
 	if totals.Errors > 0 {
-		return result, fmt.Errorf(
+		playerErr = fmt.Errorf(
 			"ProcessPlayersWorkflow finished with %d per-player error(s); all are in process_players_manifest_errors "+
 				"(manifest_id %s) and the worker log; the first %d:\n  %s",
 			totals.Errors, state.Manifest.ID, len(state.ErrorSample), strings.Join(state.ErrorSample, "\n  "))
+	}
+	if err := errors.Join(loadErr, playerErr); err != nil {
+		return result, err
 	}
 	return result, nil
 }
