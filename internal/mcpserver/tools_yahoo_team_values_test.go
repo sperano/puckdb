@@ -105,12 +105,18 @@ func (q *teamValuesQueries) GetLatestYahooLeagueRosterDateOnOrBefore(_ context.C
 	return found, q.onOrBeforeErr
 }
 
-func (q *teamValuesQueries) GetYahooLeagueStatCategories(context.Context, int32) ([]sqlcdb.YahooLeagueStatCategory, error) {
+func (q *teamValuesQueries) GetYahooLeagueStatCategories(_ context.Context, leagueID int32) ([]sqlcdb.YahooLeagueStatCategory, error) {
+	if err := q.checkLeague(leagueID); err != nil {
+		return nil, err
+	}
 	return q.categories, q.categoriesErr
 }
 
 func (q *teamValuesQueries) ListYahooLeaguePlayerWindowTotals(_ context.Context, arg sqlcdb.ListYahooLeaguePlayerWindowTotalsParams) ([]sqlcdb.ListYahooLeaguePlayerWindowTotalsRow, error) {
 	q.totalsCalls = append(q.totalsCalls, arg)
+	if err := q.checkLeague(arg.LeagueID); err != nil {
+		return nil, err
+	}
 	return q.rows, q.rowsErr
 }
 
