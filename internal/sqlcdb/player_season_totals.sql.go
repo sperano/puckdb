@@ -150,3 +150,50 @@ func (q *Queries) GetPlayerSeasonTotalsByLeague(ctx context.Context, arg GetPlay
 	}
 	return items, nil
 }
+
+const listNamesakeNHLSeasons = `-- name: ListNamesakeNHLSeasons :many
+SELECT DISTINCT t.player_id, (t.season / 10000)::integer AS start_year
+FROM players p
+JOIN player_season_totals t ON t.player_id = p.id
+WHERE p.first_name_normalized = $1
+  AND p.last_name_normalized = $2
+  AND p.id <> $3
+  AND t.league_abbrev = 'NHL'
+  AND t.game_type IN ('regular_season', 'playoffs')
+  AND t.games_played > 0
+ORDER BY t.player_id, start_year
+`
+
+type ListNamesakeNHLSeasonsParams struct {
+	FirstNameNormalized string `json:"first_name_normalized"`
+	LastNameNormalized  string `json:"last_name_normalized"`
+	ExcludePlayerID     int64  `json:"exclude_player_id"`
+}
+
+type ListNamesakeNHLSeasonsRow struct {
+	PlayerID  int64 `json:"player_id"`
+	StartYear int32 `json:"start_year"`
+}
+
+// The NHL seasons (start years) each other player with the same normalized
+// name played at least one regular-season or playoff game in, for the Yahoo
+// matcher's seasons step (matching.MatchYahooIDBySeasons).
+func (q *Queries) ListNamesakeNHLSeasons(ctx context.Context, arg ListNamesakeNHLSeasonsParams) ([]ListNamesakeNHLSeasonsRow, error) {
+	rows, err := q.db.Query(ctx, listNamesakeNHLSeasons, arg.FirstNameNormalized, arg.LastNameNormalized, arg.ExcludePlayerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListNamesakeNHLSeasonsRow{}
+	for rows.Next() {
+		var i ListNamesakeNHLSeasonsRow
+		if err := rows.Scan(&i.PlayerID, &i.StartYear); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}

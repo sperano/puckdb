@@ -152,11 +152,25 @@ func (s *GameListPoolSuite) TestBuildKeepsEachPlayerFromTheNewestSeasonListingIt
 	pool := s.pool()
 	s.Equal(&store.YahooPlayer{
 		YahooID: 3737, FirstName: "Sidney", LastName: "Crosby", Positions: []nhl.Position{nhl.PositionCenter, nhl.PositionLeftWing},
-		JerseyNumber: 87, Team: "Toronto", ImageURL: "https://img/3737.png",
-	}, pool[3737], "the 2026 list wins over 2025 and over the league row")
+		JerseyNumber: 87, Team: "Toronto", ImageURL: "https://img/3737.png", Seasons: []int{2025, 2026},
+	}, pool[3737], "the 2026 list wins over 2025 and over the league row; both seasons are kept")
 	s.Equal("Old", pool[1000].FirstName, "a player only an older season lists stays")
+	s.Equal([]int{2025}, pool[1000].Seasons)
 	s.Equal("Tampa Bay", pool[9000].Team, "the second page is read")
+	s.Equal([]int{2026}, pool[9000].Seasons)
 	s.Equal("Marner", pool[7000].LastName, "a league player no list names is added")
+	s.Nil(pool[7000].Seasons, "a league player no list names has no list seasons")
+}
+
+// A list naming one Yahoo ID on two pages gives it that season once.
+func (s *GameListPoolSuite) TestBuildCountsASeasonOnceWhenItsListRepeatsAPlayer() {
+	s.write(resource.YahooGames{}.Path(), gamesListXML(map[int]int{2025: testGameKey2025}))
+	crosby := gameListPlayerXML{ID: 3737, First: "Sidney", Last: "Crosby", Team: "PIT", Number: 87, Position: "C"}
+	s.commitList(2025, testGameKey2025, testDownloadID2025, []gameListPlayerXML{crosby}, []gameListPlayerXML{crosby})
+
+	s.build()
+
+	s.Equal([]int{2025}, s.pool()[3737].Seasons)
 }
 
 func (s *GameListPoolSuite) TestBuildWithoutGamesListHasOnlyLeaguePlayers() {

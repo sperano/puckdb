@@ -50,7 +50,11 @@ type ProcessPlayerBatchResult struct {
 	// candidates were matched without a birth date.
 	BirthDatePagesDownloaded int
 	BirthDatePagesFailed     int
-	Errors                   []string // Error messages for failed players (ProcessPlayerBatch only)
+	// BirthDatePagesMissing counts the pages not asked for, each once per
+	// batch, because their 404 was recorded recently
+	// (resource.MissingYahooPlayer).
+	BirthDatePagesMissing int
+	Errors                []string // Error messages for failed players (ProcessPlayerBatch only)
 }
 
 // Stages at which processing one player can fail, as recorded in
@@ -233,7 +237,7 @@ func (a *Activities) importPlayerLanding(
 	if err := a.addYahooBirthDates(ctx, landing, landingBirthDate(landing), yahooPool, out); err != nil {
 		return 0, false, err
 	}
-	matchResult := matchLandingYahooID(landing, yahooPool)
+	matchResult := matchLandingYahooID(landing, yahooPool, a.namesakeSeasons(ctx, landing))
 	if err := a.upsertLandingPlayer(ctx, p.ID, landing, matchResult); err != nil {
 		errMsg := fmt.Sprintf("player %d (%s %s): upsert error: %v",
 			p.ID, landing.FirstName.Default, landing.LastName.Default, err)
@@ -294,13 +298,18 @@ func (a *Activities) upsertLandingPlayer(
 }
 
 // matchLandingYahooID matches a landing to a Yahoo ID from yahooPool by name,
-// current team and birth date. A matching warning is logged, not returned.
-func matchLandingYahooID(landing *nhl.PlayerLanding, yahooPool map[store.YahooPlayerID]*store.YahooPlayer) matching.YahooIDMatchResult {
+// jersey, birth date, seasons (when namesakes is not nil) and current team.
+// A matching warning is logged, not returned.
+func matchLandingYahooID(
+	landing *nhl.PlayerLanding,
+	yahooPool map[store.YahooPlayerID]*store.YahooPlayer,
+	namesakes matching.NamesakeSeasons,
+) matching.YahooIDMatchResult {
 	var teamAbbrev string
 	if landing.CurrentTeamAbbrev != nil {
 		teamAbbrev = *landing.CurrentTeamAbbrev
 	}
-	matchResult, err := matching.MatchYahooID(landing, teamAbbrev, landingBirthDate(landing), yahooPool)
+	matchResult, err := matching.MatchYahooIDBySeasons(landing, teamAbbrev, landingBirthDate(landing), namesakes, yahooPool)
 	if err != nil {
 		log.Debug().
 			Err(err).

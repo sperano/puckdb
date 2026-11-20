@@ -258,6 +258,7 @@ func TestMatchReason_String(t *testing.T) {
 		{MatchReasonFullName, "fullname"},
 		{MatchReasonTeamTiebreaker, "team-tiebreaker"},
 		{MatchReasonAmbiguous, "ambiguous"},
+		{MatchReasonNameSeasons, "name+seasons"},
 		{MatchReason(99), "unknown"},
 	}
 

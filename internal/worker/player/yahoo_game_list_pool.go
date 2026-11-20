@@ -98,17 +98,18 @@ func missingSeasons(want, got []int) []int {
 
 // readGameListPlayers reads the committed game player list of every season
 // in the cached Yahoo NHL games list, newest season first, and keeps each
-// Yahoo ID's entry from the newest season that lists it. No cached games
-// list, or a season without a committed list, contributes nothing; a
-// manifest that does not parse is skipped with a warning, as a commit
-// treats it. Any other read error fails.
+// Yahoo ID's entry from the newest season that lists it, with Seasons set to
+// every season whose list names it (ascending), for the matcher's seasons
+// step. No cached games list, or a season without a committed list,
+// contributes nothing; a manifest that does not parse is skipped with a
+// warning, as a commit treats it. Any other read error fails.
 func (a *Activities) readGameListPlayers(ctx context.Context) (gameListPlayers, error) {
 	seasons, err := a.yahooGameSeasons(ctx)
 	if err != nil {
 		return gameListPlayers{}, err
 	}
 	var listed gameListPlayers
-	seen := make(map[store.YahooPlayerID]struct{})
+	index := make(map[store.YahooPlayerID]int)
 	for _, season := range seasons {
 		manifest, ok, err := a.readCommittedGamePlayerList(ctx, season)
 		if err != nil {
@@ -122,15 +123,29 @@ func (a *Activities) readGameListPlayers(ctx context.Context) (gameListPlayers, 
 			return gameListPlayers{}, err
 		}
 		listed.Seasons = append(listed.Seasons, season)
-		for _, p := range players {
-			if _, dup := seen[p.YahooID]; dup {
-				continue
-			}
-			seen[p.YahooID] = struct{}{}
-			listed.Players = append(listed.Players, p)
-		}
+		listed.addSeason(index, season, players)
+	}
+	for i := range listed.Players {
+		slices.Sort(listed.Players[i].Seasons)
 	}
 	return listed, nil
+}
+
+// addSeason adds one season's list: a Yahoo ID not seen yet gets its entry
+// from it, every listed ID the season (once, even when a list repeats it).
+// index maps a Yahoo ID to its entry in l.Players.
+func (l *gameListPlayers) addSeason(index map[store.YahooPlayerID]int, season int, players []store.YahooPlayer) {
+	for _, p := range players {
+		i, seen := index[p.YahooID]
+		if !seen {
+			i = len(l.Players)
+			index[p.YahooID] = i
+			l.Players = append(l.Players, p)
+		}
+		if !slices.Contains(l.Players[i].Seasons, season) {
+			l.Players[i].Seasons = append(l.Players[i].Seasons, season)
+		}
+	}
 }
 
 // yahooGameSeasons returns the seasons of the cached Yahoo NHL games list,

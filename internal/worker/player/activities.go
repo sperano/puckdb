@@ -38,18 +38,26 @@ type PlayerCareerUpserter interface {
 	UpsertInternationalSeasonTeam(ctx context.Context, arg sqlcdb.UpsertInternationalSeasonTeamParams) error
 }
 
+// NamesakeSeasonLister lists the NHL seasons of a player's namesakes, for
+// the Yahoo matcher's seasons step.
+type NamesakeSeasonLister interface {
+	ListNamesakeNHLSeasons(ctx context.Context, arg sqlcdb.ListNamesakeNHLSeasonsParams) ([]sqlcdb.ListNamesakeNHLSeasonsRow, error)
+}
+
 // ActivityQueries is every pool-scoped query the player activities run, the single
-// dependency NewActivities spreads over Queries, CareerQueries and LeaguePlayers.
+// dependency NewActivities spreads over Queries, CareerQueries, LeaguePlayers
+// and Namesakes.
 type ActivityQueries interface {
 	PlayerUpserter
 	PlayerCareerUpserter
 	YahooLeaguePlayerLister
+	NamesakeSeasonLister
 }
 
 var _ ActivityQueries = (*sqlcdb.Queries)(nil)
 
 // Activities groups player-related activities with their dependencies.
-// Queries, CareerQueries and LeaguePlayers stay separate narrow seams for tests; the worker
+// Queries, CareerQueries, LeaguePlayers and Namesakes stay separate narrow seams for tests; the worker
 // builds the struct with NewActivities.
 type Activities struct {
 	Storage       store.Storage
@@ -60,24 +68,31 @@ type Activities struct {
 	CareerQueries PlayerCareerUpserter
 	// LeaguePlayers seeds the Yahoo ID pool with the Yahoo API's players.
 	LeaguePlayers YahooLeaguePlayerLister
+	// Namesakes gives the matcher the seasons of a player's NHL namesakes;
+	// nil skips the seasons step (matching.MatchYahooIDBySeasons).
+	Namesakes NamesakeSeasonLister
 	// YahooPlayerPages downloads public Yahoo Sports player pages, for the
 	// birth dates the game player lists lack (yahoo_birth_dates.go); it must
 	// apply the process's Yahoo rate limit. Nil: only stored pages are read.
-	YahooPlayerPages       shared.Downloader
+	YahooPlayerPages shared.Downloader
+	// Now is the clock that dates recorded Yahoo player page 404s and
+	// checks their age; nil: time.Now.
+	Now                    func() time.Time
 	BoxscorePlayerCacheTTL time.Duration
 	// Manifests holds the durable player manifests and per-player errors of
 	// ProcessPlayers chains.
 	Manifests ProcessPlayersStore
 }
 
-// NewActivities returns a copy of deps with Queries, CareerQueries and LeaguePlayers
-// set to queries, so the worker cannot leave one nil; values already set in deps
+// NewActivities returns a copy of deps with Queries, CareerQueries, LeaguePlayers
+// and Namesakes set to queries, so the worker cannot leave one nil; values already set in deps
 // are replaced. Manifests stays the caller's: it is a transactional store,
 // not a pool-scoped query.
 func NewActivities(queries ActivityQueries, deps Activities) *Activities {
 	deps.Queries = queries
 	deps.CareerQueries = queries
 	deps.LeaguePlayers = queries
+	deps.Namesakes = queries
 	return &deps
 }
 

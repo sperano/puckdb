@@ -31,6 +31,13 @@ func TestClassifyFileType(t *testing.T) {
 			want:     core.YahooPlayer,
 		},
 		{
+			name:     "missing yahoo player page maps to YahooPlayer",
+			dataPath: "/data",
+			filePath: "/data/yahoo-players-missing/player-123.json",
+			filename: "player-123.json",
+			want:     core.YahooPlayer,
+		},
+		{
 			name:     "game key file",
 			dataPath: "/data",
 			filePath: "/data/game-keys/2024010001.json",

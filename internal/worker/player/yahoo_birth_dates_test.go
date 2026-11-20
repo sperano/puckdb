@@ -120,7 +120,7 @@ func matchElias(t *testing.T, a *Activities, pool map[store.YahooPlayerID]*store
 	var out batchOutcome
 	landing := eliasLanding()
 	require.NoError(t, a.addYahooBirthDates(context.Background(), landing, landingBirthDate(landing), pool, &out))
-	return matchLandingYahooID(landing, pool), out.result
+	return matchLandingYahooID(landing, pool, nil), out.result
 }
 
 func TestAddYahooBirthDates_DownloadsAndStoresTiedCandidatesPages(t *testing.T) {

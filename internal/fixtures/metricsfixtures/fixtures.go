@@ -40,3 +40,31 @@ func FSOpCount(t testing.TB, operation string, ft core.FileType) uint64 {
 	}
 	return 0
 }
+
+// downloadTotalMetric is the counter of downloads by file type and result.
+const downloadTotalMetric = "puckdb_download_total"
+
+// DownloadCount returns how many downloads have been recorded under the
+// file_type and result labels.
+func DownloadCount(t testing.TB, ft core.FileType, result string) float64 {
+	t.Helper()
+	families, err := metrics.WorkerRegistry.Gather()
+	if err != nil {
+		t.Fatalf("gather worker metrics: %v", err)
+	}
+	for _, family := range families {
+		if family.GetName() != downloadTotalMetric {
+			continue
+		}
+		for _, m := range family.GetMetric() {
+			labels := make(map[string]string, len(m.GetLabel()))
+			for _, l := range m.GetLabel() {
+				labels[l.GetName()] = l.GetValue()
+			}
+			if labels["file_type"] == ft.String() && labels["result"] == result {
+				return m.GetCounter().GetValue()
+			}
+		}
+	}
+	return 0
+}
