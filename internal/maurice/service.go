@@ -282,15 +282,7 @@ func (s *service) loadHistory(ctx context.Context, userID, convID, currentUserMe
 	// would.
 	msgs = append(msgs, &Message{Role: "user", Content: currentUserMessage})
 
-	// Cap history, ensuring we don't split a tool_use/tool_result pair.
-	// After slicing, skip any leading "tool" messages whose corresponding
-	// assistant tool_use block was cut off.
-	if len(msgs) > s.maxHistory {
-		msgs = msgs[len(msgs)-s.maxHistory:]
-	}
-	for len(msgs) > 0 && msgs[0].Role == "tool" {
-		msgs = msgs[1:]
-	}
+	msgs = capHistory(msgs, s.maxHistory)
 
 	teams, err := s.userTeams(ctx, userID)
 	if err != nil {

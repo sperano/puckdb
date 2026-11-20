@@ -580,7 +580,7 @@ Interactive REPL for querying hockey data via natural language. Connects to an L
 | Component | File | Purpose |
 |-----------|------|---------|
 | CLI entry | `cmd/maurice.go` | REPL loop, `/model` `/history` `/load` `/new` commands |
-| Service | `internal/maurice/service.go`, `turnrun.go` | Chat orchestration, tool call loop (max 25 rounds, then one forced answer without tools), conversation persistence; an answer with no text is retried once without tools with a nudge (`finalanswer.go`), then fails the turn as `empty_answer`; history replay leaves out a stored assistant message with no text and no tool calls (older turns stored such replies); turns run detached from the request (`StartChat`/`GetTurn` for submit-and-poll) |
+| Service | `internal/maurice/service.go`, `turnrun.go` | Chat orchestration, tool call loop (max 25 rounds, then one forced answer without tools), conversation persistence; an answer with no text is retried once without tools with a nudge (`finalanswer.go`), then fails the turn as `empty_answer`; history replay leaves out a stored assistant message with no text and no tool calls (older turns stored such replies); the `--maurice-max-history` cap cuts the replay at the start of a turn (it always opens on a user message, the current prompt at worst, `capHistory` in `history.go`); turns run detached from the request (`StartChat`/`GetTurn` for submit-and-poll) |
 | Prompt | `internal/maurice/prompt.go` | System prompt (instructs LLM to query DB, not guess) |
 | LLM clients | `internal/llm/client.go`, `internal/llm/anthropic.go` | OpenAI-compatible (Ollama/OpenAI) and Anthropic clients |
 | Provider detection | `internal/llm/provider.go` | Auto-detects Anthropic vs OpenAI-compatible from API key/URL |

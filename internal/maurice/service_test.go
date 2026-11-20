@@ -463,8 +463,8 @@ func TestLoadHistory_TruncatesToMaxHistory(t *testing.T) {
 	assert.Equal(t, "follow-up", first.Messages[maxHistory].Content)
 }
 
-// loadHistory drops leading "tool" messages whose paired assistant
-// tool_use block was sliced off by the maxHistory cap.
+// capHistory drops every message before the first "user" message left by
+// the maxHistory cap, here the tool result whose assistant was cut off.
 func TestLoadHistory_SkipsLeadingToolAfterTruncation(t *testing.T) {
 	db := newTestDB(t)
 	const maxHistory = 3
@@ -485,9 +485,9 @@ func TestLoadHistory_SkipsLeadingToolAfterTruncation(t *testing.T) {
 	require.NoError(t, err)
 
 	first := llmMock.requests[0]
-	require.GreaterOrEqual(t, len(first.Messages), 2)
+	require.Len(t, first.Messages, 3)
 	assert.Equal(t, "system", first.Messages[0].Role)
-	assert.NotEqual(t, "tool", first.Messages[1].Role, "leading tool message must be skipped after truncation")
+	assert.Equal(t, []llm.Message{{Role: "user", Content: "user-content"}, {Role: "user", Content: "follow-up"}}, first.Messages[1:])
 }
 
 // --- logLLMResponse: covers all conditional branches ---
@@ -672,7 +672,9 @@ func TestLoadHistory_KeepsToolCallsWithoutText(t *testing.T) {
 // next older message.
 func TestLoadHistory_BlankAssistantReplyTakesNoHistorySlot(t *testing.T) {
 	db := newTestDB(t)
-	const maxHistory = 3
+	// Without the blank reply, the history and prompt fit the cap exactly;
+	// counted, it would push q0 and a0 out.
+	const maxHistory = 4
 	convID := seedConversation(t, db,
 		TurnMessage{Role: "user", Content: "q0"},
 		TurnMessage{Role: "assistant", Content: "a0"},
@@ -689,12 +691,13 @@ func TestLoadHistory_BlankAssistantReplyTakesNoHistorySlot(t *testing.T) {
 
 	sent := llmMock.requests[0].Messages
 	require.Len(t, sent, 1+maxHistory)
-	assert.Equal(t, []string{"a0", "q1", "q2"}, []string{sent[1].Content, sent[2].Content, sent[3].Content})
+	assert.Equal(t, []string{"q0", "a0", "q1", "q2"}, []string{sent[1].Content, sent[2].Content, sent[3].Content, sent[4].Content})
 }
 
 // anthropicRules answers like the Messages API: 400 for a message without
-// content, a text block without non-whitespace text, or two messages of one
-// role in a row; otherwise a text answer.
+// content, a text block without non-whitespace text, a first message not
+// from the user, or two messages of one role in a row; otherwise a text
+// answer.
 func anthropicRules(t *testing.T) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req struct {
@@ -710,7 +713,7 @@ func anthropicRules(t *testing.T) http.HandlerFunc {
 			return
 		}
 		for i, m := range req.Messages {
-			invalid := len(m.Content) == 0 || (i > 0 && req.Messages[i-1].Role == m.Role)
+			invalid := len(m.Content) == 0 || (i == 0 && m.Role != "user") || (i > 0 && req.Messages[i-1].Role == m.Role)
 			for _, b := range m.Content {
 				invalid = invalid || (b.Type == "text" && strings.TrimSpace(b.Text) == "")
 			}
