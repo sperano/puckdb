@@ -57,9 +57,14 @@ type FetchYahooGamePlayersPageInput struct {
 	Start      int   `json:"start"`
 }
 
-// FetchYahooGamePlayersPageResult reports what one page held.
+// FetchYahooGamePlayersPageResult reports what one page held. End reports
+// that Yahoo rejected the offset (400) as past the list's last page, which
+// it does instead of returning an empty page when the list's size is a
+// multiple of the page size: nothing was stored, and the list ended on the
+// previous page.
 type FetchYahooGamePlayersPageResult struct {
-	Players int `json:"players"`
+	Players int  `json:"players"`
+	End     bool `json:"end,omitempty"`
 }
 
 // CommitYahooGamePlayerListInput records a complete game player list download.
@@ -207,6 +212,11 @@ func (a *FetchActivities) FetchYahooGamePlayersPage(ctx context.Context, input F
 	}
 	content, err := a.fetcher().Refresh(ctx, res)
 	if err != nil {
+		if input.Start > 0 && isYahooBadRequest(err) {
+			activity.GetLogger(ctx).Info("Game players offset is past the list's end",
+				"season", input.Season, "game_key", input.GameKey, "start", input.Start)
+			return FetchYahooGamePlayersPageResult{End: true}, nil
+		}
 		return FetchYahooGamePlayersPageResult{}, fmt.Errorf("fetch game players %d start %d: %w",
 			input.Season, input.Start, err)
 	}
