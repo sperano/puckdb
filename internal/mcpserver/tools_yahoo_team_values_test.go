@@ -54,6 +54,7 @@ type teamValuesQueries struct {
 	onOrBeforeErr  error
 	onOrBeforeArgs []sqlcdb.GetLatestYahooLeagueRosterDateOnOrBeforeParams
 	categories     []sqlcdb.YahooLeagueStatCategory
+	categoriesErr  error
 	rows           []sqlcdb.ListYahooLeaguePlayerWindowTotalsRow
 	rowsErr        error
 	totalsCalls    []sqlcdb.ListYahooLeaguePlayerWindowTotalsParams
@@ -88,7 +89,7 @@ func (q *teamValuesQueries) GetLatestYahooLeagueRosterDateOnOrBefore(_ context.C
 }
 
 func (q *teamValuesQueries) GetYahooLeagueStatCategories(context.Context, int32) ([]sqlcdb.YahooLeagueStatCategory, error) {
-	return q.categories, nil
+	return q.categories, q.categoriesErr
 }
 
 func (q *teamValuesQueries) ListYahooLeaguePlayerWindowTotals(_ context.Context, arg sqlcdb.ListYahooLeaguePlayerWindowTotalsParams) ([]sqlcdb.ListYahooLeaguePlayerWindowTotalsRow, error) {
@@ -283,6 +284,8 @@ func TestTeamValuesErrors(t *testing.T) {
 			fmt.Sprintf("load roster date of league %d on or before 2026-11-09: boom", allowedLeagueID)},
 		{"latest error", nil, func(q *teamValuesQueries, _ *fakeRankingReader) { q.latestErr = errors.New("boom") },
 			fmt.Sprintf("load latest roster date of league %d: boom", allowedLeagueID)},
+		{"categories error", nil, func(q *teamValuesQueries, _ *fakeRankingReader) { q.categoriesErr = errors.New("boom") },
+			fmt.Sprintf("load stat categories of league %d: boom", allowedLeagueID)},
 		{"totals error", nil, func(q *teamValuesQueries, _ *fakeRankingReader) { q.rowsErr = errors.New("boom") },
 			fmt.Sprintf("load player totals of league %d: boom", allowedLeagueID)},
 		{"ranking error", nil, func(_ *teamValuesQueries, r *fakeRankingReader) { r.err = errors.New("boom") },
