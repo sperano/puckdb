@@ -12,20 +12,28 @@ import (
 	"github.com/sperano/puckdb/internal/llm/agentloop"
 )
 
-// emptyAnswerNudge is the trailing instruction of the one retry a turn gets
+// maxFinalAnswerAttempts is how many completions a turn's final answer gets
+// in total: the first final response (the loop's terminating response or the
+// forced final answer) and then retries without tools (nudgedFinalAnswer)
+// while the answer has no text.
+const maxFinalAnswerAttempts = 3
+
+// emptyAnswerNudge is the trailing instruction of each retry a turn gets
 // when its final response has no text (nudgedFinalAnswer).
 const emptyAnswerNudge = "Your last response contained no text. Using the information gathered above, " +
-	"answer my last question now, in the language I asked it in. Do not call tools."
+	"write your answer to my last question now, as text for me to read, in the language I asked it in. " +
+	"Do not call tools and do not leave the response empty."
 
-// ErrEmptyAnswer fails a turn whose final response had no text, even after
-// the retry asking for it.
+// ErrEmptyAnswer fails a turn whose final response had no text in every one
+// of its maxFinalAnswerAttempts attempts.
 var ErrEmptyAnswer = errors.New("LLM returned no answer text")
 
 // finalAnswer returns the turn's answer. A terminating response with no tool
 // calls is the final answer; a max-rounds termination, where res.Final still
-// requests tools, forces one more completion (forcedFinalAnswer). When that
-// answer has no text, one completion without tools asks for it
-// (nudgedFinalAnswer); a second empty answer fails the turn as
+// requests tools, forces one more completion (forcedFinalAnswer). While the
+// answer has no text, completions without tools ask for it
+// (nudgedFinalAnswer), up to maxFinalAnswerAttempts attempts in all; the tool
+// chain never runs again. When every attempt is empty the turn fails as
 // ErrorClassEmptyAnswer instead of succeeding with no content.
 func (s *service) finalAnswer(ctx context.Context, convID string, res *agentloop.Result, rec *turnRecorder) (string, error) {
 	resp := res.Final
@@ -36,26 +44,29 @@ func (s *service) finalAnswer(ctx context.Context, convID string, res *agentloop
 		}
 		resp = forced
 	}
-	if hasAnswer(convID, resp) {
-		return resp.Content, nil
+	for attempt := 1; ; attempt++ {
+		if hasAnswer(convID, attempt, resp) {
+			return resp.Content, nil
+		}
+		if attempt == maxFinalAnswerAttempts {
+			return "", classify(ErrorClassEmptyAnswer, ErrEmptyAnswer)
+		}
+		nudged, err := s.nudgedFinalAnswer(ctx, res.Messages, rec)
+		if err != nil {
+			return "", err
+		}
+		resp = nudged
 	}
-	nudged, err := s.nudgedFinalAnswer(ctx, res.Messages, rec)
-	if err != nil {
-		return "", err
-	}
-	if hasAnswer(convID, nudged) {
-		return nudged.Content, nil
-	}
-	return "", classify(ErrorClassEmptyAnswer, ErrEmptyAnswer)
 }
 
-// hasAnswer reports whether resp carries answer text, logging why not, with
-// the stop reason, when it does not, and warning of an answer cut off at
-// MaxTokens.
-func hasAnswer(convID string, resp *llm.Response) bool {
+// hasAnswer reports whether resp, the final answer's attempt-th attempt,
+// carries answer text, logging why not, with the stop reason and the
+// attempt, when it does not, and warning of an answer cut off at MaxTokens.
+func hasAnswer(convID string, attempt int, resp *llm.Response) bool {
 	if strings.TrimSpace(resp.Content) == "" {
 		evt := log.Warn().Str("conversation", convID).Str("finish_reason", resp.FinishReason).
-			Int("tool_calls", len(resp.ToolCalls))
+			Int("tool_calls", len(resp.ToolCalls)).Int("attempt", attempt).
+			Int("max_attempts", maxFinalAnswerAttempts)
 		if resp.Usage != nil {
 			evt = evt.Int("completion_tokens", resp.Usage.CompletionTokens)
 		}
@@ -84,7 +95,7 @@ func (s *service) forcedFinalAnswer(ctx context.Context, convID string, messages
 	return resp, nil
 }
 
-// nudgedFinalAnswer retries an empty final answer once, without tools,
+// nudgedFinalAnswer retries an empty final answer, without tools,
 // sending the loop's request history followed by emptyAnswerNudge. The empty
 // response itself is left out: a provider may reject an assistant message
 // without content. The call is recorded as CallForcedFinal with the nudge as

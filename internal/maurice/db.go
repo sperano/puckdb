@@ -92,8 +92,8 @@ const (
 	ErrorClassTool      ErrorClass = "tool_error"
 	ErrorClassInternal  ErrorClass = "internal_error"
 	ErrorClassAbandoned ErrorClass = "abandoned"
-	// ErrorClassEmptyAnswer is a turn whose final response had no text, even
-	// after the retry asking for it (finalAnswer).
+	// ErrorClassEmptyAnswer is a turn whose final response had no text in
+	// every attempt, the retries asking for it included (finalAnswer).
 	ErrorClassEmptyAnswer ErrorClass = "empty_answer"
 )
 

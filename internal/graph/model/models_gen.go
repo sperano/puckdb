@@ -1394,7 +1394,7 @@ type MauriceTurn struct {
 	// The tools the turn called, in call order, duplicates kept. While RUNNING, each tool is added as its call starts, so the tool being run shows; a FAILED turn keeps the tools whose start was recorded (a failed write leaves that tool out); a SUCCEEDED turn lists those of its answer's messages.
 	ToolsUsed []string `json:"toolsUsed"`
 	Warnings  []string `json:"warnings"`
-	// Bounded failure class of a FAILED turn: timeout, cancelled, provider_error, tool_error, internal_error, abandoned or empty_answer (the final response had no text, even after one retry asking for it).
+	// Bounded failure class of a FAILED turn: timeout, cancelled, provider_error, tool_error, internal_error, abandoned or empty_answer (the final response had no text, even after the retries asking for it).
 	Error *string `json:"error,omitempty"`
 }
 
