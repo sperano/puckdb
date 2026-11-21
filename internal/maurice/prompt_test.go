@@ -177,3 +177,10 @@ func TestSystemPrompt_KeepsDateAndSeasonGuidelines(t *testing.T) {
 	assert.Contains(t, prompt, fmt.Sprintf("The current NHL season ID is %d (%d-%d).", season.ID(), season.StartYear(), season.EndYear()))
 	assert.Contains(t, prompt, "Guidelines:")
 }
+
+func TestSystemPrompt_WarnsAgainstUnscoredStats(t *testing.T) {
+	prompt := SystemPrompt(nil)
+	assert.Contains(t, prompt, "cite only stats that league actually scores: check its scoring categories "+
+		"(get_yahoo_league_settings) rather than assuming the standard ones, and leave out real NHL stats the "+
+		"league does not score (e.g. don't mention hits in a league without a hits category).")
+}
