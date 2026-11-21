@@ -292,7 +292,6 @@ func newThemedSpinner(out io.Writer) *spinner {
 }
 
 func (r workflowRunner) run(ctx context.Context, out io.Writer, state *syncState) error {
-	state.setActive(r.workflowType)
 	defer state.clearActive(r.workflowType)
 
 	if err := r.start(ctx, state, r.waitForOtherRun(out)); err != nil {
@@ -315,25 +314,18 @@ func (r workflowRunner) run(ctx context.Context, out io.Writer, state *syncState
 
 // runParallel runs multiple workflows concurrently with a combined progress display.
 func runParallel(ctx context.Context, out io.Writer, state *syncState, runners ...workflowRunner) error {
-	// Mark all workflows as active
-	for _, r := range runners {
-		state.setActive(r.workflowType)
-	}
 	defer func() {
 		for _, r := range runners {
 			state.clearActive(r.workflowType)
 		}
 	}()
 
-	// Trigger all workflows, before the combined display: a runner waiting
-	// for another run shows that run on its own display.
-	for _, r := range runners {
-		if err := r.start(ctx, state, r.waitForOtherRun(out)); err != nil {
-			if ctx.Err() != nil {
-				return fmt.Errorf("workflow canceled by user")
-			}
-			return fmt.Errorf("trigger workflow: %w", err)
+	waitFor := func(r workflowRunner) func(context.Context) error { return r.waitForOtherRun(out) }
+	if err := startRunners(ctx, state, runners, waitFor); err != nil {
+		if ctx.Err() != nil {
+			return fmt.Errorf("workflow canceled by user")
 		}
+		return fmt.Errorf("trigger workflow: %w", err)
 	}
 
 	sp := newThemedSpinner(out)

@@ -32,13 +32,12 @@ func noWait(t *testing.T) func(context.Context) error {
 	}
 }
 
-// startRunner runs r.start with r active in a fresh state, as run and
-// runParallel do, and returns the state, the global log and its error.
+// startRunner runs r.start in a fresh state, as run and runParallel do, and
+// returns the state, the global log and its error.
 func startRunner(t *testing.T, r workflowRunner, wait func(context.Context) error) (*syncState, *bytes.Buffer, error) {
 	t.Helper()
 	logs := captureLog(t)
 	state := &syncState{}
-	state.setActive(r.workflowType)
 	err := r.start(t.Context(), state, wait)
 	return state, logs, err
 }
@@ -69,7 +68,6 @@ func TestWorkflowRunnerStart_AlreadyRunningWaitsThenStartsItsOwnRun(t *testing.T
 	}
 	logs := captureLog(t)
 	state = &syncState{}
-	state.setActive(workflowFetchSeasons)
 
 	err := workflowRunner{workflowType: workflowFetchSeasons, trigger: trigger}.start(t.Context(), state, wait)
 
@@ -144,6 +142,54 @@ func TestWorkflowRunnerStart_StartedIsSilent(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []workflowType{workflowImportSeasons}, state.current)
 	assert.Empty(t, logs.String())
+}
+
+// TestStartRunners_WaitingRunnerLeavesUnstartedSiblingsInactive is the
+// regression test for runParallel marking every runner active before
+// starting any: an interrupt while the first waited cancelled the second's
+// workflow, which this sync had not started.
+func TestStartRunners_WaitingRunnerLeavesUnstartedSiblingsInactive(t *testing.T) {
+	captureLog(t)
+	first, _ := triggerResults(t, alreadyRunningError(), nil)
+	second, secondCalls := triggerResults(t, nil)
+	runners := []workflowRunner{
+		{workflowType: workflowFetchSeasons, trigger: first},
+		{workflowType: workflowImportSeasons, trigger: second},
+	}
+	state := &syncState{}
+	var activeWhileWaiting []workflowType
+	waits := 0
+	waitFor := func(r workflowRunner) func(context.Context) error {
+		return func(context.Context) error {
+			require.Equal(t, workflowFetchSeasons, r.workflowType, "only the refused runner waits")
+			waits++
+			activeWhileWaiting = append([]workflowType{}, state.current...)
+			return nil
+		}
+	}
+
+	require.NoError(t, startRunners(t.Context(), state, runners, waitFor))
+
+	assert.Equal(t, 1, waits)
+	assert.Empty(t, activeWhileWaiting, "an interrupt while waiting must cancel no workflow")
+	assert.Equal(t, 1, *secondCalls)
+	assert.Equal(t, []workflowType{workflowFetchSeasons, workflowImportSeasons}, state.current)
+}
+
+func TestStartRunners_StopsAtTheFirstFailure(t *testing.T) {
+	triggerErr := &graphQLError{Message: "boom", Extensions: map[string]any{"code": "OTHER"}}
+	runners := []workflowRunner{
+		{workflowType: workflowFetchSeasons, trigger: func() (bool, error) { return false, triggerErr }},
+		{workflowType: workflowImportSeasons, trigger: func() (bool, error) {
+			t.Fatal("started a runner after an earlier one failed")
+			return false, nil
+		}},
+	}
+	state := &syncState{}
+
+	require.ErrorIs(t, startRunners(t.Context(), state, runners,
+		func(workflowRunner) func(context.Context) error { return noWait(t) }), triggerErr)
+	assert.Equal(t, []workflowType{workflowFetchSeasons}, state.current)
 }
 
 func TestWorkflowRunnerWaitForRun_OtherRunsFailureIsNotThisSyncs(t *testing.T) {

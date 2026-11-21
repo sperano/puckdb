@@ -18,10 +18,12 @@ var errStillAlreadyRunning = errors.New("workflow still already running")
 // start triggers this sync's own run of r's workflow. A run already going
 // (another sync, or the run a retried CronJob pod started) may have other
 // inputs, such as another season range, so it is waited for with wait and
-// this sync's run is started after it; while waiting, r is not active in
-// state, so an interrupt does not cancel a run this sync did not start.
+// this sync's run is started after it. r is active in state only from its
+// own trigger on and not while waiting, so an interrupt does not cancel a
+// run this sync did not start; the caller clears it once r is done.
 func (r workflowRunner) start(ctx context.Context, state *syncState, wait func(context.Context) error) error {
 	for waits := 0; ; waits++ {
+		state.setActive(r.workflowType)
 		started, err := r.trigger()
 		if !isWorkflowAlreadyRunning(err) {
 			return r.started(started, err)
@@ -36,8 +38,21 @@ func (r workflowRunner) start(ctx context.Context, state *syncState, wait func(c
 		if err := wait(ctx); err != nil {
 			return err
 		}
-		state.setActive(r.workflowType)
 	}
+}
+
+// startRunners starts runners in order, each with the wait waitFor returns
+// for it. A runner not yet started is not active in state, so an interrupt
+// while an earlier one waits for another run cancels none of its siblings'
+// workflows, which another sync may have started.
+func startRunners(ctx context.Context, state *syncState, runners []workflowRunner,
+	waitFor func(workflowRunner) func(context.Context) error) error {
+	for _, r := range runners {
+		if err := r.start(ctx, state, waitFor(r)); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // started is start's outcome for a trigger not refused as already running.
