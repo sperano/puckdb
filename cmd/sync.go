@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/rs/zerolog/log"
+	"github.com/sperano/nhl-api-go/nhl"
 	"github.com/sperano/puckdb/internal/config"
 	"github.com/sperano/puckdb/internal/core"
 	"github.com/spf13/cobra"
@@ -125,6 +125,9 @@ func runSync(cmd *cobra.Command, args []string) error {
 	if err := validateExplicitSeasonBounds(cmd); err != nil {
 		return err
 	}
+	if err := applyCurrentSeason(cmd, currentSeasonStart); err != nil {
+		return err
+	}
 	client, err := getGraphQLClient()
 	if err != nil {
 		return err
@@ -223,6 +226,28 @@ func validateExplicitSeasonBounds(cmd *cobra.Command) error {
 	return nil
 }
 
+// currentSeasonStart is the start year of the current NHL season (July
+// rollover), what --current-season selects.
+func currentSeasonStart() int { return nhl.Current().StartYear() }
+
+// applyCurrentSeason selects the season current() returns as --season does,
+// when --current-season is set. Combined with an explicit season bound it
+// is an error, since one of the two would be ignored.
+func applyCurrentSeason(cmd *cobra.Command, current func() int) error {
+	if !viper.GetBool(config.FlagCurrentSeason) {
+		return nil
+	}
+	for _, name := range seasonBoundFlagNames {
+		if cmd.Flags().Changed(name) {
+			return fmt.Errorf("--%s cannot be combined with --%s", config.FlagCurrentSeason, name)
+		}
+	}
+	season := current()
+	viper.Set(config.FlagSeasonYear, season)
+	fmt.Printf("Current season: %d\n", season)
+	return nil
+}
+
 // watchSyncCancel bridges root-context cancellation (first SIGINT/SIGTERM)
 // to sync shutdown: it runs cancelWorkflows to completion, then release to
 // unblock polling. If pollCtx ends first (normal completion), it returns
@@ -244,9 +269,14 @@ type workflowRunner struct {
 	getStatus    statusFetcher
 }
 
-// newThemedSpinner creates a spinner with the user's configured color theme and starts it.
+// newThemedSpinner creates a spinner with the user's configured color theme
+// and starts it; on a writer that is not a terminal it writes plain
+// progress lines instead (see SetPlain).
 func newThemedSpinner(out io.Writer) *spinner {
 	sp := newSpinner(out, "Starting...")
+	if !isTerminal(out) {
+		sp.SetPlain(config.DefaultPlainProgressInterval)
+	}
 	switch theme := viper.GetString(config.FlagTheme); theme {
 	case "":
 		// no theme
@@ -262,24 +292,16 @@ func newThemedSpinner(out io.Writer) *spinner {
 }
 
 func (r workflowRunner) run(ctx context.Context, out io.Writer, state *syncState) error {
-	state.setActive(r.workflowType)
 	defer state.clearActive(r.workflowType)
 
-	sp := newThemedSpinner(out)
-
-	started, err := r.trigger()
-	if err != nil {
-		sp.Cancel()
+	if err := r.start(ctx, state, r.waitForOtherRun(out)); err != nil {
 		if ctx.Err() != nil {
 			return fmt.Errorf("workflow canceled by user")
 		}
 		return fmt.Errorf("trigger workflow: %w", err)
 	}
 
-	if !started {
-		log.Warn().Msg("Workflow was not started (may already be running)")
-	}
-
+	sp := newThemedSpinner(out)
 	if err := monitorWorkflow(ctx, sp, r.getStatus, r.workflowType); err != nil {
 		if ctx.Err() != nil {
 			return fmt.Errorf("workflow canceled by user")
@@ -292,32 +314,21 @@ func (r workflowRunner) run(ctx context.Context, out io.Writer, state *syncState
 
 // runParallel runs multiple workflows concurrently with a combined progress display.
 func runParallel(ctx context.Context, out io.Writer, state *syncState, runners ...workflowRunner) error {
-	// Mark all workflows as active
-	for _, r := range runners {
-		state.setActive(r.workflowType)
-	}
 	defer func() {
 		for _, r := range runners {
 			state.clearActive(r.workflowType)
 		}
 	}()
 
-	sp := newThemedSpinner(out)
-
-	// Trigger all workflows
-	for _, r := range runners {
-		started, err := r.trigger()
-		if err != nil {
-			sp.Cancel()
-			if ctx.Err() != nil {
-				return fmt.Errorf("workflow canceled by user")
-			}
-			return fmt.Errorf("trigger workflow: %w", err)
+	waitFor := func(r workflowRunner) func(context.Context) error { return r.waitForOtherRun(out) }
+	if err := startRunners(ctx, state, runners, waitFor); err != nil {
+		if ctx.Err() != nil {
+			return fmt.Errorf("workflow canceled by user")
 		}
-		if !started {
-			log.Warn().Msg("Workflow was not started (may already be running)")
-		}
+		return fmt.Errorf("trigger workflow: %w", err)
 	}
+
+	sp := newThemedSpinner(out)
 
 	// Monitor all workflows
 	if err := monitorWorkflows(ctx, sp, runners); err != nil {

@@ -178,6 +178,9 @@ const (
 	DefaultWorkflowPollInterval = 2 * time.Second
 	MaxWorkflowPollBackoff      = 30 * time.Second
 	MaxConsecutiveQueryFailures = 10
+	// MaxAlreadyRunningWaits bounds how many runs of a step's workflow,
+	// started by someone else, sync waits for before starting its own.
+	MaxAlreadyRunningWaits = 3
 )
 
 // UI defaults
@@ -349,6 +352,15 @@ const (
 	DefaultDraftUncertaintyPenalty = "" // no penalty
 )
 
+// DefaultCurrentSeason leaves the season selection to --season,
+// --from-season and --to-season.
+const DefaultCurrentSeason = false
+
+// DefaultPlainProgressInterval is the shortest time between two progress
+// lines sync writes when its output is not a terminal (a CronJob's log):
+// the animated display would redraw every DefaultSpinnerInterval.
+const DefaultPlainProgressInterval = time.Minute
+
 // DefaultReimportDays leaves NHL days whose cached files and importer
 // version are unchanged since their last import alone.
 const DefaultReimportDays = false
@@ -373,11 +385,6 @@ const (
 	DefaultNewsFetchMaxAttempts  = 4
 	DefaultNewsFetchRetryInitial = 30  // seconds
 	DefaultNewsFetchRetryMax     = 900 // seconds
-	// The sync schedules are off by default (empty cron expression); their
-	// cron expressions read in the NHL's home time zone.
-	DefaultSeasonsSyncSchedule  = ""
-	DefaultPlayersSyncSchedule  = ""
-	DefaultSyncScheduleTimeZone = "America/Toronto"
 	// DefaultNewsScheduleMinutes of 0 leaves the periodic refresh off.
 	DefaultNewsScheduleMinutes = 0
 	DefaultNewsForce           = false

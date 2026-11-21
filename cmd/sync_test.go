@@ -7,6 +7,7 @@ import (
 
 	"github.com/sperano/puckdb/internal/config"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -44,6 +45,64 @@ func TestValidateExplicitSeasonBounds_RejectsReversedRange(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "--from-season 2027 is after --to-season 2026")
+}
+
+const currentSeasonTestYear = 2031
+
+// resetSeasonSelection clears the viper season settings applyCurrentSeason
+// reads and sets, before and after the test.
+func resetSeasonSelection(t *testing.T) {
+	t.Helper()
+	reset := func() {
+		viper.Set(config.FlagCurrentSeason, false)
+		viper.Set(config.FlagSeasonYear, 0)
+	}
+	reset()
+	t.Cleanup(reset)
+}
+
+func seasonRangeCommand() *cobra.Command {
+	cmd := &cobra.Command{}
+	config.InitFlags(cmd.Flags(), &config.SeasonRangeFlags)
+	return cmd
+}
+
+func TestApplyCurrentSeason_SelectsTheCurrentSeason(t *testing.T) {
+	resetSeasonSelection(t)
+	viper.Set(config.FlagCurrentSeason, true)
+
+	require.NoError(t, applyCurrentSeason(seasonRangeCommand(), func() int { return currentSeasonTestYear }))
+
+	start, end := config.GetSeasonRange()
+	assert.Equal(t, currentSeasonTestYear, start)
+	assert.Equal(t, currentSeasonTestYear, end)
+}
+
+func TestApplyCurrentSeason_UnsetLeavesTheSelection(t *testing.T) {
+	resetSeasonSelection(t)
+
+	require.NoError(t, applyCurrentSeason(seasonRangeCommand(), func() int {
+		t.Fatal("current season read without --current-season")
+		return 0
+	}))
+
+	assert.Equal(t, 0, viper.GetInt(config.FlagSeasonYear))
+}
+
+func TestApplyCurrentSeason_RejectsExplicitSeasonBounds(t *testing.T) {
+	for _, flag := range []string{"season", "from-season", "to-season"} {
+		t.Run(flag, func(t *testing.T) {
+			resetSeasonSelection(t)
+			viper.Set(config.FlagCurrentSeason, true)
+			cmd := seasonRangeCommand()
+			require.NoError(t, cmd.Flags().Set(flag, "2024"))
+
+			err := applyCurrentSeason(cmd, func() int { return currentSeasonTestYear })
+
+			require.EqualError(t, err, "--current-season cannot be combined with --"+flag)
+			assert.Equal(t, 0, viper.GetInt(config.FlagSeasonYear))
+		})
+	}
 }
 
 // watchSyncCancelTestTimeout bounds how long a test waits for

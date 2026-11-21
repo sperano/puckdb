@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"github.com/vektah/gqlparser/v2/gqlerror"
 	"go.temporal.io/api/serviceerror"
 	"go.temporal.io/sdk/client"
 )
@@ -118,6 +119,11 @@ func TestStartWorkflow_RejectedAlreadyRunningKeepsLiveReport(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "already running")
 	assert.Contains(t, err.Error(), testProgressWorkflowID)
+	var gqlErr *gqlerror.Error
+	require.ErrorAs(t, err, &gqlErr)
+	assert.Equal(t, map[string]any{"code": ErrorCodeWorkflowAlreadyRunning}, gqlErr.Extensions)
+	var alreadyStarted *serviceerror.WorkflowExecutionAlreadyStarted
+	require.ErrorAs(t, err, &alreadyStarted, "the Temporal error stays the cause")
 	require.False(t, ok, "nothing was started")
 
 	assert.Equal(t, "live from running execution", loadedMessage(t, r),
