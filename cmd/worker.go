@@ -57,7 +57,6 @@ var workerFlagGroups = []*config.FlagGroup{
 	&config.NewsExtractModelFlags,
 	&config.NewsExtractWorkerFlags,
 	&config.DraftWorkerFlags,
-	&config.SyncScheduleFlags,
 }
 
 func cmdWorker() *cobra.Command {
@@ -256,13 +255,6 @@ func registerAdminQueue(w worker.Worker, pool *pgxpool.Pool, redisClient *redis.
 func startTasksQueue(ctx context.Context, tclient client.Client, w worker.Worker, pool *pgxpool.Pool, redisClient *redis.Client, errCh chan<- error) error {
 	registerTasksWorkflows(w)
 	if err := ensureNewsSchedule(ctx, tclient.ScheduleClient(), viper.GetInt(config.FlagNewsScheduleMinutes)); err != nil {
-		return err
-	}
-	if err := ensureSyncSchedules(ctx, tclient.ScheduleClient(), syncSchedulesConfig{
-		Seasons:  viper.GetString(config.FlagSeasonsSyncSchedule),
-		Players:  viper.GetString(config.FlagPlayersSyncSchedule),
-		TimeZone: viper.GetString(config.FlagSyncScheduleTimeZone),
-	}); err != nil {
 		return err
 	}
 	if err := registerTasksActivities(w, pool, redisClient); err != nil {

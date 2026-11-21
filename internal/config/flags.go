@@ -282,6 +282,7 @@ const (
 	FlagRefreshCurrentPlayerLogs     = "refresh-current-player-logs"
 	FlagRefreshCurrentEdge           = "refresh-current-edge"
 	FlagReimportDays                 = "reimport-days"
+	FlagCurrentSeason                = "current-season"
 	FlagSeasonConcurrency            = "season-concurrency"
 	FlagSeasonYear                   = "season"
 	FlagFromSeasonYear               = "from-season"
@@ -653,6 +654,7 @@ var SyncBehaviorFlags = FlagGroup{
 	Flags: []FlagDef{
 		{FlagRefreshCurrentPlayerLogs, "", false, "Re-download player game logs for the latest season, or for every season in an explicit --start-season/--end-season range (overwrites cached files)", false},
 		{FlagRefreshCurrentEdge, "", false, "Re-download Edge stats for the latest season, or for every season in an explicit --start-season/--end-season range (overwrites cached files)", false},
+		{FlagCurrentSeason, "", DefaultCurrentSeason, "Sync only the current NHL season (from July, the season starting that year), picked when the command starts; cannot be combined with --season, --from-season or --to-season (for a CronJob)", false},
 		{FlagReimportDays, "", DefaultReimportDays, "import-seasons: re-import every NHL day, even days whose cached files and importer version are unchanged since their last import (after a schema or data repair)", false},
 		{FlagNewsForce, "", DefaultNewsForce, "refresh-news: fetch every news source now, ignoring refresh schedules (e.g. right before a draft)", false},
 		{FlagNewsOnly, "", DefaultNewsOnly, "refresh-news: comma-separated news source IDs to refresh (default: every enabled source)", false},
@@ -976,23 +978,6 @@ var DraftAPIFlags = FlagGroup{
 var DraftWorkerFlags = FlagGroup{
 	Flags: []FlagDef{
 		{FlagDraftKeepSnapshots, "", DefaultDraftKeepSnapshots, "Ranking snapshots kept per league (older ones are deleted after a successful refresh)", false},
-	},
-}
-
-// Scheduled sync flags (worker)
-const (
-	FlagSeasonsSyncSchedule  = "seasons-sync-schedule"
-	FlagPlayersSyncSchedule  = "players-sync-schedule"
-	FlagSyncScheduleTimeZone = "sync-schedule-time-zone"
-)
-
-// SyncScheduleFlags sets the worker's Temporal schedules of the current
-// season's seasons and players syncs.
-var SyncScheduleFlags = FlagGroup{
-	Flags: []FlagDef{
-		{FlagSeasonsSyncSchedule, "", DefaultSeasonsSyncSchedule, "Cron expression (e.g. \"0 6 * * *\") starting the current season's seasons sync (fetch-seasons + import-seasons) via a Temporal schedule; empty removes the schedule", false},
-		{FlagPlayersSyncSchedule, "", DefaultPlayersSyncSchedule, "Cron expression (e.g. \"0 8 * * 1\") starting the current season's players sync (yahoo-players through import-player-logs) via a Temporal schedule; empty removes the schedule", false},
-		{FlagSyncScheduleTimeZone, "", DefaultSyncScheduleTimeZone, "IANA time zone of the sync schedules' cron expressions", false},
 	},
 }
 

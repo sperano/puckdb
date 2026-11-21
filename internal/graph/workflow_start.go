@@ -10,9 +10,15 @@ import (
 	"github.com/sperano/puckdb/internal/config"
 	"github.com/sperano/puckdb/internal/temporal"
 	"github.com/sperano/puckdb/internal/worker/shared"
+	"github.com/vektah/gqlparser/v2/gqlerror"
 	"go.temporal.io/api/serviceerror"
 	"go.temporal.io/sdk/client"
 )
+
+// ErrorCodeWorkflowAlreadyRunning is the extensions.code of a start
+// mutation refused because its workflow (fixed ID) is already running; the
+// sync command waits for that run instead.
+const ErrorCodeWorkflowAlreadyRunning = "WORKFLOW_ALREADY_RUNNING"
 
 // startWorkflow is the shared core that triggers a workflow with the given
 // options, optional input argument, and post-start Redis cleanup. The three
@@ -20,7 +26,7 @@ import (
 // each workflow class.
 //
 // An already-running workflow is an error to the caller — nothing was
-// started — and performs no cleanup: the running execution's progress is
+// started — carrying ErrorCodeWorkflowAlreadyRunning, and performs no cleanup: the running execution's progress is
 // live. This relies on buildWorkflowOptions setting
 // WorkflowExecutionErrorWhenAlreadyStarted — without it the SDK swallows
 // the conflict and hands back the running execution's run, which would
@@ -35,7 +41,11 @@ func (r *Resolver) startWorkflow(ctx context.Context, opts client.StartWorkflowO
 	}
 	var alreadyStarted *serviceerror.WorkflowExecutionAlreadyStarted
 	if errors.As(err, &alreadyStarted) {
-		return false, fmt.Errorf("workflow %s is already running (run %s): %w", opts.ID, alreadyStarted.RunId, err)
+		return false, &gqlerror.Error{
+			Err:        err,
+			Message:    fmt.Sprintf("workflow %s is already running (run %s): %v", opts.ID, alreadyStarted.RunId, err),
+			Extensions: map[string]any{"code": ErrorCodeWorkflowAlreadyRunning},
+		}
 	}
 	if err != nil {
 		return false, err

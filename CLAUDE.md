@@ -42,7 +42,7 @@ go tool gqlgen generate   # GraphQL (from puckdb root dir; gqlgen is pinned via 
 |---------|-------------|
 | `api` | HTTP server: GraphQL at `/graphql`, playground at `/graphql/`, OAuth at `/yahoo/*` |
 | `worker` | Temporal worker for download/import workflows, metrics at `/metrics` |
-| `sync` | Sync data into the database |
+| `sync` | Sync data into the database: triggers the steps' workflows through GraphQL and waits for them, exiting non-zero on a failure; a step whose workflow is already running (start refused with `extensions.code` `WORKFLOW_ALREADY_RUNNING`, `graph.ErrorCodeWorkflowAlreadyRunning`) waits for that run, which an interrupt then leaves running; `--current-season` selects the current season (July rollover) at start, as the daily `sync seasons` and weekly `sync players` CronJobs in hollingsworth's `helm/puckdb` run it (see wiki `puckdb/scheduled-syncs.md`); off a terminal, progress is plain lines, a changed one at most once per `config.DefaultPlainProgressInterval` |
 | `metrics` | Expose cache, Redis, and database metrics as Prometheus metrics |
 | `mcp-server` | MCP server exposing curated read-only data tools; HTTP on `--mcp-port` (default 8790) or `--mcp-stdio`; `--mcp-toolsets` picks `nhl` (default), `yahoo`, `news` or a comma-separated combination (server name `puckdb-<toolsets>`); `--mcp-yahoo-leagues` limits the `yahoo` toolset to listed league keys (empty: every league); with the `yahoo` toolset, a listed key matching no `yahoo_leagues` row fails startup |
 | `db init` | Create tables, seed NHL data |
@@ -145,7 +145,6 @@ Defined in `internal/worker/workflow/`:
 - `RefreshNewsWorkflow` — Fetch due player news sources, store new article versions, resolve players into incident candidates, extract validated events with an LLM when the worker runs with `--news-extract-enabled` (capped calls/tokens per run), prune (on demand, or via the `refresh-news-schedule` Temporal schedule when the worker runs with `--news-schedule-minutes`)
 - `RefreshDraftRankingsWorkflow` — Recompute each league's draft ranking snapshot (baseline + news scenarios) one league at a time; a failed league keeps its last snapshot; rejected while running (fixed workflow ID)
 - `InitializeWorkflow` — Database initialization
-- `ScheduledSeasonsSyncWorkflow` / `ScheduledPlayersSyncWorkflow` — the current season's `sync seasons` (fetch then import; the import also runs after a failed fetch) and `sync players` (`yahoo-players` through `import-player-logs`, stopping at the first failure), started by the worker's Temporal schedules `seasons-sync-schedule` / `players-sync-schedule` (`--seasons-sync-schedule`, `--players-sync-schedule`: cron expressions in `--sync-schedule-time-zone`, default `America/Toronto`; empty, the default, removes the schedule; overlap skipped, 12 h catch-up). The season is picked from `workflow.Now` at each run (July rollover). Each step runs as a child under the fixed workflow ID a manual sync uses (`fetch-seasons`, `import-seasons`, ...), so the GraphQL progress queries show it and a manual sync of a running step is refused; a step found already running ends the scheduled run as skipped (`ScheduledSyncResult.SkippedRunning`), leaving the later steps to that sync
 
 Defined in `internal/worker/admin/`:
 - `DropDatabaseWorkflow`, `MigrateDatabaseWorkflow`, `ResetDatabaseWorkflow`, `FlushRedisWorkflow`

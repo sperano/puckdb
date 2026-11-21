@@ -86,6 +86,7 @@ type spinner struct {
 	keyThemes        map[string][colorThemePaletteSize]int // palette keyed by stable line content
 	shuffledThemes   []string                              // shuffled theme names for round-robin assignment
 	shuffledIdx      int                                   // next index into shuffledThemes
+	plain            *plainProgress                        // when set, plain lines instead of the animated display (SetPlain)
 }
 
 func newSpinner(w io.Writer, header string) *spinner {
@@ -207,6 +208,10 @@ func colorizeProgressFill(line string, palette *[colorThemePaletteSize]int) stri
 }
 
 func (s *spinner) Start() {
+	if s.plain != nil {
+		s.startPlain()
+		return
+	}
 	// Hide cursor
 	fmt.Fprint(s.writer, "\033[?25l")
 
@@ -307,6 +312,10 @@ func (s *spinner) Stop() {
 	s.once.Do(func() {
 		close(s.stop)
 		<-s.done
+		if s.plain != nil {
+			s.flushPlain()
+			return
+		}
 
 		s.mu.Lock()
 		// Clear previous display
@@ -328,6 +337,10 @@ func (s *spinner) Cancel() {
 	s.once.Do(func() {
 		close(s.stop)
 		<-s.done
+		if s.plain != nil {
+			s.flushPlain()
+			return
+		}
 
 		// Move cursor below the last rendered output so subsequent
 		// prints don't overwrite it.
@@ -347,6 +360,10 @@ func (s *spinner) Cancel() {
 func (s *spinner) PrintAbove(fn func()) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.plain != nil {
+		fn()
+		return
+	}
 	s.clearLines()
 	s.lineCount = 0
 	fn()
