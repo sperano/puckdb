@@ -144,10 +144,37 @@ func TestWorkflowRunnerStart_StartedIsSilent(t *testing.T) {
 	assert.Empty(t, logs.String())
 }
 
-// TestStartRunners_WaitingRunnerLeavesUnstartedSiblingsInactive is the
+// TestRunParallel_UnstartedSiblingsAreInactiveWhileTheFirstStarts is the
 // regression test for runParallel marking every runner active before
 // starting any: an interrupt while the first waited cancelled the second's
-// workflow, which this sync had not started.
+// workflow, which this sync had not started. The first trigger fails, so
+// runParallel returns before monitoring.
+func TestRunParallel_UnstartedSiblingsAreInactiveWhileTheFirstStarts(t *testing.T) {
+	triggerErr := &graphQLError{Message: "boom", Extensions: map[string]any{"code": "OTHER"}}
+	state := &syncState{}
+	var activeAtFirstTrigger []workflowType
+	runners := []workflowRunner{
+		{workflowType: workflowFetchSeasons, trigger: func() (bool, error) {
+			activeAtFirstTrigger = append([]workflowType{}, state.current...)
+			return false, triggerErr
+		}},
+		{workflowType: workflowImportSeasons, trigger: func() (bool, error) {
+			t.Fatal("started a runner after an earlier one failed")
+			return false, nil
+		}},
+	}
+
+	err := runParallel(t.Context(), io.Discard, state, runners...)
+
+	require.ErrorIs(t, err, triggerErr)
+	assert.Equal(t, "trigger workflow: graphql error: boom", err.Error())
+	assert.Equal(t, []workflowType{workflowFetchSeasons}, activeAtFirstTrigger)
+	assert.Empty(t, state.current, "runParallel clears its runners once done")
+}
+
+// TestStartRunners_WaitingRunnerLeavesUnstartedSiblingsInactive checks that
+// while the first runner waits for another run, neither it nor its unstarted
+// sibling is active, so an interrupt then cancels no workflow.
 func TestStartRunners_WaitingRunnerLeavesUnstartedSiblingsInactive(t *testing.T) {
 	captureLog(t)
 	first, _ := triggerResults(t, alreadyRunningError(), nil)
