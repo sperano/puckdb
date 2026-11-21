@@ -90,7 +90,7 @@ func TestApplyCurrentSeason_UnsetLeavesTheSelection(t *testing.T) {
 }
 
 func TestApplyCurrentSeason_RejectsExplicitSeasonBounds(t *testing.T) {
-	for _, flag := range seasonBoundFlagNames {
+	for _, flag := range []string{"season", "from-season", "to-season"} {
 		t.Run(flag, func(t *testing.T) {
 			resetSeasonSelection(t)
 			viper.Set(config.FlagCurrentSeason, true)

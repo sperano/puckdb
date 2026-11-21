@@ -2,18 +2,15 @@ package cmd
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"os"
 	"sync"
 	"time"
 
-	"github.com/rs/zerolog/log"
 	"github.com/sperano/nhl-api-go/nhl"
 	"github.com/sperano/puckdb/internal/config"
 	"github.com/sperano/puckdb/internal/core"
-	"github.com/sperano/puckdb/internal/graph"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -298,16 +295,14 @@ func (r workflowRunner) run(ctx context.Context, out io.Writer, state *syncState
 	state.setActive(r.workflowType)
 	defer state.clearActive(r.workflowType)
 
-	sp := newThemedSpinner(out)
-
-	if err := r.start(sp, state); err != nil {
-		sp.Cancel()
+	if err := r.start(ctx, state, r.waitForOtherRun(out)); err != nil {
 		if ctx.Err() != nil {
 			return fmt.Errorf("workflow canceled by user")
 		}
 		return fmt.Errorf("trigger workflow: %w", err)
 	}
 
+	sp := newThemedSpinner(out)
 	if err := monitorWorkflow(ctx, sp, r.getStatus, r.workflowType); err != nil {
 		if ctx.Err() != nil {
 			return fmt.Errorf("workflow canceled by user")
@@ -316,38 +311,6 @@ func (r workflowRunner) run(ctx context.Context, out io.Writer, state *syncState
 	}
 
 	return nil
-}
-
-// start triggers r's workflow. One already running (another sync, or the
-// run a retried CronJob pod started) is waited for instead: r is no longer
-// active in state, so an interrupt does not cancel a run this sync did not
-// start.
-func (r workflowRunner) start(sp *spinner, state *syncState) error {
-	started, err := r.trigger()
-	if isWorkflowAlreadyRunning(err) {
-		state.clearActive(r.workflowType)
-		sp.PrintAbove(func() {
-			log.Warn().Str("workflow", r.workflowType.String()).
-				Msg("Workflow already running, waiting for that run (an interrupt leaves it running)")
-		})
-		return nil
-	}
-	if err != nil {
-		return err
-	}
-	if !started {
-		sp.PrintAbove(func() {
-			log.Warn().Str("workflow", r.workflowType.String()).Msg("Workflow was not started")
-		})
-	}
-	return nil
-}
-
-// isWorkflowAlreadyRunning reports whether err is a start mutation refused
-// because its workflow is already running.
-func isWorkflowAlreadyRunning(err error) bool {
-	var gqlErr *graphQLError
-	return errors.As(err, &gqlErr) && gqlErr.Code() == graph.ErrorCodeWorkflowAlreadyRunning
 }
 
 // runParallel runs multiple workflows concurrently with a combined progress display.
@@ -362,18 +325,18 @@ func runParallel(ctx context.Context, out io.Writer, state *syncState, runners .
 		}
 	}()
 
-	sp := newThemedSpinner(out)
-
-	// Trigger all workflows
+	// Trigger all workflows, before the combined display: a runner waiting
+	// for another run shows that run on its own display.
 	for _, r := range runners {
-		if err := r.start(sp, state); err != nil {
-			sp.Cancel()
+		if err := r.start(ctx, state, r.waitForOtherRun(out)); err != nil {
 			if ctx.Err() != nil {
 				return fmt.Errorf("workflow canceled by user")
 			}
 			return fmt.Errorf("trigger workflow: %w", err)
 		}
 	}
+
+	sp := newThemedSpinner(out)
 
 	// Monitor all workflows
 	if err := monitorWorkflows(ctx, sp, runners); err != nil {

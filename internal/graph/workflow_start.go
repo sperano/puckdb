@@ -17,7 +17,7 @@ import (
 
 // ErrorCodeWorkflowAlreadyRunning is the extensions.code of a start
 // mutation refused because its workflow (fixed ID) is already running; the
-// sync command waits for that run instead.
+// sync command waits for that run, then starts its own.
 const ErrorCodeWorkflowAlreadyRunning = "WORKFLOW_ALREADY_RUNNING"
 
 // startWorkflow is the shared core that triggers a workflow with the given

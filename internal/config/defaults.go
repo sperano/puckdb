@@ -178,6 +178,9 @@ const (
 	DefaultWorkflowPollInterval = 2 * time.Second
 	MaxWorkflowPollBackoff      = 30 * time.Second
 	MaxConsecutiveQueryFailures = 10
+	// MaxAlreadyRunningWaits bounds how many runs of a step's workflow,
+	// started by someone else, sync waits for before starting its own.
+	MaxAlreadyRunningWaits = 3
 )
 
 // UI defaults

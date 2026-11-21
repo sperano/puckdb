@@ -98,6 +98,47 @@ func TestPlainSpinnerStopAndCancelWriteOnlyTheMessage(t *testing.T) {
 	}
 }
 
+// writeChan is a writer sending a copy of each write to its channel, so a
+// test can wait on the spinner goroutine's output.
+type writeChan chan string
+
+func (w writeChan) Write(p []byte) (int, error) {
+	w <- string(p)
+	return len(p), nil
+}
+
+// plainTickerTestTimeout bounds the wait for the plain display's ticker
+// loop to write a changed message.
+const plainTickerTestTimeout = 5 * time.Second
+
+// receiveWrite waits for the next write on w.
+func receiveWrite(t *testing.T, w writeChan) string {
+	t.Helper()
+	select {
+	case s := <-w:
+		return s
+	case <-time.After(plainTickerTestTimeout):
+		t.Fatal("no write from the plain display")
+		return ""
+	}
+}
+
+func TestPlainSpinnerTickerWritesAChangedMessage(t *testing.T) {
+	const pending = 4
+	w := make(writeChan, pending)
+	sp := newSpinner(w, "Starting...")
+	sp.interval = time.Millisecond
+	sp.SetPlain(0)
+	sp.Start()
+
+	assert.Equal(t, "Starting...\n", receiveWrite(t, w), "the first message is written at once")
+	sp.SetMessage(SpinnerPlaceholder + " Fetching")
+	assert.Equal(t, " Fetching\n", receiveWrite(t, w), "a tick writes the changed message")
+	sp.Stop()
+
+	assert.Empty(t, w, "neither a tick nor the final flush repeats the message")
+}
+
 func TestPlainSpinnerPrintAboveWritesNoEscapes(t *testing.T) {
 	var buf bytes.Buffer
 	sp := newSpinner(&buf, "Starting...")
