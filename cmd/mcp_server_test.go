@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/sperano/puckdb/internal/config"
@@ -36,6 +38,23 @@ func resolveMCPOptionsFor(t *testing.T, args ...string) (mcpserver.Options, erro
 	t.Helper()
 	resolveMCPTransportFor(t, args...)
 	return resolveMCPOptions()
+}
+
+// resolveMCPAuthFor is resolveMCPTransportFor for the authentication
+// selection. Tests calling this must not use t.Parallel either.
+func resolveMCPAuthFor(t *testing.T, args ...string) (mcpAuth, error) {
+	t.Helper()
+	resolveMCPTransportFor(t, args...)
+	return resolveMCPAuth()
+}
+
+// writeMCPAPIKeysFile writes an API keys file under t.TempDir and returns
+// its path.
+func writeMCPAPIKeysFile(t *testing.T, data string) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "mcp-api-keys.yaml")
+	require.NoError(t, os.WriteFile(path, []byte(data), 0o600))
+	return path
 }
 
 func TestMCPServerTransportDefaults(t *testing.T) {
@@ -187,4 +206,49 @@ func TestCheckMCPLeagueKeysDoesNotBlameFlagForLookupFailure(t *testing.T) {
 	err := checkMCPLeagueKeys(t.Context(), fakeMCPLeagueLister{err: queryErr}, yahooMCPOptions(importedMCPLeagueKey))
 	require.ErrorIs(t, err, queryErr)
 	require.EqualError(t, err, "list yahoo leagues: connection refused")
+}
+
+// TestMCPServerAuthDefaultRefusesEverything pins the fail-closed default:
+// with neither --mcp-api-keys-file nor --mcp-allow-unauthenticated set, the
+// command still starts but its APIKeys has no entries, so RequireAPIKey
+// refuses every request.
+func TestMCPServerAuthDefaultRefusesEverything(t *testing.T) {
+	auth, err := resolveMCPAuthFor(t)
+	require.NoError(t, err)
+	require.False(t, auth.AllowUnauthenticated)
+	require.Equal(t, 0, auth.Keys.Len())
+}
+
+func TestMCPServerAuthAllowUnauthenticatedFlag(t *testing.T) {
+	auth, err := resolveMCPAuthFor(t, "--mcp-allow-unauthenticated")
+	require.NoError(t, err)
+	require.True(t, auth.AllowUnauthenticated)
+}
+
+func TestMCPServerAuthAPIKeysFileFlag(t *testing.T) {
+	path := writeMCPAPIKeysFile(t, "kelos: key-one\n")
+	auth, err := resolveMCPAuthFor(t, "--mcp-api-keys-file", path)
+	require.NoError(t, err)
+	require.False(t, auth.AllowUnauthenticated)
+	require.Equal(t, 1, auth.Keys.Len())
+	_, ok := auth.Keys.Lookup("key-one")
+	require.True(t, ok)
+}
+
+func TestMCPServerAuthRejectsBothKeysFileAndAllowUnauthenticated(t *testing.T) {
+	path := writeMCPAPIKeysFile(t, "kelos: key-one\n")
+	_, err := resolveMCPAuthFor(t, "--mcp-api-keys-file", path, "--mcp-allow-unauthenticated")
+	require.ErrorContains(t, err, "--mcp-api-keys-file and --mcp-allow-unauthenticated are mutually exclusive")
+}
+
+func TestMCPServerAuthRejectsMalformedKeysFile(t *testing.T) {
+	path := writeMCPAPIKeysFile(t, "")
+	_, err := resolveMCPAuthFor(t, "--mcp-api-keys-file", path)
+	require.ErrorContains(t, err, "invalid --mcp-api-keys-file")
+	require.ErrorContains(t, err, "no client keys listed")
+}
+
+func TestMCPServerAuthRejectsMissingKeysFile(t *testing.T) {
+	_, err := resolveMCPAuthFor(t, "--mcp-api-keys-file", filepath.Join(t.TempDir(), "missing.yaml"))
+	require.ErrorContains(t, err, "invalid --mcp-api-keys-file")
 }
