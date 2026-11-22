@@ -24,6 +24,15 @@ import (
 // after the command context is canceled.
 const mcpServerShutdownTimeout = 10 * time.Second
 
+// mcpServerReadHeaderTimeout bounds how long newMCPHTTPServer's listener
+// waits for a slow client to finish sending request headers.
+const mcpServerReadHeaderTimeout = 10 * time.Second
+
+// mcpServerIdleTimeout closes a keep-alive connection that sits idle between
+// requests, instead of holding it open indefinitely. WriteTimeout is
+// deliberately not set: it would cut off a streamed MCP response.
+const mcpServerIdleTimeout = 2 * time.Minute
+
 // mcpServerFlagGroups lists every flag group the mcp-server command
 // exposes. Defined once and shared by InitFlags and BindFlags so the two
 // can never drift.
@@ -64,8 +73,12 @@ func cmdMCPServer() *cobra.Command {
 			"yahoo (Yahoo fantasy league data), news (player news source coverage and events quoting third-party articles) " +
 			"or a comma-separated combination such as nhl,yahoo. Run one instance per audience, " +
 			"e.g. nhl on 8790 for every client and yahoo on another port for trusted ones. " +
-			"--mcp-yahoo-leagues limits the yahoo toolset to the listed league keys. " +
-			"The HTTP endpoint has no authentication: keep a Yahoo instance's port private.",
+			"--mcp-yahoo-leagues limits the yahoo toolset to the listed league keys.\n\n" +
+			"The HTTP endpoint (not stdio, which has no network listener) requires authentication: " +
+			"--mcp-api-keys-file names a YAML file mapping client names to bearer keys, and every " +
+			"request must carry a matching \"Authorization: Bearer <key>\" header. " +
+			"--mcp-allow-unauthenticated serves the endpoint with none instead. Exactly one of the " +
+			"two should be set; with neither, every request is refused.",
 		PreRunE: bindFlagsPreRunE(mcpServerFlagGroups...),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			transport := resolveMCPTransport()
@@ -76,7 +89,11 @@ func cmdMCPServer() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return runMCPServer(cmd, transport, opts)
+			auth, err := resolveMCPAuthForTransport(transport)
+			if err != nil {
+				return err
+			}
+			return runMCPServer(cmd, transport, opts, auth)
 		},
 	}
 	flags := cmd.Flags()
@@ -117,6 +134,82 @@ func resolveMCPOptions() (mcpserver.Options, error) {
 	return opts, nil
 }
 
+// mcpEndpointPath is the MCP server's HTTP path, matching mcp-go's own
+// default. Set explicitly here because newMCPHTTPServer builds its own mux
+// to insert the auth middleware, bypassing the SDK's default one.
+const mcpEndpointPath = "/mcp"
+
+// mcpAuth is the resolved authentication configuration for one mcp-server
+// HTTP run: either Keys (possibly with no entries, which then refuses every
+// request) or an explicit opt-out. Meaningless for the stdio transport.
+type mcpAuth struct {
+	Keys                 mcpserver.APIKeys
+	AllowUnauthenticated bool
+}
+
+// resolveMCPAuthForTransport resolves the authentication selection for the
+// HTTP transport only: the stdio transport has no network listener, so its
+// --mcp-api-keys-file/--mcp-allow-unauthenticated validation (including the
+// missing-flag warning) does not apply and must not run.
+func resolveMCPAuthForTransport(transport mcpTransport) (mcpAuth, error) {
+	if transport.Stdio {
+		return mcpAuth{}, nil
+	}
+	return resolveMCPAuth()
+}
+
+// resolveMCPAuth reads the authentication selection through viper, like
+// resolveMCPTransport. Exactly one of --mcp-api-keys-file and
+// --mcp-allow-unauthenticated may be set; with neither, the HTTP endpoint
+// still starts but refuses every request (APIKeys with no entries), so an
+// operator notices misconfiguration without the whole command failing.
+func resolveMCPAuth() (mcpAuth, error) {
+	path := viper.GetString(config.FlagMCPAPIKeysFile)
+	allow := viper.GetBool(config.FlagMCPAllowUnauthenticated)
+	if path != "" && allow {
+		return mcpAuth{}, fmt.Errorf("--%s and --%s are mutually exclusive", config.FlagMCPAPIKeysFile, config.FlagMCPAllowUnauthenticated)
+	}
+	if allow {
+		return mcpAuth{AllowUnauthenticated: true}, nil
+	}
+	if path == "" {
+		log.Warn().Msgf("no --%s configured: the MCP HTTP endpoint will refuse every request until one is set or --%s is passed",
+			config.FlagMCPAPIKeysFile, config.FlagMCPAllowUnauthenticated)
+		return mcpAuth{}, nil
+	}
+	keys, err := mcpserver.LoadAPIKeys(path)
+	if err != nil {
+		return mcpAuth{}, fmt.Errorf("invalid --%s: %w", config.FlagMCPAPIKeysFile, err)
+	}
+	return mcpAuth{Keys: keys}, nil
+}
+
+// newMCPHTTPServer builds the Streamable HTTP server for srv, wrapping its
+// handler with mcpserver.RequireAPIKey unless auth explicitly opts out.
+// Presetting the SDK's http.Server (mcpserversdk.WithStreamableHTTPServer)
+// instead of calling Start's default mux construction lets serveMCPHTTP keep
+// using the SDK's own Start/Shutdown lifecycle unchanged.
+func newMCPHTTPServer(srv *mcpserversdk.MCPServer, auth mcpAuth) *mcpserversdk.StreamableHTTPServer {
+	var httpSrv *mcpserversdk.StreamableHTTPServer
+	var handler http.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		httpSrv.ServeHTTP(w, r)
+	})
+	if !auth.AllowUnauthenticated {
+		handler = mcpserver.RequireAPIKey(auth.Keys, handler)
+	}
+	mux := http.NewServeMux()
+	mux.Handle(mcpEndpointPath, handler)
+	httpSrv = mcpserversdk.NewStreamableHTTPServer(srv,
+		mcpserversdk.WithEndpointPath(mcpEndpointPath),
+		mcpserversdk.WithStreamableHTTPServer(&http.Server{
+			Handler:           mux,
+			ReadHeaderTimeout: mcpServerReadHeaderTimeout,
+			IdleTimeout:       mcpServerIdleTimeout,
+		}),
+	)
+	return httpSrv
+}
+
 // mcpLeagueLister is what mcpserver.CheckLeagueKeys reads the imported
 // leagues from; *sqlcdb.Queries satisfies it.
 type mcpLeagueLister interface {
@@ -134,7 +227,7 @@ func checkMCPLeagueKeys(ctx context.Context, leagues mcpLeagueLister, opts mcpse
 	return err
 }
 
-func runMCPServer(cmd *cobra.Command, transport mcpTransport, opts mcpserver.Options) error {
+func runMCPServer(cmd *cobra.Command, transport mcpTransport, opts mcpserver.Options, auth mcpAuth) error {
 	ctx := cmd.Context()
 
 	pool, err := openPGXPool(ctx)
@@ -171,8 +264,10 @@ func runMCPServer(cmd *cobra.Command, transport mcpTransport, opts mcpserver.Opt
 		return mcpserversdk.ServeStdio(srv)
 	}
 
-	httpSrv := mcpserversdk.NewStreamableHTTPServer(srv)
-	logEvent(log.Info()).Int("port", transport.Port).Msg("Starting PuckDB MCP server (HTTP)")
+	httpSrv := newMCPHTTPServer(srv, auth)
+	logEvent(log.Info()).Int("port", transport.Port).
+		Bool("allow_unauthenticated", auth.AllowUnauthenticated).Int("api_keys", auth.Keys.Len()).
+		Msg("Starting PuckDB MCP server (HTTP)")
 	return serveMCPHTTP(ctx, httpSrv, transport.Addr())
 }
 

@@ -1,16 +1,24 @@
 package cmd
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
+	"os"
+	"path/filepath"
 	"testing"
 
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 	"github.com/sperano/puckdb/internal/config"
 	"github.com/sperano/puckdb/internal/mcpserver"
 	"github.com/sperano/puckdb/internal/sqlcdb"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/require"
+
+	mcpserversdk "github.com/mark3labs/mcp-go/server"
 )
 
 // resolveMCPTransportFor builds the mcp-server command, parses args through
@@ -36,6 +44,23 @@ func resolveMCPOptionsFor(t *testing.T, args ...string) (mcpserver.Options, erro
 	t.Helper()
 	resolveMCPTransportFor(t, args...)
 	return resolveMCPOptions()
+}
+
+// resolveMCPAuthFor is resolveMCPTransportFor for the authentication
+// selection. Tests calling this must not use t.Parallel either.
+func resolveMCPAuthFor(t *testing.T, args ...string) (mcpAuth, error) {
+	t.Helper()
+	resolveMCPTransportFor(t, args...)
+	return resolveMCPAuth()
+}
+
+// writeMCPAPIKeysFile writes an API keys file under t.TempDir and returns
+// its path.
+func writeMCPAPIKeysFile(t *testing.T, data string) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "mcp-api-keys.yaml")
+	require.NoError(t, os.WriteFile(path, []byte(data), 0o600))
+	return path
 }
 
 func TestMCPServerTransportDefaults(t *testing.T) {
@@ -187,4 +212,163 @@ func TestCheckMCPLeagueKeysDoesNotBlameFlagForLookupFailure(t *testing.T) {
 	err := checkMCPLeagueKeys(t.Context(), fakeMCPLeagueLister{err: queryErr}, yahooMCPOptions(importedMCPLeagueKey))
 	require.ErrorIs(t, err, queryErr)
 	require.EqualError(t, err, "list yahoo leagues: connection refused")
+}
+
+// TestMCPServerAuthDefaultRefusesEverything pins the fail-closed default:
+// with neither --mcp-api-keys-file nor --mcp-allow-unauthenticated set, the
+// command still starts but its APIKeys has no entries, so RequireAPIKey
+// refuses every request.
+func TestMCPServerAuthDefaultRefusesEverything(t *testing.T) {
+	auth, err := resolveMCPAuthFor(t)
+	require.NoError(t, err)
+	require.False(t, auth.AllowUnauthenticated)
+	require.Equal(t, 0, auth.Keys.Len())
+}
+
+func TestMCPServerAuthAllowUnauthenticatedFlag(t *testing.T) {
+	auth, err := resolveMCPAuthFor(t, "--mcp-allow-unauthenticated")
+	require.NoError(t, err)
+	require.True(t, auth.AllowUnauthenticated)
+}
+
+func TestMCPServerAuthAPIKeysFileFlag(t *testing.T) {
+	path := writeMCPAPIKeysFile(t, "kelos: key-one\n")
+	auth, err := resolveMCPAuthFor(t, "--mcp-api-keys-file", path)
+	require.NoError(t, err)
+	require.False(t, auth.AllowUnauthenticated)
+	require.Equal(t, 1, auth.Keys.Len())
+	_, ok := auth.Keys.Lookup("key-one")
+	require.True(t, ok)
+}
+
+func TestMCPServerAuthRejectsBothKeysFileAndAllowUnauthenticated(t *testing.T) {
+	path := writeMCPAPIKeysFile(t, "kelos: key-one\n")
+	_, err := resolveMCPAuthFor(t, "--mcp-api-keys-file", path, "--mcp-allow-unauthenticated")
+	require.ErrorContains(t, err, "--mcp-api-keys-file and --mcp-allow-unauthenticated are mutually exclusive")
+}
+
+func TestMCPServerAuthRejectsMalformedKeysFile(t *testing.T) {
+	path := writeMCPAPIKeysFile(t, "")
+	_, err := resolveMCPAuthFor(t, "--mcp-api-keys-file", path)
+	require.ErrorContains(t, err, "invalid --mcp-api-keys-file")
+	require.ErrorContains(t, err, "no client keys listed")
+}
+
+func TestMCPServerAuthRejectsMissingKeysFile(t *testing.T) {
+	_, err := resolveMCPAuthFor(t, "--mcp-api-keys-file", filepath.Join(t.TempDir(), "missing.yaml"))
+	require.ErrorContains(t, err, "invalid --mcp-api-keys-file")
+}
+
+// TestMCPServerAuthStdioSkipsResolution pins that the stdio transport, which
+// has no HTTP listener, never runs the HTTP auth flag validation: even a
+// mutually-exclusive flag combination that would fail resolveMCPAuth outright
+// must not fail the stdio run.
+func TestMCPServerAuthStdioSkipsResolution(t *testing.T) {
+	path := writeMCPAPIKeysFile(t, "kelos: key-one\n")
+	resolveMCPTransportFor(t, "--mcp-api-keys-file", path, "--mcp-allow-unauthenticated")
+
+	auth, err := resolveMCPAuthForTransport(mcpTransport{Stdio: true})
+	require.NoError(t, err)
+	require.Equal(t, mcpAuth{}, auth)
+}
+
+// TestMCPServerAuthStdioWarnsNothing pins that the missing-auth-flag startup
+// warning, which only makes sense for the HTTP endpoint, never fires for the
+// stdio transport.
+func TestMCPServerAuthStdioWarnsNothing(t *testing.T) {
+	var buf bytes.Buffer
+	previous := log.Logger
+	log.Logger = zerolog.New(&buf)
+	t.Cleanup(func() { log.Logger = previous })
+
+	_, err := resolveMCPAuthForTransport(mcpTransport{Stdio: true})
+	require.NoError(t, err)
+	require.Empty(t, buf.Bytes())
+}
+
+// TestMCPServerAuthHTTPStillWarns pins that the HTTP transport keeps the
+// missing-auth-flag startup warning resolveMCPAuthForTransport now gates.
+func TestMCPServerAuthHTTPStillWarns(t *testing.T) {
+	var buf bytes.Buffer
+	previous := log.Logger
+	log.Logger = zerolog.New(&buf)
+	t.Cleanup(func() { log.Logger = previous })
+	viper.Reset()
+	t.Cleanup(viper.Reset)
+	config.SetupViper()
+
+	_, err := resolveMCPAuthForTransport(mcpTransport{Stdio: false})
+	require.NoError(t, err)
+	require.Contains(t, buf.String(), "--mcp-api-keys-file")
+	require.Contains(t, buf.String(), "--mcp-allow-unauthenticated")
+}
+
+// requireMCPHTTPRequest posts an empty body to the server newMCPHTTPServer
+// builds and reports the response status, so the auth wrapping and mounting
+// in newMCPHTTPServer itself — not RequireAPIKey alone — are under test.
+// requireMCPHTTPRequest starts the server newMCPHTTPServer builds on a real
+// listener (StreamableHTTPServer.ServeHTTP ignores the preset http.Server's
+// Handler, so the auth wrapping only runs through the Start/ListenAndServe
+// path the production serveMCPHTTP uses, not a direct ServeHTTP call) and
+// reports the response status to one POST.
+func requireMCPHTTPRequest(t *testing.T, auth mcpAuth, authHeader string) int {
+	t.Helper()
+	srv := mcpserversdk.NewMCPServer("test", "0.0.1")
+	httpSrv := newMCPHTTPServer(srv, auth)
+	addr := reservePort(t)
+
+	errCh := make(chan error, 1)
+	go func() { errCh <- httpSrv.Start(addr) }()
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), runHTTPServerTestTimeout)
+		defer cancel()
+		_ = httpSrv.Shutdown(ctx)
+		<-errCh
+	})
+	waitForListening(t, addr)
+
+	req, err := http.NewRequest(http.MethodPost, "http://"+addr+mcpEndpointPath, bytes.NewReader(nil))
+	require.NoError(t, err)
+	if authHeader != "" {
+		req.Header.Set("Authorization", authHeader)
+	}
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	return resp.StatusCode
+}
+
+// TestMCPHTTPServerRefusesWithoutHeader pins that newMCPHTTPServer wraps the
+// MCP handler in the auth middleware by default: an unconfigured request
+// never reaches the MCP handler.
+func TestMCPHTTPServerRefusesWithoutHeader(t *testing.T) {
+	status := requireMCPHTTPRequest(t, mcpAuth{}, "")
+	require.Equal(t, http.StatusUnauthorized, status)
+}
+
+// TestMCPHTTPServerAcceptsConfiguredKey pins that a request bearing a
+// configured key passes newMCPHTTPServer's wrapping and reaches the MCP
+// handler (which answers something other than 401 to a malformed MCP body).
+func TestMCPHTTPServerAcceptsConfiguredKey(t *testing.T) {
+	keys, err := mcpserver.ParseAPIKeys([]byte("kelos: key-one\n"))
+	require.NoError(t, err)
+	status := requireMCPHTTPRequest(t, mcpAuth{Keys: keys}, "Bearer key-one")
+	require.NotEqual(t, http.StatusUnauthorized, status)
+}
+
+// TestMCPHTTPServerAllowUnauthenticatedSkipsWrapping pins that
+// AllowUnauthenticated bypasses RequireAPIKey entirely: a request with no
+// header at all is not refused with 401.
+func TestMCPHTTPServerAllowUnauthenticatedSkipsWrapping(t *testing.T) {
+	status := requireMCPHTTPRequest(t, mcpAuth{AllowUnauthenticated: true}, "")
+	require.NotEqual(t, http.StatusUnauthorized, status)
+}
+
+// TestMCPHTTPServerWithNoKeysRefusesEverything pins the fail-closed default:
+// a zero-value mcpAuth (no --mcp-api-keys-file configured) refuses even a
+// request carrying some bearer token, through the full newMCPHTTPServer
+// wiring.
+func TestMCPHTTPServerWithNoKeysRefusesEverything(t *testing.T) {
+	status := requireMCPHTTPRequest(t, mcpAuth{}, "Bearer anything")
+	require.Equal(t, http.StatusUnauthorized, status)
 }

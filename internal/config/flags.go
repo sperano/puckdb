@@ -305,10 +305,12 @@ const (
 
 // MCP server flags
 const (
-	FlagMCPPort         = "mcp-port"
-	FlagMCPStdio        = "mcp-stdio"
-	FlagMCPToolsets     = "mcp-toolsets"
-	FlagMCPYahooLeagues = "mcp-yahoo-leagues"
+	FlagMCPPort                 = "mcp-port"
+	FlagMCPStdio                = "mcp-stdio"
+	FlagMCPToolsets             = "mcp-toolsets"
+	FlagMCPYahooLeagues         = "mcp-yahoo-leagues"
+	FlagMCPAPIKeysFile          = "mcp-api-keys-file"
+	FlagMCPAllowUnauthenticated = "mcp-allow-unauthenticated"
 )
 
 // CLI display flags
@@ -675,14 +677,17 @@ var MetricsIntervalFlags = FlagGroup{
 }
 
 // MCPServerFlags defines the MCP server flags: the HTTP listen port, the
-// switch to serve over stdio instead, the toolsets to expose and the Yahoo
-// leagues the yahoo toolset serves.
+// switch to serve over stdio instead, the toolsets to expose, the Yahoo
+// leagues the yahoo toolset serves, and the bearer-key authentication of the
+// HTTP endpoint (stdio is unaffected: it has no network listener).
 var MCPServerFlags = FlagGroup{
 	Flags: []FlagDef{
 		{FlagMCPPort, "", DefaultMCPPort, "MCP server HTTP port", false},
 		{FlagMCPStdio, "", false, "Serve over stdio instead of HTTP", false},
 		{FlagMCPToolsets, "", DefaultMCPToolsets, "Comma-separated toolsets to serve: nhl (public NHL data), yahoo (Yahoo fantasy league data), news (player news source coverage and events quoting third-party articles), e.g. nhl,news", false},
 		{FlagMCPYahooLeagues, "", DefaultMCPYahooLeagues, "Comma-separated Yahoo league keys the yahoo toolset serves, e.g. 465.l.1001 (default: every league)", false},
+		{FlagMCPAPIKeysFile, "", DefaultMCPAPIKeysFile, "Path of a YAML file mapping client names to bearer API keys every HTTP request must present; mutually exclusive with --mcp-allow-unauthenticated, a malformed file fails startup (default: none, so every request is refused)", false},
+		{FlagMCPAllowUnauthenticated, "", DefaultMCPAllowUnauthenticated, "Serve the MCP HTTP endpoint with no authentication, refusing no request; mutually exclusive with --mcp-api-keys-file", false},
 	},
 }
 

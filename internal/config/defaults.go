@@ -41,6 +41,12 @@ const (
 	DefaultMCPToolsets = "nhl"
 	// DefaultMCPYahooLeagues is empty: the yahoo toolset serves every league.
 	DefaultMCPYahooLeagues = ""
+	// DefaultMCPAPIKeysFile is empty: with --mcp-allow-unauthenticated also
+	// unset, the HTTP endpoint then refuses every request.
+	DefaultMCPAPIKeysFile = ""
+	// DefaultMCPAllowUnauthenticated keeps the HTTP endpoint closed until an
+	// operator explicitly opts out of authentication.
+	DefaultMCPAllowUnauthenticated = false
 )
 
 // Temporal defaults
