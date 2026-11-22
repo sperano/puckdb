@@ -24,6 +24,15 @@ import (
 // after the command context is canceled.
 const mcpServerShutdownTimeout = 10 * time.Second
 
+// mcpServerReadHeaderTimeout bounds how long newMCPHTTPServer's listener
+// waits for a slow client to finish sending request headers.
+const mcpServerReadHeaderTimeout = 10 * time.Second
+
+// mcpServerIdleTimeout closes a keep-alive connection that sits idle between
+// requests, instead of holding it open indefinitely. WriteTimeout is
+// deliberately not set: it would cut off a streamed MCP response.
+const mcpServerIdleTimeout = 2 * time.Minute
+
 // mcpServerFlagGroups lists every flag group the mcp-server command
 // exposes. Defined once and shared by InitFlags and BindFlags so the two
 // can never drift.
@@ -80,7 +89,7 @@ func cmdMCPServer() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			auth, err := resolveMCPAuth()
+			auth, err := resolveMCPAuthForTransport(transport)
 			if err != nil {
 				return err
 			}
@@ -138,6 +147,17 @@ type mcpAuth struct {
 	AllowUnauthenticated bool
 }
 
+// resolveMCPAuthForTransport resolves the authentication selection for the
+// HTTP transport only: the stdio transport has no network listener, so its
+// --mcp-api-keys-file/--mcp-allow-unauthenticated validation (including the
+// missing-flag warning) does not apply and must not run.
+func resolveMCPAuthForTransport(transport mcpTransport) (mcpAuth, error) {
+	if transport.Stdio {
+		return mcpAuth{}, nil
+	}
+	return resolveMCPAuth()
+}
+
 // resolveMCPAuth reads the authentication selection through viper, like
 // resolveMCPTransport. Exactly one of --mcp-api-keys-file and
 // --mcp-allow-unauthenticated may be set; with neither, the HTTP endpoint
@@ -181,7 +201,11 @@ func newMCPHTTPServer(srv *mcpserversdk.MCPServer, auth mcpAuth) *mcpserversdk.S
 	mux.Handle(mcpEndpointPath, handler)
 	httpSrv = mcpserversdk.NewStreamableHTTPServer(srv,
 		mcpserversdk.WithEndpointPath(mcpEndpointPath),
-		mcpserversdk.WithStreamableHTTPServer(&http.Server{Handler: mux}),
+		mcpserversdk.WithStreamableHTTPServer(&http.Server{
+			Handler:           mux,
+			ReadHeaderTimeout: mcpServerReadHeaderTimeout,
+			IdleTimeout:       mcpServerIdleTimeout,
+		}),
 	)
 	return httpSrv
 }

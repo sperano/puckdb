@@ -158,12 +158,17 @@ headers or verified Cloudflare Access JWTs.
 The default is `nhl`. For example:
 
 ```bash
-./puckdb mcp-server --mcp-toolsets nhl --mcp-port 8790
+./puckdb mcp-server --mcp-toolsets nhl --mcp-port 8790 \
+  --mcp-api-keys-file nhl-keys.yaml
 ./puckdb mcp-server --mcp-toolsets yahoo --mcp-port 8791 \
-  --mcp-yahoo-leagues 465.l.1001
+  --mcp-yahoo-leagues 465.l.1001 --mcp-api-keys-file yahoo-keys.yaml
 ```
 
-The HTTP endpoint has no built-in authentication. Keep Yahoo and news
+The HTTP endpoint requires authentication. `--mcp-api-keys-file` names a YAML
+file mapping client names to bearer keys; every request must carry a matching
+`Authorization: Bearer <key>` header. `--mcp-allow-unauthenticated` serves the
+endpoint with none instead, for a deliberately public toolset. With neither
+flag set, the server starts but refuses every request. Keep Yahoo and news
 instances on trusted networks, and use one instance per audience when the data
 exposure differs.
 

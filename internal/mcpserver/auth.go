@@ -72,6 +72,8 @@ func ParseAPIKeys(data []byte) (APIKeys, error) {
 		return APIKeys{}, fmt.Errorf("parse: %w", err)
 	case entries == nil:
 		return APIKeys{}, errors.New("parse: the file is not a mapping of client names to keys")
+	case len(entries) == 0:
+		return APIKeys{}, errors.New("parse: no client keys listed")
 	}
 	switch err := dec.Decode(new(yaml.Node)); {
 	case err == nil:
@@ -121,10 +123,15 @@ func RequireAPIKey(keys APIKeys, next http.Handler) http.Handler {
 }
 
 // bearerToken extracts the token from r's Authorization header; ok is false
-// without a "Bearer " prefix or with an empty token.
+// without a "Bearer " prefix (matched case-insensitively per RFC 7235) or
+// with an empty token.
 func bearerToken(r *http.Request) (token string, ok bool) {
-	token, ok = strings.CutPrefix(r.Header.Get(authorizationHeader), bearerPrefix)
-	return token, ok && token != ""
+	header := r.Header.Get(authorizationHeader)
+	if len(header) < len(bearerPrefix) || !strings.EqualFold(header[:len(bearerPrefix)], bearerPrefix) {
+		return "", false
+	}
+	token = header[len(bearerPrefix):]
+	return token, token != ""
 }
 
 // refuseUnauthenticated writes the 401 response for a request RequireAPIKey

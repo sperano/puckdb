@@ -27,8 +27,9 @@ func TestParseAPIKeys(t *testing.T) {
 func TestParseAPIKeysTrimsWhitespace(t *testing.T) {
 	keys, err := ParseAPIKeys([]byte("  kelos  :  key-one  \n"))
 	require.NoError(t, err)
-	_, ok := keys.Lookup("key-one")
+	client, ok := keys.Lookup("key-one")
 	require.True(t, ok)
+	require.Equal(t, "kelos", client)
 }
 
 func TestParseAPIKeysRejects(t *testing.T) {
@@ -36,15 +37,17 @@ func TestParseAPIKeysRejects(t *testing.T) {
 		data string
 		want string
 	}{
-		"empty file":        {"", "no client keys listed"},
-		"comment only":      {"# nothing here\n", "no client keys listed"},
-		"null document":     {"null\n", "not a mapping"},
-		"not a mapping":     {"- one\n- two\n", "parse:"},
-		"second document":   {"kelos: key-one\n---\nmaurice: key-two\n", "more than one YAML document"},
-		"empty client name": {"\"\": key-one\n", "client name is empty"},
-		"empty key":         {"kelos: \"\"\n", `client "kelos" has an empty key`},
-		"duplicate key":     {"kelos: shared\nmaurice: shared\n", "share the same key"},
-		"unknown field (not a map[string]string)": {"kelos:\n  key: one\n", "parse:"},
+		"empty file":                   {"", "no client keys listed"},
+		"comment only":                 {"# nothing here\n", "no client keys listed"},
+		"null document":                {"null\n", "not a mapping"},
+		"not a mapping":                {"- one\n- two\n", "parse:"},
+		"second document":              {"kelos: key-one\n---\nmaurice: key-two\n", "more than one YAML document"},
+		"empty client name":            {"\"\": key-one\n", "client name is empty"},
+		"empty key":                    {"kelos: \"\"\n", `client "kelos" has an empty key`},
+		"whitespace-only key":          {"kelos: \"   \"\n", `client "kelos" has an empty key`},
+		"duplicate key":                {"kelos: shared\nmaurice: shared\n", "share the same key"},
+		"empty mapping":                {"{}\n", "no client keys listed"},
+		"nested value is not a string": {"kelos:\n  key: one\n", "parse:"},
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -128,6 +131,26 @@ func TestRequireAPIKeyRejectsMissingHeader(t *testing.T) {
 func TestRequireAPIKeyRejectsWrongScheme(t *testing.T) {
 	keys := mustKeys(t, "kelos: key-one\n")
 	reached, status := requireAPIKeyRequest(t, keys, "Basic key-one")
+	require.False(t, reached)
+	require.Equal(t, http.StatusUnauthorized, status)
+}
+
+// TestRequireAPIKeyAcceptsCaseInsensitiveScheme pins RFC 7235's
+// case-insensitive auth scheme: a lowercase "bearer" must be accepted like
+// "Bearer".
+func TestRequireAPIKeyAcceptsCaseInsensitiveScheme(t *testing.T) {
+	keys := mustKeys(t, "kelos: key-one\n")
+	reached, status := requireAPIKeyRequest(t, keys, "bearer key-one")
+	require.True(t, reached)
+	require.Equal(t, http.StatusOK, status)
+}
+
+// TestRequireAPIKeyRejectsShortHeader pins bearerToken against a header
+// shorter than the "Bearer " prefix, which must not panic on the slice
+// bounds check.
+func TestRequireAPIKeyRejectsShortHeader(t *testing.T) {
+	keys := mustKeys(t, "kelos: key-one\n")
+	reached, status := requireAPIKeyRequest(t, keys, "Be")
 	require.False(t, reached)
 	require.Equal(t, http.StatusUnauthorized, status)
 }
