@@ -64,7 +64,6 @@ func LoadAPIKeys(path string) (APIKeys, error) {
 // document.
 func ParseAPIKeys(data []byte) (APIKeys, error) {
 	dec := yaml.NewDecoder(bytes.NewReader(data))
-	dec.KnownFields(true)
 	var entries map[string]string
 	switch err := dec.Decode(&entries); {
 	case errors.Is(err, io.EOF):
