@@ -135,6 +135,10 @@ func dialMCP(ctx context.Context, url string, headers map[string]string) (mcpcli
 	if err != nil {
 		return nil, fmt.Errorf("create SSE client for %s: %w", sseURL, err)
 	}
+	if err := c.Start(ctx); err != nil {
+		_ = c.Close()
+		return nil, fmt.Errorf("start SSE transport for %s: %w", sseURL, err)
+	}
 	if _, err := c.Initialize(ctx, mcpgo.InitializeRequest{}); err != nil {
 		_ = c.Close()
 		return nil, fmt.Errorf("initialize MCP at %s: %w", sseURL, err)

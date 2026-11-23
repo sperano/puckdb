@@ -73,3 +73,37 @@ func TestDialMCP_NoHeadersStaysUnchanged(t *testing.T) {
 
 	assert.Empty(t, recorder.get("Authorization"))
 }
+
+// newRecordingSSEServer starts a real SSE MCP server behind a recorder that
+// captures every request's headers. The handler is wired up after the
+// httptest.Server starts, because the SSE server's endpoint event embeds the
+// server's own base URL.
+func newRecordingSSEServer(t *testing.T) (*httptest.Server, *headerRecorder) {
+	t.Helper()
+	recorder := &headerRecorder{}
+	var sseHandler http.Handler
+	httpSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		recorder.wrap(sseHandler).ServeHTTP(w, r)
+	}))
+	t.Cleanup(httpSrv.Close)
+
+	srv := mcpserversdk.NewMCPServer("test", "0.0.1")
+	sseHandler = mcpserversdk.NewSSEServer(srv, mcpserversdk.WithBaseURL(httpSrv.URL))
+	return httpSrv, recorder
+}
+
+// TestDialMCP_SSE_SendsConfiguredHeaders exercises dialMCP's SSE path
+// directly (a "/sse" URL skips the streamable-HTTP attempt), since the
+// streamable-HTTP tests above never reach client.WithHeaders on
+// NewSSEMCPClient.
+func TestDialMCP_SSE_SendsConfiguredHeaders(t *testing.T) {
+	httpSrv, recorder := newRecordingSSEServer(t)
+
+	conn, err := dialMCP(t.Context(), httpSrv.URL+"/sse", map[string]string{
+		"Authorization": "Bearer secret-key",
+	})
+	require.NoError(t, err)
+	defer conn.Close()
+
+	assert.Equal(t, "Bearer secret-key", recorder.get("Authorization"))
+}
