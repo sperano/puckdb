@@ -26,7 +26,7 @@ require (
 	github.com/spf13/viper v1.8.1
 	github.com/stretchr/testify v1.12.1
 	github.com/subosito/gotenv v1.2.0
-	github.com/uber-go/tally/v4 v4.1.1
+	github.com/uber-go/tally/v4 v4.1.17
 	github.com/vektah/gqlparser/v2 v2.5.64
 	go.temporal.io/api v1.61.0
 	go.temporal.io/sdk v1.39.0
@@ -108,7 +108,7 @@ require (
 	github.com/spf13/cast v1.7.1 // indirect
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
 	github.com/stretchr/objx v0.5.3 // indirect
-	github.com/twmb/murmur3 v1.1.5 // indirect
+	github.com/twmb/murmur3 v1.1.8 // indirect
 	github.com/urfave/cli/v3 v3.14.0 // indirect
 	github.com/wk8/go-ordered-map/v2 v2.1.8 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
@@ -116,7 +116,7 @@ require (
 	github.com/yuin/goldmark v1.7.13 // indirect
 	github.com/yuin/goldmark-emoji v1.0.6 // indirect
 	github.com/yuin/gopher-lua v1.1.1 // indirect
-	go.uber.org/atomic v1.9.0 // indirect
+	go.uber.org/atomic v1.11.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.2 // indirect
 	go.yaml.in/yaml/v3 v3.0.5 // indirect
 	golang.org/x/mod v0.42.0 // indirect
