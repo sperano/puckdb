@@ -63,7 +63,7 @@ type dialSequence struct {
 	calls   int
 }
 
-func (d *dialSequence) dial(_ context.Context, _ string) (mcpclient.MCPClient, error) {
+func (d *dialSequence) dial(_ context.Context, _ string, _ map[string]string) (mcpclient.MCPClient, error) {
 	i := d.calls
 	d.calls++
 	if i < len(d.errs) && d.errs[i] != nil {

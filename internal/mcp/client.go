@@ -14,6 +14,7 @@ import (
 	"sync"
 
 	mcpclient "github.com/mark3labs/mcp-go/client"
+	mcptransport "github.com/mark3labs/mcp-go/client/transport"
 	mcpgo "github.com/mark3labs/mcp-go/mcp"
 )
 
@@ -46,15 +47,18 @@ func (c *noopClient) Close() error { return nil }
 // The MCP server uses in-memory sessions that expire quickly, so we connect on first use
 // and reconnect transparently when a session becomes invalid.
 type mcpClient struct {
-	url   string
-	dial  func(context.Context, string) (mcpclient.MCPClient, error)
-	mu    sync.Mutex
-	inner mcpclient.MCPClient
+	url     string
+	headers map[string]string
+	dial    func(context.Context, string, map[string]string) (mcpclient.MCPClient, error)
+	mu      sync.Mutex
+	inner   mcpclient.MCPClient
 }
 
-// NewClient creates an MCP client that connects lazily on first use.
-func NewClient(url string) Client {
-	return &mcpClient{url: url, dial: dialMCP}
+// NewClient creates an MCP client that connects lazily on first use. headers
+// (may be nil or empty) are sent on every request of the dialed transport,
+// for a server that gates its endpoint on a bearer key or other header.
+func NewClient(url string, headers map[string]string) Client {
+	return &mcpClient{url: url, headers: headers, dial: dialMCP}
 }
 
 // closeLocked closes and clears the current connection and returns the close
@@ -77,7 +81,7 @@ func (c *mcpClient) closeLocked() error {
 func (c *mcpClient) connectLocked(ctx context.Context) error {
 	_ = c.closeLocked()
 
-	inner, err := c.dial(ctx, c.url)
+	inner, err := c.dial(ctx, c.url, c.headers)
 	if err != nil {
 		return err
 	}
@@ -110,10 +114,10 @@ func (c *mcpClient) reconnect(ctx context.Context) (mcpclient.MCPClient, error) 
 	return c.inner, nil
 }
 
-func dialMCP(ctx context.Context, url string) (mcpclient.MCPClient, error) {
+func dialMCP(ctx context.Context, url string, headers map[string]string) (mcpclient.MCPClient, error) {
 	// Try streamable HTTP first (newer protocol)
 	if !strings.HasSuffix(url, "/sse") {
-		c, err := mcpclient.NewStreamableHttpClient(url)
+		c, err := mcpclient.NewStreamableHttpClient(url, mcptransport.WithHTTPHeaders(headers))
 		if err == nil {
 			if _, err := c.Initialize(ctx, mcpgo.InitializeRequest{}); err == nil {
 				return c, nil
@@ -127,7 +131,7 @@ func dialMCP(ctx context.Context, url string) (mcpclient.MCPClient, error) {
 	if !strings.HasSuffix(sseURL, "/sse") {
 		sseURL = strings.TrimSuffix(sseURL, "/") + "/sse"
 	}
-	c, err := mcpclient.NewSSEMCPClient(sseURL)
+	c, err := mcpclient.NewSSEMCPClient(sseURL, mcpclient.WithHeaders(headers))
 	if err != nil {
 		return nil, fmt.Errorf("create SSE client for %s: %w", sseURL, err)
 	}
