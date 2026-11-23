@@ -1,10 +1,14 @@
 package maurice
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 
+	mcpserversdk "github.com/mark3labs/mcp-go/server"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -49,6 +53,8 @@ func TestLoadConfig_ValidYAMLParses(t *testing.T) {
     tools:
       - get_player
       - list_seasons
+    headers:
+      Authorization: Bearer secret-key
   - name: external
     url: http://other:9091
 `
@@ -61,10 +67,12 @@ func TestLoadConfig_ValidYAMLParses(t *testing.T) {
 	assert.Equal(t, "puckdb", cfg.MCPServers[0].Name)
 	assert.Equal(t, "http://localhost:9090", cfg.MCPServers[0].URL)
 	assert.Equal(t, []string{"get_player", "list_seasons"}, cfg.MCPServers[0].Tools)
+	assert.Equal(t, map[string]string{"Authorization": "Bearer secret-key"}, cfg.MCPServers[0].Headers)
 
 	assert.Equal(t, "external", cfg.MCPServers[1].Name)
-	// Empty Tools means "all tools" (the field is omitempty + nil).
+	// Empty Tools/Headers means "all tools"/"no extra headers" (both fields are omitempty + nil).
 	assert.Empty(t, cfg.MCPServers[1].Tools)
+	assert.Empty(t, cfg.MCPServers[1].Headers)
 }
 
 func TestLoadConfig_InvalidYAMLErrors(t *testing.T) {
@@ -136,4 +144,42 @@ func TestBuildMCPClient_ServersConfigured(t *testing.T) {
 	require.NotNil(t, client)
 	// Don't call ListTools — that would dial the URL. The construction
 	// itself is the unit under test; it must not have errored.
+}
+
+// TestBuildMCPClient_HeadersReachTheServer dials a real MCP server behind a
+// header recorder to check the end-to-end wiring: a maurice.yaml "headers"
+// entry must reach mcp.NewClient and then the actual HTTP request, not just
+// parse into MCPServerConfig.Headers.
+func TestBuildMCPClient_HeadersReachTheServer(t *testing.T) {
+	srv := mcpserversdk.NewMCPServer("test", "0.0.1", mcpserversdk.WithToolCapabilities(false))
+	streamable := mcpserversdk.NewStreamableHTTPServer(srv)
+
+	var mu sync.Mutex
+	var gotAuth string
+	httpSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		gotAuth = r.Header.Get("Authorization")
+		mu.Unlock()
+		streamable.ServeHTTP(w, r)
+	}))
+	t.Cleanup(httpSrv.Close)
+
+	path := filepath.Join(t.TempDir(), "headers.yaml")
+	yamlBody := "mcp_servers:\n" +
+		"  - name: puckdb\n" +
+		"    url: " + httpSrv.URL + "\n" +
+		"    headers:\n" +
+		"      Authorization: Bearer secret-key\n"
+	require.NoError(t, os.WriteFile(path, []byte(yamlBody), 0o600))
+
+	client, err := BuildMCPClient(path)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = client.Close() })
+
+	_, err = client.ListTools(t.Context())
+	require.NoError(t, err)
+
+	mu.Lock()
+	defer mu.Unlock()
+	assert.Equal(t, "Bearer secret-key", gotAuth)
 }

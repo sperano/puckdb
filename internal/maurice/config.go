@@ -22,9 +22,10 @@ type Config struct {
 
 // MCPServerConfig defines a single MCP server connection.
 type MCPServerConfig struct {
-	Name  string   `yaml:"name"`
-	URL   string   `yaml:"url"`
-	Tools []string `yaml:"tools,omitempty"` // whitelist; empty = all tools
+	Name    string            `yaml:"name"`
+	URL     string            `yaml:"url"`
+	Tools   []string          `yaml:"tools,omitempty"`   // whitelist; empty = all tools
+	Headers map[string]string `yaml:"headers,omitempty"` // sent on every request, e.g. Authorization: Bearer <key>
 }
 
 // DefaultConfigPath returns ~/.puckdb/maurice.yaml.
@@ -72,7 +73,7 @@ func BuildMCPClient(cfgPath string) (mcp.Client, error) {
 		log.Info().Str("name", s.Name).Str("url", s.URL).Strs("tools", s.Tools).Msg("connecting MCP server")
 		opts[i] = mcp.MultiClientOption{
 			Name:   s.Name,
-			Client: mcp.NewClient(s.URL),
+			Client: mcp.NewClient(s.URL, s.Headers),
 			Tools:  s.Tools,
 		}
 	}

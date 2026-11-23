@@ -10,12 +10,26 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
+	"net/http"
 	"strings"
 	"sync"
+	"time"
 
 	mcpclient "github.com/mark3labs/mcp-go/client"
+	mcptransport "github.com/mark3labs/mcp-go/client/transport"
 	mcpgo "github.com/mark3labs/mcp-go/mcp"
 )
+
+// sseConnectTimeout bounds each phase of the SSE dial in turn: the TCP
+// connect, the TLS handshake (https only), the response-header wait, and
+// Start's own endpoint-event wait once headers arrive (same default). These
+// run sequentially under mcpClient.mu, not concurrently, so a stalling server
+// can hold the lock for close to 4x this value, not this value alone. It is
+// not the stream's lifetime: Start is given context.Background(), so a
+// connected stream keeps running past this timeout. A var, not a const, so
+// tests can shorten it instead of waiting out the real default.
+var sseConnectTimeout = 30 * time.Second
 
 // ToolResult holds the text output from a single MCP tool call.
 type ToolResult struct {
@@ -46,15 +60,18 @@ func (c *noopClient) Close() error { return nil }
 // The MCP server uses in-memory sessions that expire quickly, so we connect on first use
 // and reconnect transparently when a session becomes invalid.
 type mcpClient struct {
-	url   string
-	dial  func(context.Context, string) (mcpclient.MCPClient, error)
-	mu    sync.Mutex
-	inner mcpclient.MCPClient
+	url     string
+	headers map[string]string
+	dial    func(context.Context, string, map[string]string) (mcpclient.MCPClient, error)
+	mu      sync.Mutex
+	inner   mcpclient.MCPClient
 }
 
-// NewClient creates an MCP client that connects lazily on first use.
-func NewClient(url string) Client {
-	return &mcpClient{url: url, dial: dialMCP}
+// NewClient creates an MCP client that connects lazily on first use. headers
+// (may be nil or empty) are sent on every request of the dialed transport,
+// for a server that gates its endpoint on a bearer key or other header.
+func NewClient(url string, headers map[string]string) Client {
+	return &mcpClient{url: url, headers: headers, dial: dialMCP}
 }
 
 // closeLocked closes and clears the current connection and returns the close
@@ -77,7 +94,7 @@ func (c *mcpClient) closeLocked() error {
 func (c *mcpClient) connectLocked(ctx context.Context) error {
 	_ = c.closeLocked()
 
-	inner, err := c.dial(ctx, c.url)
+	inner, err := c.dial(ctx, c.url, c.headers)
 	if err != nil {
 		return err
 	}
@@ -110,10 +127,10 @@ func (c *mcpClient) reconnect(ctx context.Context) (mcpclient.MCPClient, error) 
 	return c.inner, nil
 }
 
-func dialMCP(ctx context.Context, url string) (mcpclient.MCPClient, error) {
+func dialMCP(ctx context.Context, url string, headers map[string]string) (mcpclient.MCPClient, error) {
 	// Try streamable HTTP first (newer protocol)
 	if !strings.HasSuffix(url, "/sse") {
-		c, err := mcpclient.NewStreamableHttpClient(url)
+		c, err := mcpclient.NewStreamableHttpClient(url, mcptransport.WithHTTPHeaders(headers))
 		if err == nil {
 			if _, err := c.Initialize(ctx, mcpgo.InitializeRequest{}); err == nil {
 				return c, nil
@@ -127,15 +144,51 @@ func dialMCP(ctx context.Context, url string) (mcpclient.MCPClient, error) {
 	if !strings.HasSuffix(sseURL, "/sse") {
 		sseURL = strings.TrimSuffix(sseURL, "/") + "/sse"
 	}
-	c, err := mcpclient.NewSSEMCPClient(sseURL)
+	c, err := mcpclient.NewSSEMCPClient(sseURL, mcpclient.WithHeaders(headers), mcpclient.WithHTTPClient(sseConnectHTTPClient()))
 	if err != nil {
 		return nil, fmt.Errorf("create SSE client for %s: %w", sseURL, err)
+	}
+	// Start with context.Background(), not ctx: the SSE transport ties its
+	// persistent background stream to the context given to Start (it derives
+	// a child via context.WithCancel and cancels it on that context's own
+	// Done, not just on Close), and this client outlives the single call
+	// (ensureConnected/reconnect) whose context triggered the dial. Without a
+	// deadline on ctx, Start would otherwise block under c.mu for as long as
+	// the dial takes to connect and receive headers, so that phase is bounded
+	// by sseConnectHTTPClient's transport instead (dial/TLS/header-wait), plus
+	// Start's own endpoint-event wait below, each up to sseConnectTimeout in
+	// sequence; neither bounds the stream's lifetime once connected.
+	if err := c.Start(context.Background()); err != nil {
+		_ = c.Close()
+		return nil, fmt.Errorf("start SSE transport for %s: %w", sseURL, err)
 	}
 	if _, err := c.Initialize(ctx, mcpgo.InitializeRequest{}); err != nil {
 		_ = c.Close()
 		return nil, fmt.Errorf("initialize MCP at %s: %w", sseURL, err)
 	}
 	return c, nil
+}
+
+// sseConnectHTTPClient returns an HTTP client whose transport bounds the
+// dial, TLS handshake and response-header wait at sseConnectTimeout each; it
+// sets no overall http.Client.Timeout, which would also cut off the SSE body
+// stream once connected. Proxy mirrors http.DefaultTransport so an https
+// endpoint reachable only through an environment-configured proxy still
+// dials. IdleConnTimeout, set to the same value for lack of a more fitting
+// constant, bounds how long a connection from a failed or superseded dial
+// (this transport is never reused; each dial gets its own) can sit pooled
+// before the standard library reaps it; it does not bound the connect phases
+// above.
+func sseConnectHTTPClient() *http.Client {
+	return &http.Client{
+		Transport: &http.Transport{
+			Proxy:                 http.ProxyFromEnvironment,
+			DialContext:           (&net.Dialer{Timeout: sseConnectTimeout}).DialContext,
+			TLSHandshakeTimeout:   sseConnectTimeout,
+			ResponseHeaderTimeout: sseConnectTimeout,
+			IdleConnTimeout:       sseConnectTimeout,
+		},
+	}
 }
 
 // isSessionError returns true if the error indicates an expired/invalid MCP session.
