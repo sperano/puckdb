@@ -135,7 +135,12 @@ func dialMCP(ctx context.Context, url string, headers map[string]string) (mcpcli
 	if err != nil {
 		return nil, fmt.Errorf("create SSE client for %s: %w", sseURL, err)
 	}
-	if err := c.Start(ctx); err != nil {
+	// Start with context.Background(), not ctx: the SSE transport ties its
+	// persistent background stream to the context given to Start (it derives
+	// a child via context.WithCancel and cancels it on that context's own
+	// Done, not just on Close), and this client outlives the single call
+	// (ensureConnected/reconnect) whose context triggered the dial.
+	if err := c.Start(context.Background()); err != nil {
 		_ = c.Close()
 		return nil, fmt.Errorf("start SSE transport for %s: %w", sseURL, err)
 	}

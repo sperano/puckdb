@@ -1,11 +1,13 @@
 package mcp
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"sync"
 	"testing"
 
+	mcpgo "github.com/mark3labs/mcp-go/mcp"
 	mcpserversdk "github.com/mark3labs/mcp-go/server"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -87,7 +89,10 @@ func newRecordingSSEServer(t *testing.T) (*httptest.Server, *headerRecorder) {
 	}))
 	t.Cleanup(httpSrv.Close)
 
-	srv := mcpserversdk.NewMCPServer("test", "0.0.1")
+	srv := mcpserversdk.NewMCPServer("test", "0.0.1", mcpserversdk.WithToolCapabilities(false))
+	srv.AddTool(mcpgo.NewTool("ping"), func(_ context.Context, _ mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
+		return mcpgo.NewToolResultText("pong"), nil
+	})
 	sseHandler = mcpserversdk.NewSSEServer(srv, mcpserversdk.WithBaseURL(httpSrv.URL))
 	return httpSrv, recorder
 }
@@ -106,4 +111,41 @@ func TestDialMCP_SSE_SendsConfiguredHeaders(t *testing.T) {
 	defer conn.Close()
 
 	assert.Equal(t, "Bearer secret-key", recorder.get("Authorization"))
+}
+
+// TestDialMCP_SSE_StreamSurvivesDialContextCancellation pins the fix for the
+// SSE transport's persistent background stream dying when the context given
+// to dialMCP ends: mcpClient.ensureConnected dials with whatever context the
+// triggering call happened to carry, then keeps the connection for later
+// calls made with unrelated contexts, so the stream must outlive that first
+// context rather than being canceled alongside it.
+func TestDialMCP_SSE_StreamSurvivesDialContextCancellation(t *testing.T) {
+	httpSrv, _ := newRecordingSSEServer(t)
+
+	dialCtx, cancelDial := context.WithCancel(context.Background())
+	conn, err := dialMCP(dialCtx, httpSrv.URL+"/sse", nil)
+	require.NoError(t, err)
+	defer conn.Close()
+
+	// Simulate the triggering request ending right after the dial returns.
+	cancelDial()
+
+	_, err = conn.ListTools(context.Background(), mcpgo.ListToolsRequest{})
+	assert.NoError(t, err, "SSE stream should stay open after the dial context is canceled")
+}
+
+// TestDialMCP_SSE_StartFailureIsWrapped covers the failure path of the SSE
+// fallback's Start call: a non-200 response to the SSE GET must surface as a
+// wrapped "start SSE transport" error, not a panic or a silent success.
+func TestDialMCP_SSE_StartFailureIsWrapped(t *testing.T) {
+	httpSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	t.Cleanup(httpSrv.Close)
+
+	conn, err := dialMCP(t.Context(), httpSrv.URL+"/sse", nil)
+	require.Error(t, err)
+	assert.Nil(t, conn)
+	assert.ErrorContains(t, err, "start SSE transport for")
+	assert.ErrorContains(t, err, "500")
 }
