@@ -2,10 +2,12 @@ package mcp
 
 import (
 	"context"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"sync"
 	"testing"
+	"time"
 
 	mcpgo "github.com/mark3labs/mcp-go/mcp"
 	mcpserversdk "github.com/mark3labs/mcp-go/server"
@@ -148,4 +150,43 @@ func TestDialMCP_SSE_StartFailureIsWrapped(t *testing.T) {
 	assert.Nil(t, conn)
 	assert.ErrorContains(t, err, "start SSE transport for")
 	assert.ErrorContains(t, err, "500")
+}
+
+// TestDialMCP_SSE_ConnectTimesOutRatherThanHangingForever pins the fix for
+// Start blocking forever (and with it, every other call on the same
+// mcpClient, since the dial runs under its mutex) when the server accepts
+// the connection but never answers: dialMCP must return a bounded-time error
+// instead of hanging. It shortens sseConnectTimeout rather than waiting out
+// the real 30s default.
+func TestDialMCP_SSE_ConnectTimesOutRatherThanHangingForever(t *testing.T) {
+	original := sseConnectTimeout
+	sseConnectTimeout = 200 * time.Millisecond
+	t.Cleanup(func() { sseConnectTimeout = original })
+
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = ln.Close() })
+	go func() {
+		conn, err := ln.Accept()
+		if err != nil {
+			return
+		}
+		// Accept the request but never write a response, so Start's
+		// response-header wait is the only thing that can end the call.
+		t.Cleanup(func() { _ = conn.Close() })
+	}()
+
+	done := make(chan error, 1)
+	go func() {
+		_, dialErr := dialMCP(t.Context(), "http://"+ln.Addr().String()+"/sse", nil)
+		done <- dialErr
+	}()
+
+	select {
+	case dialErr := <-done:
+		require.Error(t, dialErr)
+		assert.ErrorContains(t, dialErr, "start SSE transport for")
+	case <-time.After(5 * time.Second):
+		t.Fatal("dialMCP did not return within the bounded connect timeout")
+	}
 }
