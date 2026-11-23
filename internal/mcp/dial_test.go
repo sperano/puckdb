@@ -190,3 +190,24 @@ func TestDialMCP_SSE_ConnectTimesOutRatherThanHangingForever(t *testing.T) {
 		t.Fatal("dialMCP did not return within the bounded connect timeout")
 	}
 }
+
+// TestDialMCP_SSE_StreamOutlivesConnectTimeout pins sseConnectHTTPClient's
+// documented property that sseConnectTimeout bounds only the dial, TLS
+// handshake and response-header wait, never the stream's lifetime once
+// connected: a stream held open well past that timeout must still answer.
+func TestDialMCP_SSE_StreamOutlivesConnectTimeout(t *testing.T) {
+	original := sseConnectTimeout
+	sseConnectTimeout = 100 * time.Millisecond
+	t.Cleanup(func() { sseConnectTimeout = original })
+
+	httpSrv, _ := newRecordingSSEServer(t)
+
+	conn, err := dialMCP(t.Context(), httpSrv.URL+"/sse", nil)
+	require.NoError(t, err)
+	defer conn.Close()
+
+	time.Sleep(5 * sseConnectTimeout)
+
+	_, err = conn.ListTools(t.Context(), mcpgo.ListToolsRequest{})
+	assert.NoError(t, err, "SSE stream should survive past the connect-phase timeout")
+}

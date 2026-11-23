@@ -167,14 +167,21 @@ func dialMCP(ctx context.Context, url string, headers map[string]string) (mcpcli
 }
 
 // sseConnectHTTPClient returns an HTTP client whose transport bounds only the
-// dial and response-header wait at sseConnectTimeout; it sets no overall
-// http.Client.Timeout, which would also cut off the SSE body stream once
-// connected.
+// dial, TLS handshake and response-header wait at sseConnectTimeout; it sets
+// no overall http.Client.Timeout, which would also cut off the SSE body
+// stream once connected. Proxy mirrors http.DefaultTransport so an https
+// endpoint reachable only through an environment-configured proxy still
+// dials; IdleConnTimeout bounds how long a connection from a failed or
+// superseded dial (this transport is never reused; each dial gets its own)
+// can sit pooled before the standard library reaps it.
 func sseConnectHTTPClient() *http.Client {
 	return &http.Client{
 		Transport: &http.Transport{
+			Proxy:                 http.ProxyFromEnvironment,
 			DialContext:           (&net.Dialer{Timeout: sseConnectTimeout}).DialContext,
+			TLSHandshakeTimeout:   sseConnectTimeout,
 			ResponseHeaderTimeout: sseConnectTimeout,
+			IdleConnTimeout:       sseConnectTimeout,
 		},
 	}
 }
