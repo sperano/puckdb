@@ -21,12 +21,14 @@ import (
 	mcpgo "github.com/mark3labs/mcp-go/mcp"
 )
 
-// sseConnectTimeout bounds the SSE transport's initial TCP connect and
-// response-header wait (its own Start call waits at most this long for the
-// endpoint event once headers arrive, with the same default). It is not the
-// stream's lifetime: Start is given context.Background(), so a connected
-// stream keeps running past this timeout. A var, not a const, so tests can
-// shorten it instead of waiting out the real default.
+// sseConnectTimeout bounds each phase of the SSE dial in turn: the TCP
+// connect, the TLS handshake (https only), the response-header wait, and
+// Start's own endpoint-event wait once headers arrive (same default). These
+// run sequentially under mcpClient.mu, not concurrently, so a stalling server
+// can hold the lock for close to 4x this value, not this value alone. It is
+// not the stream's lifetime: Start is given context.Background(), so a
+// connected stream keeps running past this timeout. A var, not a const, so
+// tests can shorten it instead of waiting out the real default.
 var sseConnectTimeout = 30 * time.Second
 
 // ToolResult holds the text output from a single MCP tool call.
@@ -153,8 +155,9 @@ func dialMCP(ctx context.Context, url string, headers map[string]string) (mcpcli
 	// (ensureConnected/reconnect) whose context triggered the dial. Without a
 	// deadline on ctx, Start would otherwise block under c.mu for as long as
 	// the dial takes to connect and receive headers, so that phase is bounded
-	// by sseConnectHTTPClient's transport instead, which does not limit the
-	// stream's lifetime once connected.
+	// by sseConnectHTTPClient's transport instead (dial/TLS/header-wait), plus
+	// Start's own endpoint-event wait below, each up to sseConnectTimeout in
+	// sequence; neither bounds the stream's lifetime once connected.
 	if err := c.Start(context.Background()); err != nil {
 		_ = c.Close()
 		return nil, fmt.Errorf("start SSE transport for %s: %w", sseURL, err)
@@ -166,14 +169,16 @@ func dialMCP(ctx context.Context, url string, headers map[string]string) (mcpcli
 	return c, nil
 }
 
-// sseConnectHTTPClient returns an HTTP client whose transport bounds only the
-// dial, TLS handshake and response-header wait at sseConnectTimeout; it sets
-// no overall http.Client.Timeout, which would also cut off the SSE body
+// sseConnectHTTPClient returns an HTTP client whose transport bounds the
+// dial, TLS handshake and response-header wait at sseConnectTimeout each; it
+// sets no overall http.Client.Timeout, which would also cut off the SSE body
 // stream once connected. Proxy mirrors http.DefaultTransport so an https
 // endpoint reachable only through an environment-configured proxy still
-// dials; IdleConnTimeout bounds how long a connection from a failed or
-// superseded dial (this transport is never reused; each dial gets its own)
-// can sit pooled before the standard library reaps it.
+// dials. IdleConnTimeout, set to the same value for lack of a more fitting
+// constant, bounds how long a connection from a failed or superseded dial
+// (this transport is never reused; each dial gets its own) can sit pooled
+// before the standard library reaps it; it does not bound the connect phases
+// above.
 func sseConnectHTTPClient() *http.Client {
 	return &http.Client{
 		Transport: &http.Transport{
