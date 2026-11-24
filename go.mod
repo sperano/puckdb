@@ -21,8 +21,8 @@ require (
 	github.com/prometheus/client_model v0.6.3
 	github.com/rs/zerolog v1.34.0
 	github.com/sperano/nhl-api-go v0.0.0-20260926210731-71e3d0b803ce
-	github.com/spf13/cobra v1.2.1
-	github.com/spf13/pflag v1.0.5
+	github.com/spf13/cobra v1.10.2
+	github.com/spf13/pflag v1.0.9
 	github.com/spf13/viper v1.8.1
 	github.com/stretchr/testify v1.12.1
 	github.com/subosito/gotenv v1.2.0
@@ -76,7 +76,7 @@ require (
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.22.0 // indirect
 	github.com/hashicorp/golang-lru/v2 v2.0.7 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
-	github.com/inconshreveable/mousetrap v1.0.0 // indirect
+	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/invopop/jsonschema v0.13.0 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
