@@ -1790,7 +1790,7 @@ func (e *DraftBenchPolicy) UnmarshalGQL(v any) error {
 }
 
 func (e DraftBenchPolicy) MarshalGQL(w io.Writer) {
-	fmt.Fprint(w, strconv.Quote(e.String()))
+	_, _ = fmt.Fprint(w, strconv.Quote(e.String()))
 }
 
 func (e *DraftBenchPolicy) UnmarshalJSON(b []byte) error {
@@ -1891,7 +1891,7 @@ func (e *DraftIssueCode) UnmarshalGQL(v any) error {
 }
 
 func (e DraftIssueCode) MarshalGQL(w io.Writer) {
-	fmt.Fprint(w, strconv.Quote(e.String()))
+	_, _ = fmt.Fprint(w, strconv.Quote(e.String()))
 }
 
 func (e *DraftIssueCode) UnmarshalJSON(b []byte) error {
@@ -1950,7 +1950,7 @@ func (e *DraftOverrideInput) UnmarshalGQL(v any) error {
 }
 
 func (e DraftOverrideInput) MarshalGQL(w io.Writer) {
-	fmt.Fprint(w, strconv.Quote(e.String()))
+	_, _ = fmt.Fprint(w, strconv.Quote(e.String()))
 }
 
 func (e *DraftOverrideInput) UnmarshalJSON(b []byte) error {
@@ -2007,7 +2007,7 @@ func (e *DraftOverrideKind) UnmarshalGQL(v any) error {
 }
 
 func (e DraftOverrideKind) MarshalGQL(w io.Writer) {
-	fmt.Fprint(w, strconv.Quote(e.String()))
+	_, _ = fmt.Fprint(w, strconv.Quote(e.String()))
 }
 
 func (e *DraftOverrideKind) UnmarshalJSON(b []byte) error {
@@ -2064,7 +2064,7 @@ func (e *DraftOverrideState) UnmarshalGQL(v any) error {
 }
 
 func (e DraftOverrideState) MarshalGQL(w io.Writer) {
-	fmt.Fprint(w, strconv.Quote(e.String()))
+	_, _ = fmt.Fprint(w, strconv.Quote(e.String()))
 }
 
 func (e *DraftOverrideState) UnmarshalJSON(b []byte) error {
@@ -2127,7 +2127,7 @@ func (e *DraftRankingStatus) UnmarshalGQL(v any) error {
 }
 
 func (e DraftRankingStatus) MarshalGQL(w io.Writer) {
-	fmt.Fprint(w, strconv.Quote(e.String()))
+	_, _ = fmt.Fprint(w, strconv.Quote(e.String()))
 }
 
 func (e *DraftRankingStatus) UnmarshalJSON(b []byte) error {
@@ -2186,7 +2186,7 @@ func (e *DraftRefreshState) UnmarshalGQL(v any) error {
 }
 
 func (e DraftRefreshState) MarshalGQL(w io.Writer) {
-	fmt.Fprint(w, strconv.Quote(e.String()))
+	_, _ = fmt.Fprint(w, strconv.Quote(e.String()))
 }
 
 func (e *DraftRefreshState) UnmarshalJSON(b []byte) error {
@@ -2246,7 +2246,7 @@ func (e *DraftScenario) UnmarshalGQL(v any) error {
 }
 
 func (e DraftScenario) MarshalGQL(w io.Writer) {
-	fmt.Fprint(w, strconv.Quote(e.String()))
+	_, _ = fmt.Fprint(w, strconv.Quote(e.String()))
 }
 
 func (e *DraftScenario) UnmarshalJSON(b []byte) error {
@@ -2301,7 +2301,7 @@ func (e *DraftSortDirection) UnmarshalGQL(v any) error {
 }
 
 func (e DraftSortDirection) MarshalGQL(w io.Writer) {
-	fmt.Fprint(w, strconv.Quote(e.String()))
+	_, _ = fmt.Fprint(w, strconv.Quote(e.String()))
 }
 
 func (e *DraftSortDirection) UnmarshalJSON(b []byte) error {
@@ -2374,7 +2374,7 @@ func (e *DraftSortField) UnmarshalGQL(v any) error {
 }
 
 func (e DraftSortField) MarshalGQL(w io.Writer) {
-	fmt.Fprint(w, strconv.Quote(e.String()))
+	_, _ = fmt.Fprint(w, strconv.Quote(e.String()))
 }
 
 func (e *DraftSortField) UnmarshalJSON(b []byte) error {
@@ -2427,7 +2427,7 @@ func (e *DraftWorkloadCapPolicy) UnmarshalGQL(v any) error {
 }
 
 func (e DraftWorkloadCapPolicy) MarshalGQL(w io.Writer) {
-	fmt.Fprint(w, strconv.Quote(e.String()))
+	_, _ = fmt.Fprint(w, strconv.Quote(e.String()))
 }
 
 func (e *DraftWorkloadCapPolicy) UnmarshalJSON(b []byte) error {
@@ -2482,7 +2482,7 @@ func (e *MauriceDraftConflictChoice) UnmarshalGQL(v any) error {
 }
 
 func (e MauriceDraftConflictChoice) MarshalGQL(w io.Writer) {
-	fmt.Fprint(w, strconv.Quote(e.String()))
+	_, _ = fmt.Fprint(w, strconv.Quote(e.String()))
 }
 
 func (e *MauriceDraftConflictChoice) UnmarshalJSON(b []byte) error {
@@ -2544,7 +2544,7 @@ func (e *MauriceDraftConnection) UnmarshalGQL(v any) error {
 }
 
 func (e MauriceDraftConnection) MarshalGQL(w io.Writer) {
-	fmt.Fprint(w, strconv.Quote(e.String()))
+	_, _ = fmt.Fprint(w, strconv.Quote(e.String()))
 }
 
 func (e *MauriceDraftConnection) UnmarshalJSON(b []byte) error {
@@ -2599,7 +2599,7 @@ func (e *MauriceDraftEntrySource) UnmarshalGQL(v any) error {
 }
 
 func (e MauriceDraftEntrySource) MarshalGQL(w io.Writer) {
-	fmt.Fprint(w, strconv.Quote(e.String()))
+	_, _ = fmt.Fprint(w, strconv.Quote(e.String()))
 }
 
 func (e *MauriceDraftEntrySource) UnmarshalJSON(b []byte) error {
@@ -2654,7 +2654,7 @@ func (e *MauriceDraftManualAction) UnmarshalGQL(v any) error {
 }
 
 func (e MauriceDraftManualAction) MarshalGQL(w io.Writer) {
-	fmt.Fprint(w, strconv.Quote(e.String()))
+	_, _ = fmt.Fprint(w, strconv.Quote(e.String()))
 }
 
 func (e *MauriceDraftManualAction) UnmarshalJSON(b []byte) error {
@@ -2717,7 +2717,7 @@ func (e *MauriceDraftWatchState) UnmarshalGQL(v any) error {
 }
 
 func (e MauriceDraftWatchState) MarshalGQL(w io.Writer) {
-	fmt.Fprint(w, strconv.Quote(e.String()))
+	_, _ = fmt.Fprint(w, strconv.Quote(e.String()))
 }
 
 func (e *MauriceDraftWatchState) UnmarshalJSON(b []byte) error {
@@ -2776,7 +2776,7 @@ func (e *MauriceReportingMessageRole) UnmarshalGQL(v any) error {
 }
 
 func (e MauriceReportingMessageRole) MarshalGQL(w io.Writer) {
-	fmt.Fprint(w, strconv.Quote(e.String()))
+	_, _ = fmt.Fprint(w, strconv.Quote(e.String()))
 }
 
 func (e *MauriceReportingMessageRole) UnmarshalJSON(b []byte) error {
@@ -2849,7 +2849,7 @@ func (e *MauriceReportingPayloadKind) UnmarshalGQL(v any) error {
 }
 
 func (e MauriceReportingPayloadKind) MarshalGQL(w io.Writer) {
-	fmt.Fprint(w, strconv.Quote(e.String()))
+	_, _ = fmt.Fprint(w, strconv.Quote(e.String()))
 }
 
 func (e *MauriceReportingPayloadKind) UnmarshalJSON(b []byte) error {
@@ -2909,7 +2909,7 @@ func (e *MauriceReportingTurnStatus) UnmarshalGQL(v any) error {
 }
 
 func (e MauriceReportingTurnStatus) MarshalGQL(w io.Writer) {
-	fmt.Fprint(w, strconv.Quote(e.String()))
+	_, _ = fmt.Fprint(w, strconv.Quote(e.String()))
 }
 
 func (e *MauriceReportingTurnStatus) UnmarshalJSON(b []byte) error {
@@ -2970,7 +2970,7 @@ func (e *MauriceTeamLinkSource) UnmarshalGQL(v any) error {
 }
 
 func (e MauriceTeamLinkSource) MarshalGQL(w io.Writer) {
-	fmt.Fprint(w, strconv.Quote(e.String()))
+	_, _ = fmt.Fprint(w, strconv.Quote(e.String()))
 }
 
 func (e *MauriceTeamLinkSource) UnmarshalJSON(b []byte) error {
@@ -3028,7 +3028,7 @@ func (e *MauriceTurnStatus) UnmarshalGQL(v any) error {
 }
 
 func (e MauriceTurnStatus) MarshalGQL(w io.Writer) {
-	fmt.Fprint(w, strconv.Quote(e.String()))
+	_, _ = fmt.Fprint(w, strconv.Quote(e.String()))
 }
 
 func (e *MauriceTurnStatus) UnmarshalJSON(b []byte) error {
@@ -3095,7 +3095,7 @@ func (e *TemporalWorkflowStatus) UnmarshalGQL(v any) error {
 }
 
 func (e TemporalWorkflowStatus) MarshalGQL(w io.Writer) {
-	fmt.Fprint(w, strconv.Quote(e.String()))
+	_, _ = fmt.Fprint(w, strconv.Quote(e.String()))
 }
 
 func (e *TemporalWorkflowStatus) UnmarshalJSON(b []byte) error {
