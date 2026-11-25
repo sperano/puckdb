@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"maps"
 	"os"
+	"slices"
 	"testing"
 	"time"
 
@@ -195,33 +197,41 @@ func TestEnsurePlayerLandingCachedKeepsStaleLandingOn404(t *testing.T) {
 	t.Parallel()
 	parsed, err := json.Marshal(refreshTestLanding(true, cachedGamesPlayed))
 	require.NoError(t, err)
-	tests := []struct {
-		name string
-		data []byte
-	}{
-		{"parsed page", parsed},
-		{"unreadable page", []byte("{not json")},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			s := cacheStaleLandingBytes(t, tc.data)
-			client := &MockNHLClient{}
-			client.On("PlayerLanding", mock.Anything, refreshTestPlayerID).Return(nil, nhl.ErrNotFound)
+	s := cacheStaleLandingBytes(t, parsed)
+	client := &MockNHLClient{}
+	client.On("PlayerLanding", mock.Anything, refreshTestPlayerID).Return(nil, nhl.ErrNotFound)
 
-			status, err := ensureRefreshTestLanding(refreshTestActivities(s, client, refreshTestMaxAge))
+	status, err := ensureRefreshTestLanding(refreshTestActivities(s, client, refreshTestMaxAge))
 
-			require.NoError(t, err)
-			assert.Equal(t, playerLandingCached, status)
-			// The page is rewritten with its own bytes, so its age restarts
-			// and the NHL is not asked again before LandingMaxAge.
-			landingPath := resource.PlayerLanding{PlayerID: refreshTestPlayerID}.Path()
-			assert.Equal(t, map[string][][]byte{landingPath: {tc.data}}, s.writes)
-			assert.Equal(t, tc.data, s.Get(landingPath))
-			assert.False(t, s.Has(resource.MissingPlayerLanding{PlayerID: refreshTestPlayerID}.Path()))
-			client.AssertExpectations(t)
-		})
-	}
+	require.NoError(t, err)
+	assert.Equal(t, playerLandingCached, status)
+	// The page is rewritten with its own bytes, so its age restarts
+	// and the NHL is not asked again before LandingMaxAge.
+	landingPath := resource.PlayerLanding{PlayerID: refreshTestPlayerID}.Path()
+	assert.Equal(t, map[string][][]byte{landingPath: {parsed}}, s.writes)
+	assert.Equal(t, parsed, s.Get(landingPath))
+	assert.False(t, s.Has(resource.MissingPlayerLanding{PlayerID: refreshTestPlayerID}.Path()))
+	client.AssertExpectations(t)
+}
+
+func TestEnsurePlayerLandingCachedUnreadableStale404MarksMissing(t *testing.T) {
+	t.Parallel()
+	unreadable := []byte("{not json")
+	s := cacheStaleLandingBytes(t, unreadable)
+	client := &MockNHLClient{}
+	client.On("PlayerLanding", mock.Anything, refreshTestPlayerID).Return(nil, nhl.ErrNotFound)
+
+	status, err := ensureRefreshTestLanding(refreshTestActivities(s, client, refreshTestMaxAge))
+
+	require.NoError(t, err)
+	// The corrupt bytes cannot stand in for the landing, so the 404 is
+	// handled as for a page never cached: the player is marked missing.
+	assert.Equal(t, playerLandingMissing, status)
+	landingPath := resource.PlayerLanding{PlayerID: refreshTestPlayerID}.Path()
+	missingPath := resource.MissingPlayerLanding{PlayerID: refreshTestPlayerID}.Path()
+	assert.Equal(t, []string{missingPath}, slices.Collect(maps.Keys(s.writes)))
+	assert.Equal(t, unreadable, s.Get(landingPath))
+	client.AssertExpectations(t)
 }
 
 func TestEnsurePlayerLandingCachedStaleDownloadErrorUsesCachedPage(t *testing.T) {

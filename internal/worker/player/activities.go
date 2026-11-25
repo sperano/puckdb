@@ -186,7 +186,8 @@ func (a *Activities) cachePlayerLanding(ctx context.Context, p store.BoxscorePla
 // ensurePlayerLandingCached downloads player landing data unless it is
 // cached and current (cachedLandingState). A stale cached page is
 // downloaded again; when that download fails, the cached page is kept
-// (keepStaleLanding). Returns a status indicating whether data was
+// (keepStaleLanding), except that a 404 for a page that does not parse
+// marks the player missing, as for a page never cached. Returns a status indicating whether data was
 // downloaded, already cached, or missing (404).
 //
 // fetch-player-landings and process-players may refresh the same stale page
@@ -217,10 +218,13 @@ func (a *Activities) ensurePlayerLandingCached(
 
 	landing, err := a.NHLClient.PlayerLanding(ctx, playerID)
 	if err != nil {
-		if cached == landingStale || cached == landingUnreadable {
+		notFound := errors.Is(err, nhl.ErrNotFound)
+		// An unreadable page answering 404 is handled as a page never
+		// cached: its bytes cannot stand in for the landing.
+		if cached == landingStale || (cached == landingUnreadable && !notFound) {
 			return a.keepStaleLanding(ctx, landingRes, cached, err)
 		}
-		if errors.Is(err, nhl.ErrNotFound) {
+		if notFound {
 			a.saveMissingPlayerLanding(ctx, missingRes, boxscorePlayer)
 			return playerLandingMissing, nil
 		}
@@ -233,7 +237,7 @@ func (a *Activities) ensurePlayerLandingCached(
 }
 
 // saveMissingPlayerLanding records that the NHL answered 404 for a player
-// with no cached landing, so the page is not requested again.
+// with no usable cached landing (none, or one that does not parse), so the page is not requested again.
 func (a *Activities) saveMissingPlayerLanding(
 	ctx context.Context,
 	missingRes resource.MissingPlayerLanding,
