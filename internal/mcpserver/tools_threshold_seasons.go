@@ -110,7 +110,7 @@ func thresholdTool(name, clubTool string, stats []string, summary string) mcp.To
 			"One row per player with qualifying_seasons, best_value and seasons (each qualifying season as season_id:value, oldest first), "+
 			"most qualifying seasons first. The current season counts with its totals so far."),
 		mcp.WithString(thresholdStatArg, mcp.Description("Stat: "+strings.Join(stats, ", ")+" (default "+stats[0]+")")),
-		mcp.WithNumber(thresholdMinValueParam.name, mcp.Required(), mcp.Description("Smallest season value that qualifies (0 or more)")),
+		mcp.WithNumber(thresholdMinValueParam.name, mcp.Required(), mcp.Description("Smallest season value that qualifies (0 or more, plus_minus included: a season at or below a negative value cannot be asked for)")),
 		mcp.WithNumber(thresholdMinSeasonsParam.name, mcp.Description(fmt.Sprintf("Fewest qualifying seasons a player needs (default %d)", defaultMinThresholdSeasons))),
 		mcp.WithNumber(thresholdFromSeasonParam.name, mcp.Description("First season ID counted, inclusive (e.g. 20012002; default the first NHL season)")),
 		mcp.WithNumber(thresholdToSeasonParam.name, mcp.Description("Last season ID counted, inclusive (e.g. 20252026; default the latest season)")),

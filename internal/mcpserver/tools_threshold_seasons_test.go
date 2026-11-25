@@ -72,6 +72,8 @@ func TestThresholdToolsRejectInvalidArguments(t *testing.T) {
 			fmt.Sprintf("invalid limit %d: want an integer from 0 to %d", maxThresholdLimit+1, maxThresholdLimit)},
 		{"no qualifying season needed", skaterThresholdToolName, map[string]any{"min_seasons": float64(0)},
 			fmt.Sprintf("invalid min_seasons 0: want an integer from 1 to %d", math.MaxInt32)},
+		{"negative plus_minus threshold", skaterThresholdToolName, map[string]any{thresholdStatArg: "plus_minus", "min_value": float64(-10)},
+			fmt.Sprintf("invalid min_value -10: want an integer from 0 to %d", math.MaxInt32)},
 		{"season before the NHL", goalieThresholdToolName, map[string]any{"from_season": float64(19001901)},
 			fmt.Sprintf("invalid from_season 19001901: want an integer from %d to %d", firstNHLSeasonID, lastSeasonID)},
 	}
