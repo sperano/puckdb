@@ -25,7 +25,7 @@ require (
 	github.com/spf13/pflag v1.1.0
 	github.com/spf13/viper v1.8.1
 	github.com/stretchr/testify v1.12.1
-	github.com/subosito/gotenv v1.2.0
+	github.com/subosito/gotenv v1.6.0
 	github.com/uber-go/tally/v4 v4.1.17
 	github.com/vektah/gqlparser/v2 v2.5.64
 	go.temporal.io/api v1.61.0
