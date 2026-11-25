@@ -185,10 +185,11 @@ func (a *Activities) cachePlayerLanding(ctx context.Context, p store.BoxscorePla
 
 // ensurePlayerLandingCached downloads player landing data unless it is
 // cached and current (cachedLandingState). A stale cached page is
-// downloaded again; when that download fails, the cached page is kept
-// (keepStaleLanding), except that a 404 for a page that does not parse
-// marks the player missing, as for a page never cached. Returns a status indicating whether data was
-// downloaded, already cached, or missing (404).
+// downloaded again. When that download fails, a cached page that parses
+// is kept (keepStaleLanding); a cached page that does not parse is handled
+// as a page never cached: a 404 marks the player missing and any other
+// error is returned, so the batch retries. Returns a status indicating
+// whether data was downloaded, already cached, or missing (404).
 //
 // fetch-player-landings and process-players may refresh the same stale page
 // at the same time: both download it and both write it. Writes are atomic
