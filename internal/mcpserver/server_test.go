@@ -48,7 +48,7 @@ var expectedNHLTools = []string{
 	"get_game_three_stars",
 	"get_game_broadcasts",
 	"get_game_summary",
-	// Stats (10)
+	// Stats (12)
 	"get_game_skater_stats",
 	"get_game_goalie_stats",
 	"get_game_skater_stats_by_team",
@@ -59,6 +59,8 @@ var expectedNHLTools = []string{
 	"get_goalie_game_log",
 	"get_club_skater_stats",
 	"get_club_goalie_stats",
+	skaterThresholdToolName,
+	goalieThresholdToolName,
 	// Season stats (2)
 	"get_skater_season_stats",
 	"get_goalie_season_stats",
@@ -306,6 +308,11 @@ var validNHLArgs = map[string]any{
 	recentFormDaysArg:      float64(14),
 	"game_ids":             []any{float64(2025020001)},
 	trophyArg:              "Hart Memorial Trophy",
+	thresholdStatArg:       "points",
+	"min_value":            float64(80),
+	"min_seasons":          float64(3),
+	"from_season":          float64(20012002),
+	"to_season":            float64(20242025),
 }
 
 // nhlArgOverrides replace validNHLArgs values for tools that accept
@@ -313,6 +320,7 @@ var validNHLArgs = map[string]any{
 var nhlArgOverrides = map[string]map[string]any{
 	"get_goalie_season_stats": {seasonSortByArg: defaultGoalieSeasonSort, seasonPositionArg: string(sqlcdb.PlayerPositionG)},
 	recentFormToolName:        {recentFormGroupArg: recentFormSkaters},
+	goalieThresholdToolName:   {thresholdStatArg: goalieThresholdStats[0]},
 }
 
 // omittedNHLArgs are arguments left out of a tool's valid call: the

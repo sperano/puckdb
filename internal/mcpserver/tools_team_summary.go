@@ -3,7 +3,6 @@ package mcpserver
 import (
 	"context"
 	"fmt"
-	"slices"
 	"strconv"
 	"strings"
 
@@ -27,14 +26,6 @@ const (
 	// float64Bits is the bit size strconv formats float64 values with.
 	float64Bits = 64
 )
-
-// teamSummaryGameTypes are the game types get_team_season_summary
-// accepts; the first is the default. Regular season and playoffs are
-// never added together.
-var teamSummaryGameTypes = []sqlcdb.GameType{
-	sqlcdb.GameTypeRegularSeason,
-	sqlcdb.GameTypePlayoffs,
-}
 
 // noDateCutoff makes GetTeamGoalsPerGame count every completed game of
 // the season.
@@ -96,31 +87,8 @@ func teamSummaryArgs(req mcp.CallToolRequest) (teamSummaryRequest, *mcp.CallTool
 	if args.season, errResult = requireInt[int32](req, seasonParam); errResult != nil {
 		return args, errResult
 	}
-	args.gameType, errResult = teamSummaryGameType(req)
+	args.gameType, errResult = regularOrPlayoffsGameType(req, teamSummaryGameTypeArg)
 	return args, errResult
-}
-
-// teamSummaryGameType reads the optional game type; absent or empty is the
-// regular season.
-func teamSummaryGameType(req mcp.CallToolRequest) (sqlcdb.GameType, *mcp.CallToolResult) {
-	raw, errResult := optionalString(req, teamSummaryGameTypeArg)
-	if errResult != nil {
-		return "", errResult
-	}
-	name := strings.ToLower(strings.TrimSpace(raw))
-	if name == "" {
-		return teamSummaryGameTypes[0], nil
-	}
-	gameType := sqlcdb.GameType(name)
-	if !slices.Contains(teamSummaryGameTypes, gameType) {
-		accepted := make([]string, len(teamSummaryGameTypes))
-		for i, t := range teamSummaryGameTypes {
-			accepted[i] = string(t)
-		}
-		return "", mcp.NewToolResultError(fmt.Sprintf("unknown %s %s; accepted: %s",
-			teamSummaryGameTypeArg, formatRaw(raw), strings.Join(accepted, ", ")))
-	}
-	return gameType, nil
 }
 
 // teamSummaryText runs the three queries and renders the header and the

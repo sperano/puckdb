@@ -13,7 +13,7 @@ func registerStatsTools(srv *server.MCPServer, queries *sqlcdb.Queries) {
 }
 
 func statsTools(q *sqlcdb.Queries) []server.ServerTool {
-	return []server.ServerTool{
+	return append([]server.ServerTool{
 		gameSkaterStatsTool(q),
 		gameGoalieStatsTool(q),
 		gameSkaterStatsByTeamTool(q),
@@ -24,7 +24,7 @@ func statsTools(q *sqlcdb.Queries) []server.ServerTool {
 		goalieGameLogTool(q),
 		clubSkaterStatsTool(q),
 		clubGoalieStatsTool(q),
-	}
+	}, thresholdTools(q)...)
 }
 
 func gameSkaterStatsTool(q *sqlcdb.Queries) server.ServerTool {
