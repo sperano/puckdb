@@ -89,7 +89,7 @@ func registerTasksActivities(w worker.Worker, pool *pgxpool.Pool, redisClient *r
 	if err != nil {
 		return err
 	}
-	yahooLimiter, err := newYahooRateLimiter(redisClient)
+	yahooLimiter, err := newYahooRateLimiter(redisClient, shared.YahooRateLimitKey)
 	if err != nil {
 		return err
 	}

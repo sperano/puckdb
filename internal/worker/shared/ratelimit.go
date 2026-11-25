@@ -35,19 +35,37 @@ type YahooRateLimit struct {
 	PerSecond float64
 	// Burst is how many requests may start back to back after an idle period.
 	Burst int
+	// MaxWait is the longest a request may queue for its slot: a request
+	// whose slot is further away gives it back and fails with
+	// ErrYahooRateLimitBusy instead of waiting.
+	MaxWait time.Duration
 }
 
 // DefaultYahooRateLimit returns the settings the --yahoo-rate-* flags default to.
 func DefaultYahooRateLimit() YahooRateLimit {
-	return YahooRateLimit{PerSecond: config.DefaultYahooRateLimit, Burst: config.DefaultYahooRateBurst}
+	return YahooRateLimit{
+		PerSecond: config.DefaultYahooRateLimit,
+		Burst:     config.DefaultYahooRateBurst,
+		MaxWait:   config.DefaultYahooRateMaxWait * time.Second,
+	}
 }
 
-// ErrInvalidYahooRateLimit reports a limit that would block or unthrottle
-// every Yahoo download.
-var ErrInvalidYahooRateLimit = errors.New("invalid Yahoo rate limit")
+var (
+	// ErrInvalidYahooRateLimit reports a limit that would block or
+	// unthrottle every Yahoo download.
+	ErrInvalidYahooRateLimit = errors.New("invalid Yahoo rate limit")
+	// ErrZeroBurst reports a token bucket that can never grant a request.
+	ErrZeroBurst = errors.New("rate limiter burst is zero")
+	// ErrYahooRateLimitBusy reports a request whose slot is more than
+	// YahooRateLimit.MaxWait away: so many requests already queue that this
+	// one would wait too long. It is retryable: the activity fails at once,
+	// and Temporal's retry backoff keeps it out of the queue meanwhile, so the
+	// queue never outgrows what the activities can wait for.
+	ErrYahooRateLimitBusy = errors.New("too many Yahoo requests queued")
+)
 
-// Validate rejects a rate that is not a positive finite number and a burst
-// below one.
+// Validate rejects a rate that is not a positive finite number, a burst
+// below one and a maximum wait that is not positive.
 func (l YahooRateLimit) Validate() error {
 	if l.PerSecond <= 0 || math.IsNaN(l.PerSecond) || math.IsInf(l.PerSecond, 1) {
 		return fmt.Errorf("%w: --%s must be a positive number of requests per second, got %v",
@@ -57,6 +75,10 @@ func (l YahooRateLimit) Validate() error {
 		return fmt.Errorf("%w: --%s must be at least 1, got %d",
 			ErrInvalidYahooRateLimit, config.FlagYahooRateBurst, l.Burst)
 	}
+	if l.MaxWait <= 0 {
+		return fmt.Errorf("%w: --%s must be a positive number of seconds, got %s",
+			ErrInvalidYahooRateLimit, config.FlagYahooRateMaxWait, l.MaxWait)
+	}
 	return nil
 }
 
@@ -64,8 +86,10 @@ func (l YahooRateLimit) Validate() error {
 // concurrent use.
 type RateLimiter interface {
 	// Reserve takes the next request slot and says how long the caller must
-	// wait before using it. A caller that gives up waiting cancels the
-	// reservation, so the slot may go to another request.
+	// wait before using it, or fails with ErrYahooRateLimitBusy, taking
+	// nothing, when that wait would exceed the limiter's maximum. A caller
+	// that gives up waiting cancels the reservation, so the slot may go to
+	// another request.
 	Reserve(ctx context.Context) (Reservation, error)
 }
 
@@ -90,22 +114,41 @@ func (r Reservation) Cancel() {
 // LocalRateLimiter is a RateLimiter over one process's token bucket.
 type LocalRateLimiter struct {
 	limiter *rate.Limiter
-	label   string
+	maxWait time.Duration
 }
 
-// NewLocalRateLimiter wraps limiter, reporting its waits as the
-// metrics.RateLimiterProcess limiter.
-func NewLocalRateLimiter(limiter *rate.Limiter) *LocalRateLimiter {
-	return &LocalRateLimiter{limiter: limiter, label: metrics.RateLimiterProcess}
+// NewLocalRateLimiter wraps limiter, refusing a slot more than maxWait away
+// (a maxWait of zero or less refuses none).
+func NewLocalRateLimiter(limiter *rate.Limiter, maxWait time.Duration) *LocalRateLimiter {
+	return &LocalRateLimiter{limiter: limiter, maxWait: maxWait}
 }
 
 // Reserve implements RateLimiter.
 func (l *LocalRateLimiter) Reserve(context.Context) (Reservation, error) {
-	reservation := l.limiter.Reserve()
+	return reserveLocal(l.limiter, l.maxWait, metrics.RateLimiterProcess)
+}
+
+// reserveLocal takes a slot from limiter for the limiter labeled label,
+// giving it back when it is more than maxWait (if positive) away.
+func reserveLocal(limiter *rate.Limiter, maxWait time.Duration, label string) (Reservation, error) {
+	reservation := limiter.Reserve()
 	if !reservation.OK() {
-		return Reservation{}, errors.New("rate limiter burst is zero")
+		return Reservation{}, ErrZeroBurst
 	}
-	return Reservation{Delay: reservation.Delay(), Limiter: l.label, cancel: reservation.Cancel}, nil
+	delay := reservation.Delay()
+	if maxWait > 0 && delay > maxWait {
+		reservation.Cancel()
+		return Reservation{}, busyError(label, delay, maxWait)
+	}
+	return Reservation{Delay: delay, Limiter: label, cancel: reservation.Cancel}, nil
+}
+
+// busyError counts and reports a slot delay away, over maxWait, refused by
+// the limiter labeled label.
+func busyError(label string, delay, maxWait time.Duration) error {
+	metrics.IncYahooRateLimitBusy(label)
+	return fmt.Errorf("%w: next slot in %s, over the %s maximum (--%s)",
+		ErrYahooRateLimitBusy, delay.Round(time.Millisecond), maxWait, config.FlagYahooRateMaxWait)
 }
 
 // NewYahooRateLimiter builds the per-process limiter for l
@@ -115,7 +158,7 @@ func NewYahooRateLimiter(l YahooRateLimit) (*LocalRateLimiter, error) {
 	if err := l.Validate(); err != nil {
 		return nil, err
 	}
-	return NewLocalRateLimiter(newTokenBucket(l)), nil
+	return NewLocalRateLimiter(newTokenBucket(l), l.MaxWait), nil
 }
 
 // newTokenBucket is the in-process token bucket of a valid l.

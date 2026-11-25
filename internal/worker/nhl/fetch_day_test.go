@@ -362,7 +362,9 @@ const (
 	// shows whether the limiter or the loop paces the downloads.
 	testDownloadLatency    = 200 * time.Millisecond
 	testRateLimitPerSecond = 100
-	testFailingTeamID      = 2
+	// testRateLimitMaxWait is far above the test's queueing, so no download is refused.
+	testRateLimitMaxWait = time.Minute
+	testFailingTeamID    = 2
 	// testFailureDelay holds the first download back so the scheduling loop
 	// is already waiting in g.Go for its slot when it fails.
 	testFailureDelay = 50 * time.Millisecond
@@ -468,7 +470,7 @@ func (s *FetchDayTestSuite) TestYahooTeamDownloadsPacedByRateLimiter() {
 	teams := testTeams(testOverlapTeams)
 	downloads := len(teams) * len(yahooTeamResources(teams[0], s.day, testGameKey))
 	setYahooTeamConcurrency(s.T(), downloads)
-	limiter, err := shared.NewYahooRateLimiter(shared.YahooRateLimit{PerSecond: testRateLimitPerSecond, Burst: 1})
+	limiter, err := shared.NewYahooRateLimiter(shared.YahooRateLimit{PerSecond: testRateLimitPerSecond, Burst: 1, MaxWait: testRateLimitMaxWait})
 	s.Require().NoError(err)
 	slow := func(ctx context.Context, _ string) ([]byte, error) {
 		select {

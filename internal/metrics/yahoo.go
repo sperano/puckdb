@@ -24,6 +24,11 @@ var (
 		Help: "Yahoo downloads retried inside their activity after a throttle response, by status code (999|429)",
 	}, []string{"status_code"})
 
+	yahooRateLimitBusy = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "puckdb_yahoo_rate_limit_busy_total",
+		Help: "Yahoo requests refused because their rate limiter slot was more than --yahoo-rate-max-wait away, by limiter (deployment|process|fallback)",
+	}, []string{"limiter"})
+
 	yahooRateLimitFallbacks = prometheus.NewCounter(prometheus.CounterOpts{
 		Name: "puckdb_yahoo_rate_limit_fallbacks_total",
 		Help: "Yahoo rate limiter tokens taken from the per-process fallback limiter because the deployment-wide (Redis) limiter was unavailable",
@@ -51,6 +56,12 @@ func ObserveYahooRateLimitWait(limiter string, wait time.Duration) {
 // statusCode, a throttle status.
 func IncYahooThrottleRetry(statusCode int) {
 	yahooThrottleRetries.WithLabelValues(strconv.Itoa(statusCode)).Inc()
+}
+
+// IncYahooRateLimitBusy counts one request refused by the limiter labeled
+// limiter (a RateLimiter* label) because its slot was too far away.
+func IncYahooRateLimitBusy(limiter string) {
+	yahooRateLimitBusy.WithLabelValues(limiter).Inc()
 }
 
 // IncYahooRateLimitFallback counts one token taken from the fallback limiter.

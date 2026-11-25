@@ -3,6 +3,7 @@ package shared
 import (
 	"context"
 	"errors"
+	"strconv"
 	"testing"
 	"time"
 
@@ -18,6 +19,8 @@ const (
 	testDeploymentRate     = 2
 	testDeploymentInterval = 500 * time.Millisecond
 	testDeploymentBurst    = 2
+	// testDeploymentMaxWait admits three intervals of queueing.
+	testDeploymentMaxWait = 3 * testDeploymentInterval
 )
 
 // testRedisEpoch is the Redis server time the tests start at, far from the
@@ -34,9 +37,14 @@ func newTestRedis(t *testing.T) (*miniredis.Miniredis, *redis.Client) {
 	return server, client
 }
 
+// testDeploymentLimit is 2 req/s, a burst of 2 and three intervals of queueing.
+func testDeploymentLimit() YahooRateLimit {
+	return YahooRateLimit{PerSecond: testDeploymentRate, Burst: testDeploymentBurst, MaxWait: testDeploymentMaxWait}
+}
+
 func newTestDeploymentLimiter(t *testing.T, client *redis.Client) *DeploymentRateLimiter {
 	t.Helper()
-	limiter, err := NewDeploymentRateLimiter(client, YahooRateLimit{PerSecond: testDeploymentRate, Burst: testDeploymentBurst})
+	limiter, err := NewDeploymentRateLimiter(client, YahooRateLimitKey, testDeploymentLimit())
 	require.NoError(t, err)
 	return limiter
 }
@@ -62,6 +70,65 @@ func TestDeploymentRateLimiter_BurstThenSpacesAtRate(t *testing.T) {
 
 	assert.Equal(t, []time.Duration{0, 0, testDeploymentInterval, 2 * testDeploymentInterval, 3 * testDeploymentInterval}, delays,
 		"the burst starts at once, then one slot per interval")
+}
+
+func TestDeploymentRateLimiter_RefusesSlotPastMaxWaitWithoutTakingIt(t *testing.T) {
+	t.Parallel()
+	server, client := newTestRedis(t)
+	limiter := newTestDeploymentLimiter(t, client)
+	for range 5 {
+		reserve(t, limiter)
+	}
+	stored := server.HGet(YahooRateLimitKey, "tat")
+
+	_, err := limiter.Reserve(context.Background())
+
+	require.ErrorIs(t, err, ErrYahooRateLimitBusy)
+	assert.Equal(t, stored, server.HGet(YahooRateLimitKey, "tat"), "a refused request takes no slot")
+	assert.True(t, limiter.redisUsable(), "a busy bucket is not a Redis failure")
+	server.SetTime(testRedisEpoch.Add(testDeploymentInterval))
+	assert.Equal(t, testDeploymentMaxWait, reserve(t, limiter).Delay, "the queue admits again once it shortened")
+}
+
+func TestDeploymentRateLimiter_DraftKeyIsItsOwnBucket(t *testing.T) {
+	t.Parallel()
+	_, client := newTestRedis(t)
+	workers := newTestDeploymentLimiter(t, client)
+	draft, err := NewDeploymentRateLimiter(client, YahooDraftRateLimitKey, testDeploymentLimit())
+	require.NoError(t, err)
+	for range 5 {
+		reserve(t, workers)
+	}
+
+	assert.Zero(t, reserve(t, draft).Delay, "draft polls do not queue behind the workers' downloads")
+}
+
+func TestDeploymentRateLimiter_StoresItsInterval(t *testing.T) {
+	t.Parallel()
+	server, client := newTestRedis(t)
+	limiter := newTestDeploymentLimiter(t, client)
+
+	reserve(t, limiter)
+
+	assert.Equal(t, strconv.FormatInt(testDeploymentInterval.Microseconds(), 10), server.HGet(YahooRateLimitKey, "interval"))
+	assert.True(t, limiter.mismatchedWarn.last.IsZero(), "the same interval is no mismatch")
+}
+
+func TestDeploymentRateLimiter_WarnsOnIntervalMismatch(t *testing.T) {
+	t.Parallel()
+	_, client := newTestRedis(t)
+	slower, err := NewDeploymentRateLimiter(client, YahooRateLimitKey,
+		YahooRateLimit{PerSecond: testDeploymentRate / 2, Burst: testDeploymentBurst, MaxWait: time.Hour})
+	require.NoError(t, err)
+	limiter := newTestDeploymentLimiter(t, client)
+	now := time.Now()
+	limiter.now = func() time.Time { return now }
+	reserve(t, slower)
+
+	reserve(t, limiter)
+
+	assert.Equal(t, now, limiter.mismatchedWarn.last, "the mismatch is logged")
+	assert.Equal(t, metrics.RateLimiterDeployment, reserve(t, limiter).Limiter, "and changes nothing else")
 }
 
 func TestDeploymentRateLimiter_ProcessesShareOneBucket(t *testing.T) {
@@ -175,7 +242,7 @@ func TestDeploymentRateLimiter_RetriesRedisAfterFailure(t *testing.T) {
 func TestDeploymentRateLimiter_FallsBackOnScriptError(t *testing.T) {
 	t.Parallel()
 	server, client := newTestRedis(t)
-	server.HSet(YahooRateLimitKey, "not", "a string")
+	require.NoError(t, server.Set(YahooRateLimitKey, "not a hash"))
 	limiter := newTestDeploymentLimiter(t, client)
 
 	assert.Equal(t, metrics.RateLimiterFallback, reserve(t, limiter).Limiter)
@@ -189,11 +256,25 @@ func TestDeploymentRateLimiter_WarnsAtMostOncePerInterval(t *testing.T) {
 	limiter.now = func() time.Time { return now }
 	errDown := errors.New("down")
 
-	assert.True(t, limiter.redisFailed(errDown), "the first failure warns")
+	first := now
+	limiter.redisFailed(errDown)
+	assert.Equal(t, first, limiter.fallbackWarn.last, "the first failure warns")
 	now = now.Add(redisRateLimitWarnEvery - time.Second)
-	assert.False(t, limiter.redisFailed(errDown))
+	limiter.redisFailed(errDown)
+	assert.Equal(t, first, limiter.fallbackWarn.last, "a failure within the minute does not")
 	now = now.Add(time.Second)
-	assert.True(t, limiter.redisFailed(errDown))
+	limiter.redisFailed(errDown)
+	assert.Equal(t, now, limiter.fallbackWarn.last)
+}
+
+func TestWarnThrottle_AllowsOncePerInterval(t *testing.T) {
+	t.Parallel()
+	w := warnThrottle{every: time.Minute}
+	start := time.Now()
+
+	assert.True(t, w.allow(start))
+	assert.False(t, w.allow(start.Add(time.Minute-time.Nanosecond)))
+	assert.True(t, w.allow(start.Add(time.Minute)))
 }
 
 func TestDeploymentRateLimiter_CanceledContextIsNotARedisFailure(t *testing.T) {
@@ -213,16 +294,17 @@ func TestNewDeploymentRateLimiter_Validates(t *testing.T) {
 	t.Parallel()
 	_, client := newTestRedis(t)
 
-	_, err := NewDeploymentRateLimiter(client, YahooRateLimit{PerSecond: 0, Burst: 1})
+	_, err := NewDeploymentRateLimiter(client, YahooRateLimitKey, YahooRateLimit{PerSecond: 0, Burst: 1, MaxWait: time.Second})
 	require.ErrorIs(t, err, ErrInvalidYahooRateLimit)
-	_, err = NewDeploymentRateLimiter(nil, DefaultYahooRateLimit())
+	_, err = NewDeploymentRateLimiter(nil, YahooRateLimitKey, DefaultYahooRateLimit())
 	require.ErrorIs(t, err, ErrInvalidYahooRateLimit)
 }
 
 func TestRateLimited_WaitsOnDeploymentLimiter(t *testing.T) {
 	t.Parallel()
 	_, client := newTestRedis(t)
-	limiter, err := NewDeploymentRateLimiter(client, YahooRateLimit{PerSecond: float64(time.Second / testRequestInterval), Burst: 1})
+	limiter, err := NewDeploymentRateLimiter(client, YahooRateLimitKey,
+		YahooRateLimit{PerSecond: float64(time.Second / testRequestInterval), Burst: 1, MaxWait: testMaxWait})
 	require.NoError(t, err)
 	download := RateLimited(limiter, func(context.Context, string) ([]byte, error) { return nil, nil })
 

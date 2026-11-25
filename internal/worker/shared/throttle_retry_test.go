@@ -86,6 +86,7 @@ func TestRetryThrottled_DoesNotRetryOtherErrors(t *testing.T) {
 		"503":       &httpx.HTTPError{StatusCode: http.StatusServiceUnavailable},
 		"transport": errors.New("connection reset"),
 		"canceled":  context.Canceled,
+		"busy":      fmt.Errorf("wait for Yahoo rate limit: %w", ErrYahooRateLimitBusy),
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -117,7 +118,7 @@ func TestRetryThrottled_CancelDuringBackoffStopsRetrying(t *testing.T) {
 
 func TestRetryThrottled_RetriesTakeRateLimiterTokens(t *testing.T) {
 	t.Parallel()
-	limiter, err := NewYahooRateLimiter(YahooRateLimit{PerSecond: float64(time.Second / testRequestInterval), Burst: 1})
+	limiter, err := NewYahooRateLimiter(YahooRateLimit{PerSecond: float64(time.Second / testRequestInterval), Burst: 1, MaxWait: testMaxWait})
 	require.NoError(t, err)
 	var calls atomic.Int32
 	download := RetryThrottled(
@@ -141,9 +142,8 @@ func TestRetryThrottled_HeartbeatsDuringBackoff(t *testing.T) {
 	env.SetOnActivityHeartbeatListener(func(*activity.Info, converter.EncodedValues) { heartbeats.Add(1) })
 	var calls atomic.Int32
 	policy := ThrottleRetry{MaxAttempts: 2, InitialBackoff: testHeartbeatWait, MaxBackoff: testHeartbeatWait}
-	policy.heartbeatEvery = testHeartbeatInterval
 	env.RegisterActivityWithOptions(func(ctx context.Context) error {
-		_, err := RetryThrottled(scriptedDownloader(&calls, throttled(httpx.StatusYahooThrottled)), policy)(ctx, testThrottleURL)
+		_, err := retryThrottled(scriptedDownloader(&calls, throttled(httpx.StatusYahooThrottled)), policy, testHeartbeatInterval)(ctx, testThrottleURL)
 		return err
 	}, activity.RegisterOptions{Name: "download"})
 

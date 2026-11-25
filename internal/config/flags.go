@@ -233,6 +233,7 @@ const (
 	FlagYahooRateLimit      = "yahoo-rate-limit"
 	FlagYahooRateBurst      = "yahoo-rate-burst"
 	FlagYahooRateLimitScope = "yahoo-rate-limit-scope"
+	FlagYahooRateMaxWait    = "yahoo-rate-max-wait"
 )
 
 // NHL player landing download flags
@@ -510,6 +511,7 @@ var YahooRateLimitFlags = FlagGroup{
 		{FlagYahooRateLimit, "", DefaultYahooRateLimit, "Yahoo requests per second, for the whole deployment (--yahoo-rate-limit-scope=deployment) or for each process (process)", false},
 		{FlagYahooRateBurst, "", DefaultYahooRateBurst, "Yahoo requests that may start back to back after an idle period, in the same scope as --yahoo-rate-limit", false},
 		{FlagYahooRateLimitScope, "", DefaultYahooRateLimitScope, "Scope of the Yahoo rate limit: deployment (one token bucket in Redis shared by every process; a process falls back to its own bucket while Redis is unavailable) or process (one bucket per process)", false},
+		{FlagYahooRateMaxWait, "", DefaultYahooRateMaxWait, "Seconds a Yahoo request may queue for its rate limit slot; a request whose slot is further away fails at once (retryable), so its activity retries later", false},
 	},
 }
 

@@ -127,6 +127,7 @@ func init() {
 		simDayDuration,
 		yahooRateLimitWait,
 		yahooThrottleRetries,
+		yahooRateLimitBusy,
 		yahooRateLimitFallbacks,
 	)
 

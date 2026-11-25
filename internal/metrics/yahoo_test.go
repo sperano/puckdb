@@ -20,6 +20,7 @@ func TestYahooMetricsRegistered(t *testing.T) {
 	ObserveYahooRateLimitWait(RateLimiterDeployment, time.Second)
 	IncYahooThrottleRetry(http.StatusTooManyRequests)
 	IncYahooRateLimitFallback()
+	IncYahooRateLimitBusy(RateLimiterProcess)
 
 	families, err := WorkerRegistry.Gather()
 	require.NoError(t, err)
@@ -28,6 +29,7 @@ func TestYahooMetricsRegistered(t *testing.T) {
 		"puckdb_yahoo_rate_limit_wait_seconds":    false,
 		"puckdb_yahoo_throttle_retries_total":     false,
 		"puckdb_yahoo_rate_limit_fallbacks_total": false,
+		"puckdb_yahoo_rate_limit_busy_total":      false,
 	}
 	for _, f := range families {
 		if _, ok := want[f.GetName()]; ok {

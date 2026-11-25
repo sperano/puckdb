@@ -14,12 +14,20 @@ import (
 	"golang.org/x/time/rate"
 )
 
-// YahooRateLimitKey is the Redis key of the deployment-wide Yahoo token
-// bucket: its theoretical arrival time (GCRA), in microseconds of Redis
-// server time. Every process of the deployment (worker replicas, the api,
-// sync draft) shares it, so they should all run with the same
-// --yahoo-rate-limit and --yahoo-rate-burst.
-const YahooRateLimitKey = "puckdb:ratelimit:yahoo"
+// Redis keys of the deployment-wide Yahoo token buckets. Each is a hash of
+// the bucket's theoretical arrival time (GCRA) in microseconds of Redis
+// server time and the emission interval of the process that wrote it last.
+// The processes sharing a bucket should run with the same --yahoo-rate-limit
+// and --yahoo-rate-burst; a different interval is logged (see
+// DeploymentRateLimiter).
+const (
+	// YahooRateLimitKey is the bucket of the worker replicas' downloads.
+	YahooRateLimitKey = "puckdb:ratelimit:yahoo"
+	// YahooDraftRateLimitKey is the bucket of the live draft polls (the
+	// api's draft watcher, sync draft), so they never queue behind a season
+	// sync. Its rate adds to the workers'.
+	YahooDraftRateLimitKey = YahooRateLimitKey + ":draft"
+)
 
 const (
 	// redisRateLimitTimeout bounds one limiter script call, so an
@@ -30,27 +38,31 @@ const (
 	// after a Redis failure before trying Redis again, so a Redis outage
 	// does not cost every download a timeout.
 	redisRateLimitRetryAfter = 15 * time.Second
-	// redisRateLimitWarnEvery is the shortest gap between two warnings that
-	// the limiter runs on its fallback.
+	// redisRateLimitWarnEvery is the shortest gap between two warnings of
+	// one kind (fallback, interval mismatch) from one limiter.
 	redisRateLimitWarnEvery = time.Minute
 	// microsecondsPerSecond converts the limit's rate to the script's unit.
 	microsecondsPerSecond = float64(time.Second / time.Microsecond)
 )
 
 // reserveScript is GCRA with reservations, the semantics of
-// rate.Limiter.Reserve: it always takes the next slot and returns how long
-// the caller waits for it. KEYS[1] holds the theoretical arrival time (TAT);
-// ARGV[1] is the emission interval and ARGV[2] the burst. Times are
-// microseconds of the Redis server clock (TIME), so clients with skewed
-// clocks agree. It returns {delay, slot}: the wait and the slot's absolute
-// time, which releaseScript needs. The key expires once the bucket is full
-// again, as an absent key means.
+// rate.Limiter.Reserve: it takes the next slot and returns how long the
+// caller waits for it, unless that wait exceeds the maximum, when it takes
+// nothing. KEYS[1] is the bucket hash; ARGV[1] the emission interval,
+// ARGV[2] the burst and ARGV[3] the maximum wait. Times are microseconds of
+// the Redis server clock (TIME), so clients with skewed clocks agree. It
+// returns {delay, slot, taken, stored interval (0: none)}; slot is the
+// slot's absolute time, which releaseScript needs. The key expires once the
+// bucket is full again, as an absent key means.
 var reserveScript = redis.NewScript(`
 local interval = tonumber(ARGV[1])
 local burst = tonumber(ARGV[2])
+local maxWait = tonumber(ARGV[3])
 local t = redis.call('TIME')
 local now = tonumber(t[1]) * 1000000 + tonumber(t[2])
-local tat = tonumber(redis.call('GET', KEYS[1]))
+local stored = redis.call('HMGET', KEYS[1], 'tat', 'interval')
+local tat = tonumber(stored[1])
+local storedInterval = tonumber(stored[2]) or 0
 if tat == nil or tat < now then
   tat = now
 end
@@ -60,8 +72,12 @@ local delay = slot - now
 if delay < 0 then
   delay = 0
 end
-redis.call('SET', KEYS[1], string.format('%.0f', newTat), 'PX', math.ceil((newTat - now) / 1000) + 1)
-return {delay, slot}
+if delay > maxWait then
+  return {delay, slot, 0, storedInterval}
+end
+redis.call('HSET', KEYS[1], 'tat', string.format('%.0f', newTat), 'interval', interval)
+redis.call('PEXPIRE', KEYS[1], math.ceil((newTat - now) / 1000) + 1)
+return {delay, slot, 1, storedInterval}
 `)
 
 // releaseScript gives back a slot whose time has not come (ARGV[2]) by
@@ -76,39 +92,54 @@ local now = tonumber(t[1]) * 1000000 + tonumber(t[2])
 if slot <= now then
   return 0
 end
-local tat = tonumber(redis.call('GET', KEYS[1]))
+local tat = tonumber(redis.call('HGET', KEYS[1], 'tat'))
 if tat == nil or tat - interval < now then
   return 0
 end
 local newTat = tat - interval
-redis.call('SET', KEYS[1], string.format('%.0f', newTat), 'PX', math.ceil((newTat - now) / 1000) + 1)
+redis.call('HSET', KEYS[1], 'tat', string.format('%.0f', newTat))
+redis.call('PEXPIRE', KEYS[1], math.ceil((newTat - now) / 1000) + 1)
 return 1
 `)
 
+// Elements of reserveScript's reply.
+const (
+	reserveReplyDelay = iota
+	reserveReplySlot
+	reserveReplyTaken
+	reserveReplyStoredInterval
+	reserveReplyLen
+)
+
 // DeploymentRateLimiter is a RateLimiter shared by every process of the
-// deployment: one GCRA token bucket in Redis (YahooRateLimitKey). While
-// Redis fails (unreachable, timing out, a script error) it grants slots
-// from a per-process bucket at the same rate and burst instead, so a Redis
-// outage slows nothing down but lets the deployment exceed its rate (the
-// rate times its processes); it logs that at most once per
+// deployment: one GCRA token bucket in Redis. While Redis fails
+// (unreachable, timing out, a script error) it grants slots from a
+// per-process bucket at the same rate, burst and maximum wait instead, so a
+// Redis outage slows nothing down but lets the deployment exceed its rate
+// (the rate times its processes); it logs that at most once per
 // redisRateLimitWarnEvery and tries Redis again after
-// redisRateLimitRetryAfter.
+// redisRateLimitRetryAfter. A bucket last written with another interval (a
+// process configured with another rate) is logged the same way.
 type DeploymentRateLimiter struct {
-	client   redis.Scripter
+	client   *redis.Client
 	key      string
 	interval int64 // microseconds between two requests
 	burst    int
+	maxWait  time.Duration
 	fallback *rate.Limiter
 	now      func() time.Time
 
-	mu            sync.Mutex
-	redisDownTill time.Time
-	lastWarning   time.Time
+	mu sync.Mutex
+	// redisDownTill is when to try Redis again after a failure.
+	redisDownTill  time.Time
+	fallbackWarn   warnThrottle
+	mismatchedWarn warnThrottle
 }
 
-// NewDeploymentRateLimiter builds the deployment-wide limiter for l over
-// client (Valkey DB 1 in production).
-func NewDeploymentRateLimiter(client redis.Scripter, l YahooRateLimit) (*DeploymentRateLimiter, error) {
+// NewDeploymentRateLimiter builds the deployment-wide limiter for l on key
+// (YahooRateLimitKey or YahooDraftRateLimitKey) of client (Valkey DB 1 in
+// production).
+func NewDeploymentRateLimiter(client *redis.Client, key string, l YahooRateLimit) (*DeploymentRateLimiter, error) {
 	if err := l.Validate(); err != nil {
 		return nil, err
 	}
@@ -116,63 +147,81 @@ func NewDeploymentRateLimiter(client redis.Scripter, l YahooRateLimit) (*Deploym
 		return nil, fmt.Errorf("%w: the deployment scope needs a Redis client", ErrInvalidYahooRateLimit)
 	}
 	return &DeploymentRateLimiter{
-		client:   client,
-		key:      YahooRateLimitKey,
-		interval: max(1, int64(math.Round(microsecondsPerSecond/l.PerSecond))),
-		burst:    l.Burst,
-		fallback: newTokenBucket(l),
-		now:      time.Now,
+		client:         client,
+		key:            key,
+		interval:       max(1, int64(math.Round(microsecondsPerSecond/l.PerSecond))),
+		burst:          l.Burst,
+		maxWait:        l.MaxWait,
+		fallback:       newTokenBucket(l),
+		now:            time.Now,
+		fallbackWarn:   warnThrottle{every: redisRateLimitWarnEvery},
+		mismatchedWarn: warnThrottle{every: redisRateLimitWarnEvery},
 	}, nil
 }
 
-// Reserve implements RateLimiter. It fails only when ctx ends during the
-// Redis call; any Redis failure falls back to the per-process bucket.
+// Reserve implements RateLimiter. Besides ErrYahooRateLimitBusy, it fails
+// only when ctx ends during the Redis call; any Redis failure falls back to
+// the per-process bucket.
 func (l *DeploymentRateLimiter) Reserve(ctx context.Context) (Reservation, error) {
 	if l.redisUsable() {
 		reservation, err := l.reserveRedis(ctx)
-		if err == nil {
-			return reservation, nil
-		}
-		if ctxErr := ctx.Err(); ctxErr != nil {
-			return Reservation{}, ctxErr
+		switch {
+		case err == nil, errors.Is(err, ErrYahooRateLimitBusy):
+			return reservation, err
+		case ctx.Err() != nil:
+			return Reservation{}, ctx.Err()
 		}
 		l.redisFailed(err)
 	}
 	metrics.IncYahooRateLimitFallback()
-	reservation := l.fallback.Reserve()
-	if !reservation.OK() {
-		return Reservation{}, errors.New("rate limiter burst is zero")
-	}
-	return Reservation{Delay: reservation.Delay(), Limiter: metrics.RateLimiterFallback, cancel: reservation.Cancel}, nil
+	return reserveLocal(l.fallback, l.maxWait, metrics.RateLimiterFallback)
 }
 
 // reserveRedis takes a slot from the Redis bucket.
 func (l *DeploymentRateLimiter) reserveRedis(ctx context.Context) (Reservation, error) {
 	callCtx, cancel := context.WithTimeout(ctx, redisRateLimitTimeout)
 	defer cancel()
-	values, err := reserveScript.Run(callCtx, l.client, []string{l.key}, l.interval, l.burst).Int64Slice()
+	reply, err := reserveScript.Run(callCtx, l.client, []string{l.key},
+		l.interval, l.burst, l.maxWait.Microseconds()).Int64Slice()
 	if err != nil {
 		return Reservation{}, fmt.Errorf("reserve Yahoo rate limit slot in Redis: %w", err)
 	}
-	if len(values) != 2 || values[0] < 0 {
-		return Reservation{}, fmt.Errorf("reserve Yahoo rate limit slot in Redis: unexpected reply %v", values)
+	if len(reply) != reserveReplyLen || reply[reserveReplyDelay] < 0 {
+		return Reservation{}, fmt.Errorf("reserve Yahoo rate limit slot in Redis: unexpected reply %v", reply)
 	}
-	delay, slot := values[0], values[1]
+	l.checkInterval(reply[reserveReplyStoredInterval])
+	delay := time.Duration(reply[reserveReplyDelay]) * time.Microsecond
+	if reply[reserveReplyTaken] == 0 {
+		return Reservation{}, busyError(metrics.RateLimiterDeployment, delay, l.maxWait)
+	}
+	slot := reply[reserveReplySlot]
 	return Reservation{
-		Delay:   time.Duration(delay) * time.Microsecond,
+		Delay:   delay,
 		Limiter: metrics.RateLimiterDeployment,
-		cancel:  func() { l.release(slot) },
+		// The caller cancels when its ctx ended, so the release must not
+		// inherit that cancellation, only ctx's values.
+		cancel: func() { l.release(context.WithoutCancel(ctx), slot) },
 	}, nil
 }
 
 // release gives back the Redis slot at slot, best effort: a failure only
 // leaves the slot unused.
-func (l *DeploymentRateLimiter) release(slot int64) {
-	ctx, cancel := context.WithTimeout(context.Background(), redisRateLimitTimeout)
+func (l *DeploymentRateLimiter) release(ctx context.Context, slot int64) {
+	ctx, cancel := context.WithTimeout(ctx, redisRateLimitTimeout)
 	defer cancel()
 	if err := releaseScript.Run(ctx, l.client, []string{l.key}, l.interval, slot).Err(); err != nil {
 		log.Debug().Err(err).Str("key", l.key).Msg("Could not give a Yahoo rate limit slot back to Redis")
 	}
+}
+
+// checkInterval warns, at most once per redisRateLimitWarnEvery, when the
+// bucket was last written with another interval (stored; 0 when none).
+func (l *DeploymentRateLimiter) checkInterval(stored int64) {
+	if stored == 0 || stored == l.interval || !l.mismatchedWarn.allow(l.now()) {
+		return
+	}
+	log.Warn().Str("key", l.key).Int64("interval_us", l.interval).Int64("stored_interval_us", stored).
+		Msg("Processes share a Yahoo rate limit bucket with different rates; give them the same --yahoo-rate-limit")
 }
 
 // redisUsable reports whether the last Redis failure is old enough to try
@@ -184,20 +233,33 @@ func (l *DeploymentRateLimiter) redisUsable() bool {
 }
 
 // redisFailed switches to the fallback for redisRateLimitRetryAfter and
-// warns, at most once per redisRateLimitWarnEvery; it reports whether it
-// warned.
-func (l *DeploymentRateLimiter) redisFailed(err error) bool {
-	l.mu.Lock()
+// warns, at most once per redisRateLimitWarnEvery.
+func (l *DeploymentRateLimiter) redisFailed(err error) {
 	now := l.now()
+	l.mu.Lock()
 	l.redisDownTill = now.Add(redisRateLimitRetryAfter)
-	warn := l.lastWarning.IsZero() || now.Sub(l.lastWarning) >= redisRateLimitWarnEvery
-	if warn {
-		l.lastWarning = now
-	}
 	l.mu.Unlock()
-	if warn {
-		log.Warn().Err(err).Str("key", l.key).Dur("retry_redis_after", redisRateLimitRetryAfter).
-			Msg("Deployment-wide Yahoo rate limiter unavailable, limiting this process on its own at the same rate")
+	if !l.fallbackWarn.allow(now) {
+		return
 	}
-	return warn
+	log.Warn().Err(err).Str("key", l.key).Dur("retry_redis_after", redisRateLimitRetryAfter).
+		Msg("Deployment-wide Yahoo rate limiter unavailable, limiting this process on its own at the same rate")
+}
+
+// warnThrottle lets one kind of warning through at most once per every.
+type warnThrottle struct {
+	every time.Duration
+	mu    sync.Mutex
+	last  time.Time
+}
+
+// allow reports whether a warning at now may be logged, and if so records it.
+func (w *warnThrottle) allow(now time.Time) bool {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if !w.last.IsZero() && now.Sub(w.last) < w.every {
+		return false
+	}
+	w.last = now
+	return true
 }

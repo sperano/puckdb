@@ -33,8 +33,6 @@ type ThrottleRetry struct {
 	// doubles, up to MaxBackoff.
 	InitialBackoff time.Duration
 	MaxBackoff     time.Duration
-	// heartbeatEvery overrides maxRateLimitHeartbeatInterval (tests only).
-	heartbeatEvery time.Duration
 }
 
 // DefaultThrottleRetry is the retry policy of the worker's Yahoo downloads.
@@ -52,8 +50,16 @@ func DefaultThrottleRetry() ThrottleRetry {
 // error, so the activity fails and Temporal retries it. Other errors and
 // successes are returned at once. Wrap a rate-limited download
 // (RateLimited) so every retry takes a token too. The backoff heartbeats
-// inside an activity and ends early, with ctx's error, when ctx ends.
+// inside an activity and ends early, with ctx's error, when ctx ends. A
+// rate limiter refusal (ErrYahooRateLimitBusy) is not a throttle: it is
+// returned at once.
 func RetryThrottled(download Downloader, policy ThrottleRetry) Downloader {
+	return retryThrottled(download, policy, maxRateLimitHeartbeatInterval)
+}
+
+// retryThrottled is RetryThrottled heartbeating at least every
+// maxHeartbeatEvery during a backoff.
+func retryThrottled(download Downloader, policy ThrottleRetry, maxHeartbeatEvery time.Duration) Downloader {
 	return func(ctx context.Context, url string) ([]byte, error) {
 		for attempt := 1; ; attempt++ {
 			body, err := download(ctx, url)
@@ -68,7 +74,7 @@ func RetryThrottled(download Downloader, policy ThrottleRetry) Downloader {
 				return body, err
 			}
 			metrics.IncYahooThrottleRetry(status)
-			if waitErr := sleepHeartbeating(ctx, backoff, policy.maxHeartbeatEvery()); waitErr != nil {
+			if waitErr := sleepHeartbeating(ctx, backoff, maxHeartbeatEvery); waitErr != nil {
 				return nil, fmt.Errorf("wait to retry throttled download (%w): %w", err, waitErr)
 			}
 		}
@@ -98,14 +104,6 @@ func (p ThrottleRetry) backoff(attempt int) time.Duration {
 		return d
 	}
 	return half + rand.N(half+1)
-}
-
-// maxHeartbeatEvery is the longest gap between heartbeats during a backoff.
-func (p ThrottleRetry) maxHeartbeatEvery() time.Duration {
-	if p.heartbeatEvery > 0 {
-		return p.heartbeatEvery
-	}
-	return maxRateLimitHeartbeatInterval
 }
 
 // logThrottled warns about one throttled attempt.

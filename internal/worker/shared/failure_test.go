@@ -135,6 +135,7 @@ func TestClassifyActivityError_RetryableUnchanged(t *testing.T) {
 		{"wrapped explicit ApplicationError", fmt.Errorf("import: %w", retryableApp)},
 		{"Yahoo throttle 999", fmt.Errorf("download: %w", &httpx.HTTPError{StatusCode: httpx.StatusYahooThrottled})},
 		{"throttle 429", fmt.Errorf("download: %w", &httpx.HTTPError{StatusCode: http.StatusTooManyRequests})},
+		{"Yahoo rate limiter busy: retry once the queue shortens", fmt.Errorf("wait for Yahoo rate limit: %w", ErrYahooRateLimitBusy)},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
