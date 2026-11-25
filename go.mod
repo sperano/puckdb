@@ -5,7 +5,7 @@ go 1.27.0
 require (
 	github.com/99designs/gqlgen v0.17.98
 	github.com/alicebob/miniredis/v2 v2.40.0
-	github.com/bsm/redislock v0.7.2
+	github.com/bsm/redislock v0.10.0
 	github.com/charmbracelet/glamour v1.0.0
 	github.com/charmbracelet/lipgloss v1.1.1-0.20250404203927-76690c660834
 	github.com/go-chi/chi/v5 v5.4.0
@@ -99,6 +99,7 @@ require (
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/prometheus/common v0.66.1 // indirect
 	github.com/prometheus/procfs v0.16.1 // indirect
+	github.com/redis/go-redis/v9 v9.19.0 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/robfig/cron v1.2.0 // indirect
