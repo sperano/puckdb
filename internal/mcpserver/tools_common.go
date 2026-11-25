@@ -3,11 +3,14 @@ package mcpserver
 import (
 	"fmt"
 	"math"
+	"slices"
 	"strconv"
+	"strings"
 
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/sperano/puckdb/internal/pgconv"
+	"github.com/sperano/puckdb/internal/sqlcdb"
 )
 
 // Integer arguments
@@ -208,11 +211,16 @@ func limitOrDefault(req mcp.CallToolRequest, defaultLimit int32) (int32, *mcp.Ca
 // boundedLimitOrDefault is limitOrDefault for a tool whose limit has its
 // own bounds (arg); absent is defaultLimit.
 func boundedLimitOrDefault(req mcp.CallToolRequest, arg intArg, defaultLimit int32) (int32, *mcp.CallToolResult) {
-	limit, given, errResult := optionalInt[int32](req, arg)
+	return intOrDefault(req, arg, defaultLimit)
+}
+
+// intOrDefault reads an optional int4 argument; absent is defaultValue.
+func intOrDefault(req mcp.CallToolRequest, arg intArg, defaultValue int32) (int32, *mcp.CallToolResult) {
+	value, given, errResult := optionalInt[int32](req, arg)
 	if errResult != nil || !given {
-		return defaultLimit, errResult
+		return defaultValue, errResult
 	}
-	return limit, nil
+	return value, nil
 }
 
 // requireIntSlice reads a required array of integers; every item must be
@@ -324,4 +332,36 @@ func optionalString(req mcp.CallToolRequest, name string) (string, *mcp.CallTool
 		return "", mcp.NewToolResultError(fmt.Sprintf("invalid %s %s: want a string", name, formatRaw(raw)))
 	}
 	return text, nil
+}
+
+// regularOrPlayoffsGames are the game types the team season summary and
+// threshold tools accept; the first is the default. Regular season and
+// playoffs are never added together.
+var regularOrPlayoffsGames = []sqlcdb.GameType{
+	sqlcdb.GameTypeRegularSeason,
+	sqlcdb.GameTypePlayoffs,
+}
+
+// regularOrPlayoffsGameType reads the optional game type argument name;
+// absent or empty is the regular season, and case and surrounding spaces
+// are ignored.
+func regularOrPlayoffsGameType(req mcp.CallToolRequest, name string) (sqlcdb.GameType, *mcp.CallToolResult) {
+	raw, errResult := optionalString(req, name)
+	if errResult != nil {
+		return "", errResult
+	}
+	text := strings.ToLower(strings.TrimSpace(raw))
+	if text == "" {
+		return regularOrPlayoffsGames[0], nil
+	}
+	gameType := sqlcdb.GameType(text)
+	if !slices.Contains(regularOrPlayoffsGames, gameType) {
+		accepted := make([]string, len(regularOrPlayoffsGames))
+		for i, t := range regularOrPlayoffsGames {
+			accepted[i] = string(t)
+		}
+		return "", mcp.NewToolResultError(fmt.Sprintf("unknown %s %s; accepted: %s",
+			name, formatRaw(raw), strings.Join(accepted, ", ")))
+	}
+	return gameType, nil
 }
