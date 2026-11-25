@@ -103,7 +103,8 @@ const (
 	thresholdPlayer3   = 99086603 // Gamma Three: regular season and playoffs
 	thresholdPlayer4   = 99086604 // Delta Four: season C only
 	thresholdPlayer5   = 99086605 // Echo Five: a distinct value in every column, season D
-	thresholdGoalie    = 99086606 // Golf Six: traded in season A
+	thresholdGoalie    = 99086606 // Golf Six: traded in season A, playoffs in season A
+	thresholdGoalie2   = 99086607 // Hotel Seven: two seasons
 )
 
 var thresholdSeasons = []int32{thresholdSeasonA, thresholdSeasonB, thresholdSeasonC, thresholdSeasonD}
@@ -165,15 +166,35 @@ func TestThresholdSeasonsEverySkaterStatReadsItsColumn(t *testing.T) {
 }
 
 // TestThresholdSeasonsGoaliesAgainstPostgres checks the goalie tool sums a
-// traded goalie's clubs, and that every goalie stat key reads its column.
+// traded goalie's clubs and honours min_seasons, the season range, the game
+// type and the limit, and that every goalie stat key reads its column.
 func TestThresholdSeasonsGoaliesAgainstPostgres(t *testing.T) {
 	q := thresholdFixture(t)
-	text, isError := callThreshold(t, q, goalieThresholdToolName, map[string]any{
-		"min_value": float64(40), "to_season": float64(thresholdSeasonC),
-	})
-	require.False(t, isError, text)
-	assert.Equal(t, "player_id,first_name,last_name,qualifying_seasons,best_value,seasons\n"+
-		"99086606,Golf,Six,1,41,20912092:41\n", text)
+	const header = "player_id,first_name,last_name,qualifying_seasons,best_value,seasons\n"
+	hotel := "99086607,Hotel,Seven,2,45,20912092:45 20922093:42\n"
+	golf := "99086606,Golf,Six,1,41,20912092:41\n"
+	upToC := map[string]any{"min_value": float64(40), "to_season": float64(thresholdSeasonC)}
+	tests := []struct {
+		name string
+		args map[string]any
+		want string
+	}{
+		{"every season", upToC, header + hotel + golf},
+		{"min seasons", withArg(upToC, "min_seasons", float64(2)), header + hotel},
+		{"season range", withArg(upToC, "from_season", float64(thresholdSeasonB)),
+			header + "99086607,Hotel,Seven,1,42,20922093:42\n"},
+		{"playoffs", withArg(withArg(upToC, thresholdGameTypeArg, "playoffs"), "min_value", float64(10)),
+			header + "99086606,Golf,Six,1,12,20912092:12\n"},
+		{"limit", withArg(upToC, "limit", float64(1)), header + hotel},
+		{"none qualifies", withArg(upToC, "min_seasons", float64(3)), noResultsText},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			text, isError := callThreshold(t, q, goalieThresholdToolName, tt.args)
+			require.False(t, isError, text)
+			assert.Equal(t, tt.want, text)
+		})
+	}
 
 	// Season D holds one club row with a distinct value per column.
 	want := map[string]int{"gp": 1, "gs": 2, "wins": 3, "losses": 4, "otl": 5, "shots_against": 6, "saves": 7, "shutouts": 8}
@@ -240,6 +261,7 @@ func seedThresholdFixture(t *testing.T, pool *pgxpool.Pool) {
 		exec(`INSERT INTO players (id, first_name, last_name, position) VALUES ($1, $2, $3, 'C')`, id, first, last)
 	}
 	exec(`INSERT INTO players (id, first_name, last_name, position) VALUES ($1, 'Golf', 'Six', 'G')`, thresholdGoalie)
+	exec(`INSERT INTO players (id, first_name, last_name, position) VALUES ($1, 'Hotel', 'Seven', 'G')`, thresholdGoalie2)
 
 	skater := `INSERT INTO club_skater_stats (season, game_type, team_id, player_id, games_played, goals, assists, points,
 		plus_minus, penalty_minutes, power_play_goals, shorthanded_goals, game_winning_goals, overtime_goals, shots,
@@ -272,11 +294,15 @@ func seedThresholdFixture(t *testing.T, pool *pgxpool.Pool) {
 	goalie := `INSERT INTO club_goalie_stats (season, game_type, team_id, player_id, games_played, games_started, wins,
 		losses, overtime_losses, goals_against_average, save_percentage, shots_against, saves, goals_against, shutouts,
 		goals, assists, points, penalty_minutes, toi_seconds)
-		VALUES ($1, 'regular_season', $2, $3, $4, $5, $6, $7, $8, 0, 0, $9, $10, 0, $11, 0, 0, 0, 0, 0)`
-	exec(goalie, thresholdSeasonA, thresholdFirstClub, thresholdGoalie, 0, 0, 20, 0, 0, 0, 0, 0)
-	exec(goalie, thresholdSeasonA, thresholdOtherClub, thresholdGoalie, 0, 0, 21, 0, 0, 0, 0, 0)
-	exec(goalie, thresholdSeasonB, thresholdFirstClub, thresholdGoalie, 0, 0, 39, 0, 0, 0, 0, 0)
-	exec(goalie, thresholdSeasonD, thresholdFirstClub, thresholdGoalie, 1, 2, 3, 4, 5, 6, 7, 8)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 0, 0, $10, $11, 0, $12, 0, 0, 0, 0, 0)`
+	const regular, playoffs = "regular_season", "playoffs"
+	exec(goalie, thresholdSeasonA, regular, thresholdFirstClub, thresholdGoalie, 0, 0, 20, 0, 0, 0, 0, 0)
+	exec(goalie, thresholdSeasonA, regular, thresholdOtherClub, thresholdGoalie, 0, 0, 21, 0, 0, 0, 0, 0)
+	exec(goalie, thresholdSeasonA, playoffs, thresholdOtherClub, thresholdGoalie, 0, 0, 12, 0, 0, 0, 0, 0)
+	exec(goalie, thresholdSeasonB, regular, thresholdFirstClub, thresholdGoalie, 0, 0, 39, 0, 0, 0, 0, 0)
+	exec(goalie, thresholdSeasonD, regular, thresholdFirstClub, thresholdGoalie, 1, 2, 3, 4, 5, 6, 7, 8)
+	exec(goalie, thresholdSeasonA, regular, thresholdFirstClub, thresholdGoalie2, 0, 0, 45, 0, 0, 0, 0, 0)
+	exec(goalie, thresholdSeasonB, regular, thresholdOtherClub, thresholdGoalie2, 0, 0, 42, 0, 0, 0, 0, 0)
 }
 
 // deleteThresholdFixture removes the fixture seasons and players, children
@@ -290,6 +316,6 @@ func deleteThresholdFixture(t *testing.T, pool *pgxpool.Pool) {
 	}
 	_, err := pool.Exec(ctx, `DELETE FROM seasons WHERE id = ANY($1)`, thresholdSeasons)
 	require.NoError(t, err)
-	_, err = pool.Exec(ctx, `DELETE FROM players WHERE id BETWEEN $1 AND $2`, thresholdPlayer1, thresholdGoalie)
+	_, err = pool.Exec(ctx, `DELETE FROM players WHERE id BETWEEN $1 AND $2`, thresholdPlayer1, thresholdGoalie2)
 	require.NoError(t, err)
 }

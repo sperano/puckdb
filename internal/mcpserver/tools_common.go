@@ -334,9 +334,9 @@ func optionalString(req mcp.CallToolRequest, name string) (string, *mcp.CallTool
 	return text, nil
 }
 
-// regularOrPlayoffsGames are the game types the club and team tools accept;
-// the first is the default. Regular season and playoffs are never added
-// together.
+// regularOrPlayoffsGames are the game types the team season summary and
+// threshold tools accept; the first is the default. Regular season and
+// playoffs are never added together.
 var regularOrPlayoffsGames = []sqlcdb.GameType{
 	sqlcdb.GameTypeRegularSeason,
 	sqlcdb.GameTypePlayoffs,
