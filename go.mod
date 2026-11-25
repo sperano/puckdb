@@ -28,7 +28,7 @@ require (
 	github.com/subosito/gotenv v1.6.0
 	github.com/uber-go/tally/v4 v4.1.17
 	github.com/vektah/gqlparser/v2 v2.5.64
-	go.temporal.io/api v1.61.0
+	go.temporal.io/api v1.64.3
 	go.temporal.io/sdk v1.39.0
 	go.temporal.io/sdk/contrib/tally v0.2.0
 	golang.org/x/oauth2 v0.37.0
@@ -86,7 +86,8 @@ require (
 	github.com/muesli/termenv v0.16.0 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/ncruces/go-strftime v1.0.0 // indirect
-	github.com/nexus-rpc/sdk-go v0.5.1 // indirect
+	github.com/nexus-rpc/nexus-proto-annotations v0.1.0 // indirect
+	github.com/nexus-rpc/sdk-go v0.6.0 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.4 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/prometheus/common v0.72.0 // indirect
