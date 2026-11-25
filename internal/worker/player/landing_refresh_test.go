@@ -241,6 +241,24 @@ func TestEnsurePlayerLandingCachedStaleDownloadErrorUsesCachedPage(t *testing.T)
 	client.AssertExpectations(t)
 }
 
+func TestEnsurePlayerLandingCachedUnreadableStaleDownloadErrorFails(t *testing.T) {
+	t.Parallel()
+	unreadable := []byte("{not json")
+	s := cacheStaleLandingBytes(t, unreadable)
+	downloadErr := errors.New("connection reset")
+	client := &MockNHLClient{}
+	client.On("PlayerLanding", mock.Anything, refreshTestPlayerID).Return(nil, downloadErr)
+
+	_, err := ensureRefreshTestLanding(refreshTestActivities(s, client, refreshTestMaxAge))
+
+	require.ErrorIs(t, err, downloadErr, "an unreadable page cannot stand in, so the batch retries")
+	assert.Empty(t, s.writes)
+	landingPath := resource.PlayerLanding{PlayerID: refreshTestPlayerID}.Path()
+	assert.Equal(t, unreadable, s.Get(landingPath))
+	assert.False(t, s.Has(resource.MissingPlayerLanding{PlayerID: refreshTestPlayerID}.Path()))
+	client.AssertExpectations(t)
+}
+
 func TestEnsurePlayerLandingCachedStaleRefreshCancelled(t *testing.T) {
 	t.Parallel()
 	parsed, err := json.Marshal(refreshTestLanding(true, cachedGamesPlayed))

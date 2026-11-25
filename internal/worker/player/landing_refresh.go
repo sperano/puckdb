@@ -22,9 +22,12 @@ const (
 	// the page is younger than LandingMaxAge, or it is final (an inactive
 	// player's).
 	landingCurrent
-	// landingStale: a page older than LandingMaxAge that is an active
-	// player's or does not parse; it is downloaded again.
+	// landingStale: an active player's page older than LandingMaxAge; it is
+	// downloaded again.
 	landingStale
+	// landingUnreadable: a page older than LandingMaxAge that does not parse;
+	// it is downloaded again, and cannot stand in for a failed download.
+	landingUnreadable
 )
 
 // cachedLandingState tells whether the cached landing page of res can be
@@ -47,7 +50,7 @@ func (a *Activities) cachedLandingState(ctx context.Context, res resource.Player
 	var parseErr *resource.ParseError
 	switch {
 	case errors.As(err, &parseErr):
-		return landingStale, nil
+		return landingUnreadable, nil
 	case err != nil:
 		return 0, fmt.Errorf("read player %s landing: %w", res.PlayerID.String(), err)
 	case !landing.IsActive:
@@ -57,15 +60,18 @@ func (a *Activities) cachedLandingState(ctx context.Context, res resource.Player
 }
 
 // keepStaleLanding handles a failed refresh (downloadErr) of the stale
-// cached page res: the page was served before, so it is kept rather than
-// the batch failed or the player marked missing (which would drop their
-// stored totals). A 404 rewrites the page's own bytes so its age restarts
-// and the NHL is asked again only after LandingMaxAge; any other error
-// leaves the page as is, to be retried on the next run. Cancellation is
-// returned.
+// cached page res (cached is landingStale or landingUnreadable): the page
+// was served before, so it is kept rather than the player marked missing
+// (which would drop their stored totals). A 404 rewrites the page's own
+// bytes so its age restarts and the NHL is asked again only after
+// LandingMaxAge. Any other error on a page that parses leaves it as is, to
+// be retried on the next run; on a page that does not parse, nothing can
+// stand in for the download, so downloadErr is returned and the batch
+// retries, as for a page never cached. Cancellation is returned.
 func (a *Activities) keepStaleLanding(
 	ctx context.Context,
 	res resource.PlayerLanding,
+	cached landingCacheState,
 	downloadErr error,
 ) (playerLandingStatus, error) {
 	if err := ctx.Err(); err != nil {
@@ -73,6 +79,9 @@ func (a *Activities) keepStaleLanding(
 	}
 	playerID := res.PlayerID.String()
 	if !errors.Is(downloadErr, nhl.ErrNotFound) {
+		if cached == landingUnreadable {
+			return 0, fmt.Errorf("refresh unreadable player %s landing: %w", playerID, downloadErr)
+		}
 		log.Warn().Err(downloadErr).Str("player_id", playerID).
 			Msg("Stale player landing refresh failed, using the cached page")
 		return playerLandingCached, nil

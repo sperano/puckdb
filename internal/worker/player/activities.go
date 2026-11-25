@@ -217,8 +217,8 @@ func (a *Activities) ensurePlayerLandingCached(
 
 	landing, err := a.NHLClient.PlayerLanding(ctx, playerID)
 	if err != nil {
-		if cached == landingStale {
-			return a.keepStaleLanding(ctx, landingRes, err)
+		if cached == landingStale || cached == landingUnreadable {
+			return a.keepStaleLanding(ctx, landingRes, cached, err)
 		}
 		if errors.Is(err, nhl.ErrNotFound) {
 			a.saveMissingPlayerLanding(ctx, missingRes, boxscorePlayer)
