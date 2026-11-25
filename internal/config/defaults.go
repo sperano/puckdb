@@ -107,6 +107,7 @@ const (
 	DefaultMaxPlayerLandingConcurrency = 20   // Cap on concurrent activities
 	DefaultPlayerLandingBatchSize      = 50   // Players per activity
 	DefaultPlayerLandingPlayersPerExec = 2000 // Players before ContinueAsNew
+	DefaultPlayerLandingMaxAge         = 24   // hours
 )
 
 // Asset download defaults

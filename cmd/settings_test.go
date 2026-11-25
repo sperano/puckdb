@@ -189,6 +189,13 @@ func TestBoxscorePlayerCacheTTLFrom(t *testing.T) {
 		[]string{"--boxscore-player-cache-ttl=17"}, &config.GobCacheFlags)))
 }
 
+func TestPlayerLandingMaxAgeFrom(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, 24*time.Hour, playerLandingMaxAgeFrom(boundViper(t, nil, &config.PlayerLandingFlags)))
+	assert.Equal(t, 6*time.Hour, playerLandingMaxAgeFrom(boundViper(t,
+		[]string{"--player-landing-max-age=6"}, &config.PlayerLandingFlags)))
+}
+
 type stubCloser struct{ err error }
 
 func (c stubCloser) Close() error { return c.err }

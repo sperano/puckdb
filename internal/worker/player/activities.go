@@ -87,9 +87,14 @@ type Activities struct {
 	// apply the process's Yahoo rate limit. Nil: only stored pages are read.
 	YahooPlayerPages shared.Downloader
 	// Now is the clock that dates recorded Yahoo player page 404s and
-	// checks their age; nil: time.Now.
+	// checks their age and the age of cached player landings; nil: time.Now.
 	Now                    func() time.Time
 	BoxscorePlayerCacheTTL time.Duration
+	// LandingMaxAge is the age past which an active player's cached landing
+	// page is downloaded again (--player-landing-max-age), so its season
+	// totals follow the season; zero: a cached landing is never downloaded
+	// again.
+	LandingMaxAge time.Duration
 	// Manifests holds the durable player manifests and per-player errors of
 	// ProcessPlayers chains.
 	Manifests ProcessPlayersStore
@@ -178,8 +183,9 @@ func (a *Activities) cachePlayerLanding(ctx context.Context, p store.BoxscorePla
 	return status, nil
 }
 
-// ensurePlayerLandingCached downloads player landing data if not already cached.
-// Returns a status indicating whether data was downloaded, already cached, or missing (404).
+// ensurePlayerLandingCached downloads player landing data unless it is
+// cached and current (cachedLandingState): a stale cached page is
+// downloaded again, and kept when that download answers 404. Returns a status indicating whether data was downloaded, already cached, or missing (404).
 func (a *Activities) ensurePlayerLandingCached(
 	ctx context.Context,
 	playerID nhl.PlayerID,
@@ -193,13 +199,23 @@ func (a *Activities) ensurePlayerLandingCached(
 		return playerLandingMissing, nil
 	}
 
-	if resource.Exists(ctx, a.Storage, landingRes) {
+	cached, err := a.cachedLandingState(ctx, landingRes)
+	if err != nil {
+		return 0, err
+	}
+	if cached == landingCurrent {
 		log.Debug().Str("player_id", playerID.String()).Msg("Player landing already cached")
 		return playerLandingCached, nil
 	}
 
 	landing, err := a.NHLClient.PlayerLanding(ctx, playerID)
 	if err != nil {
+		if errors.Is(err, nhl.ErrNotFound) && cached == landingStale {
+			// The page was served before: keep it rather than mark the
+			// player missing and lose its stored totals.
+			log.Warn().Str("player_id", playerID.String()).Msg("Stale player landing answered 404, keeping the cached page")
+			return playerLandingCached, nil
+		}
 		if errors.Is(err, nhl.ErrNotFound) {
 			missingInfo := store.MissingPlayerLandingData{
 				FirstName: boxscorePlayer.FirstName,

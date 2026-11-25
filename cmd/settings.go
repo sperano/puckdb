@@ -97,6 +97,12 @@ func boxscorePlayerCacheTTLFrom(v *viper.Viper) time.Duration {
 	return time.Duration(v.GetInt(config.FlagBoxscorePlayerCacheTTL)) * time.Minute
 }
 
+// playerLandingMaxAgeFrom reads the age past which an active player's
+// cached landing page is downloaded again.
+func playerLandingMaxAgeFrom(v *viper.Viper) time.Duration {
+	return time.Duration(v.GetInt(config.FlagPlayerLandingMaxAge)) * time.Hour
+}
+
 // adminAuthFrom reads --admin-group and --admin-token.
 func adminAuthFrom(v *viper.Viper) graph.AdminAuth {
 	return graph.AdminAuth{
