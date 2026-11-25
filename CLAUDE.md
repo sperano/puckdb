@@ -386,7 +386,7 @@ PostgreSQL database storing NHL game data and Yahoo Fantasy league data. Two mai
 | `players` | NHL players (skaters + goalies) | `id` (NHL ID), `yahoo_id`, `first_name`, `last_name`, `team_id`, `position` |
 | `seasons` | NHL seasons | `id` (e.g., 20242025), `standings_start`, `standings_end` |
 | `franchises` | NHL franchises (historical) | `id`, `full_name`, `team_common_name` |
-| `season_teams` | Teams per season (handles relocations) | `season_id`, `team_id`, `franchise_id`, `abbrev`, `division_name` |
+| `season_teams` | Teams per season (handles relocations) | `season`, `team_id`, `franchise_id`, `abbrev`, `division_name` |
 | `season_rosters` | Per-season roster snapshots (PK `(season, team_id, player_id)`) | `season`, `team_id`, `player_id`, `position`, `shoots_catches`, `sweater_number`, `height_inches`, `weight_pounds`, `birth_date`, `birth_country` |
 | `games` | Individual games | `id`, `season`, `game_type`, `game_date`, `home_team_id`, `away_team_id`, `game_state` |
 | `game_broadcasts` | Broadcast feeds per game (PK `(game_id, broadcast_id)`) | `game_id`, `broadcast_id`, `market`, `country_code`, `network`, `sequence_number` |
@@ -541,7 +541,7 @@ players.id ←──── game_skater_stats.player_id
 players.id ←──── game_goalie_stats.player_id
 players.yahoo_id ───→ yahoo_team_rosters.player_id (matched via enrichment)
 
-seasons.id ←──── season_teams.season_id
+seasons.id ←──── season_teams.season
 seasons.id ←──── games.season
 
 franchises.id ←──── season_teams.franchise_id

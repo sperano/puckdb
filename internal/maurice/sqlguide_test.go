@@ -2,6 +2,10 @@ package maurice
 
 import (
 	"context"
+	"maps"
+	"regexp"
+	"slices"
+	"strings"
 	"testing"
 
 	"github.com/sperano/puckdb/internal/fixtures/pgtest"
@@ -43,18 +47,36 @@ func TestSystemPrompt_IncludesSQLGuide(t *testing.T) {
 	assert.Contains(t, SystemPrompt(nil), "\n\n"+sqlGuide)
 }
 
-// TestSQLGuide_NamesListedTables keeps sqlGuideColumns in step with the
-// guide: a table the guide adds without listing it here goes unchecked by
-// the database test.
-func TestSQLGuide_NamesListedTables(t *testing.T) {
-	for table := range sqlGuideColumns {
-		assert.Contains(t, sqlGuide, table)
+// guideTablePattern matches a guide bullet that describes tables: one or
+// more table names separated by " / ", then ':' or " (".
+var guideTablePattern = regexp.MustCompile(`(?m)^- ([a-z_]+(?: / [a-z_]+)*)(?::| \()`)
+
+// guideTables returns the tables the guide's bullets describe.
+func guideTables(guide string) []string {
+	var tables []string
+	for _, m := range guideTablePattern.FindAllStringSubmatch(guide, -1) {
+		tables = append(tables, strings.Split(m[1], " / ")...)
 	}
+	return tables
+}
+
+// TestSQLGuide_NamesListedTables keeps sqlGuideColumns in step with the
+// guide: the tables its bullets describe are exactly the listed ones, so a
+// table the guide adds without listing it here, which the database test
+// would leave unchecked, fails.
+func TestSQLGuide_NamesListedTables(t *testing.T) {
+	assert.ElementsMatch(t, slices.Collect(maps.Keys(sqlGuideColumns)), guideTables(sqlGuide))
 	for _, labels := range sqlGuideEnumLabels {
 		for _, label := range labels {
 			assert.Contains(t, sqlGuide, "'"+label+"'")
 		}
 	}
+}
+
+func TestGuideTables_ReadsTableBulletsOnly(t *testing.T) {
+	guide := "intro\n- Every season column is an int: x.\n- a_one / a_two: cols.\n" +
+		"- b_one (c1, c2) names.\n- An error like \"x\" (y).\n- games_played is not a bullet table"
+	assert.Equal(t, []string{"a_one", "a_two", "b_one"}, guideTables(guide))
 }
 
 func TestSQLGuide_NamesExistingColumns(t *testing.T) {
