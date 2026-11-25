@@ -227,10 +227,12 @@ const (
 	FlagYahooPoolLeagueConcurrency     = "yahoo-pool-league-concurrency"
 )
 
-// Yahoo request rate limiting flags (one token bucket per process)
+// Yahoo request rate limiting flags (one token bucket per deployment or per
+// process, by FlagYahooRateLimitScope)
 const (
-	FlagYahooRateLimit = "yahoo-rate-limit"
-	FlagYahooRateBurst = "yahoo-rate-burst"
+	FlagYahooRateLimit      = "yahoo-rate-limit"
+	FlagYahooRateBurst      = "yahoo-rate-burst"
+	FlagYahooRateLimitScope = "yahoo-rate-limit-scope"
 )
 
 // NHL player landing download flags
@@ -274,8 +276,8 @@ const (
 const (
 	FlagGameDownloadConcurrency = "game-download-concurrency"
 	// FlagYahooTeamDownloadConcurrency caps the Yahoo team downloads (roster,
-	// team summary) one FetchDay activity runs at once. The per-process Yahoo
-	// rate limit (FlagYahooRateLimit) still bounds the request rate.
+	// team summary) one FetchDay activity runs at once. The Yahoo rate limit
+	// (FlagYahooRateLimit) still bounds the request rate.
 	FlagYahooTeamDownloadConcurrency = "yahoo-team-download-concurrency"
 	FlagMaxSeasonConcurrency         = "max-season-concurrency"
 	FlagDayConcurrency               = "day-concurrency"
@@ -502,11 +504,12 @@ var YahooPlayerFlags = FlagGroup{
 	},
 }
 
-// YahooRateLimitFlags defines the per-process Yahoo request rate limit.
+// YahooRateLimitFlags defines the Yahoo request rate limit and its scope.
 var YahooRateLimitFlags = FlagGroup{
 	Flags: []FlagDef{
-		{FlagYahooRateLimit, "", DefaultYahooRateLimit, "Yahoo requests per second for this process (the deployment's rate is this times its replica count)", false},
-		{FlagYahooRateBurst, "", DefaultYahooRateBurst, "Yahoo requests this process may start back to back after an idle period", false},
+		{FlagYahooRateLimit, "", DefaultYahooRateLimit, "Yahoo requests per second, for the whole deployment (--yahoo-rate-limit-scope=deployment) or for each process (process)", false},
+		{FlagYahooRateBurst, "", DefaultYahooRateBurst, "Yahoo requests that may start back to back after an idle period, in the same scope as --yahoo-rate-limit", false},
+		{FlagYahooRateLimitScope, "", DefaultYahooRateLimitScope, "Scope of the Yahoo rate limit: deployment (one token bucket in Redis shared by every process; a process falls back to its own bucket while Redis is unavailable) or process (one bucket per process)", false},
 	},
 }
 

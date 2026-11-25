@@ -26,7 +26,7 @@ type YahooSeasonSyncResult struct {
 
 // FetchYahooSeasonWorkflow fetches Yahoo metadata without scheduling NHL work.
 // Its activities run with YahooDownloadActivityOptions: their downloads wait
-// on the pod's Yahoo rate limiter behind every other activity's.
+// on the Yahoo rate limiter behind every other activity's.
 func FetchYahooSeasonWorkflow(ctx workflow.Context, input YahooSeasonWorkflowInput) (YahooSeasonSyncResult, error) {
 	ctx = workflow.WithActivityOptions(ctx, shared.YahooDownloadActivityOptions())
 	result := YahooSeasonSyncResult{}

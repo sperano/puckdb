@@ -93,8 +93,9 @@ func (a *DailyScheduleActivities) FetchDay(ctx context.Context, input FetchDayIn
 }
 
 // fetchYahooTeams fetches every team's roster and team summary for day, at
-// most getYahooTeamDownloadConcurrency downloads at a time; the process-wide
-// Yahoo rate limiter inside a.Download still paces the requests. The first
+// most getYahooTeamDownloadConcurrency downloads at a time; the Yahoo rate
+// limiter inside a.Download (deployment-wide by default) still paces the
+// requests, and a throttled download is retried there. The first
 // failure stops the rest, and its error names the team; a canceled ctx is an
 // error even when it stopped every download from starting.
 func (a *DailyScheduleActivities) fetchYahooTeams(ctx context.Context, day time.Time, gameKey int, teams []yahoo.TeamInfo) error {

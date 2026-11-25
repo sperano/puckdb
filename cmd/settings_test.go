@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alicebob/miniredis/v2"
+	"github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"github.com/sperano/puckdb/internal/appuser"
@@ -173,12 +175,49 @@ func TestYahooRateLimitFrom(t *testing.T) {
 		t.Parallel()
 		got := yahooRateLimitFrom(boundViper(t, nil, &config.YahooRateLimitFlags))
 		assert.Equal(t, shared.DefaultYahooRateLimit(), got)
-		assert.Equal(t, shared.YahooRateLimit{PerSecond: 0.25, Burst: 2}, got)
+		assert.Equal(t, shared.YahooRateLimit{PerSecond: 2, Burst: 2}, got)
 	})
 	t.Run("flags override", func(t *testing.T) {
 		t.Parallel()
 		v := boundViper(t, []string{"--yahoo-rate-limit=1.5", "--yahoo-rate-burst=3"}, &config.YahooRateLimitFlags)
 		assert.Equal(t, shared.YahooRateLimit{PerSecond: 1.5, Burst: 3}, yahooRateLimitFrom(v))
+	})
+}
+
+func TestYahooRateLimiterFrom(t *testing.T) {
+	t.Parallel()
+	redisClient := redis.NewClient(&redis.Options{Addr: miniredis.RunT(t).Addr()})
+	t.Cleanup(func() { assert.NoError(t, redisClient.Close()) })
+
+	t.Run("deployment scope by default", func(t *testing.T) {
+		t.Parallel()
+		limiter, err := yahooRateLimiterFrom(boundViper(t, nil, &config.YahooRateLimitFlags), redisClient)
+		require.NoError(t, err)
+		assert.IsType(t, &shared.DeploymentRateLimiter{}, limiter)
+	})
+	t.Run("process scope", func(t *testing.T) {
+		t.Parallel()
+		v := boundViper(t, []string{"--yahoo-rate-limit-scope=process"}, &config.YahooRateLimitFlags)
+		limiter, err := yahooRateLimiterFrom(v, nil)
+		require.NoError(t, err)
+		assert.IsType(t, &shared.LocalRateLimiter{}, limiter)
+	})
+	t.Run("unknown scope", func(t *testing.T) {
+		t.Parallel()
+		v := boundViper(t, []string{"--yahoo-rate-limit-scope=cluster"}, &config.YahooRateLimitFlags)
+		_, err := yahooRateLimiterFrom(v, redisClient)
+		require.ErrorIs(t, err, errInvalidYahooRateLimitScope)
+	})
+	t.Run("deployment scope needs Redis", func(t *testing.T) {
+		t.Parallel()
+		_, err := yahooRateLimiterFrom(boundViper(t, nil, &config.YahooRateLimitFlags), nil)
+		require.ErrorIs(t, err, shared.ErrInvalidYahooRateLimit)
+	})
+	t.Run("invalid rate", func(t *testing.T) {
+		t.Parallel()
+		v := boundViper(t, []string{"--yahoo-rate-limit=0"}, &config.YahooRateLimitFlags)
+		_, err := yahooRateLimiterFrom(v, redisClient)
+		require.ErrorIs(t, err, shared.ErrInvalidYahooRateLimit)
 	})
 }
 

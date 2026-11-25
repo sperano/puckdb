@@ -87,18 +87,32 @@ const (
 	// DefaultYahooGamePlayerListConcurrency is how many seasons' game player
 	// lists download at once. Each season walks its pages one at a time, so
 	// no page is fetched past a list's end; the seasons' pages spread over
-	// the worker replicas, each with its own Yahoo rate limiter.
+	// the worker replicas, all paced by the Yahoo rate limiter.
 	DefaultYahooGamePlayerListConcurrency = 4
 )
 
-// Yahoo request rate limit defaults. The limit is per process: 16 worker
-// replicas at 0.25 req/s send at most 4 req/s to Yahoo, under the 4.4 req/s
-// the cluster sustained without being throttled (season sync, 2026-10-11);
-// the api process adds its own 0.25 req/s for live draft polls.
+// Yahoo request rate limit defaults. With the default deployment scope the
+// limit is shared by every process of the deployment through one Redis token
+// bucket (shared.DeploymentRateLimiter): workers and the api's live draft
+// polls together send at most DefaultYahooRateLimit requests per second.
+// Yahoo throttled (HTTP 999) a 16-replica worker sending up to 4 req/s
+// (2026-11-25), and an uncached season refetch achieved about 1.5 req/s
+// through the retries, so 2 req/s is a conservative deployment-wide rate.
 // A burst of 2 lets a live draft poll (status, then results) run back to back.
 const (
-	DefaultYahooRateLimit = 0.25 // requests per second
-	DefaultYahooRateBurst = 2
+	DefaultYahooRateLimit      = 2.0 // requests per second, deployment-wide by default
+	DefaultYahooRateBurst      = 2
+	DefaultYahooRateLimitScope = YahooRateLimitScopeDeployment
+)
+
+// Values of --yahoo-rate-limit-scope.
+const (
+	// YahooRateLimitScopeDeployment shares one token bucket in Redis among
+	// every process of the deployment.
+	YahooRateLimitScopeDeployment = "deployment"
+	// YahooRateLimitScopeProcess gives each process its own token bucket, so
+	// the deployment's rate is the limit times its number of processes.
+	YahooRateLimitScopeProcess = "process"
 )
 
 // NHL player landing download defaults

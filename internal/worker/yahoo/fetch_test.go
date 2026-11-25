@@ -218,7 +218,7 @@ func TestFetcher_CanceledWhileRateLimitedReturnsPromptly(t *testing.T) {
 	limiter := rate.NewLimiter(rate.Every(time.Hour), 1)
 	require.True(t, limiter.Allow(), "drain the bucket so the next download waits an hour")
 	h := newFetchHarness([]byte(validLeagueFetchXML))
-	h.fetcher.Download = shared.RateLimited(limiter, h.fetcher.Download)
+	h.fetcher.Download = shared.RateLimited(shared.NewLocalRateLimiter(limiter), h.fetcher.Download)
 	res := resource.League{Season: testYahooSeason, LeagueID: testLeagueID, GameKey: testGameKey}
 
 	ctx, cancel := context.WithCancel(context.Background())

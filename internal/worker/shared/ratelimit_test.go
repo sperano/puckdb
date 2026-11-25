@@ -39,8 +39,8 @@ const (
 )
 
 // unlimited returns a limiter that never makes a test wait.
-func unlimited() *rate.Limiter {
-	return rate.NewLimiter(rate.Inf, 1)
+func unlimited() *LocalRateLimiter {
+	return NewLocalRateLimiter(rate.NewLimiter(rate.Inf, 1))
 }
 
 // drained returns a limiter whose next token is interval away.
@@ -101,7 +101,7 @@ func TestRateLimited_CanceledWaitReturnsPromptlyWithoutDownloading(t *testing.T)
 	t.Parallel()
 	limiter := drained(t, time.Hour)
 	var calls atomic.Int32
-	download := RateLimited(limiter, countingDownloader(&calls))
+	download := RateLimited(NewLocalRateLimiter(limiter), countingDownloader(&calls))
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -118,7 +118,7 @@ func TestRateLimited_CanceledWaitReturnsPromptlyWithoutDownloading(t *testing.T)
 func TestRateLimited_ExpiredDeadlineDoesNotDownload(t *testing.T) {
 	t.Parallel()
 	var calls atomic.Int32
-	download := RateLimited(drained(t, time.Hour), countingDownloader(&calls))
+	download := RateLimited(NewLocalRateLimiter(drained(t, time.Hour)), countingDownloader(&calls))
 
 	ctx, cancel := context.WithTimeout(context.Background(), cancelAfter)
 	defer cancel()
@@ -135,7 +135,7 @@ func TestRateLimited_AlreadyCanceledContextTakesNoToken(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	_, err := RateLimited(limiter, countingDownloader(&calls))(ctx, "https://fantasysports.yahooapis.com/")
+	_, err := RateLimited(NewLocalRateLimiter(limiter), countingDownloader(&calls))(ctx, "https://fantasysports.yahooapis.com/")
 
 	require.ErrorIs(t, err, context.Canceled)
 	assert.Zero(t, calls.Load())
@@ -150,7 +150,7 @@ func TestWaitForToken_HeartbeatsWhileWaitingInActivity(t *testing.T) {
 	env.SetOnActivityHeartbeatListener(func(*activity.Info, converter.EncodedValues) { heartbeats.Add(1) })
 	limiter := drained(t, testHeartbeatWait)
 	env.RegisterActivityWithOptions(func(ctx context.Context) error {
-		return waitForToken(ctx, limiter, testHeartbeatInterval)
+		return waitForToken(ctx, NewLocalRateLimiter(limiter), testHeartbeatInterval)
 	}, activity.RegisterOptions{Name: "wait"})
 
 	_, err := env.ExecuteActivity("wait")

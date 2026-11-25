@@ -72,8 +72,9 @@ type taskActivityDeps struct {
 	redisClient     *redis.Client
 	yahooDownloader shared.Downloader
 	// yahooPlayerPages fetches public Yahoo Sports player pages (birth
-	// dates). It shares yahooDownloader's rate limiter: both count against
-	// Yahoo.
+	// dates). It shares yahooDownloader's rate limiter, both count against
+	// Yahoo, and both retry a throttled download (999, 429) inside the
+	// activity (shared.RetryThrottled).
 	yahooPlayerPages shared.Downloader
 	// yahooGameKeys is the worker's one in-memory Yahoo game key cache,
 	// shared by the Yahoo and NHL fetch activities.
@@ -88,7 +89,7 @@ func registerTasksActivities(w worker.Worker, pool *pgxpool.Pool, redisClient *r
 	if err != nil {
 		return err
 	}
-	yahooLimiter, err := newYahooRateLimiter()
+	yahooLimiter, err := newYahooRateLimiter(redisClient)
 	if err != nil {
 		return err
 	}
@@ -104,8 +105,8 @@ func registerTasksActivities(w worker.Worker, pool *pgxpool.Pool, redisClient *r
 		nhlClient:              shared.NewNHLClient(),
 		gobCache:               gobCache,
 		redisClient:            redisClient,
-		yahooDownloader:        newYahooDownloader(redisClient, yahooLimiter),
-		yahooPlayerPages:       shared.RateLimited(yahooLimiter, httpx.DownloadPublic),
+		yahooDownloader:        shared.RetryThrottled(newYahooDownloader(redisClient, yahooLimiter), shared.DefaultThrottleRetry()),
+		yahooPlayerPages:       shared.RetryThrottled(shared.RateLimited(yahooLimiter, httpx.DownloadPublic), shared.DefaultThrottleRetry()),
 		yahooGameKeys:          yahoo.NewGameKeys(nil),
 		boxscorePlayerCacheTTL: boxscorePlayerCacheTTLFrom(viper.GetViper()),
 		playerLandingMaxAge:    landingMaxAge,

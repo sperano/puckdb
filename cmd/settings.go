@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -22,7 +23,6 @@ import (
 	"github.com/sperano/puckdb/internal/yahoolink"
 	"github.com/spf13/viper"
 	"go.temporal.io/sdk/client"
-	"golang.org/x/time/rate"
 )
 
 // The readers below are the only place where library client settings come
@@ -84,12 +84,47 @@ func yahooAuthFrom(v *viper.Viper) httpx.YahooAuth {
 	}
 }
 
-// yahooRateLimitFrom reads the --yahoo-rate-* per-process limiter flags.
+// yahooRateLimitFrom reads the --yahoo-rate-limit and --yahoo-rate-burst
+// limiter flags.
 func yahooRateLimitFrom(v *viper.Viper) shared.YahooRateLimit {
 	return shared.YahooRateLimit{
 		PerSecond: v.GetFloat64(config.FlagYahooRateLimit),
 		Burst:     v.GetInt(config.FlagYahooRateBurst),
 	}
+}
+
+// errInvalidYahooRateLimitScope reports a --yahoo-rate-limit-scope value
+// other than deployment or process.
+var errInvalidYahooRateLimitScope = errors.New("invalid Yahoo rate limit scope")
+
+// yahooRateLimitScopeFrom reads --yahoo-rate-limit-scope.
+func yahooRateLimitScopeFrom(v *viper.Viper) (string, error) {
+	scope := v.GetString(config.FlagYahooRateLimitScope)
+	switch scope {
+	case config.YahooRateLimitScopeDeployment, config.YahooRateLimitScopeProcess:
+		return scope, nil
+	}
+	return "", fmt.Errorf("%w: --%s must be %q or %q, got %q", errInvalidYahooRateLimitScope,
+		config.FlagYahooRateLimitScope, config.YahooRateLimitScopeDeployment, config.YahooRateLimitScopeProcess, scope)
+}
+
+// yahooRateLimiterFrom builds the Yahoo request limiter the --yahoo-rate-*
+// flags of v configure: one token bucket in redisClient shared by the whole
+// deployment, or the process's own.
+func yahooRateLimiterFrom(v *viper.Viper, redisClient *redis.Client) (shared.RateLimiter, error) {
+	scope, err := yahooRateLimitScopeFrom(v)
+	if err != nil {
+		return nil, err
+	}
+	limit := yahooRateLimitFrom(v)
+	if scope == config.YahooRateLimitScopeProcess {
+		return shared.NewYahooRateLimiter(limit)
+	}
+	if redisClient == nil {
+		// A nil *redis.Client would reach the limiter as a non-nil interface.
+		return nil, fmt.Errorf("%w: the deployment scope needs a Redis client", shared.ErrInvalidYahooRateLimit)
+	}
+	return shared.NewDeploymentRateLimiter(redisClient, limit)
 }
 
 // boxscorePlayerCacheTTLFrom reads the boxscore-player Redis lifetime.
@@ -194,16 +229,18 @@ func closeOrWarn(c io.Closer, what string) {
 	}
 }
 
-// newYahooRateLimiter builds the process's Yahoo request limiter from the
-// --yahoo-rate-* flags. Call it once per process and share the result by
-// every Yahoo downloader, or the process exceeds its configured rate.
-func newYahooRateLimiter() (*rate.Limiter, error) {
-	return shared.NewYahooRateLimiter(yahooRateLimitFrom(viper.GetViper()))
+// newYahooRateLimiter builds the Yahoo request limiter from the
+// --yahoo-rate-* flags, over redisClient for the deployment scope. Call it
+// once per process and share the result by every Yahoo downloader, or the
+// process exceeds its configured rate (its fallback's, for the deployment
+// scope).
+func newYahooRateLimiter(redisClient *redis.Client) (shared.RateLimiter, error) {
+	return yahooRateLimiterFrom(viper.GetViper(), redisClient)
 }
 
 // newYahooDownloader downloads Yahoo resources with the configured OAuth2
 // application and the token stored in redisClient, at the rate limiter allows.
-func newYahooDownloader(redisClient *redis.Client, limiter *rate.Limiter) shared.Downloader {
+func newYahooDownloader(redisClient *redis.Client, limiter shared.RateLimiter) shared.Downloader {
 	return shared.NewYahooDownloader(redisClient, yahooAuthFrom(viper.GetViper()), limiter)
 }
 
