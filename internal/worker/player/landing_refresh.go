@@ -6,6 +6,9 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/rs/zerolog/log"
+	"github.com/sperano/nhl-api-go/nhl"
+
 	"github.com/sperano/puckdb/internal/resource"
 )
 
@@ -15,11 +18,12 @@ type landingCacheState int
 const (
 	// landingAbsent: no cached page, it must be downloaded.
 	landingAbsent landingCacheState = iota
-	// landingCurrent: the cached page is younger than LandingMaxAge, or
-	// final (an inactive player's).
+	// landingCurrent: the cached page is used as is: LandingMaxAge is zero,
+	// the page is younger than LandingMaxAge, or it is final (an inactive
+	// player's).
 	landingCurrent
-	// landingStale: an active player's page older than LandingMaxAge, or an
-	// unreadable one; it is downloaded again.
+	// landingStale: a page older than LandingMaxAge that is an active
+	// player's or does not parse; it is downloaded again.
 	landingStale
 )
 
@@ -50,4 +54,36 @@ func (a *Activities) cachedLandingState(ctx context.Context, res resource.Player
 		return landingCurrent, nil
 	}
 	return landingStale, nil
+}
+
+// keepStaleLanding handles a failed refresh (downloadErr) of the stale
+// cached page res: the page was served before, so it is kept rather than
+// the batch failed or the player marked missing (which would drop their
+// stored totals). A 404 rewrites the page's own bytes so its age restarts
+// and the NHL is asked again only after LandingMaxAge; any other error
+// leaves the page as is, to be retried on the next run. Cancellation is
+// returned.
+func (a *Activities) keepStaleLanding(
+	ctx context.Context,
+	res resource.PlayerLanding,
+	downloadErr error,
+) (playerLandingStatus, error) {
+	if err := ctx.Err(); err != nil {
+		return 0, err
+	}
+	playerID := res.PlayerID.String()
+	if !errors.Is(downloadErr, nhl.ErrNotFound) {
+		log.Warn().Err(downloadErr).Str("player_id", playerID).
+			Msg("Stale player landing refresh failed, using the cached page")
+		return playerLandingCached, nil
+	}
+	data, err := resource.Read(ctx, a.Storage, res)
+	if err != nil {
+		return 0, fmt.Errorf("read stale player %s landing: %w", playerID, err)
+	}
+	if err := resource.Write(ctx, a.Storage, res, data); err != nil {
+		return 0, fmt.Errorf("renew stale player %s landing: %w", playerID, err)
+	}
+	log.Warn().Str("player_id", playerID).Msg("Stale player landing answered 404, keeping the cached page")
+	return playerLandingCached, nil
 }

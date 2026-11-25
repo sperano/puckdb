@@ -191,9 +191,35 @@ func TestBoxscorePlayerCacheTTLFrom(t *testing.T) {
 
 func TestPlayerLandingMaxAgeFrom(t *testing.T) {
 	t.Parallel()
-	assert.Equal(t, 24*time.Hour, playerLandingMaxAgeFrom(boundViper(t, nil, &config.PlayerLandingFlags)))
-	assert.Equal(t, 6*time.Hour, playerLandingMaxAgeFrom(boundViper(t,
-		[]string{"--player-landing-max-age=6"}, &config.PlayerLandingFlags)))
+	for _, tc := range []struct {
+		name string
+		args []string
+		want time.Duration
+	}{
+		{"default", nil, 24 * time.Hour},
+		{"override", []string{"--player-landing-max-age=6"}, 6 * time.Hour},
+		{"zero disables refresh", []string{"--player-landing-max-age=0"}, 0},
+		{"maximum", []string{"--player-landing-max-age=8760"}, 8760 * time.Hour},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got, err := playerLandingMaxAgeFrom(boundViper(t, tc.args, &config.PlayerLandingFlags))
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, got)
+		})
+	}
+}
+
+func TestPlayerLandingMaxAgeFromRejectsOutOfRange(t *testing.T) {
+	t.Parallel()
+	for _, hours := range []string{"-1", "8761"} {
+		t.Run(hours, func(t *testing.T) {
+			t.Parallel()
+			_, err := playerLandingMaxAgeFrom(boundViper(t,
+				[]string{"--player-landing-max-age=" + hours}, &config.PlayerLandingFlags))
+			require.EqualError(t, err, "--player-landing-max-age: "+hours+" hours is outside [0, 8760]")
+		})
+	}
 }
 
 type stubCloser struct{ err error }

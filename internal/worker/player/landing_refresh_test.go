@@ -27,12 +27,27 @@ const (
 
 var refreshTestNow = time.Date(2026, 11, 24, 12, 0, 0, 0, time.UTC)
 
-// statFailStorage fails Stat or Read with the set error, delegating the
-// rest to MemStorage.
+// statFailStorage fails Stat, Read (after readsBeforeErr successful reads)
+// or Write with the set error, records the writes and delegates the rest to
+// MemStorage.
 type statFailStorage struct {
 	*store.MemStorage
-	statErr error
-	readErr error
+	statErr        error
+	readErr        error
+	readsBeforeErr int
+	writeErr       error
+	writes         map[string][][]byte
+}
+
+func (s *statFailStorage) Write(ctx context.Context, path string, data []byte) error {
+	if s.writes == nil {
+		s.writes = make(map[string][][]byte)
+	}
+	s.writes[path] = append(s.writes[path], data)
+	if s.writeErr != nil {
+		return s.writeErr
+	}
+	return s.MemStorage.Write(ctx, path, data)
 }
 
 func (s *statFailStorage) Stat(ctx context.Context, path string) (os.FileInfo, error) {
@@ -44,7 +59,10 @@ func (s *statFailStorage) Stat(ctx context.Context, path string) (os.FileInfo, e
 
 func (s *statFailStorage) Read(ctx context.Context, path string) ([]byte, error) {
 	if s.readErr != nil {
-		return nil, s.readErr
+		if s.readsBeforeErr == 0 {
+			return nil, s.readErr
+		}
+		s.readsBeforeErr--
 	}
 	return s.MemStorage.Read(ctx, path)
 }
@@ -96,7 +114,11 @@ func refreshTestActivities(s store.Storage, client *MockNHLClient, maxAge time.D
 }
 
 func ensureRefreshTestLanding(act *Activities) (playerLandingStatus, error) {
-	return act.ensurePlayerLandingCached(context.Background(), refreshTestPlayerID,
+	return ensureRefreshTestLandingCtx(context.Background(), act)
+}
+
+func ensureRefreshTestLandingCtx(ctx context.Context, act *Activities) (playerLandingStatus, error) {
+	return act.ensurePlayerLandingCached(ctx, refreshTestPlayerID,
 		store.BoxscorePlayer{ID: int64(refreshTestPlayerID), FirstName: "Leon", LastName: "Draisaitl"})
 }
 
@@ -159,34 +181,111 @@ func TestEnsurePlayerLandingCachedKeepsCurrentLanding(t *testing.T) {
 	}
 }
 
+// cacheStaleLandingBytes stores data as the cached page, refreshTestMaxAge
+// old, and returns the storage recording writes over it.
+func cacheStaleLandingBytes(t *testing.T, data []byte) *statFailStorage {
+	t.Helper()
+	mem := store.NewMemStorage()
+	mem.SetFileWithTime(resource.PlayerLanding{PlayerID: refreshTestPlayerID}.Path(), data,
+		refreshTestNow.Add(-refreshTestMaxAge))
+	return &statFailStorage{MemStorage: mem}
+}
+
 func TestEnsurePlayerLandingCachedKeepsStaleLandingOn404(t *testing.T) {
 	t.Parallel()
-	mem := store.NewMemStorage()
-	cacheLanding(t, mem, refreshTestLanding(true, cachedGamesPlayed), refreshTestMaxAge)
-	client := &MockNHLClient{}
-	client.On("PlayerLanding", mock.Anything, refreshTestPlayerID).Return(nil, nhl.ErrNotFound)
+	parsed, err := json.Marshal(refreshTestLanding(true, cachedGamesPlayed))
+	require.NoError(t, err)
+	tests := []struct {
+		name string
+		data []byte
+	}{
+		{"parsed page", parsed},
+		{"unreadable page", []byte("{not json")},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			s := cacheStaleLandingBytes(t, tc.data)
+			client := &MockNHLClient{}
+			client.On("PlayerLanding", mock.Anything, refreshTestPlayerID).Return(nil, nhl.ErrNotFound)
 
-	status, err := ensureRefreshTestLanding(refreshTestActivities(mem, client, refreshTestMaxAge))
+			status, err := ensureRefreshTestLanding(refreshTestActivities(s, client, refreshTestMaxAge))
+
+			require.NoError(t, err)
+			assert.Equal(t, playerLandingCached, status)
+			// The page is rewritten with its own bytes, so its age restarts
+			// and the NHL is not asked again before LandingMaxAge.
+			landingPath := resource.PlayerLanding{PlayerID: refreshTestPlayerID}.Path()
+			assert.Equal(t, map[string][][]byte{landingPath: {tc.data}}, s.writes)
+			assert.Equal(t, tc.data, s.Get(landingPath))
+			assert.False(t, s.Has(resource.MissingPlayerLanding{PlayerID: refreshTestPlayerID}.Path()))
+			client.AssertExpectations(t)
+		})
+	}
+}
+
+func TestEnsurePlayerLandingCachedStaleDownloadErrorUsesCachedPage(t *testing.T) {
+	t.Parallel()
+	parsed, err := json.Marshal(refreshTestLanding(true, cachedGamesPlayed))
+	require.NoError(t, err)
+	s := cacheStaleLandingBytes(t, parsed)
+	client := &MockNHLClient{}
+	client.On("PlayerLanding", mock.Anything, refreshTestPlayerID).Return(nil, errors.New("connection reset"))
+
+	status, err := ensureRefreshTestLanding(refreshTestActivities(s, client, refreshTestMaxAge))
 
 	require.NoError(t, err)
 	assert.Equal(t, playerLandingCached, status)
-	assert.Equal(t, cachedGamesPlayed, cachedGP(t, mem))
-	assert.False(t, mem.Exists(context.Background(), resource.MissingPlayerLanding{PlayerID: refreshTestPlayerID}.Path()))
+	assert.Empty(t, s.writes, "a transient failure leaves the page stale, to be retried next run")
+	assert.Equal(t, cachedGamesPlayed, cachedGP(t, s))
 	client.AssertExpectations(t)
 }
 
-func TestEnsurePlayerLandingCachedStaleDownloadErrorKeepsCachedPage(t *testing.T) {
+func TestEnsurePlayerLandingCachedStaleRefreshCancelled(t *testing.T) {
 	t.Parallel()
-	mem := store.NewMemStorage()
-	cacheLanding(t, mem, refreshTestLanding(true, cachedGamesPlayed), refreshTestMaxAge)
-	downloadErr := errors.New("connection reset")
+	parsed, err := json.Marshal(refreshTestLanding(true, cachedGamesPlayed))
+	require.NoError(t, err)
+	s := cacheStaleLandingBytes(t, parsed)
+	ctx, cancel := context.WithCancel(context.Background())
 	client := &MockNHLClient{}
-	client.On("PlayerLanding", mock.Anything, refreshTestPlayerID).Return(nil, downloadErr)
+	client.On("PlayerLanding", mock.Anything, refreshTestPlayerID).
+		Run(func(mock.Arguments) { cancel() }).Return(nil, context.Canceled)
 
-	_, err := ensureRefreshTestLanding(refreshTestActivities(mem, client, refreshTestMaxAge))
+	_, err = ensureRefreshTestLandingCtx(ctx, refreshTestActivities(s, client, refreshTestMaxAge))
 
-	require.ErrorIs(t, err, downloadErr)
-	assert.Equal(t, cachedGamesPlayed, cachedGP(t, mem))
+	require.ErrorIs(t, err, context.Canceled)
+	assert.Empty(t, s.writes)
+}
+
+func TestEnsurePlayerLandingCachedStale404RenewErrors(t *testing.T) {
+	t.Parallel()
+	storageErr := errors.New("i/o error")
+	tests := []struct {
+		name    string
+		set     func(*statFailStorage)
+		wantMsg string
+	}{
+		{"read", func(s *statFailStorage) { s.readErr, s.readsBeforeErr = storageErr, 1 },
+			"read stale player 8478402 landing: i/o error"},
+		{"write", func(s *statFailStorage) { s.writeErr = storageErr },
+			"renew stale player 8478402 landing: i/o error"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			parsed, err := json.Marshal(refreshTestLanding(true, cachedGamesPlayed))
+			require.NoError(t, err)
+			s := cacheStaleLandingBytes(t, parsed)
+			tc.set(s)
+			client := &MockNHLClient{}
+			client.On("PlayerLanding", mock.Anything, refreshTestPlayerID).Return(nil, nhl.ErrNotFound)
+
+			_, err = ensureRefreshTestLanding(refreshTestActivities(s, client, refreshTestMaxAge))
+
+			require.ErrorIs(t, err, storageErr)
+			assert.EqualError(t, err, tc.wantMsg)
+		})
+	}
 }
 
 func TestEnsurePlayerLandingCachedStorageErrors(t *testing.T) {

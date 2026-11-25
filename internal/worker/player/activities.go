@@ -184,8 +184,15 @@ func (a *Activities) cachePlayerLanding(ctx context.Context, p store.BoxscorePla
 }
 
 // ensurePlayerLandingCached downloads player landing data unless it is
-// cached and current (cachedLandingState): a stale cached page is
-// downloaded again, and kept when that download answers 404. Returns a status indicating whether data was downloaded, already cached, or missing (404).
+// cached and current (cachedLandingState). A stale cached page is
+// downloaded again; when that download fails, the cached page is kept
+// (keepStaleLanding). Returns a status indicating whether data was
+// downloaded, already cached, or missing (404).
+//
+// fetch-player-landings and process-players may refresh the same stale page
+// at the same time: both download it and both write it. Writes are atomic
+// (a temp file renamed into place), so the duplicate costs one NHL request
+// and is accepted rather than coordinated across workers.
 func (a *Activities) ensurePlayerLandingCached(
 	ctx context.Context,
 	playerID nhl.PlayerID,
@@ -210,23 +217,11 @@ func (a *Activities) ensurePlayerLandingCached(
 
 	landing, err := a.NHLClient.PlayerLanding(ctx, playerID)
 	if err != nil {
-		if errors.Is(err, nhl.ErrNotFound) && cached == landingStale {
-			// The page was served before: keep it rather than mark the
-			// player missing and lose its stored totals.
-			log.Warn().Str("player_id", playerID.String()).Msg("Stale player landing answered 404, keeping the cached page")
-			return playerLandingCached, nil
+		if cached == landingStale {
+			return a.keepStaleLanding(ctx, landingRes, err)
 		}
 		if errors.Is(err, nhl.ErrNotFound) {
-			missingInfo := store.MissingPlayerLandingData{
-				FirstName: boxscorePlayer.FirstName,
-				LastName:  boxscorePlayer.LastName,
-				Position:  boxscorePlayer.Position,
-			}
-			if saveErr := resource.WriteParsed(ctx, a.Storage, missingRes, &missingInfo); saveErr != nil {
-				log.Warn().Err(saveErr).Str("player_id", playerID.String()).Msg("Failed to save missing player landing")
-			} else {
-				log.Info().Str("player_id", playerID.String()).Msg("Saved player as missing (404)")
-			}
+			a.saveMissingPlayerLanding(ctx, missingRes, boxscorePlayer)
 			return playerLandingMissing, nil
 		}
 		return 0, err
@@ -235,6 +230,26 @@ func (a *Activities) ensurePlayerLandingCached(
 		return 0, fmt.Errorf("write player %s landing to cache: %w", playerID.String(), err)
 	}
 	return playerLandingDownloaded, nil
+}
+
+// saveMissingPlayerLanding records that the NHL answered 404 for a player
+// with no cached landing, so the page is not requested again.
+func (a *Activities) saveMissingPlayerLanding(
+	ctx context.Context,
+	missingRes resource.MissingPlayerLanding,
+	boxscorePlayer store.BoxscorePlayer,
+) {
+	missingInfo := store.MissingPlayerLandingData{
+		FirstName: boxscorePlayer.FirstName,
+		LastName:  boxscorePlayer.LastName,
+		Position:  boxscorePlayer.Position,
+	}
+	playerID := missingRes.PlayerID.String()
+	if err := resource.WriteParsed(ctx, a.Storage, missingRes, &missingInfo); err != nil {
+		log.Warn().Err(err).Str("player_id", playerID).Msg("Failed to save missing player landing")
+		return
+	}
+	log.Info().Str("player_id", playerID).Msg("Saved player as missing (404)")
 }
 
 // --- Boxscore player loading activities ---

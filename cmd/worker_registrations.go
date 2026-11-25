@@ -92,6 +92,10 @@ func registerTasksActivities(w worker.Worker, pool *pgxpool.Pool, redisClient *r
 	if err != nil {
 		return err
 	}
+	landingMaxAge, err := playerLandingMaxAgeFrom(viper.GetViper())
+	if err != nil {
+		return err
+	}
 
 	d := taskActivityDeps{
 		storage:                newDefaultStorage(),
@@ -104,7 +108,7 @@ func registerTasksActivities(w worker.Worker, pool *pgxpool.Pool, redisClient *r
 		yahooPlayerPages:       shared.RateLimited(yahooLimiter, httpx.DownloadPublic),
 		yahooGameKeys:          yahoo.NewGameKeys(nil),
 		boxscorePlayerCacheTTL: boxscorePlayerCacheTTLFrom(viper.GetViper()),
-		playerLandingMaxAge:    playerLandingMaxAgeFrom(viper.GetViper()),
+		playerLandingMaxAge:    landingMaxAge,
 	}
 
 	registerTaskQueueActivities(w, d)
