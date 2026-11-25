@@ -386,7 +386,7 @@ PostgreSQL database storing NHL game data and Yahoo Fantasy league data. Two mai
 | `players` | NHL players (skaters + goalies) | `id` (NHL ID), `yahoo_id`, `first_name`, `last_name`, `team_id`, `position` |
 | `seasons` | NHL seasons | `id` (e.g., 20242025), `standings_start`, `standings_end` |
 | `franchises` | NHL franchises (historical) | `id`, `full_name`, `team_common_name` |
-| `season_teams` | Teams per season (handles relocations) | `season_id`, `team_id`, `franchise_id`, `abbrev`, `division_name` |
+| `season_teams` | Teams per season (handles relocations) | `season`, `team_id`, `franchise_id`, `abbrev`, `division_name` |
 | `season_rosters` | Per-season roster snapshots (PK `(season, team_id, player_id)`) | `season`, `team_id`, `player_id`, `position`, `shoots_catches`, `sweater_number`, `height_inches`, `weight_pounds`, `birth_date`, `birth_country` |
 | `games` | Individual games | `id`, `season`, `game_type`, `game_date`, `home_team_id`, `away_team_id`, `game_state` |
 | `game_broadcasts` | Broadcast feeds per game (PK `(game_id, broadcast_id)`) | `game_id`, `broadcast_id`, `market`, `country_code`, `network`, `sequence_number` |
@@ -541,7 +541,7 @@ players.id ←──── game_skater_stats.player_id
 players.id ←──── game_goalie_stats.player_id
 players.yahoo_id ───→ yahoo_team_rosters.player_id (matched via enrichment)
 
-seasons.id ←──── season_teams.season_id
+seasons.id ←──── season_teams.season
 seasons.id ←──── games.season
 
 franchises.id ←──── season_teams.franchise_id
@@ -581,7 +581,7 @@ Interactive REPL for querying hockey data via natural language. Connects to an L
 |-----------|------|---------|
 | CLI entry | `cmd/maurice.go` | REPL loop, `/model` `/history` `/load` `/new` commands |
 | Service | `internal/maurice/service.go`, `turnrun.go` | Chat orchestration, tool call loop (max 25 rounds, then one forced answer without tools), conversation persistence; an answer with no text is retried without tools with a nudge, keeping the tool results and never rerunning tools, up to `maxFinalAnswerAttempts` (3) attempts in all, each empty attempt logged with its stop reason (`finalanswer.go`), then fails the turn as `empty_answer`; history replay leaves out a stored assistant message with no text and no tool calls (older turns stored such replies); the `--maurice-max-history` cap cuts the replay at the start of a turn (it always opens on a user message, the current prompt at worst, `capHistory` in `history.go`); turns run detached from the request (`StartChat`/`GetTurn` for submit-and-poll) |
-| Prompt | `internal/maurice/prompt.go` | System prompt (instructs LLM to query DB, not guess) |
+| Prompt | `internal/maurice/prompt.go`, `sqlguide.go` | System prompt (instructs LLM to query DB, not guess), with a compact schema guide for raw SQL (`pg_read_query`) whose table and column names `TestSQLGuide_NamesExistingColumns` checks against the migrated schema |
 | LLM clients | `internal/llm/client.go`, `internal/llm/anthropic.go` | OpenAI-compatible (Ollama/OpenAI) and Anthropic clients |
 | Provider detection | `internal/llm/provider.go` | Auto-detects Anthropic vs OpenAI-compatible from API key/URL |
 | MCP integration | `internal/mcp/` | Connects to puckdb MCP server for database tool calls |

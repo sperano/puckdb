@@ -11,8 +11,8 @@ import (
 	"github.com/sperano/puckdb/internal/yahoolink"
 )
 
-// SystemPrompt returns the system prompt with the current date, season and
-// the user's Yahoo teams (if any) injected: the teams of the default season
+// SystemPrompt returns the system prompt with the current date, season, the
+// SQL schema guide (sqlGuide) and the user's Yahoo teams (if any) injected: the teams of the default season
 // (yahoolink.DefaultSeason) as the user's teams, the others only for
 // questions about their season (userTeamsPhrase). teams is nil or empty when
 // the user manages none, or none in a league the instance allows: the
@@ -42,6 +42,7 @@ Guidelines:
 		`(vouvoiement), never "tu", even when the user writes "tu".`,
 		time.Now().Format("January 2, 2006"),
 		season.ID(), season.StartYear(), season.EndYear())
+	prompt += "\n\n" + sqlGuide
 	if phrase := userTeamsPhrase(teams, int32(season.StartYear())); phrase != "" {
 		prompt += "\n\n" + phrase
 	}
