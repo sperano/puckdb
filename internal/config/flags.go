@@ -239,6 +239,7 @@ const (
 	FlagMaxPlayerLandingConcurrency = "max-player-landing-concurrency"
 	FlagPlayerLandingBatchSize      = "player-landing-batch-size"
 	FlagPlayerLandingPlayersPerExec = "player-landing-players-per-exec"
+	FlagPlayerLandingMaxAge         = "player-landing-max-age"
 )
 
 // Asset download flags
@@ -516,6 +517,7 @@ var PlayerLandingFlags = FlagGroup{
 		{FlagMaxPlayerLandingConcurrency, "", DefaultMaxPlayerLandingConcurrency, "Maximum concurrent activities for player landing downloads", false},
 		{FlagPlayerLandingBatchSize, "", DefaultPlayerLandingBatchSize, "Number of players to download per activity", false},
 		{FlagPlayerLandingPlayersPerExec, "", DefaultPlayerLandingPlayersPerExec, "Players to process per workflow execution before ContinueAsNew", false},
+		{FlagPlayerLandingMaxAge, "", DefaultPlayerLandingMaxAge, "Hours before an active player's cached NHL landing page (the source of player_season_totals) is downloaded again; an inactive player's page is final; 0 never downloads a cached page again", false},
 	},
 }
 

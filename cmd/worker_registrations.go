@@ -79,6 +79,7 @@ type taskActivityDeps struct {
 	// shared by the Yahoo and NHL fetch activities.
 	yahooGameKeys          *yahoo.GameKeys
 	boxscorePlayerCacheTTL time.Duration
+	playerLandingMaxAge    time.Duration
 }
 
 // registerTasksActivities registers all activities for the tasks queue.
@@ -88,6 +89,10 @@ func registerTasksActivities(w worker.Worker, pool *pgxpool.Pool, redisClient *r
 		return err
 	}
 	yahooLimiter, err := newYahooRateLimiter()
+	if err != nil {
+		return err
+	}
+	landingMaxAge, err := playerLandingMaxAgeFrom(viper.GetViper())
 	if err != nil {
 		return err
 	}
@@ -103,6 +108,7 @@ func registerTasksActivities(w worker.Worker, pool *pgxpool.Pool, redisClient *r
 		yahooPlayerPages:       shared.RateLimited(yahooLimiter, httpx.DownloadPublic),
 		yahooGameKeys:          yahoo.NewGameKeys(nil),
 		boxscorePlayerCacheTTL: boxscorePlayerCacheTTLFrom(viper.GetViper()),
+		playerLandingMaxAge:    landingMaxAge,
 	}
 
 	registerTaskQueueActivities(w, d)
@@ -290,6 +296,7 @@ func registerPlayerActivities(w worker.Worker, d taskActivityDeps) {
 		GobCache:               d.gobCache,
 		YahooPlayerPages:       d.yahooPlayerPages,
 		BoxscorePlayerCacheTTL: d.boxscorePlayerCacheTTL,
+		LandingMaxAge:          d.playerLandingMaxAge,
 		Manifests:              workplayer.NewPgProcessPlayersStore(d.pool),
 	})
 	w.RegisterActivity(playerActivities.FetchPlayerLandingsBatch)
