@@ -7,10 +7,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-redis/redis/v8"
-	"github.com/go-redis/redismock/v8"
+	"github.com/go-redis/redismock/v9"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/redis/go-redis/v9"
 	nhlapi "github.com/sperano/nhl-api-go/nhl"
 	"github.com/sperano/puckdb/internal/cache"
 	"github.com/sperano/puckdb/internal/core"
@@ -40,6 +40,7 @@ func (zeroBatchResults) Exec() (pgconn.CommandTag, error) {
 func (zeroBatchResults) Query() (pgx.Rows, error) { return nil, nil }
 func (zeroBatchResults) QueryRow() pgx.Row        { return nil }
 func (zeroBatchResults) Close() error             { return nil }
+func (zeroBatchResults) Tx() pgx.Tx               { return nil }
 
 // errBatchResults always returns an error from Exec.
 type errBatchResults struct{ err error }
@@ -50,6 +51,7 @@ func (e errBatchResults) Exec() (pgconn.CommandTag, error) {
 func (e errBatchResults) Query() (pgx.Rows, error) { return nil, nil }
 func (e errBatchResults) QueryRow() pgx.Row        { return nil }
 func (e errBatchResults) Close() error             { return nil }
+func (e errBatchResults) Tx() pgx.Tx               { return nil }
 
 // =============================================================================
 // MockQueries implements the full ImportQueries composite interface for ImportActivities.

@@ -69,11 +69,17 @@ func TestCheckURLRefusesAHostList(t *testing.T) {
 		"postgres://puckdb:foo@localhost,prod.internal/puckdb_test",
 		"postgres://puckdb:foo@localhost:5432,localhost:5433/puckdb_test",
 		"postgres://puckdb:foo@localhost/puckdb_test?host=localhost,prod.internal",
-		// pgx lets the query host win; only lib/pq keeps the list.
-		"postgres://puckdb:foo@localhost,prod.internal/puckdb_test?host=localhost",
 	} {
 		require.ErrorIs(t, CheckURL(dbURL), errSeveralServers, dbURL)
 	}
+}
+
+// A query host overriding a host list leaves lib/pq with the list; pgx
+// (since v5.13) refuses it before the server check, as it then has two
+// ports for one host. Either way the URL must be refused.
+func TestCheckURLRefusesAQueryHostOverridingAHostList(t *testing.T) {
+	dbURL := "postgres://puckdb:foo@localhost,prod.internal/puckdb_test?host=localhost"
+	require.Error(t, CheckURL(dbURL), dbURL)
 }
 
 // A query parameter that repeats a URL setting with the same value leaves

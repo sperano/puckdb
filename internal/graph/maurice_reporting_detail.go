@@ -182,7 +182,7 @@ func reportingMessage(m mauricereport.Message) *model.MauriceReportingMessage {
 		ID: m.ID, TurnID: m.TurnID, TurnNumber: int(m.TurnNumber), TurnStatus: reportingStatus(m.TurnStatus),
 		Replayable: m.Replayable(), Number: int(m.Number),
 		Role:      model.MauriceReportingMessageRole(strings.ToUpper(m.Role)),
-		CreatedAt: m.CreatedAt, ContentLength: m.ContentLength, Content: reportingText(m.Content),
+		CreatedAt: reportingTime(m.CreatedAt), ContentLength: m.ContentLength, Content: reportingText(m.Content),
 		ResultToolCallID: optionalID(m.ResultToolCallID), ToolCallCount: m.ToolCalls,
 	}
 }
@@ -198,7 +198,7 @@ func reportingInputMessage(in mauricereport.InputMessage) *model.MauriceReportin
 func reportingTurn(t mauricereport.Turn) *model.MauriceReportingTurn {
 	return &model.MauriceReportingTurn{
 		ID: t.ID, Number: int(t.Number), Status: reportingStatus(t.Status), Replayable: t.Replayable(),
-		ErrorClass: t.ErrorClass, StartedAt: t.StartedAt, CompletedAt: t.CompletedAt, Warnings: t.Warnings,
+		ErrorClass: t.ErrorClass, StartedAt: reportingTime(t.StartedAt), CompletedAt: reportingTimePtr(t.CompletedAt), Warnings: t.Warnings,
 		MessageCount: t.Messages, ToolCallCount: t.ToolCalls, Usage: reportingUsage(t.Usage),
 		Models: convertAll(t.Models, func(m mauricereport.Model) *model.MauriceReportingModel {
 			return &model.MauriceReportingModel{Provider: m.Provider, Model: m.Model}
@@ -214,7 +214,7 @@ func reportingCall(c mauricereport.Call) *model.MauriceReportingCall {
 	out := &model.MauriceReportingCall{
 		ID: strconv.FormatInt(c.ID, 10), TurnID: c.TurnID, Kind: c.Kind, Provider: c.Provider, Model: c.Model,
 		ProviderRequestID: c.ProviderRequestID, Status: c.Status, ErrorClass: c.ErrorClass,
-		FinishReason: c.FinishReason, StartedAt: c.StartedAt, CompletedAt: c.CompletedAt,
+		FinishReason: c.FinishReason, StartedAt: reportingTime(c.StartedAt), CompletedAt: reportingTime(c.CompletedAt),
 		InputTokens: c.InputTokens, OutputTokens: c.OutputTokens,
 		CacheCreationInputTokens: c.CacheCreationInputTokens, CacheReadInputTokens: c.CacheReadInputTokens,
 		InputMessageCount: c.InputMessages, SystemPromptLength: c.SystemPromptLength,
@@ -232,7 +232,7 @@ func reportingToolCall(c mauricereport.ToolCall) *model.MauriceReportingToolCall
 	return &model.MauriceReportingToolCall{
 		ID: strconv.FormatInt(c.ID, 10), TurnID: c.TurnID, CallID: optionalID(c.CallID), MessageID: c.MessageID,
 		Sequence: int(c.Sequence), ProviderToolCallID: c.ProviderToolCallID, Type: c.Type, Name: c.Name,
-		Status: c.Status, StartedAt: c.StartedAt, CompletedAt: c.CompletedAt, ArgumentsValid: c.ArgumentsValid,
+		Status: c.Status, StartedAt: reportingTimePtr(c.StartedAt), CompletedAt: reportingTimePtr(c.CompletedAt), ArgumentsValid: c.ArgumentsValid,
 		ArgumentsRawLength: c.ArgumentsRawLength, ResultLength: c.ResultLength,
 	}
 }

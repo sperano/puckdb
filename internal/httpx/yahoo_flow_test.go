@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-redis/redis/v8"
-	"github.com/go-redis/redismock/v8"
+	"github.com/go-redis/redismock/v9"
+	"github.com/redis/go-redis/v9"
 	"github.com/sperano/puckdb/internal/cache"
 	"github.com/sperano/puckdb/internal/config"
 	"github.com/stretchr/testify/assert"
@@ -94,8 +94,8 @@ func expectSuccessfulExchange(mock redismock.ClientMock, state, code string) {
 }
 
 func expectTokenReplacementLock(mock redismock.ClientMock) {
-	mock.CustomMatch(anyArgsMatch).ExpectSetNX("any", "x", cache.TokenRefreshLockTTL).SetVal(true)
-	mock.CustomMatch(anyArgsMatch).ExpectEvalSha("any", []string{"any"}, "x").SetVal(int64(1))
+	expectLockObtain(mock)
+	expectLockRelease(mock)
 }
 
 func TestYahooLoginFlow_ValidStateCompletesOnce(t *testing.T) {

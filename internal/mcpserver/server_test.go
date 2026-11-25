@@ -262,6 +262,7 @@ func (noRows) Scan(...any) error                            { return pgx.ErrNoRo
 func (noRows) Values() ([]any, error)                       { return nil, nil }
 func (noRows) RawValues() [][]byte                          { return nil }
 func (noRows) Conn() *pgx.Conn                              { return nil }
+func (noRows) TypeMap() *pgtype.Map                         { return nil }
 
 // nhlTestServer registers the nhl toolset over db.
 func nhlTestServer(db *capturingDB) *server.MCPServer {

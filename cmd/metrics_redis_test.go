@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/go-redis/redismock/v8"
+	"github.com/go-redis/redismock/v9"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/sperano/puckdb/internal/metrics"
 	"github.com/stretchr/testify/require"

@@ -127,6 +127,7 @@ func hasOtherServer(cfg *pgconn.Config) bool {
 // sorted; like lib/pq, pgconn lets the last keyword/value setting win, so it
 // reads that DSN the way lib/pq does.
 func libpqConfig(rawURL string) (*pgconn.Config, error) {
+	//lint:ignore SA1019 ParseURL is lib/pq's own URL-to-DSN conversion; pq.NewConfig would also merge PG* environment variables, which this check must not read.
 	dsn, err := pq.ParseURL(rawURL)
 	if err != nil {
 		return nil, err

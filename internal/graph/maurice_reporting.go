@@ -114,8 +114,8 @@ func (r *Resolver) mauriceReportingUsers(ctx context.Context, instance string, l
 func reportingUser(u mauricereport.User) *model.MauriceReportingUser {
 	return &model.MauriceReportingUser{
 		ID: u.ID, Instance: u.Instance, AuthProvider: u.AuthProvider, Username: u.Username,
-		DisplayName: u.DisplayName, Email: u.Email, FirstSeenAt: u.FirstSeenAt,
-		ProfileUpdatedAt: u.ProfileUpdatedAt, DisabledAt: u.DisabledAt,
+		DisplayName: u.DisplayName, Email: u.Email, FirstSeenAt: reportingTime(u.FirstSeenAt),
+		ProfileUpdatedAt: reportingTime(u.ProfileUpdatedAt), DisabledAt: reportingTimePtr(u.DisabledAt),
 	}
 }
 
@@ -178,8 +178,8 @@ func reportingFilter(f model.MauriceReportingConversationFilter) mauricereport.C
 func reportingConversation(c mauricereport.Conversation) *model.MauriceReportingConversation {
 	out := &model.MauriceReportingConversation{
 		ID: c.ID, Instance: c.Instance, UserID: c.UserID, Username: c.Username, Title: c.Title,
-		CreatedAt: c.CreatedAt, UpdatedAt: c.UpdatedAt, DeletedAt: c.DeletedAt,
-		LastTurnStartedAt: c.LastTurnStartedAt,
+		CreatedAt: reportingTime(c.CreatedAt), UpdatedAt: reportingTime(c.UpdatedAt), DeletedAt: reportingTimePtr(c.DeletedAt),
+		LastTurnStartedAt: reportingTimePtr(c.LastTurnStartedAt),
 		Turns:             reportingTurnCounts(c.Turns),
 		Models:            make([]*model.MauriceReportingModel, len(c.Models)),
 	}

@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/alicebob/miniredis/v2"
-	"github.com/go-redis/redis/v8"
+	"github.com/redis/go-redis/v9"
 	"github.com/sperano/puckdb/internal/cache"
 	"github.com/sperano/puckdb/internal/core"
 	"github.com/sperano/puckdb/internal/resource"
@@ -179,27 +179,34 @@ func installLockAttemptHook(client *redis.Client) <-chan struct{} {
 	return hook.attempts
 }
 
-func (h *lockAttemptHook) BeforeProcess(ctx context.Context, _ redis.Cmder) (context.Context, error) {
-	return ctx, nil
+func (h *lockAttemptHook) DialHook(next redis.DialHook) redis.DialHook {
+	return next
 }
 
-func (h *lockAttemptHook) AfterProcess(_ context.Context, cmd redis.Cmder) error {
-	args := cmd.Args()
-	if cmd.Name() == "set" && len(args) > 1 {
-		key, ok := args[1].(string)
-		if ok && strings.HasPrefix(key, testLockPrefix) {
-			h.attempts <- struct{}{}
+func (h *lockAttemptHook) ProcessHook(next redis.ProcessHook) redis.ProcessHook {
+	return func(ctx context.Context, cmd redis.Cmder) error {
+		err := next(ctx, cmd)
+		args := cmd.Args()
+		// This depends on redislock's obtain-script shape (EVALSHA <sha> 1
+		// <key> <value> <tokenLen> <ttl>, see redis_lock_mock_test.go); the
+		// release script carries no tokenLen/ttl, so its length differs. A
+		// redislock upgrade that changes the shape stops this hook counting
+		// attempts, and waitForLockAttempts then times out.
+		// Only EVALSHA is counted. That is enough because EVALSHA fires on
+		// every attempt: miniredis answers NOSCRIPT first, then the EVAL
+		// fallback runs.
+		if cmd.Name() == "evalsha" && len(args) == obtainScriptArgCount {
+			key, ok := args[obtainScriptKeyIndex].(string)
+			if ok && strings.HasPrefix(key, testLockPrefix) {
+				h.attempts <- struct{}{}
+			}
 		}
+		return err
 	}
-	return nil
 }
 
-func (h *lockAttemptHook) BeforeProcessPipeline(ctx context.Context, _ []redis.Cmder) (context.Context, error) {
-	return ctx, nil
-}
-
-func (h *lockAttemptHook) AfterProcessPipeline(context.Context, []redis.Cmder) error {
-	return nil
+func (h *lockAttemptHook) ProcessPipelineHook(next redis.ProcessPipelineHook) redis.ProcessPipelineHook {
+	return next
 }
 
 func waitForLockAttempts(t *testing.T, attempts <-chan struct{}, count int) {

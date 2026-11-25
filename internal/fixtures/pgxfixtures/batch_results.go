@@ -21,3 +21,4 @@ func (r *BatchResults) Exec() (pgconn.CommandTag, error) {
 func (r *BatchResults) Query() (pgx.Rows, error) { return nil, nil }
 func (r *BatchResults) QueryRow() pgx.Row        { return nil }
 func (r *BatchResults) Close() error             { return nil }
+func (r *BatchResults) Tx() pgx.Tx               { return nil }
