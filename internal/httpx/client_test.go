@@ -433,10 +433,10 @@ func TestNewYahooClientWithConfig_TokenRefreshAndSave(t *testing.T) {
 	// An expired stored token: the constructor must refresh it, in order,
 	// under the per-user lock, and persist the result before releasing.
 	mock.ExpectGet(testUserTokenKey).SetVal(expiredTokenJSON(t))
-	mock.CustomMatch(anyArgsMatch).ExpectEvalSha("any", []string{"any"}, "x", 0, "ttl").SetVal(int64(1))
+	expectLockObtain(mock)
 	mock.ExpectGet(testUserTokenKey).SetVal(expiredTokenJSON(t))
 	saved := expectTokenSaved(mock)
-	expectLockReleased(mock)
+	expectLockRelease(mock)
 
 	client, err := NewYahooClientWithConfig(ctx, redisClient, conf)
 	require.NoError(t, err)
@@ -457,11 +457,11 @@ func TestNewYahooClientWithConfig_TokenSaveError(t *testing.T) {
 	conf := createTestOAuthConfig(newRefreshServer(t, refreshedTokenJSON).URL)
 
 	mock.ExpectGet(testUserTokenKey).SetVal(expiredTokenJSON(t))
-	mock.CustomMatch(anyArgsMatch).ExpectEvalSha("any", []string{"any"}, "x", 0, "ttl").SetVal(int64(1))
+	expectLockObtain(mock)
 	mock.ExpectGet(testUserTokenKey).SetVal(expiredTokenJSON(t))
 	mock.CustomMatch(anyArgsMatch).ExpectSet(testUserTokenKey, "x", 0).SetErr(redis.ErrClosed)
 	// The lock is released even though the refresh failed.
-	expectLockReleased(mock)
+	expectLockRelease(mock)
 
 	_, err := NewYahooClientWithConfig(ctx, redisClient, conf)
 	require.Error(t, err)

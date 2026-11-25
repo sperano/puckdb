@@ -23,9 +23,6 @@ const (
 	testLockPrefix    = "puckdb:resource-cache-lock:"
 	testSyncTimeout   = 2 * time.Second
 	testAttemptBuffer = 100
-	// EVALSHA sha numkeys key value tokenLen ttl.
-	obtainScriptArgCount = 7
-	obtainScriptKeyIndex = 3
 )
 
 func TestRefreshCoherentSerializesCacheMissRepopulation(t *testing.T) {
@@ -190,8 +187,14 @@ func (h *lockAttemptHook) ProcessHook(next redis.ProcessHook) redis.ProcessHook 
 	return func(ctx context.Context, cmd redis.Cmder) error {
 		err := next(ctx, cmd)
 		args := cmd.Args()
-		// redislock obtains through EVALSHA <sha> 1 <key> <value> <tokenLen> <ttl>;
-		// the release script carries no tokenLen/ttl, so its length differs.
+		// This depends on redislock's obtain-script shape (EVALSHA <sha> 1
+		// <key> <value> <tokenLen> <ttl>, see redis_lock_mock_test.go); the
+		// release script carries no tokenLen/ttl, so its length differs. A
+		// redislock upgrade that changes the shape stops this hook counting
+		// attempts, and waitForLockAttempts then times out.
+		// Only EVALSHA is counted. That is enough because EVALSHA fires on
+		// every attempt: miniredis answers NOSCRIPT first, then the EVAL
+		// fallback runs.
 		if cmd.Name() == "evalsha" && len(args) == obtainScriptArgCount {
 			key, ok := args[obtainScriptKeyIndex].(string)
 			if ok && strings.HasPrefix(key, testLockPrefix) {

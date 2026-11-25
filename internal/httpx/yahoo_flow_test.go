@@ -94,8 +94,8 @@ func expectSuccessfulExchange(mock redismock.ClientMock, state, code string) {
 }
 
 func expectTokenReplacementLock(mock redismock.ClientMock) {
-	mock.CustomMatch(anyArgsMatch).ExpectEvalSha("any", []string{"any"}, "x", 0, "ttl").SetVal(int64(1))
-	mock.CustomMatch(anyArgsMatch).ExpectEvalSha("any", []string{"any"}, "x").SetVal(int64(1))
+	expectLockObtain(mock)
+	expectLockRelease(mock)
 }
 
 func TestYahooLoginFlow_ValidStateCompletesOnce(t *testing.T) {

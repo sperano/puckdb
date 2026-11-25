@@ -94,16 +94,6 @@ func expectTokenSaved(mock redismock.ClientMock) *[]any {
 	return &sent
 }
 
-// expectLockReleased registers redislock's release script (EVALSHA <sha> 1
-// <key> <value>); the value is random so only the shape is matched.
-func expectLockReleased(mock redismock.ClientMock) {
-	mock.CustomMatch(anyArgsMatch).ExpectEvalSha("any", []string{"any"}, "x").SetVal(int64(1))
-}
-
-func expectLockObtained(mock redismock.ClientMock) {
-	mock.CustomMatch(anyArgsMatch).ExpectEvalSha("any", []string{"any"}, "x", 0, "ttl").SetVal(int64(1))
-}
-
 func decodeSavedToken(t *testing.T, sent *[]any) *oauth2.Token {
 	t.Helper()
 	require.GreaterOrEqual(t, len(*sent), 3, "SET key value")
@@ -141,10 +131,10 @@ func TestRefreshingTokenSource_RefreshesOnceAndPersists(t *testing.T) {
 	t.Parallel()
 	srv, calls := newCountingRefreshServer(t, http.StatusOK, refreshedTokenJSON)
 	src, mock := newTestTokenSource(t, expiredTokenJSON(t), srv.URL)
-	expectLockObtained(mock)
+	expectLockObtain(mock)
 	mock.ExpectGet(testUserTokenKey).SetVal(expiredTokenJSON(t))
 	saved := expectTokenSaved(mock)
-	expectLockReleased(mock)
+	expectLockRelease(mock)
 
 	first, err := src.Token()
 	require.NoError(t, err)
@@ -164,12 +154,12 @@ func TestRefreshingTokenSource_UsesTokenRefreshedByAnotherProcess(t *testing.T) 
 	t.Parallel()
 	srv, calls := newCountingRefreshServer(t, http.StatusOK, refreshedTokenJSON)
 	src, mock := newTestTokenSource(t, expiredTokenJSON(t), srv.URL)
-	expectLockObtained(mock)
+	expectLockObtain(mock)
 	// While we waited for the lock, another client refreshed and stored a
 	// fresh token: adopt it instead of spending our (possibly now rotated
 	// away) refresh token on a second refresh. Nothing is written back.
 	mock.ExpectGet(testUserTokenKey).SetVal(freshTokenJSON(t))
-	expectLockReleased(mock)
+	expectLockRelease(mock)
 
 	token, err := src.Token()
 
@@ -183,12 +173,12 @@ func TestRefreshingTokenSource_RevokedRefreshTokenRequiresLogin(t *testing.T) {
 	t.Parallel()
 	srv, _ := newCountingRefreshServer(t, http.StatusBadRequest, invalidGrantJSON)
 	src, mock := newTestTokenSource(t, expiredTokenJSON(t), srv.URL)
-	expectLockObtained(mock)
+	expectLockObtain(mock)
 	mock.ExpectGet(testUserTokenKey).SetVal(expiredTokenJSON(t))
 	// The dead record is removed so status reporting no longer claims the
 	// user is logged in.
 	mock.ExpectDel(testUserTokenKey).SetVal(1)
-	expectLockReleased(mock)
+	expectLockRelease(mock)
 
 	token, err := src.Token()
 
@@ -228,12 +218,12 @@ func newRefreshCaseServer(t *testing.T, tc refreshCase) *httptest.Server {
 func runFailedRefresh(t *testing.T, srvURL string, wantDeleted bool) error {
 	t.Helper()
 	src, mock := newTestTokenSource(t, expiredTokenJSON(t), srvURL)
-	expectLockObtained(mock)
+	expectLockObtain(mock)
 	mock.ExpectGet(testUserTokenKey).SetVal(expiredTokenJSON(t))
 	if wantDeleted {
 		mock.ExpectDel(testUserTokenKey).SetVal(1)
 	}
-	expectLockReleased(mock)
+	expectLockRelease(mock)
 
 	token, err := src.Token()
 
@@ -378,7 +368,7 @@ func TestRefreshingTokenSource_LockUnavailable(t *testing.T) {
 	t.Parallel()
 	srv, calls := newCountingRefreshServer(t, http.StatusOK, refreshedTokenJSON)
 	src, mock := newTestTokenSource(t, expiredTokenJSON(t), srv.URL)
-	mock.CustomMatch(anyArgsMatch).ExpectEvalSha("any", []string{"any"}, "x", 0, "ttl").SetErr(errors.New("network down"))
+	expectLockObtainError(mock, errors.New("network down"))
 
 	_, err := src.Token()
 
@@ -402,10 +392,10 @@ func TestYahooClient_RequestAfterExpiryUsesRefreshedToken(t *testing.T) {
 	ctx := context.WithValue(context.Background(), config.CtxUser, testUser)
 	conf := createTestOAuthConfig(newRefreshServer(t, refreshedTokenJSON).URL)
 	mock.ExpectGet(testUserTokenKey).SetVal(expiredTokenJSON(t))
-	expectLockObtained(mock)
+	expectLockObtain(mock)
 	mock.ExpectGet(testUserTokenKey).SetVal(expiredTokenJSON(t))
 	expectTokenSaved(mock)
-	expectLockReleased(mock)
+	expectLockRelease(mock)
 
 	client, err := NewYahooClientWithConfig(ctx, redisClient, conf)
 	require.NoError(t, err)

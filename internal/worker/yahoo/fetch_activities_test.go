@@ -49,8 +49,8 @@ func anyArgs(expected, actual []any) error { return nil }
 
 func expectResourceCacheLock(mockRedis redismock.ClientMock) {
 	mockRedis.MatchExpectationsInOrder(false)
-	mockRedis.CustomMatch(anyArgs).ExpectEvalSha("lock", []string{"lock"}, "value", 0, "ttl").SetVal(int64(1))
-	mockRedis.CustomMatch(anyArgs).ExpectEvalSha("script", []string{"lock"}, "value").SetVal(int64(1))
+	expectLockObtain(mockRedis)
+	expectLockRelease(mockRedis)
 }
 
 func expectCoherentRedisMiss(mockRedis redismock.ClientMock, res core.Resource) {

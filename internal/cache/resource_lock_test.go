@@ -8,25 +8,22 @@ import (
 
 	"github.com/bsm/redislock"
 	"github.com/go-redis/redismock/v9"
-	"github.com/redis/go-redis/v9"
 	"github.com/sperano/puckdb/internal/core"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 const (
-	resourceLockTestKey         = "resource-test-key"
-	resourceLockTestWait        = 10 * time.Millisecond
-	resourceLockReleaseResult   = int64(1)
-	redisLockValueArgumentIndex = 4 // EVALSHA sha numkeys key value ...
+	resourceLockTestKey  = "resource-test-key"
+	resourceLockTestWait = 10 * time.Millisecond
 )
 
 func TestLockResourcePreservesKeyAndTTL(t *testing.T) {
 	t.Parallel()
 	client, mock := redismock.NewClientMock()
 	var obtained, released []any
-	mock.CustomMatch(recordingMatch(&obtained)).ExpectEvalSha("any", []string{"any"}, "x", 0, "ttl").SetVal(int64(1))
-	mock.CustomMatch(recordingMatch(&released)).ExpectEvalSha("any", []string{"any"}, "x").SetVal(resourceLockReleaseResult)
+	expectLockObtainRecording(mock, &obtained)
+	expectLockReleaseRecording(mock, &released)
 
 	release, err := NewGobCache(client).LockResource(context.Background(), resourceLockTestKey)
 	require.NoError(t, err)
@@ -44,7 +41,7 @@ func TestLockResourcePreservesKeyAndTTL(t *testing.T) {
 func TestLockResourceMapsContentionWithContext(t *testing.T) {
 	t.Parallel()
 	client, mock := redismock.NewClientMock()
-	mock.CustomMatch(anyArgsMatch).ExpectEvalSha("any", []string{"any"}, "x", 0, "ttl").SetErr(redis.Nil)
+	expectLockContended(mock)
 	ctx, cancel := context.WithTimeout(context.Background(), resourceLockTestWait)
 	defer cancel()
 
