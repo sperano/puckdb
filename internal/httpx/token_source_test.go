@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-redis/redismock/v8"
+	"github.com/go-redis/redismock/v9"
 	"github.com/sperano/puckdb/internal/cache"
 	"github.com/sperano/puckdb/internal/config"
 	"github.com/stretchr/testify/assert"
@@ -101,7 +101,7 @@ func expectLockReleased(mock redismock.ClientMock) {
 }
 
 func expectLockObtained(mock redismock.ClientMock) {
-	mock.CustomMatch(anyArgsMatch).ExpectSetNX("any", "x", cache.TokenRefreshLockTTL).SetVal(true)
+	mock.CustomMatch(anyArgsMatch).ExpectEvalSha("any", []string{"any"}, "x", 0, "ttl").SetVal(int64(1))
 }
 
 func decodeSavedToken(t *testing.T, sent *[]any) *oauth2.Token {
@@ -378,7 +378,7 @@ func TestRefreshingTokenSource_LockUnavailable(t *testing.T) {
 	t.Parallel()
 	srv, calls := newCountingRefreshServer(t, http.StatusOK, refreshedTokenJSON)
 	src, mock := newTestTokenSource(t, expiredTokenJSON(t), srv.URL)
-	mock.CustomMatch(anyArgsMatch).ExpectSetNX("any", "x", cache.TokenRefreshLockTTL).SetErr(errors.New("network down"))
+	mock.CustomMatch(anyArgsMatch).ExpectEvalSha("any", []string{"any"}, "x", 0, "ttl").SetErr(errors.New("network down"))
 
 	_, err := src.Token()
 

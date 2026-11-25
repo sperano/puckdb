@@ -181,9 +181,11 @@ func assertPositiveIntegerSchema(t *testing.T, property any) {
 	t.Helper()
 	schema, ok := property.(map[string]any)
 	require.True(t, ok)
-	assert.Equal(t, float64(minimumPositiveInteger), schema["minimum"])
-	assert.Equal(t, float64(math.MaxInt32), schema["maximum"])
-	assert.Equal(t, float64(minimumPositiveInteger), schema["multipleOf"])
+	// mcp-go stores the bounds as given (int since v0.58, float64 before),
+	// so compare values, not Go types.
+	assert.EqualValues(t, minimumPositiveInteger, schema["minimum"])
+	assert.EqualValues(t, math.MaxInt32, schema["maximum"])
+	assert.EqualValues(t, minimumPositiveInteger, schema["multipleOf"])
 }
 
 func matchupCSVRows(t *testing.T, result *mcp.CallToolResult) int {

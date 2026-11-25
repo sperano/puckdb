@@ -92,6 +92,7 @@ func TestConnConfig_URL_RoundTripsThroughLibPQ(t *testing.T) {
 				// pq.ParseURL yields the keyword/value DSN lib/pq connects
 				// with; pgconn parses that format, so compare settings
 				// rather than pq's string formatting.
+				//lint:ignore SA1019 the test checks the DSN lib/pq derives from the URL, which only ParseURL exposes.
 				dsn, err := pq.ParseURL(connURL)
 				require.NoError(t, err)
 				parsed, err := pgconn.ParseConfig(dsn)

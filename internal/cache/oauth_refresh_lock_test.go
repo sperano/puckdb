@@ -3,10 +3,12 @@ package cache
 import (
 	"context"
 	"errors"
+	"strconv"
 	"testing"
 	"time"
 
-	"github.com/go-redis/redismock/v8"
+	"github.com/go-redis/redismock/v9"
+	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -21,7 +23,7 @@ func TestLockTokenRefresh_ObtainAndRelease(t *testing.T) {
 	t.Parallel()
 	client, mock := redismock.NewClientMock()
 	var obtained, released []any
-	mock.CustomMatch(recordingMatch(&obtained)).ExpectSetNX("any", "x", TokenRefreshLockTTL).SetVal(true)
+	mock.CustomMatch(recordingMatch(&obtained)).ExpectEvalSha("any", []string{"any"}, "x", 0, "ttl").SetVal(int64(1))
 	mock.CustomMatch(recordingMatch(&released)).ExpectEvalSha("any", []string{"any"}, "x").SetVal(int64(1))
 
 	release, err := LockTokenRefresh(context.Background(), client, oauthTestUser)
@@ -31,10 +33,10 @@ func TestLockTokenRefresh_ObtainAndRelease(t *testing.T) {
 	require.NoError(t, mock.ExpectationsWereMet())
 	key := getRedisKeyForTokenRefreshLock(oauthTestUser)
 	assert.Contains(t, obtained, key)
-	assert.Contains(t, obtained, int64(TokenRefreshLockTTL.Seconds()), "the lock expires on its own if the holder dies")
+	assert.Contains(t, obtained, strconv.FormatInt(TokenRefreshLockTTL.Milliseconds(), 10), "the lock expires on its own if the holder dies")
 	// Release is keyed on the same lock and proves ownership with the value
 	// that was set, so a lock re-acquired by someone else is left alone.
-	lockValue := obtained[2]
+	lockValue := obtained[redisLockValueArgumentIndex]
 	assert.Contains(t, released, key)
 	assert.Contains(t, released, lockValue)
 }
@@ -42,7 +44,7 @@ func TestLockTokenRefresh_ObtainAndRelease(t *testing.T) {
 func TestLockTokenRefresh_ReleasesAfterCallerContextCancelled(t *testing.T) {
 	t.Parallel()
 	client, mock := redismock.NewClientMock()
-	mock.CustomMatch(anyArgsMatch).ExpectSetNX("any", "x", TokenRefreshLockTTL).SetVal(true)
+	mock.CustomMatch(anyArgsMatch).ExpectEvalSha("any", []string{"any"}, "x", 0, "ttl").SetVal(int64(1))
 	mock.CustomMatch(anyArgsMatch).ExpectEvalSha("any", []string{"any"}, "x").SetVal(int64(1))
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -60,7 +62,7 @@ func TestLockTokenRefresh_ReleasesAfterCallerContextCancelled(t *testing.T) {
 func TestLockTokenRefresh_HeldElsewhere(t *testing.T) {
 	t.Parallel()
 	client, mock := redismock.NewClientMock()
-	mock.CustomMatch(anyArgsMatch).ExpectSetNX("any", "x", TokenRefreshLockTTL).SetVal(false)
+	mock.CustomMatch(anyArgsMatch).ExpectEvalSha("any", []string{"any"}, "x", 0, "ttl").SetErr(redis.Nil)
 
 	// The waiter gives up when its context ends; a short deadline keeps the
 	// test from waiting a full retry interval.
@@ -75,7 +77,7 @@ func TestLockTokenRefresh_HeldElsewhere(t *testing.T) {
 func TestLockTokenRefresh_RedisError(t *testing.T) {
 	t.Parallel()
 	client, mock := redismock.NewClientMock()
-	mock.CustomMatch(anyArgsMatch).ExpectSetNX("any", "x", TokenRefreshLockTTL).SetErr(errors.New("network down"))
+	mock.CustomMatch(anyArgsMatch).ExpectEvalSha("any", []string{"any"}, "x", 0, "ttl").SetErr(errors.New("network down"))
 
 	release, err := LockTokenRefresh(context.Background(), client, oauthTestUser)
 
@@ -87,7 +89,7 @@ func TestLockTokenRefresh_RedisError(t *testing.T) {
 func TestLockTokenRefresh_WarnsWhenReleaseFails(t *testing.T) {
 	logs := captureLogs(t)
 	client, mock := redismock.NewClientMock()
-	mock.CustomMatch(anyArgsMatch).ExpectSetNX("any", "x", TokenRefreshLockTTL).SetVal(true)
+	mock.CustomMatch(anyArgsMatch).ExpectEvalSha("any", []string{"any"}, "x", 0, "ttl").SetVal(int64(1))
 	mock.CustomMatch(anyArgsMatch).ExpectEvalSha("any", []string{"any"}, "x").SetErr(errors.New(oauthLockReleaseFailure))
 
 	release, err := LockTokenRefresh(context.Background(), client, oauthTestUser)

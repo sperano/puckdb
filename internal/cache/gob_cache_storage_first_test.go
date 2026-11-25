@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/go-redis/redismock/v8"
+	"github.com/go-redis/redismock/v9"
 	"github.com/sperano/puckdb/internal/core"
 	"github.com/sperano/puckdb/internal/store"
 	"github.com/stretchr/testify/assert"

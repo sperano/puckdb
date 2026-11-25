@@ -514,6 +514,7 @@ func (r *fakeRows) FieldDescriptions() []pgconn.FieldDescription { return nil }
 func (r *fakeRows) Values() ([]any, error)                       { return nil, nil }
 func (r *fakeRows) RawValues() [][]byte                          { return nil }
 func (r *fakeRows) Conn() *pgx.Conn                              { return nil }
+func (r *fakeRows) TypeMap() *pgtype.Map                         { return nil }
 
 // fakeRow is a minimal pgx.Row whose Scan leaves dest untouched and
 // returns err (nil by default) — a :one query decodes to a zero-value

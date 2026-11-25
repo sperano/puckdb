@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-redis/redismock/v8"
+	"github.com/go-redis/redismock/v9"
 	"github.com/sperano/puckdb/internal/core"
 	metricspkg "github.com/sperano/puckdb/internal/metrics"
 	"github.com/sperano/puckdb/internal/store"

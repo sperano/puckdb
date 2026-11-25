@@ -7,10 +7,9 @@ import (
 	"errors"
 	"net/http"
 	"testing"
-	"time"
 
-	"github.com/go-redis/redis/v8"
-	"github.com/go-redis/redismock/v8"
+	"github.com/go-redis/redismock/v9"
+	"github.com/redis/go-redis/v9"
 	"github.com/sperano/puckdb/internal/cache"
 	"github.com/sperano/puckdb/internal/core"
 	"github.com/sperano/puckdb/internal/httpx"
@@ -48,11 +47,9 @@ func newFetchActivities(mem *store.MemStorage, dl shared.Downloader, gobCache *c
 // anyArgs is a redismock matcher that accepts any arguments.
 func anyArgs(expected, actual []any) error { return nil }
 
-const testResourceCacheLockTTL = 2 * time.Minute
-
 func expectResourceCacheLock(mockRedis redismock.ClientMock) {
 	mockRedis.MatchExpectationsInOrder(false)
-	mockRedis.CustomMatch(anyArgs).ExpectSetNX("lock", "value", testResourceCacheLockTTL).SetVal(true)
+	mockRedis.CustomMatch(anyArgs).ExpectEvalSha("lock", []string{"lock"}, "value", 0, "ttl").SetVal(int64(1))
 	mockRedis.CustomMatch(anyArgs).ExpectEvalSha("script", []string{"lock"}, "value").SetVal(int64(1))
 }
 

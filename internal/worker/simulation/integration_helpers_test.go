@@ -54,9 +54,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-redis/redis/v8"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/redis/go-redis/v9"
 	"github.com/sperano/puckdb/internal/database"
 	"github.com/sperano/puckdb/internal/fixtures/pgtest"
 	"github.com/sperano/puckdb/internal/llm"

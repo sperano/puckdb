@@ -9,7 +9,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/go-redis/redismock/v8"
+	"github.com/go-redis/redismock/v9"
 	"github.com/sperano/nhl-api-go/nhl"
 	"github.com/sperano/puckdb/internal/cache"
 	"github.com/sperano/puckdb/internal/resource"

@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 
-	"github.com/go-redis/redis/v8"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/redis/go-redis/v9"
 	"github.com/sperano/puckdb/internal/cache"
 	"github.com/sperano/puckdb/internal/database"
 	"go.temporal.io/sdk/activity"

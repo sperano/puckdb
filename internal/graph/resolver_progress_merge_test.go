@@ -6,7 +6,7 @@ import (
 	"encoding/gob"
 	"testing"
 
-	"github.com/go-redis/redis/v8"
+	"github.com/redis/go-redis/v9"
 	"github.com/sperano/puckdb/internal/cache"
 	"github.com/sperano/puckdb/internal/worker/shared"
 	"github.com/stretchr/testify/assert"

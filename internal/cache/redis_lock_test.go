@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/bsm/redislock"
-	"github.com/go-redis/redis/v8"
-	"github.com/go-redis/redismock/v8"
+	"github.com/go-redis/redismock/v9"
+	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -41,7 +41,7 @@ func testRedisLockConfig() redisLockConfig {
 func TestAcquireRedisLockMapsNotObtainedToBusyError(t *testing.T) {
 	t.Parallel()
 	client, mock := redismock.NewClientMock()
-	mock.CustomMatch(anyArgsMatch).ExpectSetNX("any", "x", testRedisLockTTL).SetVal(false)
+	mock.CustomMatch(anyArgsMatch).ExpectEvalSha("any", []string{"any"}, "x", 0, "ttl").SetErr(redis.Nil)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
@@ -55,8 +55,8 @@ func TestAcquireRedisLockMapsNotObtainedToBusyError(t *testing.T) {
 func TestAcquireRedisLockRetriesWithConfiguredBackoff(t *testing.T) {
 	t.Parallel()
 	client, mock := redismock.NewClientMock()
-	mock.CustomMatch(anyArgsMatch).ExpectSetNX("any", "x", testRedisLockTTL).SetVal(false)
-	mock.CustomMatch(anyArgsMatch).ExpectSetNX("any", "x", testRedisLockTTL).SetVal(true)
+	mock.CustomMatch(anyArgsMatch).ExpectEvalSha("any", []string{"any"}, "x", 0, "ttl").SetErr(redis.Nil)
+	mock.CustomMatch(anyArgsMatch).ExpectEvalSha("any", []string{"any"}, "x", 0, "ttl").SetVal(int64(1))
 	mock.CustomMatch(anyArgsMatch).ExpectEvalSha("any", []string{"any"}, "x").SetVal(testReleaseSuccess)
 	ctx, cancel := context.WithTimeout(context.Background(), testRedisLockCallTimeout)
 	defer cancel()
@@ -93,7 +93,7 @@ func TestAcquireRedisLockReleaseIgnoresCancellationAndHasDeadline(t *testing.T) 
 	t.Parallel()
 	redisClient, mock := redismock.NewClientMock()
 	client := &releaseContextClient{RedisClient: redisClient}
-	mock.CustomMatch(anyArgsMatch).ExpectSetNX("any", "x", testRedisLockTTL).SetVal(true)
+	mock.CustomMatch(anyArgsMatch).ExpectEvalSha("any", []string{"any"}, "x", 0, "ttl").SetVal(int64(1))
 	mock.CustomMatch(anyArgsMatch).ExpectEvalSha("any", []string{"any"}, "x").SetVal(testReleaseSuccess)
 	ctx, cancel := context.WithCancel(context.Background())
 	release, err := acquireRedisLock(ctx, client, testRedisLockConfig())

@@ -56,8 +56,8 @@ func reportingActivity(a mauricereport.Activity) *model.MauriceReportingActivity
 	return &model.MauriceReportingActivity{
 		Conversations:      a.Conversations,
 		Turns:              reportingTurnCounts(a.Turns),
-		FirstTurnStartedAt: a.FirstTurnStartedAt,
-		LastTurnStartedAt:  a.LastTurnStartedAt,
+		FirstTurnStartedAt: reportingTimePtr(a.FirstTurnStartedAt),
+		LastTurnStartedAt:  reportingTimePtr(a.LastTurnStartedAt),
 		TurnLatency:        reportingLatency(a.TurnLatency),
 		Usage:              reportingUsage(a.Usage),
 		TitleGeneration:    reportingUsage(a.TitleGeneration),
