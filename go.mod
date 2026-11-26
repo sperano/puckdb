@@ -2,7 +2,7 @@ module github.com/sperano/puckdb
 
 go 1.27.0
 
-toolchain go1.27.3
+toolchain go1.27.4
 
 require (
 	github.com/99designs/gqlgen v0.17.98
