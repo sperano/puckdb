@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"strconv"
+	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -176,6 +178,39 @@ func TestDeploymentRateLimiter_CancelGivesQueuedSlotBack(t *testing.T) {
 	assert.Equal(t, testDeploymentInterval, reserve(t, limiter).Delay, "the next request takes the canceled slot")
 }
 
+func TestDeploymentRateLimiter_CancelOfEarlierReservationLeavesGap(t *testing.T) {
+	t.Parallel()
+	_, client := newTestRedis(t)
+	limiter := newTestDeploymentLimiter(t, client)
+	for range testDeploymentBurst {
+		reserve(t, limiter)
+	}
+	middle := reserve(t, limiter)
+	last := reserve(t, limiter)
+	require.Equal(t, 2*testDeploymentInterval, last.Delay)
+
+	middle.Cancel()
+
+	assert.Equal(t, 3*testDeploymentInterval, reserve(t, limiter).Delay,
+		"the next request queues after the last reservation instead of sharing its slot")
+}
+
+func TestDeploymentRateLimiter_CancelTwiceGivesBackOneSlot(t *testing.T) {
+	t.Parallel()
+	_, client := newTestRedis(t)
+	limiter := newTestDeploymentLimiter(t, client)
+	for range testDeploymentBurst + 1 {
+		reserve(t, limiter)
+	}
+	queued := reserve(t, limiter)
+	require.Equal(t, 2*testDeploymentInterval, queued.Delay)
+
+	queued.Cancel()
+	queued.Cancel()
+
+	assert.Equal(t, 2*testDeploymentInterval, reserve(t, limiter).Delay, "only the canceled slot is given back")
+}
+
 func TestDeploymentRateLimiter_CancelKeepsSlotWhoseTimeCame(t *testing.T) {
 	t.Parallel()
 	_, client := newTestRedis(t)
@@ -197,8 +232,12 @@ func TestDeploymentRateLimiter_KeyExpiresWhenBucketIsFull(t *testing.T) {
 
 	require.True(t, server.Exists(YahooRateLimitKey))
 	ttl := server.TTL(YahooRateLimitKey)
-	assert.Positive(t, ttl)
+	assert.GreaterOrEqual(t, ttl, testDeploymentInterval, "the bucket state lives until the bucket is full again")
 	assert.LessOrEqual(t, ttl, testDeploymentInterval+time.Millisecond)
+	server.FastForward(testDeploymentInterval - time.Millisecond)
+	assert.True(t, server.Exists(YahooRateLimitKey), "kept before the bucket is full")
+	server.FastForward(2 * time.Millisecond)
+	assert.False(t, server.Exists(YahooRateLimitKey), "gone once it is")
 }
 
 func TestDeploymentRateLimiter_FallsBackWhenRedisIsDown(t *testing.T) {
@@ -316,4 +355,90 @@ func TestRateLimited_WaitsOnDeploymentLimiter(t *testing.T) {
 
 	assert.GreaterOrEqual(t, time.Since(begin), 2*testRequestInterval-timerSlack,
 		"the miniredis clock stands still, so each download waits one more interval")
+}
+
+// lostReplyHook runs the next lost eval-family commands on Redis, then
+// returns a timeout instead of their reply, as a reply lost on the network.
+type lostReplyHook struct {
+	lost atomic.Int32
+}
+
+func (*lostReplyHook) DialHook(next redis.DialHook) redis.DialHook { return next }
+
+func (*lostReplyHook) ProcessPipelineHook(next redis.ProcessPipelineHook) redis.ProcessPipelineHook {
+	return next
+}
+
+func (h *lostReplyHook) ProcessHook(next redis.ProcessHook) redis.ProcessHook {
+	return func(ctx context.Context, cmd redis.Cmder) error {
+		if err := next(ctx, cmd); err != nil {
+			return err
+		}
+		if !strings.HasPrefix(cmd.Name(), "eval") || h.lost.Add(-1) < 0 {
+			h.lost.Store(0)
+			return nil
+		}
+		err := context.DeadlineExceeded
+		cmd.SetErr(err)
+		return err
+	}
+}
+
+func TestDeploymentRateLimiter_LostReplyGivesSlotBack(t *testing.T) {
+	t.Parallel()
+	server, client := newTestRedis(t)
+	hook := &lostReplyHook{}
+	client.AddHook(hook)
+	limiter := newTestDeploymentLimiter(t, client)
+	for range testDeploymentBurst {
+		reserve(t, limiter)
+	}
+	stored := server.HGet(YahooRateLimitKey, "tat")
+	hook.lost.Store(1)
+
+	r := reserve(t, limiter)
+
+	assert.Equal(t, metrics.RateLimiterFallback, r.Limiter, "a lost reply is a Redis failure")
+	assert.Equal(t, stored, server.HGet(YahooRateLimitKey, "tat"), "the slot the lost call took is given back")
+}
+
+func TestRateLimited_CanceledDeploymentWaitGivesRedisSlotBack(t *testing.T) {
+	t.Parallel()
+	_, client := newTestRedis(t)
+	limiter := newTestDeploymentLimiter(t, client)
+	for range testDeploymentBurst {
+		reserve(t, limiter)
+	}
+	var calls atomic.Int32
+	download := RateLimited(limiter, func(context.Context, string) ([]byte, error) {
+		calls.Add(1)
+		return nil, nil
+	})
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	time.AfterFunc(cancelAfter, cancel)
+
+	_, err := download(ctx, "https://fantasysports.yahooapis.com/")
+
+	require.ErrorIs(t, err, context.Canceled)
+	assert.Zero(t, calls.Load())
+	assert.Equal(t, testDeploymentInterval, reserve(t, limiter).Delay, "the canceled wait's slot went back to Redis")
+}
+
+func TestDeploymentRateLimiter_FallbackRefusesSlotPastMaxWait(t *testing.T) {
+	t.Parallel()
+	server, client := newTestRedis(t)
+	limiter := newTestDeploymentLimiter(t, client)
+	now := time.Now()
+	limiter.now = func() time.Time { return now }
+	server.Close()
+	// The burst, then the slots up to testDeploymentMaxWait away.
+	admitted := testDeploymentBurst + int(testDeploymentMaxWait/testDeploymentInterval)
+	for range admitted {
+		require.Equal(t, metrics.RateLimiterFallback, reserve(t, limiter).Limiter)
+	}
+
+	_, err := limiter.Reserve(context.Background())
+
+	require.ErrorIs(t, err, ErrYahooRateLimitBusy, "the fallback keeps the maximum wait")
 }

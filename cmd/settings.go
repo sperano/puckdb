@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"strings"
 	"time"
 
@@ -84,14 +85,24 @@ func yahooAuthFrom(v *viper.Viper) httpx.YahooAuth {
 	}
 }
 
+// maxYahooRateMaxWaitSeconds is the largest --yahoo-rate-max-wait a
+// time.Duration holds.
+const maxYahooRateMaxWaitSeconds = math.MaxInt64 / int64(time.Second)
+
 // yahooRateLimitFrom reads the --yahoo-rate-limit, --yahoo-rate-burst and
-// --yahoo-rate-max-wait limiter flags.
-func yahooRateLimitFrom(v *viper.Viper) shared.YahooRateLimit {
+// --yahoo-rate-max-wait limiter flags, refusing a maximum wait a
+// time.Duration cannot hold.
+func yahooRateLimitFrom(v *viper.Viper) (shared.YahooRateLimit, error) {
+	maxWait := v.GetInt64(config.FlagYahooRateMaxWait)
+	if maxWait > maxYahooRateMaxWaitSeconds || maxWait < -maxYahooRateMaxWaitSeconds {
+		return shared.YahooRateLimit{}, fmt.Errorf("%w: --%s must be at most %d seconds, got %d",
+			shared.ErrInvalidYahooRateLimit, config.FlagYahooRateMaxWait, maxYahooRateMaxWaitSeconds, maxWait)
+	}
 	return shared.YahooRateLimit{
 		PerSecond: v.GetFloat64(config.FlagYahooRateLimit),
 		Burst:     v.GetInt(config.FlagYahooRateBurst),
-		MaxWait:   time.Duration(v.GetInt(config.FlagYahooRateMaxWait)) * time.Second,
-	}
+		MaxWait:   time.Duration(maxWait) * time.Second,
+	}, nil
 }
 
 // errInvalidYahooRateLimitScope reports a --yahoo-rate-limit-scope value
@@ -117,7 +128,10 @@ func yahooRateLimiterFrom(v *viper.Viper, redisClient *redis.Client, key string)
 	if err != nil {
 		return nil, err
 	}
-	limit := yahooRateLimitFrom(v)
+	limit, err := yahooRateLimitFrom(v)
+	if err != nil {
+		return nil, err
+	}
 	if scope == config.YahooRateLimitScopeProcess {
 		return shared.NewYahooRateLimiter(limit)
 	}

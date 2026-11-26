@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/sperano/puckdb/internal/fixtures/metricsfixtures"
 	"github.com/sperano/puckdb/internal/httpx"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -61,8 +62,9 @@ func TestRetryThrottled_RetriesThrottlesUntilSuccess(t *testing.T) {
 	}
 }
 
+// Not parallel: the parallel tests count throttle retries of the same status.
 func TestRetryThrottled_GivesUpAfterMaxAttempts(t *testing.T) {
-	t.Parallel()
+	retriesBefore := metricsfixtures.ThrottleRetryCount(t, httpx.StatusYahooThrottled)
 	var calls atomic.Int32
 	errs := make([]error, testThrottleTries+1)
 	for i := range errs {
@@ -76,6 +78,8 @@ func TestRetryThrottled_GivesUpAfterMaxAttempts(t *testing.T) {
 	require.True(t, ok, "the last throttle is returned so the activity fails and retries")
 	assert.Equal(t, httpx.StatusYahooThrottled, httpErr.StatusCode)
 	assert.Equal(t, int32(testThrottleTries), calls.Load())
+	assert.Equal(t, retriesBefore+testThrottleTries-1, metricsfixtures.ThrottleRetryCount(t, httpx.StatusYahooThrottled),
+		"each retried throttle is counted, not the final give-up")
 }
 
 func TestRetryThrottled_DoesNotRetryOtherErrors(t *testing.T) {

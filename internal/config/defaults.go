@@ -73,8 +73,8 @@ const (
 	DefaultGameDownloadConcurrency = 8
 	// DefaultYahooTeamDownloadConcurrency only matters when the Yahoo rate
 	// limit exceeds what one sequential download loop can use (about one
-	// request per HTTP round trip); at the default 0.25 req/s one loop
-	// already uses every token.
+	// request per HTTP round trip); at the default DefaultYahooRateLimit,
+	// shared by the whole deployment, one loop can already use every token.
 	DefaultYahooTeamDownloadConcurrency = 4
 )
 

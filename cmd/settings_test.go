@@ -2,10 +2,12 @@ package cmd
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 	"time"
 
@@ -173,15 +175,37 @@ func TestYahooRateLimitFrom(t *testing.T) {
 	t.Parallel()
 	t.Run("flag defaults keep the current settings", func(t *testing.T) {
 		t.Parallel()
-		got := yahooRateLimitFrom(boundViper(t, nil, &config.YahooRateLimitFlags))
+		got, err := yahooRateLimitFrom(boundViper(t, nil, &config.YahooRateLimitFlags))
+		require.NoError(t, err)
 		assert.Equal(t, shared.DefaultYahooRateLimit(), got)
 		assert.Equal(t, shared.YahooRateLimit{PerSecond: 2, Burst: 2, MaxWait: 2 * time.Minute}, got)
 	})
 	t.Run("flags override", func(t *testing.T) {
 		t.Parallel()
 		v := boundViper(t, []string{"--yahoo-rate-limit=1.5", "--yahoo-rate-burst=3", "--yahoo-rate-max-wait=45"}, &config.YahooRateLimitFlags)
-		assert.Equal(t, shared.YahooRateLimit{PerSecond: 1.5, Burst: 3, MaxWait: 45 * time.Second}, yahooRateLimitFrom(v))
+		got, err := yahooRateLimitFrom(v)
+		require.NoError(t, err)
+		assert.Equal(t, shared.YahooRateLimit{PerSecond: 1.5, Burst: 3, MaxWait: 45 * time.Second}, got)
 	})
+	t.Run("largest max wait a Duration holds", func(t *testing.T) {
+		t.Parallel()
+		v := boundViper(t, []string{"--yahoo-rate-max-wait=" + strconv.FormatInt(maxYahooRateMaxWaitSeconds, 10)}, &config.YahooRateLimitFlags)
+		got, err := yahooRateLimitFrom(v)
+		require.NoError(t, err)
+		assert.Equal(t, time.Duration(maxYahooRateMaxWaitSeconds)*time.Second, got.MaxWait)
+	})
+	for name, seconds := range map[string]int64{
+		"max wait overflowing a Duration":          maxYahooRateMaxWaitSeconds + 1,
+		"negative max wait overflowing a Duration": -maxYahooRateMaxWaitSeconds - 1,
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			v := boundViper(t, []string{"--yahoo-rate-max-wait=" + strconv.FormatInt(seconds, 10)}, &config.YahooRateLimitFlags)
+			_, err := yahooRateLimitFrom(v)
+			require.ErrorIs(t, err, shared.ErrInvalidYahooRateLimit)
+			assert.Contains(t, err.Error(), "--yahoo-rate-max-wait must be at most")
+		})
+	}
 }
 
 func TestYahooRateLimiterFrom(t *testing.T) {
@@ -219,6 +243,33 @@ func TestYahooRateLimiterFrom(t *testing.T) {
 		_, err := yahooRateLimiterFrom(v, redisClient, shared.YahooRateLimitKey)
 		require.ErrorIs(t, err, shared.ErrInvalidYahooRateLimit)
 	})
+	t.Run("overflowing max wait", func(t *testing.T) {
+		t.Parallel()
+		v := boundViper(t, []string{"--yahoo-rate-max-wait=" + strconv.FormatInt(maxYahooRateMaxWaitSeconds+1, 10)}, &config.YahooRateLimitFlags)
+		_, err := yahooRateLimiterFrom(v, redisClient, shared.YahooRateLimitKey)
+		require.ErrorIs(t, err, shared.ErrInvalidYahooRateLimit)
+	})
+}
+
+// Not parallel: newYahooDraftRateLimiter reads the global viper.
+func TestNewYahooDraftRateLimiter_UsesTheDraftBucket(t *testing.T) {
+	viper.Reset()
+	t.Cleanup(viper.Reset)
+	viper.Set(config.FlagYahooRateLimitScope, config.YahooRateLimitScopeDeployment)
+	viper.Set(config.FlagYahooRateLimit, config.DefaultYahooRateLimit)
+	viper.Set(config.FlagYahooRateBurst, config.DefaultYahooRateBurst)
+	viper.Set(config.FlagYahooRateMaxWait, config.DefaultYahooRateMaxWait)
+	server := miniredis.RunT(t)
+	redisClient := redis.NewClient(&redis.Options{Addr: server.Addr()})
+	t.Cleanup(func() { assert.NoError(t, redisClient.Close()) })
+	limiter, err := newYahooDraftRateLimiter(redisClient)
+	require.NoError(t, err)
+
+	_, err = limiter.Reserve(context.Background())
+
+	require.NoError(t, err)
+	assert.True(t, server.Exists(shared.YahooDraftRateLimitKey), "live draft polls take their slots from the draft bucket")
+	assert.False(t, server.Exists(shared.YahooRateLimitKey), "not from the workers' bucket")
 }
 
 func TestBoxscorePlayerCacheTTLFrom(t *testing.T) {

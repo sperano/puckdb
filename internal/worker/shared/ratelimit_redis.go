@@ -2,6 +2,7 @@ package shared
 
 import (
 	"context"
+	"crypto/rand"
 	"errors"
 	"fmt"
 	"math"
@@ -49,11 +50,11 @@ const (
 // rate.Limiter.Reserve: it takes the next slot and returns how long the
 // caller waits for it, unless that wait exceeds the maximum, when it takes
 // nothing. KEYS[1] is the bucket hash; ARGV[1] the emission interval,
-// ARGV[2] the burst and ARGV[3] the maximum wait. Times are microseconds of
-// the Redis server clock (TIME), so clients with skewed clocks agree. It
-// returns {delay, slot, taken, stored interval (0: none)}; slot is the
-// slot's absolute time, which releaseScript needs. The key expires once the
-// bucket is full again, as an absent key means.
+// ARGV[2] the burst, ARGV[3] the maximum wait and ARGV[4] the reservation's
+// ID, stored as the bucket's last reservation for releaseScript. Times are
+// microseconds of the Redis server clock (TIME), so clients with skewed
+// clocks agree. It returns {delay, taken, stored interval (0: none)}. The
+// key expires once the bucket is full again, as an absent key means.
 var reserveScript = redis.NewScript(`
 local interval = tonumber(ARGV[1])
 local burst = tonumber(ARGV[2])
@@ -67,37 +68,37 @@ if tat == nil or tat < now then
   tat = now
 end
 local newTat = tat + interval
-local slot = newTat - interval * burst
-local delay = slot - now
+local delay = newTat - interval * burst - now
 if delay < 0 then
   delay = 0
 end
 if delay > maxWait then
-  return {delay, slot, 0, storedInterval}
+  return {delay, 0, storedInterval}
 end
-redis.call('HSET', KEYS[1], 'tat', string.format('%.0f', newTat), 'interval', interval)
+redis.call('HSET', KEYS[1], 'tat', string.format('%.0f', newTat), 'interval', interval, 'last', ARGV[4])
 redis.call('PEXPIRE', KEYS[1], math.ceil((newTat - now) / 1000) + 1)
-return {delay, slot, 1, storedInterval}
+return {delay, 1, storedInterval}
 `)
 
-// releaseScript gives back a slot whose time has not come (ARGV[2]) by
-// moving the TAT back one interval (ARGV[1]), as if it was never reserved.
-// Reservations made after it keep their slots; the next one takes the freed
-// interval. It returns 1 when it released the slot, 0 otherwise.
+// releaseScript gives back the slot of reservation ARGV[3] by moving the TAT
+// back one interval (ARGV[1]), as if it was never reserved, but only while
+// it is the bucket's last reservation and its slot (the TAT minus burst
+// ARGV[2] intervals) has not come. A reservation taken after it keeps the
+// gap unused instead: moving the TAT back then would give its slot to a
+// second request. It returns 1 when it released the slot, 0 otherwise.
 var releaseScript = redis.NewScript(`
 local interval = tonumber(ARGV[1])
-local slot = tonumber(ARGV[2])
+local burst = tonumber(ARGV[2])
 local t = redis.call('TIME')
 local now = tonumber(t[1]) * 1000000 + tonumber(t[2])
-if slot <= now then
-  return 0
-end
-local tat = tonumber(redis.call('HGET', KEYS[1], 'tat'))
-if tat == nil or tat - interval < now then
+local stored = redis.call('HMGET', KEYS[1], 'tat', 'last')
+local tat = tonumber(stored[1])
+if tat == nil or stored[2] ~= ARGV[3] or tat - interval * burst <= now then
   return 0
 end
 local newTat = tat - interval
 redis.call('HSET', KEYS[1], 'tat', string.format('%.0f', newTat))
+redis.call('HDEL', KEYS[1], 'last')
 redis.call('PEXPIRE', KEYS[1], math.ceil((newTat - now) / 1000) + 1)
 return 1
 `)
@@ -105,7 +106,6 @@ return 1
 // Elements of reserveScript's reply.
 const (
 	reserveReplyDelay = iota
-	reserveReplySlot
 	reserveReplyTaken
 	reserveReplyStoredInterval
 	reserveReplyLen
@@ -115,10 +115,11 @@ const (
 // deployment: one GCRA token bucket in Redis. While Redis fails
 // (unreachable, timing out, a script error) it grants slots from a
 // per-process bucket at the same rate, burst and maximum wait instead, so a
-// Redis outage slows nothing down but lets the deployment exceed its rate
-// (the rate times its processes); it logs that at most once per
-// redisRateLimitWarnEvery and tries Redis again after
-// redisRateLimitRetryAfter. A bucket last written with another interval (a
+// Redis outage lets the deployment exceed its rate (the rate times its
+// processes) and delays a request only when a failing call (and the release
+// of the slot it may have taken) times out, up to twice
+// redisRateLimitTimeout, once per redisRateLimitRetryAfter: it then tries
+// Redis again. It logs the fallback at most once per redisRateLimitWarnEvery. A bucket last written with another interval (a
 // process configured with another rate) is logged the same way.
 type DeploymentRateLimiter struct {
 	client   *redis.Client
@@ -164,11 +165,15 @@ func NewDeploymentRateLimiter(client *redis.Client, key string, l YahooRateLimit
 // the per-process bucket.
 func (l *DeploymentRateLimiter) Reserve(ctx context.Context) (Reservation, error) {
 	if l.redisUsable() {
-		reservation, err := l.reserveRedis(ctx)
-		switch {
-		case err == nil, errors.Is(err, ErrYahooRateLimitBusy):
+		id := rand.Text()
+		reservation, err := l.reserveRedis(ctx, id)
+		if err == nil || errors.Is(err, ErrYahooRateLimitBusy) {
 			return reservation, err
-		case ctx.Err() != nil:
+		}
+		// The script may have taken the slot before the reply was lost (a
+		// timeout, ctx ending), so give it back by its ID.
+		l.release(context.WithoutCancel(ctx), id)
+		if ctx.Err() != nil {
 			return Reservation{}, ctx.Err()
 		}
 		l.redisFailed(err)
@@ -177,12 +182,12 @@ func (l *DeploymentRateLimiter) Reserve(ctx context.Context) (Reservation, error
 	return reserveLocal(l.fallback, l.maxWait, metrics.RateLimiterFallback)
 }
 
-// reserveRedis takes a slot from the Redis bucket.
-func (l *DeploymentRateLimiter) reserveRedis(ctx context.Context) (Reservation, error) {
+// reserveRedis takes a slot from the Redis bucket as reservation id.
+func (l *DeploymentRateLimiter) reserveRedis(ctx context.Context, id string) (Reservation, error) {
 	callCtx, cancel := context.WithTimeout(ctx, redisRateLimitTimeout)
 	defer cancel()
 	reply, err := reserveScript.Run(callCtx, l.client, []string{l.key},
-		l.interval, l.burst, l.maxWait.Microseconds()).Int64Slice()
+		l.interval, l.burst, l.maxWait.Microseconds(), id).Int64Slice()
 	if err != nil {
 		return Reservation{}, fmt.Errorf("reserve Yahoo rate limit slot in Redis: %w", err)
 	}
@@ -194,22 +199,21 @@ func (l *DeploymentRateLimiter) reserveRedis(ctx context.Context) (Reservation, 
 	if reply[reserveReplyTaken] == 0 {
 		return Reservation{}, busyError(metrics.RateLimiterDeployment, delay, l.maxWait)
 	}
-	slot := reply[reserveReplySlot]
 	return Reservation{
 		Delay:   delay,
 		Limiter: metrics.RateLimiterDeployment,
 		// The caller cancels when its ctx ended, so the release must not
 		// inherit that cancellation, only ctx's values.
-		cancel: func() { l.release(context.WithoutCancel(ctx), slot) },
+		cancel: func() { l.release(context.WithoutCancel(ctx), id) },
 	}, nil
 }
 
-// release gives back the Redis slot at slot, best effort: a failure only
-// leaves the slot unused.
-func (l *DeploymentRateLimiter) release(ctx context.Context, slot int64) {
+// release gives back the Redis slot of reservation id, best effort: a
+// failure, or a reservation taken after it, only leaves the slot unused.
+func (l *DeploymentRateLimiter) release(ctx context.Context, id string) {
 	ctx, cancel := context.WithTimeout(ctx, redisRateLimitTimeout)
 	defer cancel()
-	if err := releaseScript.Run(ctx, l.client, []string{l.key}, l.interval, slot).Err(); err != nil {
+	if err := releaseScript.Run(ctx, l.client, []string{l.key}, l.interval, l.burst, id).Err(); err != nil {
 		log.Debug().Err(err).Str("key", l.key).Msg("Could not give a Yahoo rate limit slot back to Redis")
 	}
 }
