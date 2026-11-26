@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
       - name: Set up Go
         # v6 installs the toolchain directive's version when go.mod has one,
         # else the go directive's exact (often .0) release.
