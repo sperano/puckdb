@@ -77,7 +77,8 @@ func TestHTTPError_IsNonRetryableClientError(t *testing.T) {
 		{"403 Forbidden - non-retryable", 403, true},
 		{"404 Not Found - retryable (Yahoo intermittent)", 404, false},
 		{"405 Method Not Allowed - non-retryable", 405, true},
-		{"429 Too Many Requests - non-retryable", 429, true},
+		{"429 Too Many Requests - retryable (throttle)", 429, false},
+		{"999 Yahoo throttle - not client error", StatusYahooThrottled, false},
 		{"500 Internal Server Error - not client error", 500, false},
 	}
 
@@ -478,4 +479,25 @@ func TestNewYahooClientWithConfig_MissingUserContext(t *testing.T) {
 	_, err := NewYahooClientWithConfig(context.Background(), redisClient, conf)
 	require.Error(t, err)
 	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestHTTPError_IsThrottled(t *testing.T) {
+	t.Parallel()
+
+	tests := map[string]struct {
+		statusCode int
+		want       bool
+	}{
+		"999 Yahoo throttle":      {StatusYahooThrottled, true},
+		"429 Too Many Requests":   {http.StatusTooManyRequests, true},
+		"400 Bad Request":         {http.StatusBadRequest, false},
+		"503 Service Unavailable": {http.StatusServiceUnavailable, false},
+		"404 Not Found":           {http.StatusNotFound, false},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tt.want, (&HTTPError{StatusCode: tt.statusCode}).IsThrottled())
+		})
+	}
 }

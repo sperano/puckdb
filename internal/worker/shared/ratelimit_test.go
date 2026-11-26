@@ -36,11 +36,13 @@ const (
 	// minHeartbeats is what reaches the listener: the SDK sends the first
 	// heartbeat at once and batches the later ones beyond testHeartbeatWait.
 	minHeartbeats = 1
+	// testMaxWait is longer than any wait of the tests, so no limiter refuses.
+	testMaxWait = 2 * time.Hour
 )
 
 // unlimited returns a limiter that never makes a test wait.
-func unlimited() *rate.Limiter {
-	return rate.NewLimiter(rate.Inf, 1)
+func unlimited() *LocalRateLimiter {
+	return NewLocalRateLimiter(rate.NewLimiter(rate.Inf, 1), testMaxWait)
 }
 
 // drained returns a limiter whose next token is interval away.
@@ -62,7 +64,7 @@ func countingDownloader(calls *atomic.Int32) Downloader {
 func TestRateLimited_SpacesConcurrentDownloadsAtRate(t *testing.T) {
 	t.Parallel()
 	start := time.Now()
-	limiter, err := NewYahooRateLimiter(YahooRateLimit{PerSecond: float64(time.Second / testRequestInterval), Burst: 1})
+	limiter, err := NewYahooRateLimiter(YahooRateLimit{PerSecond: float64(time.Second / testRequestInterval), Burst: 1, MaxWait: testMaxWait})
 	require.NoError(t, err)
 
 	var mu sync.Mutex
@@ -101,7 +103,7 @@ func TestRateLimited_CanceledWaitReturnsPromptlyWithoutDownloading(t *testing.T)
 	t.Parallel()
 	limiter := drained(t, time.Hour)
 	var calls atomic.Int32
-	download := RateLimited(limiter, countingDownloader(&calls))
+	download := RateLimited(NewLocalRateLimiter(limiter, testMaxWait), countingDownloader(&calls))
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -118,7 +120,7 @@ func TestRateLimited_CanceledWaitReturnsPromptlyWithoutDownloading(t *testing.T)
 func TestRateLimited_ExpiredDeadlineDoesNotDownload(t *testing.T) {
 	t.Parallel()
 	var calls atomic.Int32
-	download := RateLimited(drained(t, time.Hour), countingDownloader(&calls))
+	download := RateLimited(NewLocalRateLimiter(drained(t, time.Hour), testMaxWait), countingDownloader(&calls))
 
 	ctx, cancel := context.WithTimeout(context.Background(), cancelAfter)
 	defer cancel()
@@ -135,7 +137,7 @@ func TestRateLimited_AlreadyCanceledContextTakesNoToken(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	_, err := RateLimited(limiter, countingDownloader(&calls))(ctx, "https://fantasysports.yahooapis.com/")
+	_, err := RateLimited(NewLocalRateLimiter(limiter, testMaxWait), countingDownloader(&calls))(ctx, "https://fantasysports.yahooapis.com/")
 
 	require.ErrorIs(t, err, context.Canceled)
 	assert.Zero(t, calls.Load())
@@ -150,7 +152,7 @@ func TestWaitForToken_HeartbeatsWhileWaitingInActivity(t *testing.T) {
 	env.SetOnActivityHeartbeatListener(func(*activity.Info, converter.EncodedValues) { heartbeats.Add(1) })
 	limiter := drained(t, testHeartbeatWait)
 	env.RegisterActivityWithOptions(func(ctx context.Context) error {
-		return waitForToken(ctx, limiter, testHeartbeatInterval)
+		return waitForToken(ctx, NewLocalRateLimiter(limiter, testMaxWait), testHeartbeatInterval)
 	}, activity.RegisterOptions{Name: "wait"})
 
 	_, err := env.ExecuteActivity("wait")
@@ -163,11 +165,12 @@ func TestYahooRateLimit_Validate(t *testing.T) {
 	t.Parallel()
 	require.NoError(t, DefaultYahooRateLimit().Validate())
 	for name, limit := range map[string]YahooRateLimit{
-		"zero rate":     {PerSecond: 0, Burst: 1},
-		"negative rate": {PerSecond: -1, Burst: 1},
-		"NaN rate":      {PerSecond: math.NaN(), Burst: 1},
-		"infinite rate": {PerSecond: math.Inf(1), Burst: 1},
-		"zero burst":    {PerSecond: 1, Burst: 0},
+		"zero rate":     {PerSecond: 0, Burst: 1, MaxWait: time.Second},
+		"negative rate": {PerSecond: -1, Burst: 1, MaxWait: time.Second},
+		"NaN rate":      {PerSecond: math.NaN(), Burst: 1, MaxWait: time.Second},
+		"infinite rate": {PerSecond: math.Inf(1), Burst: 1, MaxWait: time.Second},
+		"zero burst":    {PerSecond: 1, Burst: 0, MaxWait: time.Second},
+		"no max wait":   {PerSecond: 1, Burst: 1},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -192,4 +195,23 @@ func TestHeartbeatInterval(t *testing.T) {
 			assert.Equal(t, tc.want, heartbeatInterval(tc.timeout, maxRateLimitHeartbeatInterval))
 		})
 	}
+}
+
+func TestLocalRateLimiter_RefusesSlotPastMaxWaitAndGivesItBack(t *testing.T) {
+	t.Parallel()
+	bucket := drained(t, time.Hour)
+	limiter := NewLocalRateLimiter(bucket, time.Minute)
+	var calls atomic.Int32
+
+	_, err := RateLimited(limiter, countingDownloader(&calls))(context.Background(), "https://fantasysports.yahooapis.com/")
+
+	require.ErrorIs(t, err, ErrYahooRateLimitBusy)
+	assert.Zero(t, calls.Load(), "a refused request does not download")
+	assert.InDelta(t, 0, bucket.Tokens(), 0.01, "the refused slot is given back")
+}
+
+func TestLocalRateLimiter_ZeroBurst(t *testing.T) {
+	t.Parallel()
+	_, err := NewLocalRateLimiter(rate.NewLimiter(1, 0), testMaxWait).Reserve(context.Background())
+	require.ErrorIs(t, err, ErrZeroBurst)
 }

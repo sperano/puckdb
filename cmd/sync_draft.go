@@ -56,7 +56,7 @@ func runSyncDraft(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		return fmt.Errorf("create draft cache: %w", err)
 	}
-	yahooLimiter, err := newYahooRateLimiter()
+	yahooLimiter, err := newYahooDraftRateLimiter(redisClient)
 	if err != nil {
 		return fmt.Errorf("create Yahoo rate limiter: %w", err)
 	}

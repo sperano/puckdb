@@ -22,6 +22,10 @@ import (
 	"golang.org/x/oauth2"
 )
 
+// StatusYahooThrottled is the non-standard status Yahoo answers when it
+// throttles a client, instead of (or besides) 429 Too Many Requests.
+const StatusYahooThrottled = 999
+
 // HTTPError represents an HTTP error with status code
 type HTTPError struct {
 	StatusCode int
@@ -38,14 +42,22 @@ func (e *HTTPError) IsClientError() bool {
 	return e.StatusCode >= http.StatusBadRequest && e.StatusCode < http.StatusInternalServerError
 }
 
+// IsThrottled reports whether the server refused the request to slow the
+// client down: Yahoo's 999 or a standard 429. A later attempt may succeed.
+func (e *HTTPError) IsThrottled() bool {
+	return e.StatusCode == StatusYahooThrottled || e.StatusCode == http.StatusTooManyRequests
+}
+
 // IsNonRetryableClientError returns true for 4xx errors that should not be retried.
-// 404 is excluded because Yahoo Sports sometimes returns intermittent 404s for valid URLs.
+// 404 is excluded because Yahoo Sports sometimes returns intermittent 404s for
+// valid URLs, and 429 because a throttled request succeeds once the client
+// slows down (IsThrottled).
 func (e *HTTPError) IsNonRetryableClientError() bool {
 	if !e.IsClientError() {
 		return false
 	}
 	// 404 should be retried - Yahoo sometimes returns intermittent 404s
-	if e.StatusCode == http.StatusNotFound {
+	if e.StatusCode == http.StatusNotFound || e.IsThrottled() {
 		return false
 	}
 	// Other 4xx errors (400, 401, 403, etc.) should not be retried

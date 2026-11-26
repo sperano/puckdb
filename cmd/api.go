@@ -180,7 +180,7 @@ func newDraftBoardService(pool *pgxpool.Pool, redisClient *redis.Client, ranking
 	if err != nil {
 		return nil, fmt.Errorf("create live draft cache: %w", err)
 	}
-	yahooLimiter, err := newYahooRateLimiter()
+	yahooLimiter, err := newYahooDraftRateLimiter(redisClient)
 	if err != nil {
 		return nil, fmt.Errorf("create Yahoo rate limiter: %w", err)
 	}

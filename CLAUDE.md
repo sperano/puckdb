@@ -312,6 +312,10 @@ The Prometheus registry is split in three (see `internal/metrics/metrics.go`):
 | `puckdb_db_pool_connections` | Gauge | `state` | pgx pool connections (`acquired`, `constructing`, `idle`, `max`, `total`) |
 | `puckdb_db_pool_*` | Counter | optional `reason` | pgx acquire/wait/create/destroy totals and durations from `pgxpool.Stat()` |
 | `puckdb_valkey_cache_requests_total` | Counter | `cache`, `result` | Valkey-backed GobCache reads by bounded cache name (file type or `gob`) and hit/miss/error result |
+| `puckdb_yahoo_rate_limit_wait_seconds` | Histogram | `limiter` | Time a Yahoo request waited for its rate limiter token: `deployment` (the shared Redis bucket: `puckdb:ratelimit:yahoo` for the workers, `puckdb:ratelimit:yahoo:draft` for live draft polls), `process` (`--yahoo-rate-limit-scope=process`) or `fallback` (per-process bucket while Redis is unavailable). Yahoo requests by outcome are `puckdb_http_request_duration_seconds_count{api="yahoo"\|"public"}` by `status_code` (999 and 429 are throttles) |
+| `puckdb_yahoo_throttle_retries_total` | Counter | `status_code` | Yahoo downloads retried inside their activity after a throttle (999, 429; `shared.RetryThrottled`) |
+| `puckdb_yahoo_rate_limit_busy_total` | Counter | `limiter` | Yahoo requests refused at once (retryable `shared.ErrYahooRateLimitBusy`) because their slot was more than `--yahoo-rate-max-wait` seconds (default 120) away; the activity fails and Temporal's retry backoff admits it later |
+| `puckdb_yahoo_rate_limit_fallbacks_total` | Counter | — | Yahoo rate limiter tokens taken from the per-process fallback because the deployment-wide limiter (Redis) failed |
 | `puckdb_sim_llm_call_duration_seconds` | Histogram | `provider`, `model`, `agent_name` | Simulation LLM call latency (the `instrumentedLLMClient` around every agent) |
 | `puckdb_sim_llm_failures_total` | Counter | `provider`, `model`, `reason` | Simulation LLM call failures |
 | `puckdb_sim_day_duration_seconds` | Histogram | `pool_id` | Wall time of one simulated day (measured with `workflow.Now`, observed by `RecordDayDuration`) |

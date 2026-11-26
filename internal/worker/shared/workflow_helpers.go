@@ -70,8 +70,9 @@ func ViperStringOrDefault(key, fallback string) string {
 // StartToClose timeout (--fetch-day-activity-timeout) for activities that
 // download from Yahoo (FetchDay, the FetchYahooSeasonWorkflow activities
 // and FetchYahooPlayersWorkflow's game player list activities). Their downloads queue behind the
-// process's Yahoo rate limiter, shared with every other activity on the pod,
-// so even a single download's duration depends on the pod's load.
+// Yahoo rate limiter, shared with every other activity of the deployment (or
+// of the pod, with --yahoo-rate-limit-scope=process), and back off when Yahoo
+// throttles, so even a single download's duration depends on the load.
 // The heartbeat timeout still detects a stalled activity: the limiter
 // heartbeats while a download waits.
 func YahooDownloadActivityOptions() workflow.ActivityOptions {

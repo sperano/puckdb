@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"net/url"
 	"os"
 	"sync/atomic"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/sperano/puckdb/internal/cache"
+	"github.com/sperano/puckdb/internal/httpx"
 	"github.com/sperano/puckdb/internal/resource"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -131,6 +133,9 @@ func TestClassifyActivityError_RetryableUnchanged(t *testing.T) {
 		{"batch with a repairable row", batchOf(pgError(sqlStateStringTooLong), pgError("23503"))},
 		{"explicit retryable ApplicationError", retryableApp},
 		{"wrapped explicit ApplicationError", fmt.Errorf("import: %w", retryableApp)},
+		{"Yahoo throttle 999", fmt.Errorf("download: %w", &httpx.HTTPError{StatusCode: httpx.StatusYahooThrottled})},
+		{"throttle 429", fmt.Errorf("download: %w", &httpx.HTTPError{StatusCode: http.StatusTooManyRequests})},
+		{"Yahoo rate limiter busy: retry once the queue shortens", fmt.Errorf("wait for Yahoo rate limit: %w", ErrYahooRateLimitBusy)},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

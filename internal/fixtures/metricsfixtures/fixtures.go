@@ -6,6 +6,7 @@
 package metricsfixtures
 
 import (
+	"strconv"
 	"testing"
 
 	"github.com/sperano/puckdb/internal/core"
@@ -63,6 +64,33 @@ func DownloadCount(t testing.TB, ft core.FileType, result string) float64 {
 			}
 			if labels["file_type"] == ft.String() && labels["result"] == result {
 				return m.GetCounter().GetValue()
+			}
+		}
+	}
+	return 0
+}
+
+// throttleRetriesMetric is the counter of Yahoo downloads retried after a
+// throttle, by status code.
+const throttleRetriesMetric = "puckdb_yahoo_throttle_retries_total"
+
+// ThrottleRetryCount returns how many throttle retries have been recorded
+// under the status_code label of statusCode.
+func ThrottleRetryCount(t testing.TB, statusCode int) float64 {
+	t.Helper()
+	families, err := metrics.WorkerRegistry.Gather()
+	if err != nil {
+		t.Fatalf("gather worker metrics: %v", err)
+	}
+	for _, family := range families {
+		if family.GetName() != throttleRetriesMetric {
+			continue
+		}
+		for _, m := range family.GetMetric() {
+			for _, l := range m.GetLabel() {
+				if l.GetName() == "status_code" && l.GetValue() == strconv.Itoa(statusCode) {
+					return m.GetCounter().GetValue()
+				}
 			}
 		}
 	}

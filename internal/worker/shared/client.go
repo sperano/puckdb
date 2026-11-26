@@ -8,7 +8,6 @@ import (
 	"github.com/sperano/nhl-api-go/nhl"
 	"github.com/sperano/puckdb/internal/config"
 	"github.com/sperano/puckdb/internal/httpx"
-	"golang.org/x/time/rate"
 )
 
 const nhlAPITimeout = 30 * time.Second
@@ -73,10 +72,10 @@ type Downloader func(ctx context.Context, url string) ([]byte, error)
 
 // NewYahooDownloader creates a Downloader that uses the shared Redis client
 // for OAuth2 token management and the OAuth2 application in auth, and takes
-// a token from limiter, the process's Yahoo rate limiter, before each
-// request. The returned Downloader honors the caller's context for
+// a token from limiter, the Yahoo rate limiter (deployment-wide or the
+// process's), before each request. The returned Downloader honors the caller's context for
 // cancellation and deadlines.
-func NewYahooDownloader(redisClient *redis.Client, auth httpx.YahooAuth, limiter *rate.Limiter) Downloader {
+func NewYahooDownloader(redisClient *redis.Client, auth httpx.YahooAuth, limiter RateLimiter) Downloader {
 	return RateLimited(limiter, func(ctx context.Context, url string) ([]byte, error) {
 		ctx = context.WithValue(ctx, config.CtxUser, config.DefaultUser)
 		return httpx.DownloadYahoo(ctx, redisClient, auth, url)

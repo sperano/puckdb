@@ -100,7 +100,7 @@ func TestWaitForToken_KeepsActivityProgressWhileWaiting(t *testing.T) {
 	limiter := drained(t, testHeartbeatWait)
 	got := runActivity(t, func(ctx context.Context) error {
 		activity.RecordHeartbeat(ctx, testProgress)
-		return waitForToken(ctx, limiter, testHeartbeatInterval)
+		return waitForToken(ctx, NewLocalRateLimiter(limiter, testMaxWait), testHeartbeatInterval)
 	}, &HeartbeatDetailsInterceptor{})
 
 	require.Greater(t, len(got), 1, "the wait must heartbeat")

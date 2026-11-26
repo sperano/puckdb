@@ -36,8 +36,8 @@ var ErrDownload = errors.New("download from Yahoo failed")
 // Fetcher is the single cache-or-download primitive for Yahoo API resources.
 // It reads validated content from the Redis → filesystem cache and, on a miss,
 // downloads, validates, stores the raw XML verbatim, populates Redis and records
-// download metrics. Download is expected to apply the process's Yahoo rate
-// limit (shared.NewYahooDownloader does).
+// download metrics. Download is expected to apply the Yahoo rate limit
+// (shared.NewYahooDownloader does).
 //
 // Raw XML is never written before it parses, so a malformed response cannot
 // become a cache entry. An existing file that no longer parses is reported as

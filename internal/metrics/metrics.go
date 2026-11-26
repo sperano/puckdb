@@ -4,7 +4,8 @@
 //
 //   - WorkerRegistry — served by the worker process (StartWorkerServer):
 //     filesystem, HTTP-client, download, Temporal activity, database-query,
-//     Valkey-cache, and simulation metrics declared in worker.go; the pgx pool
+//     Valkey-cache, and simulation metrics declared in worker.go; the Yahoo
+//     rate limiter and throttle metrics declared in yahoo.go; the pgx pool
 //     collector declared in database.go (registered at runtime by cmd/worker.go,
 //     not in init()); and the Temporal SDK's temporal_* series (schedule-to-start
 //     latency, task-slot gauges, poller counts), also registered at runtime by
@@ -22,7 +23,7 @@
 // remote API such as "yahoo") and once on APIRegistry as the API server's
 // request duration (api.go, api label = the chi route pattern). The metric
 // declarations are split by registry across the sibling files worker.go,
-// api.go, collector.go, freshness.go, redis.go, and database.go. This file holds the registries, the
+// yahoo.go, api.go, collector.go, freshness.go, redis.go, and database.go. This file holds the registries, the
 // shared histogram buckets, the Result* label constants, and the HTTP-server
 // plumbing that serves them; database.go holds the instrumented pgx wrappers
 // that feed the worker metrics — PGXPoolCollector (pool stat gauges and
@@ -104,6 +105,10 @@ var (
 	// (Waivers + FA pool + N agent turns + stats + standings). Realistic:
 	// 5–60s for small pools, 60s+ for large pools or slow LLMs.
 	simDayBuckets = []float64{1, 5, 10, 30, 60, 120, 300, 600}
+
+	// Yahoo rate limiter waits: none at all under light load, minutes when
+	// many activities queue behind the deployment-wide rate.
+	rateLimitWaitBuckets = []float64{0.001, 0.01, 0.1, 0.5, 1, 2.5, 5, 10, 30, 60, 120, 300, 600}
 )
 
 func init() {
@@ -120,6 +125,10 @@ func init() {
 		simLLMCallDuration,
 		simLLMFailures,
 		simDayDuration,
+		yahooRateLimitWait,
+		yahooThrottleRetries,
+		yahooRateLimitBusy,
+		yahooRateLimitFallbacks,
 	)
 
 	// Register API metrics

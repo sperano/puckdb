@@ -73,8 +73,8 @@ const (
 	DefaultGameDownloadConcurrency = 8
 	// DefaultYahooTeamDownloadConcurrency only matters when the Yahoo rate
 	// limit exceeds what one sequential download loop can use (about one
-	// request per HTTP round trip); at the default 0.25 req/s one loop
-	// already uses every token.
+	// request per HTTP round trip); at the default DefaultYahooRateLimit,
+	// shared by the whole deployment, one loop can already use every token.
 	DefaultYahooTeamDownloadConcurrency = 4
 )
 
@@ -87,18 +87,39 @@ const (
 	// DefaultYahooGamePlayerListConcurrency is how many seasons' game player
 	// lists download at once. Each season walks its pages one at a time, so
 	// no page is fetched past a list's end; the seasons' pages spread over
-	// the worker replicas, each with its own Yahoo rate limiter.
+	// the worker replicas, all paced by the Yahoo rate limiter.
 	DefaultYahooGamePlayerListConcurrency = 4
 )
 
-// Yahoo request rate limit defaults. The limit is per process: 16 worker
-// replicas at 0.25 req/s send at most 4 req/s to Yahoo, under the 4.4 req/s
-// the cluster sustained without being throttled (season sync, 2026-10-11);
-// the api process adds its own 0.25 req/s for live draft polls.
+// Yahoo request rate limit defaults. With the default deployment scope the
+// limit is shared by every process of the deployment through a Redis token
+// bucket (shared.DeploymentRateLimiter): the worker replicas together send at
+// most DefaultYahooRateLimit requests per second, and the live draft polls
+// (api, sync draft) as much again in a bucket of their own
+// (shared.YahooDraftRateLimitKey), so they never queue behind a season sync.
+// Yahoo throttled (HTTP 999) a 16-replica worker sending up to 4 req/s
+// (2026-11-25), and an uncached season refetch achieved about 1.5 req/s
+// through the retries, so 2 req/s is a conservative deployment-wide rate.
 // A burst of 2 lets a live draft poll (status, then results) run back to back.
 const (
-	DefaultYahooRateLimit = 0.25 // requests per second
-	DefaultYahooRateBurst = 2
+	DefaultYahooRateLimit      = 2.0 // requests per second, deployment-wide by default
+	DefaultYahooRateBurst      = 2
+	DefaultYahooRateLimitScope = YahooRateLimitScopeDeployment
+	// DefaultYahooRateMaxWait (seconds) bounds a request's queueing for its
+	// slot. At 2 req/s it admits about 240 queued requests, so a FetchDay
+	// fails fast and retries later instead of outliving its start-to-close
+	// timeout while thousands of downloads of other activities queue ahead.
+	DefaultYahooRateMaxWait = 120
+)
+
+// Values of --yahoo-rate-limit-scope.
+const (
+	// YahooRateLimitScopeDeployment shares one token bucket in Redis among
+	// every process of the deployment.
+	YahooRateLimitScopeDeployment = "deployment"
+	// YahooRateLimitScopeProcess gives each process its own token bucket, so
+	// the deployment's rate is the limit times its number of processes.
+	YahooRateLimitScopeProcess = "process"
 )
 
 // NHL player landing download defaults
