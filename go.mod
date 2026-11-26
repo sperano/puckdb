@@ -34,7 +34,7 @@ require (
 	go.temporal.io/sdk v1.39.0
 	go.temporal.io/sdk/contrib/tally v0.2.0
 	golang.org/x/oauth2 v0.37.0
-	golang.org/x/sync v0.24.0
+	golang.org/x/sync v0.25.0
 	golang.org/x/term v0.48.0
 	golang.org/x/text v0.43.0
 	golang.org/x/time v0.15.0
