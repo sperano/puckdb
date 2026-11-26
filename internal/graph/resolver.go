@@ -204,12 +204,12 @@ func isTerminalFailureStatus(s model.TemporalWorkflowStatus) bool {
 }
 
 func (r *Resolver) getWorkflowResult(ctx context.Context, workflowID string) (*model.WorkflowResult, error) {
-	resp, err := r.TemporalClient.DescribeWorkflowExecution(ctx, workflowID, "")
+	desc, err := r.TemporalClient.DescribeWorkflow(ctx, workflowID, "")
 	if err != nil {
 		return nil, err
 	}
 
-	rawStatus := resp.WorkflowExecutionInfo.Status
+	rawStatus := desc.Status
 	status, ok := temporalStatusToGQL[rawStatus]
 	if !ok {
 		// A status Temporal added that this build doesn't know about.

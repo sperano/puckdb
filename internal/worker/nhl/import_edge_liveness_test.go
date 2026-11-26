@@ -13,65 +13,56 @@ import (
 	"github.com/sperano/puckdb/internal/store"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
-	"go.temporal.io/sdk/activity"
-	"go.temporal.io/sdk/converter"
+	"go.temporal.io/sdk/interceptor"
 	"go.temporal.io/sdk/testsuite"
+	"go.temporal.io/sdk/worker"
 	"go.temporal.io/sdk/workflow"
 )
 
 // =============================================================================
-// Empirical finding (see task write-up): testsuite.TestActivityEnvironment
-// hard-codes HeartbeatTimeout=0 for ExecuteActivity, so the SDK always uses
-// its default 30s heartbeat-throttle window there — every RecordHeartbeat
-// call within that window after the first is buffered and, on success,
-// silently discarded (only flushed if the activity ultimately errors). This
-// was confirmed empirically: an activity heartbeating 5 times with 200ms
-// gaps delivered only the first call to the listener on success, and both
-// the first and last on failure.
+// Heartbeats are captured where the activity records them: an outbound
+// interceptor sees every activity.RecordHeartbeat call, before the SDK's
+// heartbeat batching. That batching (a window of 80% of HeartbeatTimeout, or
+// 30s without one) holds back every call after the first in a window and
+// drops the held one when the activity succeeds first, so a heartbeat
+// listener sees only some of them; the test environment ignores
+// worker.Options' throttle settings, so the window cannot be shortened.
 //
-// Driving the activity through a TestWorkflowEnvironment instead lets us set
-// workflow.ActivityOptions.HeartbeatTimeout, which the SDK uses to size that
-// throttle window (80% of the configured value). Setting it short — via
-// testActivityHeartbeatTimeout below — makes the window shorter than our
-// fake's per-upsert delay, so the test genuinely observes (approximately)
-// every heartbeat instead of us faking that behavior.
+// Since SDK 1.52 the test environment enforces HeartbeatTimeout like a real
+// server: an activity whose delivered heartbeats lapse longer than it fails
+// with a heartbeat timeout. The liveness test runs with HeartbeatTimeout =
+// simulatedHeartbeatTimeout, so its success proves delivery; the content
+// tests leave it unset (unenforcedHeartbeatTimeout).
 // =============================================================================
 
 const (
-	// heartbeatSpacingDelay is applied to a single upsert call so the next
-	// heartbeat call in a two-item scenario is guaranteed to land after the
-	// previous throttle window has closed (testActivityHeartbeatTimeout's
-	// 80% window is orders of magnitude smaller than this).
-	heartbeatSpacingDelay = 100 * time.Millisecond
-
-	// testActivityHeartbeatTimeout is test-infrastructure only: it configures
-	// the SDK's internal batching window (~80% of this value), not the
-	// business value under test. It must stay well under slowUpsertDelay so
-	// the liveness test observes (approximately) every heartbeat.
-	testActivityHeartbeatTimeout = 5 * time.Millisecond
+	// unenforcedHeartbeatTimeout leaves the heartbeat timeout unset, for the
+	// tests that check heartbeat content only.
+	unenforcedHeartbeatTimeout time.Duration = 0
 
 	// slowUpsertDelay simulates a slow per-item database upsert.
 	slowUpsertDelay = 20 * time.Millisecond
 
-	// simulatedHeartbeatTimeout is the business value under test: "if
-	// Temporal's real heartbeat timeout were this long, would our
-	// heartbeating keep the activity alive?" It must be >= 5x slowUpsertDelay
-	// for a generous margin against scheduling jitter under -race/parallel load.
-	simulatedHeartbeatTimeout = 100 * time.Millisecond
+	// simulatedHeartbeatTimeout is the business value under test: with
+	// Temporal's heartbeat timeout this long, does our heartbeating keep the
+	// activity alive? Delivered heartbeats arrive about every 80% of it (the
+	// SDK's batching window), so it must stay well above slowUpsertDelay for
+	// a margin against scheduling jitter under -race/parallel load.
+	simulatedHeartbeatTimeout = 200 * time.Millisecond
 
 	// livenessRosterSize * slowUpsertDelay must comfortably exceed
 	// simulatedHeartbeatTimeout so the import genuinely outlives it.
-	livenessRosterSize       = 12
+	livenessRosterSize       = 20
 	testLivenessSkaterIDBase = int64(8490000)
 
 	activityStartToCloseTimeout = 30 * time.Second
 	cancelAfterSkaterCount      = 2
 )
 
-// heartbeatCapture records delivered heartbeat details and their arrival
-// time under a mutex; the SDK may call the listener from a background
-// batch-flush goroutine concurrently with the activity's own goroutine.
+// heartbeatCapture records each recorded heartbeat's detail and time under a
+// mutex, as a worker interceptor around the activities the test runs.
 type heartbeatCapture struct {
+	interceptor.WorkerInterceptorBase
 	t       *testing.T
 	mu      sync.Mutex
 	details []string
@@ -82,18 +73,24 @@ func newHeartbeatCapture(t *testing.T) *heartbeatCapture {
 	return &heartbeatCapture{t: t}
 }
 
-func (h *heartbeatCapture) listener() func(*activity.Info, converter.EncodedValues) {
-	return func(_ *activity.Info, details converter.EncodedValues) {
-		var s string
-		if err := details.Get(&s); err != nil {
-			h.t.Errorf("decode heartbeat detail: %v", err)
-			return
-		}
-		h.mu.Lock()
-		defer h.mu.Unlock()
-		h.details = append(h.details, s)
-		h.at = append(h.at, time.Now())
+func (h *heartbeatCapture) InterceptActivity(_ context.Context, next interceptor.ActivityInboundInterceptor) interceptor.ActivityInboundInterceptor {
+	return &heartbeatInbound{ActivityInboundInterceptorBase: interceptor.ActivityInboundInterceptorBase{Next: next}, capture: h}
+}
+
+func (h *heartbeatCapture) record(details []any) {
+	if len(details) != 1 {
+		h.t.Errorf("heartbeat with %d details, want 1", len(details))
+		return
 	}
+	s, ok := details[0].(string)
+	if !ok {
+		h.t.Errorf("heartbeat detail %T, want string", details[0])
+		return
+	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.details = append(h.details, s)
+	h.at = append(h.at, time.Now())
 }
 
 func (h *heartbeatCapture) snapshot() ([]string, []time.Time) {
@@ -102,11 +99,31 @@ func (h *heartbeatCapture) snapshot() ([]string, []time.Time) {
 	return slices.Clone(h.details), slices.Clone(h.at)
 }
 
-// executeViaWorkflow runs activityFn(input) through a workflow with a short
-// HeartbeatTimeout, so the SDK's heartbeat-batching window stays shorter
-// than the delays our fakes introduce (see the empirical finding above).
-func executeViaWorkflow(t *testing.T, env *testsuite.TestWorkflowEnvironment, heartbeatTimeout time.Duration, activityFn, input any) error {
+type heartbeatInbound struct {
+	interceptor.ActivityInboundInterceptorBase
+	capture *heartbeatCapture
+}
+
+func (i *heartbeatInbound) Init(outbound interceptor.ActivityOutboundInterceptor) error {
+	return i.Next.Init(&heartbeatOutbound{ActivityOutboundInterceptorBase: interceptor.ActivityOutboundInterceptorBase{Next: outbound}, capture: i.capture})
+}
+
+type heartbeatOutbound struct {
+	interceptor.ActivityOutboundInterceptorBase
+	capture *heartbeatCapture
+}
+
+func (o *heartbeatOutbound) RecordHeartbeat(ctx context.Context, details ...any) {
+	o.capture.record(details)
+	o.Next.RecordHeartbeat(ctx, details...)
+}
+
+// executeViaWorkflow runs activityFn(input) through a workflow with the given
+// HeartbeatTimeout (enforced by the test environment when positive),
+// capturing its heartbeats in hb.
+func executeViaWorkflow(t *testing.T, env *testsuite.TestWorkflowEnvironment, hb *heartbeatCapture, heartbeatTimeout time.Duration, activityFn, input any) error {
 	t.Helper()
+	env.SetWorkerOptions(worker.Options{Interceptors: []interceptor.WorkerInterceptor{hb}})
 	wf := func(ctx workflow.Context) error {
 		actx := workflow.WithActivityOptions(ctx, workflow.ActivityOptions{
 			StartToCloseTimeout: activityStartToCloseTimeout,
@@ -137,21 +154,18 @@ func TestImportEdgeHeartbeatSuite(t *testing.T) {
 func (s *ImportEdgeHeartbeatSuite) TestTeamSkaters_HeartbeatsIncludeUncachedPlayer() {
 	mem := store.NewMemStorage()
 	scope := testScope()
-	// testSkaterID1 is cached (and slow, to space out the next heartbeat);
-	// testSkaterID2 has no cached detail file at all.
+	// testSkaterID1 is cached; testSkaterID2 has no cached detail file at all.
 	seedSeasonRoster(s.T(), mem, testEdgeTeamAbbrev, testEdgeSeasonStartYear, rosterWithForwards(testSkaterID1, testSkaterID2))
 	seedEdgeSkaterDetail(s.T(), mem, testSkaterID1, scope.season, scope.gameType, baseSkaterDetail())
 
 	fake := newFakeEdgeUpserter()
-	fake.setDelay(heartbeatSpacingDelay)
 	act := &SeasonsActivities{Storage: mem, EdgeQueries: fake}
 
 	env := s.NewTestWorkflowEnvironment()
 	hb := newHeartbeatCapture(s.T())
-	env.SetOnActivityHeartbeatListener(hb.listener())
 	env.RegisterActivity(act.ImportEdgeTeamSkaters)
 
-	err := executeViaWorkflow(s.T(), env, testActivityHeartbeatTimeout, act.ImportEdgeTeamSkaters, testTeamInput())
+	err := executeViaWorkflow(s.T(), env, hb, unenforcedHeartbeatTimeout, act.ImportEdgeTeamSkaters, testTeamInput())
 	s.Require().NoError(err)
 
 	details, _ := hb.snapshot()
@@ -168,15 +182,13 @@ func (s *ImportEdgeHeartbeatSuite) TestTeamGoalies_HeartbeatsIncludeUncachedPlay
 	seedEdgeGoalieDetail(s.T(), mem, testGoalieID1, scope.season, scope.gameType, baseGoalieDetail())
 
 	fake := newFakeEdgeUpserter()
-	fake.setDelay(heartbeatSpacingDelay)
 	act := &SeasonsActivities{Storage: mem, EdgeQueries: fake}
 
 	env := s.NewTestWorkflowEnvironment()
 	hb := newHeartbeatCapture(s.T())
-	env.SetOnActivityHeartbeatListener(hb.listener())
 	env.RegisterActivity(act.ImportEdgeTeamGoalies)
 
-	err := executeViaWorkflow(s.T(), env, testActivityHeartbeatTimeout, act.ImportEdgeTeamGoalies, testTeamInput())
+	err := executeViaWorkflow(s.T(), env, hb, unenforcedHeartbeatTimeout, act.ImportEdgeTeamGoalies, testTeamInput())
 	s.Require().NoError(err)
 
 	details, _ := hb.snapshot()
@@ -193,15 +205,13 @@ func (s *ImportEdgeHeartbeatSuite) TestTeam_HeartbeatsForStatsAndZoneTime() {
 	seedEdgeTeamZoneTimeDetail(s.T(), mem, testEdgeTeamID, scope.season, scope.gameType, baseTeamZoneTimeDetail())
 
 	fake := newFakeEdgeUpserter()
-	fake.setDelay(heartbeatSpacingDelay)
 	act := &SeasonsActivities{Storage: mem, EdgeQueries: fake}
 
 	env := s.NewTestWorkflowEnvironment()
 	hb := newHeartbeatCapture(s.T())
-	env.SetOnActivityHeartbeatListener(hb.listener())
 	env.RegisterActivity(act.ImportEdgeTeam)
 
-	err := executeViaWorkflow(s.T(), env, testActivityHeartbeatTimeout, act.ImportEdgeTeam, testTeamInput())
+	err := executeViaWorkflow(s.T(), env, hb, unenforcedHeartbeatTimeout, act.ImportEdgeTeam, testTeamInput())
 	s.Require().NoError(err)
 
 	details, _ := hb.snapshot()
@@ -242,11 +252,10 @@ func (s *ImportEdgeLivenessSuite) TestTeamSkaters_HeartbeatsStayLiveDuringSlowIm
 
 	env := s.NewTestWorkflowEnvironment()
 	hb := newHeartbeatCapture(s.T())
-	env.SetOnActivityHeartbeatListener(hb.listener())
 	env.RegisterActivity(act.ImportEdgeTeamSkaters)
 
 	start := time.Now()
-	err := executeViaWorkflow(s.T(), env, testActivityHeartbeatTimeout, act.ImportEdgeTeamSkaters, testTeamInput())
+	err := executeViaWorkflow(s.T(), env, hb, simulatedHeartbeatTimeout, act.ImportEdgeTeamSkaters, testTeamInput())
 	elapsed := time.Since(start)
 	s.Require().NoError(err)
 
