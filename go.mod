@@ -8,7 +8,7 @@ require (
 	github.com/99designs/gqlgen v0.17.98
 	github.com/alicebob/miniredis/v2 v2.41.0
 	github.com/bsm/redislock v0.10.0
-	github.com/charmbracelet/glamour v1.0.0
+	github.com/charmbracelet/glamour/v2 v2.0.1
 	github.com/charmbracelet/lipgloss/v2 v2.1.1
 	github.com/go-chi/chi/v5 v5.5.0
 	github.com/go-redis/redismock/v9 v9.2.0
