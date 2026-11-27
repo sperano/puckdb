@@ -9,7 +9,7 @@ require (
 	github.com/alicebob/miniredis/v2 v2.41.0
 	github.com/bsm/redislock v0.10.0
 	github.com/charmbracelet/glamour v1.0.0
-	github.com/charmbracelet/lipgloss v1.1.1-0.20250404203927-76690c660834
+	github.com/charmbracelet/lipgloss/v2 v2.1.1
 	github.com/go-chi/chi/v5 v5.5.0
 	github.com/go-redis/redismock/v9 v9.2.0
 	github.com/golang-migrate/migrate/v4 v4.20.1
