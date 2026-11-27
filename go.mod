@@ -40,7 +40,7 @@ require (
 	golang.org/x/time v0.16.0
 	google.golang.org/grpc v1.85.0
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
-	gopkg.in/yaml.v2 v2.4.0
+	gopkg.in/yaml.v3 v3.0.1
 	gopkg.in/yaml.v3 v3.0.1
 	logur.dev/adapter/zerolog v0.6.0
 	logur.dev/logur v0.17.0
