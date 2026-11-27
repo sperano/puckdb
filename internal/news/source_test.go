@@ -64,6 +64,17 @@ func TestParseSourcesRejectsUnknownField(t *testing.T) {
 	assert.ErrorIs(t, err, ErrInvalidSources)
 }
 
+func TestParseSourcesAcceptsEmptyDocument(t *testing.T) {
+	for name, data := range map[string]string{
+		"empty":        "",
+		"comment only": "# no sources yet\n",
+	} {
+		sources, err := ParseSources([]byte(data))
+		require.NoError(t, err, name)
+		assert.Empty(t, sources, name)
+	}
+}
+
 func TestParseSourcesRejectsDuplicateIDs(t *testing.T) {
 	a, b := baseSource(), baseSource()
 	b.Publisher = "B"
