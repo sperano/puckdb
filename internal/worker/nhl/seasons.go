@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
@@ -109,51 +108,73 @@ type FetchSeasonsManifestResult struct {
 }
 
 // FetchSeasonsManifest fetches season data and filters by input range.
-// Uses a 3-layer cache: Redis → filesystem (with staleness check) → NHL API.
-// If the API fails but stale filesystem data exists, falls back to stale data.
+// The cached file decides freshness: while it is younger than
+// config.DefaultSeasonsManifestStaleTTL, the Redis gob copy (else the file)
+// is served; once it is older, missing or cannot be stat'ed, the manifest is
+// downloaded again, whatever Redis holds. Redis is never trusted alone: its
+// TTL is renewed by every reader that repopulates it from the file
+// (cache.GetSeasons included), so a Redis-first lookup could serve one
+// download for days and freeze the in-progress season's StandingsEnd, the
+// last day the season sync fetches and imports. If the API fails but a stale
+// file exists, the stale file is served.
 func (a *SeasonsActivities) FetchSeasonsManifest(ctx context.Context, input *model.SeasonsInput) (FetchSeasonsManifestResult, error) {
-	// Layer 1: Redis gob cache (fastest, short-lived)
+	cached, fresh := a.readCachedManifest(ctx)
+	if fresh {
+		response, origin, err := a.freshManifest(ctx, cached)
+		if err != nil {
+			return FetchSeasonsManifestResult{}, err
+		}
+		return FetchSeasonsManifestResult{Origin: origin, Seasons: filterSeasons(response.Seasons, input, time.Now())}, nil
+	}
+	return a.downloadSeasonsManifest(ctx, input, cached)
+}
+
+// readCachedManifest returns the cached manifest file's bytes (nil when
+// absent or unreadable) and whether it is fresh enough to serve without a
+// download.
+func (a *SeasonsActivities) readCachedManifest(ctx context.Context) ([]byte, bool) {
+	manifestRes := resource.SeasonsManifest{}
+	if !resource.Exists(ctx, a.Storage, manifestRes) {
+		return nil, false
+	}
+	data, err := resource.Read(ctx, a.Storage, manifestRes)
+	if err != nil {
+		log.Debug().Err(err).Msg("Seasons manifest read failed, will refresh")
+		return nil, false
+	}
+	info, err := resource.Stat(ctx, a.Storage, manifestRes)
+	if err != nil {
+		log.Debug().Err(err).Msg("Seasons manifest stat failed, will refresh")
+		return data, false
+	}
+	if time.Since(info.ModTime()) > config.DefaultSeasonsManifestStaleTTL {
+		log.Debug().Time("mod_time", info.ModTime()).Msg("Seasons manifest is stale, will refresh")
+		return data, false
+	}
+	return data, true
+}
+
+// freshManifest serves a fresh cached manifest: the Redis gob copy when
+// present, else the parsed file, which then repopulates Redis.
+func (a *SeasonsActivities) freshManifest(ctx context.Context, data []byte) (nhlapi.SeasonsResponse, core.DataOrigin, error) {
 	if response, ok, _ := a.GobCache.Get[nhlapi.SeasonsResponse](ctx, redisSeasonsManifestKey); ok {
 		log.Debug().Int("count", len(response.Seasons)).Msg("Seasons manifest loaded from Redis")
 		metrics.IncDownload(core.SeasonsManifest, metrics.ResultRedisHit)
-		return FetchSeasonsManifestResult{
-			Origin:  core.OriginRedis,
-			Seasons: filterSeasons(response.Seasons, input, time.Now()),
-		}, nil
+		return response, core.OriginRedis, nil
 	}
-
-	// Layer 2: Filesystem cache with staleness check
-	var staleData []byte
-	manifestRes := resource.SeasonsManifest{}
-	if resource.Exists(ctx, a.Storage, manifestRes) {
-		data, err := resource.Read(ctx, a.Storage, manifestRes)
-		if err == nil {
-			info, statErr := resource.Stat(ctx, a.Storage, manifestRes)
-			isStale := (statErr != nil && !os.IsNotExist(statErr)) ||
-				(statErr == nil && time.Since(info.ModTime()) > config.DefaultSeasonsManifestStaleTTL)
-
-			if !isStale {
-				response, err := resource.SeasonsManifest{}.Parse(data)
-				if err != nil {
-					return FetchSeasonsManifestResult{}, err
-				}
-				metrics.IncDownload(core.SeasonsManifest, metrics.ResultFSHit)
-				gobCacheSeasons(ctx, a.GobCache, response)
-				return FetchSeasonsManifestResult{
-					Origin:  core.OriginFileSystem,
-					Seasons: filterSeasons(response.Seasons, input, time.Now()),
-				}, nil
-			}
-			staleData = data
-			if statErr == nil {
-				log.Debug().Time("mod_time", info.ModTime()).Msg("Seasons manifest is stale, will refresh")
-			} else {
-				log.Debug().Err(statErr).Msg("Seasons manifest stat failed, will refresh")
-			}
-		}
+	response, err := resource.SeasonsManifest{}.Parse(data)
+	if err != nil {
+		return nhlapi.SeasonsResponse{}, core.OriginFileSystem, err
 	}
+	metrics.IncDownload(core.SeasonsManifest, metrics.ResultFSHit)
+	gobCacheSeasons(ctx, a.GobCache, response)
+	return response, core.OriginFileSystem, nil
+}
 
-	// Layer 3: Fetch from NHL API
+// downloadSeasonsManifest fetches the manifest from the NHL API and persists
+// it to the file and Redis, falling back to staleData (the expired cached
+// file, nil when none) when the API fails.
+func (a *SeasonsActivities) downloadSeasonsManifest(ctx context.Context, input *model.SeasonsInput, staleData []byte) (FetchSeasonsManifestResult, error) {
 	seasons, err := a.NHLClient.SeasonStandingManifest(ctx)
 	if err != nil {
 		if len(staleData) > 0 {
@@ -177,6 +198,7 @@ func (a *SeasonsActivities) FetchSeasonsManifest(ctx context.Context, input *mod
 	// already has the data in memory. Skip the Write on a Format error
 	// instead of persisting empty bytes that would corrupt the cache and
 	// break the next Parse.
+	manifestRes := resource.SeasonsManifest{}
 	response := nhlapi.SeasonsResponse{Seasons: seasons}
 	data, err := manifestRes.Format(response)
 	if err != nil {
