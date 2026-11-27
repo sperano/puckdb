@@ -15,7 +15,7 @@ jobs:
       - name: Set up Go
         # v6 installs the toolchain directive's version when go.mod has one,
         # else the go directive's exact (often .0) release.
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
       - name: gofmt
