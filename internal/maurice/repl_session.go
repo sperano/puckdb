@@ -9,7 +9,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/charmbracelet/glamour"
+	"charm.land/glamour/v2"
 	"github.com/rs/zerolog/log"
 	"github.com/sperano/puckdb/internal/llm"
 )

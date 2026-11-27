@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 )
 
 // spinnerInterval is the delay between two frames of the thinking indicator.

@@ -6,16 +6,18 @@
 package news
 
 import (
+	"bytes"
 	_ "embed"
 	"errors"
 	"fmt"
+	"io"
 	"net/url"
 	"os"
 	"slices"
 	"strings"
 	"time"
 
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 )
 
 // Kind says what a source is: an official league/team announcement, a
@@ -147,7 +149,7 @@ func (s Source) Validate() error {
 // unique.
 func ParseSources(data []byte) ([]Source, error) {
 	var file sourcesFile
-	if err := yaml.UnmarshalStrict(data, &file); err != nil {
+	if err := decodeStrict(data, &file); err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrInvalidSources, err)
 	}
 	seen := make(map[string]bool, len(file.Sources))
@@ -217,4 +219,15 @@ func SortByPriority(sources []Source) {
 		}
 		return strings.Compare(a.ID, b.ID)
 	})
+}
+
+// decodeStrict decodes YAML and rejects fields the target doesn't declare
+// (yaml.v2's UnmarshalStrict). An empty document decodes to the zero value.
+func decodeStrict(data []byte, out any) error {
+	dec := yaml.NewDecoder(bytes.NewReader(data))
+	dec.KnownFields(true)
+	if err := dec.Decode(out); err != nil && !errors.Is(err, io.EOF) {
+		return err
+	}
+	return nil
 }
