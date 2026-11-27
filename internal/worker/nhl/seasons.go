@@ -115,16 +115,18 @@ type FetchSeasonsManifestResult struct {
 // TTL is renewed by every reader that repopulates it from the file
 // (cache.GetSeasons included), so a Redis-first lookup could serve one
 // download for days and freeze the in-progress season's StandingsEnd, the
-// last day the season sync fetches and imports. If the API fails but a stale
-// file exists, the stale file is served.
+// last day the season sync fetches and imports. A fresh file that does not
+// parse (with no Redis copy) is downloaded again too, with no fallback. If the
+// API fails but a parseable stale file exists, the stale file is served.
 func (a *SeasonsActivities) FetchSeasonsManifest(ctx context.Context, input *model.SeasonsInput) (FetchSeasonsManifestResult, error) {
 	cached, fresh := a.readCachedManifest(ctx)
 	if fresh {
 		response, origin, err := a.freshManifest(ctx, cached)
-		if err != nil {
-			return FetchSeasonsManifestResult{}, err
+		if err == nil {
+			return FetchSeasonsManifestResult{Origin: origin, Seasons: filterSeasons(response.Seasons, input, time.Now())}, nil
 		}
-		return FetchSeasonsManifestResult{Origin: origin, Seasons: filterSeasons(response.Seasons, input, time.Now())}, nil
+		log.Warn().Err(err).Msg("Fresh seasons manifest does not parse, will refresh")
+		cached = nil
 	}
 	return a.downloadSeasonsManifest(ctx, input, cached)
 }

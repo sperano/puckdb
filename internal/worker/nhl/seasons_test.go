@@ -6,11 +6,11 @@ import (
 	"encoding/gob"
 	"encoding/json"
 	"errors"
-	"github.com/alicebob/miniredis/v2"
 	"os"
 	"testing"
 	"time"
 
+	"github.com/alicebob/miniredis/v2"
 	"github.com/go-redis/redismock/v9"
 	"github.com/redis/go-redis/v9"
 	nhlapi "github.com/sperano/nhl-api-go/nhl"
@@ -390,24 +390,85 @@ func TestDownloadSeasonsManifest_FreshFilesystemHit(t *testing.T) {
 	assert.NoError(t, mockRedis.ExpectationsWereMet())
 }
 
-func TestDownloadSeasonsManifest_FreshFilesystemHit_GetManifestError(t *testing.T) {
+// A fresh file that does not parse must not block the download until it ages
+// out: it is downloaded again and overwritten.
+func TestDownloadSeasonsManifest_FreshCorruptFile_Refreshes(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
 	mem := store.NewMemStorage()
 	redisClient, mockRedis := redismock.NewClientMock()
 	nhlClient := &MockNHLClient{}
+	seasons := []nhlapi.SeasonInfo{
+		{ID: nhlapi.NewSeason(2024), StandingsStart: d("2024-10-04"), StandingsEnd: d("2025-04-17")},
+	}
 
 	mem.SetFileWithTime(resource.SeasonsManifest{}.Path(), []byte("invalid json"), time.Now())
-
 	mockRedis.ExpectGet(redisSeasonsManifestKey).SetErr(redis.Nil)
+	nhlClient.On("SeasonStandingManifest", ctx).Return(seasons, nil)
+	mockRedis.CustomMatch(anySeasonsArgs).ExpectSet(redisSeasonsManifestKey, "x", cache.GobCacheTTL).SetVal("OK")
 
 	result, err := (&SeasonsActivities{Storage: mem, GobCache: cache.NewGobCache(redisClient), NHLClient: nhlClient}).FetchSeasonsManifest(ctx, nil)
 
-	require.Error(t, err)
-	assert.Equal(t, 0, len(result.Seasons))
-	nhlClient.AssertNotCalled(t, "SeasonStandingManifest")
+	require.NoError(t, err)
+	assert.Equal(t, core.OriginRemoteNHLAPI, result.Origin)
+	assert.Equal(t, seasons, result.Seasons)
+	nhlClient.AssertNumberOfCalls(t, "SeasonStandingManifest", 1)
+	written, err := resource.SeasonsManifest{}.Parse(mem.Get(resource.SeasonsManifest{}.Path()))
+	require.NoError(t, err)
+	assert.Equal(t, seasons, written.Seasons)
 	assert.NoError(t, mockRedis.ExpectationsWereMet())
+}
+
+// With a fresh corrupt file and the API down, the API error is returned: the
+// corrupt file is no fallback.
+func TestDownloadSeasonsManifest_FreshCorruptFile_APIError(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	mem := store.NewMemStorage()
+	redisClient, mockRedis := redismock.NewClientMock()
+	nhlClient := &MockNHLClient{}
+	apiErr := errors.New("API unavailable")
+
+	mem.SetFileWithTime(resource.SeasonsManifest{}.Path(), []byte("invalid json"), time.Now())
+	mockRedis.ExpectGet(redisSeasonsManifestKey).SetErr(redis.Nil)
+	nhlClient.On("SeasonStandingManifest", ctx).Return(nil, apiErr)
+
+	result, err := (&SeasonsActivities{Storage: mem, GobCache: cache.NewGobCache(redisClient), NHLClient: nhlClient}).FetchSeasonsManifest(ctx, nil)
+
+	require.ErrorIs(t, err, apiErr)
+	assert.Empty(t, result.Seasons)
+	nhlClient.AssertNumberOfCalls(t, "SeasonStandingManifest", 1)
+	assert.NoError(t, mockRedis.ExpectationsWereMet())
+}
+
+// A Redis copy is never served without the manifest file: the file's age
+// decides, and a missing file means a download.
+func TestDownloadSeasonsManifest_RedisCopyWithoutFile_Downloads(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	mr := miniredis.RunT(t)
+	gobCache := cache.NewGobCache(redis.NewClient(&redis.Options{Addr: mr.Addr()}))
+	mem := store.NewMemStorage()
+	nhlClient := &MockNHLClient{}
+
+	cachedSeasons := []nhlapi.SeasonInfo{
+		{ID: nhlapi.NewSeason(2026), StandingsStart: d("2026-09-29"), StandingsEnd: d("2026-11-22")},
+	}
+	apiSeasons := []nhlapi.SeasonInfo{
+		{ID: nhlapi.NewSeason(2026), StandingsStart: d("2026-09-29"), StandingsEnd: d("2026-11-27")},
+	}
+	require.NoError(t, gobCache.Set(ctx, redisSeasonsManifestKey, nhlapi.SeasonsResponse{Seasons: cachedSeasons}))
+	nhlClient.On("SeasonStandingManifest", ctx).Return(apiSeasons, nil)
+
+	result, err := (&SeasonsActivities{Storage: mem, GobCache: gobCache, NHLClient: nhlClient}).FetchSeasonsManifest(ctx, nil)
+
+	require.NoError(t, err)
+	assert.Equal(t, core.OriginRemoteNHLAPI, result.Origin)
+	assert.Equal(t, apiSeasons, result.Seasons)
+	nhlClient.AssertNumberOfCalls(t, "SeasonStandingManifest", 1)
 }
 
 func TestDownloadSeasonsManifest_StaleFilesystem_APISuccess(t *testing.T) {
