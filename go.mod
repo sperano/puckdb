@@ -11,7 +11,7 @@ require (
 	github.com/alicebob/miniredis/v2 v2.41.0
 	github.com/bsm/redislock v0.10.0
 	github.com/charmbracelet/colorprofile v0.4.3
-	github.com/charmbracelet/x/ansi v0.11.8
+	github.com/charmbracelet/x/ansi v0.12.0
 	github.com/charmbracelet/x/term v0.2.2
 	github.com/go-chi/chi/v5 v5.5.0
 	github.com/go-redis/redismock/v9 v9.2.0
