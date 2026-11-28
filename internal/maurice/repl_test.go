@@ -11,6 +11,7 @@ import (
 	"testing/iotest"
 	"time"
 
+	"github.com/charmbracelet/x/ansi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -427,6 +428,6 @@ func TestRunREPL_ReturnsOnCancellation(t *testing.T) {
 	out, errOut, err := runTestREPLOn(ctx, openTestDB(t), in)
 
 	require.NoError(t, err)
-	assert.True(t, strings.HasSuffix(out, formatPrompt(replTestModels[0].ID)+"\n"), "got %q", out)
+	assert.True(t, strings.HasSuffix(out, ansi.Strip(formatPrompt(replTestModels[0].ID))+"\n"), "got %q", out)
 	assert.Empty(t, errOut)
 }

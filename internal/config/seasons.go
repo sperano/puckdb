@@ -8,7 +8,7 @@ import (
 
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/viper"
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 )
 
 // ErrYahooNotConfigured signals that no Yahoo seasons config file is set.

@@ -8,8 +8,8 @@ import (
 	"io"
 	"strings"
 
-	"github.com/charmbracelet/glamour"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/glamour/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/rs/zerolog/log"
 	"github.com/sperano/puckdb/internal/llm"
 	"github.com/sperano/puckdb/internal/mcp"
@@ -104,18 +104,19 @@ func runREPL(ctx context.Context, cfg REPLConfig, newService func(ModelEntry) Se
 	if err != nil {
 		return fmt.Errorf("select initial model: %w", err)
 	}
-	mdRenderer, err := glamour.NewTermRenderer(glamour.WithAutoStyle(), glamour.WithWordWrap(markdownWrapWidth))
+	mdRenderer, err := glamour.NewTermRenderer(glamour.WithStandardStyle(markdownStyle(cfg.In, cfg.Out)), glamour.WithWordWrap(markdownWrapWidth))
 	if err != nil {
 		return fmt.Errorf("init markdown renderer: %w", err)
 	}
+	out, errOut := styledWriter(cfg.Out), styledWriter(cfg.Err)
 	r := &repl{
 		models:          cfg.Models,
 		providerConfigs: cfg.ProviderConfigs,
 		listLimit:       cfg.ListLimit,
-		out:             cfg.Out,
-		errOut:          cfg.Err,
+		out:             out,
+		errOut:          errOut,
 		markdown:        mdRenderer,
-		spin:            newSpinner(cfg.Out),
+		spin:            newSpinner(out),
 		newService:      newService,
 		entry:           entry,
 		svc:             newService(entry),

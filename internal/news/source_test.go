@@ -8,7 +8,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 )
 
 // enabledDefaultSourceIDs are the sources DefaultSources must enable.
@@ -62,6 +62,17 @@ func TestParseSourcesRejectsUnknownField(t *testing.T) {
 	_, err := ParseSources([]byte(data))
 	require.Error(t, err)
 	assert.ErrorIs(t, err, ErrInvalidSources)
+}
+
+func TestParseSourcesAcceptsEmptyDocument(t *testing.T) {
+	for name, data := range map[string]string{
+		"empty":        "",
+		"comment only": "# no sources yet\n",
+	} {
+		sources, err := ParseSources([]byte(data))
+		require.NoError(t, err, name)
+		assert.Empty(t, sources, name)
+	}
 }
 
 func TestParseSourcesRejectsDuplicateIDs(t *testing.T) {

@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/charmbracelet/glamour"
+	"charm.land/glamour/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -119,10 +119,10 @@ func newTestREPL(t *testing.T, prototype fakeService, providerConfigs map[llm.Pr
 		models:          testREPLModels,
 		providerConfigs: providerConfigs,
 		listLimit:       testListLimit,
-		out:             out,
-		errOut:          errOut,
+		out:             styledWriter(out),
+		errOut:          styledWriter(errOut),
 		markdown:        md,
-		spin:            newSpinner(out),
+		spin:            newSpinner(styledWriter(out)),
 		newService:      services.build,
 		entry:           testREPLModels[0],
 	}
